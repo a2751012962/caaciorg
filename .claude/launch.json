@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mirror",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/michael/Documents/caaciorg/serve-mirror.mjs"],
+      "port": 8799
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/Users/michael/Documents/caaciorg/serve-mirror.mjs", "dist", "8800"],
+      "port": 8800
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+.mepr-form .iti__flag {
+  background-image: url("../images/tel-flags.png");
+}
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .mepr-form .iti__flag {
+    background-image: url("../images/tel-flags-2x.png");
+    background-size: 5652px 15px;
+  }
+}
+
+.mepr-form .iti__country-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.mepr-form .iti__country-list .iti__country {
+  margin: 0;
+}
+
+/* RTL */
+.rtl .mepr-form .iti__selected-flag {
+  padding: 0 8px 0 6px;
+}
+.rtl .mepr-form .iti--separate-dial-code .iti__selected-dial-code,
+.rtl .mepr-form .iti__arrow {
+  margin-left: 0;
+  margin-right: 6px;
+}
+
+.rtl .mepr-form .iti--allow-dropdown .iti__flag-container,
+.rtl .mepr-form .iti--separate-dial-code .iti__flag-container {
+  right: 0;
+  left: auto;
+}
+
+.rtl .mepr-form .iti__country-list {
+  text-align: right;
+}
+
+.rtl .mepr-form .iti__country-list .iti__country {
+  display: flex;
+  align-items: center;
+}
+
+.rtl .mepr-form .iti__country-name,
+.rtl .mepr-form .iti__flag-box {
+  margin-right: 0;
+  margin-left: 6px;
+}
+
+.rtl .mepr-form input[type="tel"] {
+  text-align: right;
+}

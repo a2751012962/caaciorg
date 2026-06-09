@@ -1,0 +1,18 @@
+{
+  "name": "caaci-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Rebuild of caaciorg.com on Cloudflare Pages + Supabase",
+  "scripts": {
+    "mirror": "node mirror.mjs",
+    "build": "node build.mjs",
+    "dev": "npm run build && wrangler pages dev dist",
+    "deploy": "npm run build && wrangler pages deploy dist",
+    "db:push": "supabase db push",
+    "db:seed": "supabase db execute --file supabase/seed.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}

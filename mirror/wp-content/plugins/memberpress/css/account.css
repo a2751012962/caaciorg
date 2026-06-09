@@ -1,0 +1,46 @@
+/* mepr custom styles */
+
+.mepr-white-popup {
+  position: relative;
+  background: #FFF;
+  padding: 20px;
+  width: auto;
+  max-width: 500px;
+  margin: 20px auto;
+  text-align: center;
+}
+
+.mepr-white-popup .mepr-btn {
+  border-radius: 5px;
+  font-family: Arial, sans-serif;
+  color: #fff;
+  font-size: 14px;
+  background: #3498db;
+  padding: 10px 20px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mepr-white-popup .mepr-btn:hover,
+.mepr-white-popup .mepr-btn:active,
+.mepr-white-popup .mepr-btn:focus-visible {
+  background: #3cb0fd;
+  text-decoration: none;
+}
+
+.mepr-white-popup .mepr-btn:focus-visible {
+  outline: dashed #3cb0fd;
+}
+
+.mepr-white-popup .mepr-cancel-sub-text {
+  padding-bottom: 20px;
+}
+
+.mepr-popup-leftalign {
+  text-align: left;
+}
+
+/* Fix dropdown select field */
+.mepr-upgrade-dropdown {
+  width: 100%;
+}

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:caaciorg.com)",
+      "Bash(curl -sL \"https://caaciorg.com/\" -A \"Mozilla/5.0\" -o homepage.html)",
+      "Bash(grep -oiE 'logo[^\"]{0,40}' homepage.html)",
+      "Bash(curl -sL \"https://caaciorg.com/wp-content/uploads/2025/01/CAACI-logo-1-e1737551037290.png\" -A \"Mozilla/5.0\" -o assets/logo.png)",
+      "Bash(curl -sL \"https://caaciorg.com/wp-content/uploads/2024/07/DSC_0664-1280x852.jpg\" -A \"Mozilla/5.0\" -o assets/community.jpg)",
+      "Bash(curl -sL \"https://caaciorg.com/wp-content/uploads/2024/03/DSC_5034.jpg\" -A \"Mozilla/5.0\" -o assets/event.jpg)",
+      "Bash(curl -sL \"https://caaciorg.com/wp-content/uploads/2022/04/cropped-caacimap_orig-1-270x270.gif\" -A \"Mozilla/5.0\" -o assets/favicon.gif)",
+      "Bash(file assets/*)"
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+name = "caaci"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "dist"
+
+# Secrets are NOT stored here. Set them in the Cloudflare dashboard
+# (Pages > Settings > Environment variables) or via:
+#   npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY
+#   npx wrangler pages secret put STRIPE_SECRET_KEY
+#   npx wrangler pages secret put STRIPE_WEBHOOK_SECRET
+#   npx wrangler pages secret put RESEND_API_KEY
+#
+# Public (browser-exposed) values are baked into dist/assets/caaci-config.js at
+# build time from SUPABASE_URL and SUPABASE_ANON_KEY in the build environment.
+#
+# Server-side env (Pages Functions) needs:
+#   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
+#   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
+#   RESEND_API_KEY, NOTIFY_FROM, NOTIFY_TO
