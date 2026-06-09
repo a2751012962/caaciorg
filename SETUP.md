@@ -1,5 +1,10 @@
 # CAACI site — Cloudflare Pages + Supabase
 
+> **LIVE:** https://caaci.pages.dev — deployed & verified (Supabase project
+> `gczslluaxccbnftvfayn`, Cloudflare account `ab3df09b…`, Stripe **test** mode).
+> See "Post-deploy checklist" at the bottom for the remaining go-live steps.
+
+
 A rebuild of **caaciorg.com** on a modern stack. The frontend is a byte-for-byte
 mirror of the live site (so the UI is identical); the WordPress backend
 (MemberPress / WooCommerce / Events Calendar) is replaced by **Supabase**
@@ -84,6 +89,22 @@ Then add the custom domain in the Pages project and point DNS. Set redirects in
 - Submit the contact form → row in `form_submissions` + email arrives.
 - Submit a business listing → row in `business_directory` (pending approval).
 - Log in / log out via `/login/` and `/account/`.
+
+## Post-deploy checklist (remaining go-live steps)
+
+- [ ] **Custom domain**: Cloudflare Pages → project `caaci` → Custom domains →
+      add `caaciorg.com` / `www`, then point DNS. (Will replace the live WordPress.)
+- [ ] **Make yourself admin**: in Supabase SQL editor,
+      `update members set is_admin = true where email = 'you@example.com';`
+- [ ] **Stripe go-live**: swap the `STRIPE_SECRET_KEY` secret for a live key, create
+      a live webhook → `/api/stripe-webhook` (event `checkout.session.completed`),
+      set the new `whsec_…`, and redeploy.
+- [ ] **Email**: set `RESEND_API_KEY` / `NOTIFY_FROM` / `NOTIFY_TO` secrets so the
+      contact + business-listing forms send notifications (they already save to the DB).
+- [ ] **Security**: revoke the temporary Supabase Personal Access Token
+      (dashboard → Account → Access Tokens) now that provisioning is done; rotate the
+      Stripe test key and the Supabase `service_role` key since they passed through chat.
+- [ ] Any time you change a secret, **redeploy** (`npm run deploy`) — Pages binds env at deploy time.
 
 ## Notes / TODO for the org
 - Events: the seed has the 3 annual festivals. Add the rest via the `events` table
