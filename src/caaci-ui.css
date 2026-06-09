@@ -1,0 +1,163 @@
+/* caaci-ui.css — the single source of truth for the CAACI enhancement layer.
+ *
+ * The public site is a byte-for-byte mirror of caaciorg.com (WordPress + Divi),
+ * so its look is fixed. This file does NOT restyle the mirror; it gives the
+ * custom UI we *add* on top (account box, notices, future admin/member pages,
+ * modals) one consistent vocabulary that matches the mirror's brand.
+ *
+ * Tokens below are lifted from the live site's compiled CSS — see UI_GUIDELINE.md
+ * for where each value comes from. Change a value here, not in inline styles.
+ */
+
+:root {
+  /* ---- Brand palette (warm earth tones — the CAACI identity) ---- */
+  --caaci-brick:      #8e2e11;  /* primary action — button bg, section accents  */
+  --caaci-brick-dark: #561100;  /* primary action, hover/pressed                */
+  --caaci-maroon:     #300200;  /* display headings (Playfair)                  */
+  --caaci-red:        #cd5c5c;  /* links, active nav, the Divi "red" scheme key */
+  --caaci-rust:       #ce4327;  /* fixed-header active nav, warm accent         */
+  --caaci-rust-deep:  #aa4e20;  /* dropdown borders, secondary warm accent      */
+  --caaci-clay:       #b27c77;  /* dusty-rose section backgrounds               */
+  --caaci-gold:       #edbb5f;  /* eyebrow/sub-heading accent                   */
+
+  /* ---- Neutrals ---- */
+  --caaci-ink:        #000000;  /* nav + max-contrast text                      */
+  --caaci-body:       rgba(0,0,0,.78); /* default body copy (matches forms)     */
+  --caaci-muted:      #666666;  /* meta, secondary text                         */
+  --caaci-line:       #dfdfe3;  /* input + hairline borders                     */
+  --caaci-fill:       #f3f3f3;  /* subtle panel fill                            */
+  --caaci-surface:    #ffffff;  /* cards / page surface                         */
+  --caaci-plum:       #3d2d33;  /* dark inverted panels                         */
+
+  /* ---- Status ---- */
+  --caaci-success:    #1a7f37;
+  --caaci-error:      #b3261e;
+
+  /* ---- Typography ---- */
+  /* NOTE: the live site overrides everything to cwTeXFangSong for the bilingual
+     layout; we list it first so added UI inherits the same face. */
+  --caaci-font-body:    'cwTeXFangSong', 'Poppins', Helvetica, Arial, sans-serif;
+  --caaci-font-display: 'cwTeXFangSong', 'Playfair Display', Georgia, 'Times New Roman', serif;
+
+  --caaci-fs-display: 48px;  /* hero h1/h2  */
+  --caaci-fs-h2:      38px;  /* section heading */
+  --caaci-fs-h3:      24px;
+  --caaci-fs-body:    18px;  /* line-height 1.8 */
+  --caaci-fs-sm:      16px;
+  --caaci-fs-eyebrow: 14px;  /* uppercase, letter-spacing 1px */
+  --caaci-lh-body:    1.8;
+
+  /* ---- Shape / spacing / motion ---- */
+  --caaci-radius:     3px;   /* the mirror's standard radius */
+  --caaci-radius-0:   0;     /* squared, like the contact-form submit */
+  --caaci-border:     2px solid;
+  --caaci-shadow:     0 15px 80px -6px rgba(0,0,0,.2); /* the mirror's card shadow */
+  --caaci-gap:        24px;
+  --caaci-transition: .2s ease;
+  --caaci-content-max: 1080px; /* mirror .container max-width */
+}
+
+/* ============================================================ Components === */
+/* All custom UI is namespaced with .caaci- so it never collides with Divi. */
+
+/* --- Inline form notice (success / error feedback) --- */
+.caaci-notice {
+  margin-top: 12px;
+  font-family: var(--caaci-font-body);
+  font-weight: 600;
+  color: var(--caaci-success);
+}
+.caaci-notice[data-state="error"] { color: var(--caaci-error); }
+
+/* --- Card / boxed panel (account, member areas) --- */
+.caaci-card {
+  max-width: 620px;
+  margin: 40px auto;
+  padding: 32px var(--caaci-gap);
+  background: var(--caaci-surface);
+  border-radius: var(--caaci-radius);
+  box-shadow: var(--caaci-shadow);
+  font-family: var(--caaci-font-body);
+  color: var(--caaci-body);
+  line-height: var(--caaci-lh-body);
+}
+.caaci-card h1,
+.caaci-card h2 {
+  font-family: var(--caaci-font-display);
+  color: var(--caaci-maroon);
+  letter-spacing: 1px;
+  margin: 0 0 16px;
+}
+.caaci-card a { color: var(--caaci-red); }
+
+/* --- Eyebrow (small uppercase label above a heading) --- */
+.caaci-eyebrow {
+  font-family: var(--caaci-font-body);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: var(--caaci-fs-eyebrow);
+  letter-spacing: 1px;
+  color: var(--caaci-gold);
+}
+
+/* --- Button — matches the mirror's primary action (contact submit) --- */
+.caaci-btn {
+  display: inline-block;
+  font-family: var(--caaci-font-body);
+  font-weight: 600;
+  font-size: var(--caaci-fs-sm);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  /* !important defeats Divi's high-specificity `.et_color_scheme_red a` link
+     color so a .caaci-btn used as an <a> stays white-on-brick. */
+  color: var(--caaci-surface) !important;
+  background: var(--caaci-brick);
+  border: 0;
+  border-radius: var(--caaci-radius);
+  padding: .6em 1.4em;
+  cursor: pointer;
+  transition: background var(--caaci-transition);
+  text-decoration: none;
+}
+.caaci-btn:hover { background: var(--caaci-brick-dark); }
+.caaci-btn--secondary {
+  background: transparent;
+  color: var(--caaci-brick) !important;
+  border: var(--caaci-border);
+  border-color: var(--caaci-brick);
+}
+.caaci-btn--secondary:hover { background: rgba(142,46,17,.06); }
+.caaci-btn[disabled] { opacity: .5; cursor: not-allowed; }
+
+/* --- OAuth / SSO buttons (Google, Microsoft) --- */
+.caaci-oauth {
+  max-width: 360px;
+  margin: 18px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: var(--caaci-font-body);
+}
+.caaci-oauth-sep {
+  text-align: center;
+  color: var(--caaci-muted);
+  font-size: var(--caaci-fs-eyebrow);
+  margin: 6px 0;
+}
+.caaci-oauth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid var(--caaci-line);
+  border-radius: 6px;
+  background: var(--caaci-surface);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--caaci-fs-sm);
+  font-weight: 600;
+  color: var(--caaci-plum);
+  transition: background var(--caaci-transition);
+}
+.caaci-oauth-btn:hover { background: var(--caaci-fill); }

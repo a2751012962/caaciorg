@@ -15,11 +15,12 @@ const api = (path, body, headers = {}) =>
   fetch(path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) })
     .then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) }));
 
+// Styling for all custom UI lives in src/caaci-ui.css (see UI_GUIDELINE.md).
 function notice(el, msg, good = true) {
   let n = el.querySelector('.caaci-notice');
   if (!n) { n = document.createElement('p'); n.className = 'caaci-notice'; el.appendChild(n); }
   n.textContent = msg;
-  n.style.cssText = `margin-top:12px;font-weight:600;color:${good ? '#1a7f37' : '#b3261e'}`;
+  if (good) n.removeAttribute('data-state'); else n.setAttribute('data-state', 'error');
 }
 
 const TIER_BY_SLUG = {
@@ -27,19 +28,52 @@ const TIER_BY_SLUG = {
   'family-membership': 'family', 'business-membership': 'business',
 };
 
-// ---------- Login (MemberPress form: #mepr_loginform, fields log/pwd) ----------
-function wireLogin() {
-  const form = $('#mepr_loginform') || (location.pathname.match(/login/) && $('form'));
-  if (!form || !supa) return;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = (form.querySelector('[name=log]') || {}).value?.trim();
-    const password = (form.querySelector('[name=pwd]') || {}).value;
-    if (!email || !password) return notice(form, 'Enter your email and password.', false);
-    const { error } = await supa.auth.signInWithPassword({ email, password });
-    if (error) return notice(form, error.message, false);
-    location.href = '/account/';
+// ---------- OAuth (Google / Microsoft) ----------
+async function oauth(provider) {
+  if (!supa) return;
+  const { error } = await supa.auth.signInWithOAuth({
+    provider,                                   // 'google' | 'azure' (Microsoft)
+    options: { redirectTo: location.origin + '/account/' },
   });
+  if (error) alert(error.message);
+}
+
+function oauthButtons() {
+  const wrap = document.createElement('div');
+  wrap.className = 'caaci-oauth';
+  const btn = (p, label, svg) =>
+    `<button type="button" class="caaci-oauth-btn" data-p="${p}">${svg}<span>${label}</span></button>`;
+  const gSvg = `<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.4 30.4 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.2C12.3 13.3 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.1 5.3-4.6 7l7.1 5.5c4.2-3.9 6.6-9.6 6.6-16.5z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-2.9-.8-4.6s.3-3.2.8-4.6l-7.9-6.2C1 16.4 0 20.1 0 24s1 7.6 2.6 10.8l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.8-5.8l-7.1-5.5c-2 1.3-4.5 2.1-8.7 2.1-6.4 0-11.7-3.8-13.5-9.4l-7.9 6.2C6.5 42.6 14.6 48 24 48z"/></svg>`;
+  const mSvg = `<svg width="18" height="18" viewBox="0 0 23 23"><path fill="#f25022" d="M1 1h10v10H1z"/><path fill="#7fba00" d="M12 1h10v10H12z"/><path fill="#00a4ef" d="M1 12h10v10H1z"/><path fill="#ffb900" d="M12 12h10v10H12z"/></svg>`;
+  wrap.innerHTML =
+    `<div class="caaci-oauth-sep">— or continue with —</div>` +
+    btn('google', 'Continue with Google', gSvg) +
+    btn('azure', 'Continue with Microsoft', mSvg);
+  wrap.querySelectorAll('button').forEach(b => b.addEventListener('click', () => oauth(b.dataset.p)));
+  return wrap;
+}
+
+// ---------- Login (MemberPress form: #mepr_loginform, fields log/pwd) + OAuth ----------
+function wireLogin() {
+  if (!supa || !/login/.test(location.pathname)) return;
+  const form = $('#mepr_loginform') || $('form:not(.et-search-form)');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = (form.querySelector('[name=log]') || {}).value?.trim();
+      const password = (form.querySelector('[name=pwd]') || {}).value;
+      if (!email || !password) return notice(form, 'Enter your email and password.', false);
+      const { error } = await supa.auth.signInWithPassword({ email, password });
+      if (error) return notice(form, error.message, false);
+      location.href = '/account/';
+    });
+  }
+  // inject the OAuth buttons once, right after the login form (or into the main area)
+  if (!document.querySelector('.caaci-oauth')) {
+    const anchor = form || $('.et_pb_section') || $('main') || document.body;
+    if (form) form.parentNode.insertBefore(oauthButtons(), form.nextSibling);
+    else anchor.prepend(oauthButtons());
+  }
 }
 
 // ---------- Account page: show member, sign out ----------
@@ -48,13 +82,14 @@ async function wireAccount() {
   const { data: { user } } = await supa.auth.getUser();
   const host = $('.et_pb_section') || $('main') || document.body;
   const box = document.createElement('div');
-  box.style.cssText = 'max-width:620px;margin:40px auto;padding:0 24px;font-family:inherit';
+  box.className = 'caaci-card';
   if (!user) {
     box.innerHTML = `<p>You are not logged in. <a href="/login/">Log in</a>.</p>`;
   } else {
     const { data: m } = await supa.from('members').select('*').eq('id', user.id).maybeSingle();
     box.innerHTML = `
-      <h2 style="color:#300200">My Account</h2>
+      <span class="caaci-eyebrow">Membership</span>
+      <h2>My Account</h2>
       <p><b>Email:</b> ${user.email}</p>
       <p><b>Membership:</b> ${m?.tier_id || '—'} (${m?.status || 'none'})</p>
       ${m?.expires_at ? `<p><b>Renews/expires:</b> ${new Date(m.expires_at).toLocaleDateString()}</p>` : ''}
