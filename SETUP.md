@@ -4,7 +4,6 @@
 > `gczslluaxccbnftvfayn`, Cloudflare account `ab3df09b…`, Stripe **test** mode).
 > See "Post-deploy checklist" at the bottom for the remaining go-live steps.
 
-
 A rebuild of **caaciorg.com** on a modern stack. The frontend is a byte-for-byte
 mirror of the live site (so the UI is identical); the WordPress backend
 (MemberPress / WooCommerce / Events Calendar) is replaced by **Supabase**
@@ -26,16 +25,17 @@ wrangler.toml           Cloudflare Pages config (output dir = dist)
 
 ## What carries over vs. not
 
-| Carried over | Not carried over (private origin data) |
-|---|---|
-| 100% identical UI, all pages, all assets (EN + 中文) | Existing member accounts / passwords |
-| Membership tiers + real prices | Order / payment history |
-| Login, signup, account, membership checkout | Original plugin settings |
-| Donations, contact form, business-listing, event RSVP | |
+| Carried over                                          | Not carried over (private origin data) |
+| ----------------------------------------------------- | -------------------------------------- |
+| 100% identical UI, all pages, all assets (EN + 中文)  | Existing member accounts / passwords   |
+| Membership tiers + real prices                        | Order / payment history                |
+| Login, signup, account, membership checkout           | Original plugin settings               |
+| Donations, contact form, business-listing, event RSVP |                                        |
 
 ## One-time setup
 
 ### 1. Supabase
+
 1. Create a project at supabase.com → note **Project URL**, **anon key**, **service_role key**.
 2. Apply the schema (SQL editor → paste, or CLI):
    ```
@@ -48,15 +48,18 @@ wrangler.toml           Cloudflare Pages config (output dir = dist)
    `update members set is_admin = true where email = 'you@example.com';`
 
 ### 2. Stripe
+
 1. Create products are not needed — checkout uses inline `price_data`.
 2. Get the **secret key** (test first: `sk_test_…`).
 3. Add a webhook endpoint → `https://<your-domain>/api/stripe-webhook`, event
    `checkout.session.completed`; copy the **signing secret** (`whsec_…`).
 
 ### 3. Email (Resend)
+
 Create an API key, verify the sending domain, set `NOTIFY_FROM` / `NOTIFY_TO`.
 
 ### 4. Cloudflare Pages
+
 1. `npm install`
 2. Connect this repo to Pages **or** use direct upload (below).
 3. Set environment variables (Pages → Settings → Environment variables) — all from
@@ -72,6 +75,7 @@ cp .env.example .env        # fill in values
 npm run build               # builds dist/ (bakes public config)
 npm run dev                 # wrangler pages dev dist  → http://localhost:8788
 ```
+
 Use Stripe **test mode** + test cards (4242 4242 4242 4242).
 
 ## Deploy
@@ -79,10 +83,12 @@ Use Stripe **test mode** + test cards (4242 4242 4242 4242).
 ```
 npm run deploy              # build + wrangler pages deploy dist
 ```
+
 Then add the custom domain in the Pages project and point DNS. Set redirects in
 `dist/_redirects` if any old URL paths need mapping.
 
 ## Verify end-to-end
+
 - Browse every page, toggle EN/中文 — should look identical to the live site.
 - Sign up → redirected to Stripe → pay (test card) → webhook flips your member row
   to `active` (check the `members` table) → `/account/` shows the membership.
@@ -107,9 +113,13 @@ Then add the custom domain in the Pages project and point DNS. Set redirects in
 - [ ] Any time you change a secret, **redeploy** (`npm run deploy`) — Pages binds env at deploy time.
 
 ## Notes / TODO for the org
+
 - Events: the seed has the 3 annual festivals. Add the rest via the `events` table
   (or build a small admin page) — the live Events Calendar list wasn't in the static mirror.
 - Business directory: seed real listings into `business_directory` (set `approved = true`).
 - Commercial-plugin look is reproduced via the mirror's CSS — no Divi/MemberPress
   license is required on this stack.
+
+```
+
 ```

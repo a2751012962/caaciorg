@@ -1,7 +1,7 @@
 # CAACI — Unified UI Guideline / 统一界面规范
 
 The public site is a **byte-for-byte mirror** of caaciorg.com (WordPress + Divi).
-Its look is therefore *fixed* — we do not restyle it. This guideline governs the
+Its look is therefore _fixed_ — we do not restyle it. This guideline governs the
 **custom UI we layer on top** (login wiring, the account box, form notices, and
 any future member/admin pages or modals) so that everything we add looks like it
 was always part of the site.
@@ -21,16 +21,16 @@ Warm earth tones — a Chinese-American identity in terracotta, maroon, and gold
 Values are lifted from the live site's compiled Divi CSS (the `et_color_scheme_red`
 scheme plus the homepage/contact module).
 
-| Token | Hex | Role |
-|---|---|---|
-| `--caaci-brick` | `#8e2e11` | **Primary action** — button background, section accent borders |
-| `--caaci-brick-dark` | `#561100` | Primary action hover / pressed |
-| `--caaci-maroon` | `#300200` | Display headings (Playfair) |
-| `--caaci-red` | `#cd5c5c` | Links, active nav, the Divi "red" scheme key color |
-| `--caaci-rust` | `#ce4327` | Fixed-header active nav, warm accent |
-| `--caaci-rust-deep` | `#aa4e20` | Dropdown borders, secondary warm accent |
-| `--caaci-clay` | `#b27c77` | Dusty-rose section backgrounds |
-| `--caaci-gold` | `#edbb5f` | Eyebrow / sub-heading accent |
+| Token                | Hex       | Role                                                           |
+| -------------------- | --------- | -------------------------------------------------------------- |
+| `--caaci-brick`      | `#8e2e11` | **Primary action** — button background, section accent borders |
+| `--caaci-brick-dark` | `#561100` | Primary action hover / pressed                                 |
+| `--caaci-maroon`     | `#300200` | Display headings (Playfair)                                    |
+| `--caaci-red`        | `#cd5c5c` | Links, active nav, the Divi "red" scheme key color             |
+| `--caaci-rust`       | `#ce4327` | Fixed-header active nav, warm accent                           |
+| `--caaci-rust-deep`  | `#aa4e20` | Dropdown borders, secondary warm accent                        |
+| `--caaci-clay`       | `#b27c77` | Dusty-rose section backgrounds                                 |
+| `--caaci-gold`       | `#edbb5f` | Eyebrow / sub-heading accent                                   |
 
 **Neutrals:** `--caaci-ink #000` · `--caaci-body rgba(0,0,0,.78)` ·
 `--caaci-muted #666` · `--caaci-line #dfdfe3` (borders) · `--caaci-fill #f3f3f3` ·
@@ -46,10 +46,10 @@ scheme plus the homepage/contact module).
 
 ## 2. Typography
 
-| Use | Stack | Notes |
-|---|---|---|
-| Display / headings | `--caaci-font-display` → `'cwTeXFangSong', 'Playfair Display', Georgia, serif` | Color `--caaci-maroon`, letter-spacing 1–3px |
-| Body / UI | `--caaci-font-body` → `'cwTeXFangSong', 'Poppins', Helvetica, Arial, sans-serif` | line-height 1.8 |
+| Use                | Stack                                                                            | Notes                                        |
+| ------------------ | -------------------------------------------------------------------------------- | -------------------------------------------- |
+| Display / headings | `--caaci-font-display` → `'cwTeXFangSong', 'Playfair Display', Georgia, serif`   | Color `--caaci-maroon`, letter-spacing 1–3px |
+| Body / UI          | `--caaci-font-body` → `'cwTeXFangSong', 'Poppins', Helvetica, Arial, sans-serif` | line-height 1.8                              |
 
 The live site overrides **all** text to `cwTeXFangSong` to keep the EN/中文 layout
 uniform, so it is listed first in both stacks. Added UI inherits the same face
@@ -76,13 +76,13 @@ automatically.
 
 All custom UI is namespaced `.caaci-*` so it can never collide with Divi classes.
 
-| Class | What it is | Use for |
-|---|---|---|
-| `.caaci-notice` | Inline feedback line. Add `data-state="error"` for the red variant. | Form success/error messages |
-| `.caaci-card` | White boxed panel (max 620px, centered, shadowed). | Account area, member panels |
-| `.caaci-eyebrow` | Small uppercase gold label. | Label above a heading |
-| `.caaci-btn` | Filled brick button. | Primary actions |
-| `.caaci-btn--secondary` | Outlined brick button. | Secondary actions |
+| Class                   | What it is                                                          | Use for                     |
+| ----------------------- | ------------------------------------------------------------------- | --------------------------- |
+| `.caaci-notice`         | Inline feedback line. Add `data-state="error"` for the red variant. | Form success/error messages |
+| `.caaci-card`           | White boxed panel (max 620px, centered, shadowed).                  | Account area, member panels |
+| `.caaci-eyebrow`        | Small uppercase gold label.                                         | Label above a heading       |
+| `.caaci-btn`            | Filled brick button.                                                | Primary actions             |
+| `.caaci-btn--secondary` | Outlined brick button.                                              | Secondary actions           |
 
 ### Examples
 
