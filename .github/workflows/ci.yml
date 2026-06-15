@@ -1,9 +1,16 @@
 name: CI
 
 on:
+  # PRs are covered by the pull_request event; pushes only run on main so PRs
+  # don't trigger two identical runs (push + pull_request) for the same commit.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
+
+# Cancel superseded runs on the same ref to avoid wasted parallel runs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 # Least privilege: this workflow only needs to read the repo.
 permissions:

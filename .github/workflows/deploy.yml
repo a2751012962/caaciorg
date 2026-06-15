@@ -13,6 +13,11 @@ permissions:
   deployments: write
   pull-requests: write
 
+# Serialize deploys per ref; never cancel an in-flight deploy mid-publish.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
