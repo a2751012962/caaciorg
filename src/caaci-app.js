@@ -202,8 +202,14 @@ export function wireContact() {
 export async function init() {
   const cfg = (typeof window !== 'undefined' && window.CAACI_CONFIG) || {};
   if (!supa && cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) {
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
-    supa = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    // Wrapped so a failed CDN fetch doesn't block the forms that don't need
+    // Supabase (contact, donate) — they still wire up below.
+    try {
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+      supa = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    } catch (err) {
+      console.warn('caaci-app: Supabase client unavailable —', err);
+    }
   }
   for (const fn of [wireLogin, wireAccount, wireRegister, wireDonate, wireContact]) {
     try {
