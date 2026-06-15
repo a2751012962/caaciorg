@@ -1,23 +1,38 @@
 name: CI
 
 on:
+  # PRs are covered by the pull_request event; pushes only run on main so PRs
+  # don't trigger two identical runs (push + pull_request) for the same commit.
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+
+# Cancel superseded runs on the same ref to avoid wasted parallel runs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: this workflow only needs to read the repo.
+permissions:
+  contents: read
 
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # Actions are pinned to a full commit SHA (supply-chain hardening); the
+      # trailing comment records the human-readable version. Dependabot keeps
+      # these SHAs updated via .github/dependabot.yml (github-actions ecosystem).
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "20"
+          node-version: '20'
+          cache: 'npm'
       - name: Install dependencies
-        run: npm install
-      - name: Syntax check JS sources
-        run: |
-          find src functions *.mjs \( -name '*.js' -o -name '*.mjs' \) -print0 \
-            | xargs -0 -r -n1 node --check
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Check formatting
+        run: npm run format:check
       - name: Build
         run: npm run build

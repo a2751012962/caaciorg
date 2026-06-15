@@ -26,17 +26,22 @@ await cp(MIRROR, DIST, { recursive: true });
 
 // Public runtime config — ONLY the public anon values are exposed to the browser.
 await mkdir(join(DIST, 'assets'), { recursive: true });
-const config = `window.CAACI_CONFIG = ${JSON.stringify({
-  SUPABASE_URL: process.env.SUPABASE_URL || '',
-  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
-}, null, 2)};\n`;
+const config = `window.CAACI_CONFIG = ${JSON.stringify(
+  {
+    SUPABASE_URL: process.env.SUPABASE_URL || '',
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
+  },
+  null,
+  2,
+)};\n`;
 await writeFile(join(DIST, 'assets', 'caaci-config.js'), config);
 await copyFile(join(ROOT, 'src', 'caaci-app.js'), join(DIST, 'assets', 'caaci-app.js'));
 await copyFile(join(ROOT, 'src', 'caaci-ui.css'), join(DIST, 'assets', 'caaci-ui.css'));
 
-const inject = `\n<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +
-               `<script src="/assets/caaci-config.js"></script>\n` +
-               `<script type="module" src="/assets/caaci-app.js"></script>\n`;
+const inject =
+  `\n<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +
+  `<script src="/assets/caaci-config.js"></script>\n` +
+  `<script type="module" src="/assets/caaci-app.js"></script>\n`;
 
 let n = 0;
 for (const f of await walk(DIST)) {

@@ -10,9 +10,16 @@
     "dev": "npm run build && wrangler pages dev dist",
     "deploy": "npm run build && wrangler pages deploy dist",
     "db:push": "supabase db push",
-    "db:seed": "supabase db execute --file supabase/seed.sql"
+    "db:seed": "supabase db execute --file supabase/seed.sql",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "prettier": "^3.6.2",
     "wrangler": "^3.90.0"
   }
 }

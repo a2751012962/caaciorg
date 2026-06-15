@@ -1,0 +1,65 @@
+name: Deploy
+
+# Production deploys on push to main; every PR gets a preview deployment.
+# The deploy step is skipped cleanly (job stays green) until the Cloudflare
+# secrets are configured, and never runs for pull requests from forks.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write
+
+# Serialize deploys per ref; never cancel an in-flight deploy mid-publish.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Skip forked-PR runs: they cannot access secrets and must not deploy.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Check Cloudflare credentials
+        id: creds
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$CF_TOKEN" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo '::warning::CLOUDFLARE_API_TOKEN not set — skipping deploy. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID repo secrets (and optionally SUPABASE_URL / SUPABASE_ANON_KEY) to enable.'
+          fi
+      - name: Build
+        if: steps.creds.outputs.ready == 'true'
+        run: npm run build
+        env:
+          # Public, browser-exposed values baked into dist/ at build time.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      - name: Deploy to Cloudflare Pages
+        if: steps.creds.outputs.ready == 'true'
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          # Pin Wrangler to the 3.x line; the action otherwise defaults to v4.
+          wranglerVersion: '3.90.0'
+          # main -> production; any other branch (PR head) -> preview.
+          command: >-
+            pages deploy dist
+            --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME || 'caaci-site' }}
+            --branch=${{ github.head_ref || github.ref_name }}
