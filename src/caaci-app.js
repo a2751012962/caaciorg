@@ -3,13 +3,14 @@
 // existing WordPress/Divi markup so the UI stays byte-identical while the backend
 // becomes Supabase + Cloudflare Functions. All wiring is feature-detected and
 // wrapped in try/catch so a page without a given form is simply left untouched.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const cfg = window.CAACI_CONFIG || {};
-const supa =
-  cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY
-    ? createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
-    : null;
+// The Supabase client is created lazily inside init() so this module can be
+// imported in a test environment (Node/jsdom) without pulling the remote ESM
+// bundle. Tests inject a fake client via __setSupa().
+let supa = null;
+export function __setSupa(client) {
+  supa = client;
+}
 
 const $ = (s, r = document) => r.querySelector(s);
 const api = (path, body, headers = {}) =>
@@ -20,7 +21,7 @@ const api = (path, body, headers = {}) =>
   }).then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) }));
 
 // Styling for all custom UI lives in src/caaci-ui.css (see UI_GUIDELINE.md).
-function notice(el, msg, good = true) {
+export function notice(el, msg, good = true) {
   let n = el.querySelector('.caaci-notice');
   if (!n) {
     n = document.createElement('p');
@@ -32,7 +33,7 @@ function notice(el, msg, good = true) {
   else n.setAttribute('data-state', 'error');
 }
 
-const TIER_BY_SLUG = {
+export const TIER_BY_SLUG = {
   'student-membership': 'student',
   'individual-membership': 'individual',
   'family-membership': 'family',
@@ -40,7 +41,7 @@ const TIER_BY_SLUG = {
 };
 
 // ---------- OAuth (Google / Microsoft) ----------
-async function oauth(provider) {
+export async function oauth(provider) {
   if (!supa) return;
   const { error } = await supa.auth.signInWithOAuth({
     provider, // 'google' | 'azure' (Microsoft)
@@ -49,7 +50,7 @@ async function oauth(provider) {
   if (error) alert(error.message);
 }
 
-function oauthButtons() {
+export function oauthButtons() {
   const wrap = document.createElement('div');
   wrap.className = 'caaci-oauth';
   const btn = (p, label, svg) =>
@@ -67,7 +68,7 @@ function oauthButtons() {
 }
 
 // ---------- Login (MemberPress form: #mepr_loginform, fields log/pwd) + OAuth ----------
-function wireLogin() {
+export function wireLogin() {
   if (!supa || !/login/.test(location.pathname)) return;
   const form = $('#mepr_loginform') || $('form:not(.et-search-form)');
   if (form) {
@@ -90,7 +91,7 @@ function wireLogin() {
 }
 
 // ---------- Account page: show member, sign out ----------
-async function wireAccount() {
+export async function wireAccount() {
   if (!/account/.test(location.pathname) || !supa) return;
   const {
     data: { user },
@@ -119,9 +120,14 @@ async function wireAccount() {
   });
 }
 
+// Map a register-page pathname (e.g. "/individual-membership/") to a tier slug.
+export function tierFromSlug(pathname) {
+  return TIER_BY_SLUG[pathname.replace(/\/+$/, '').split('/').pop()];
+}
+
 // ---------- Register pages -> signup + Stripe checkout ----------
-function wireRegister() {
-  const tier = TIER_BY_SLUG[location.pathname.replace(/\/+$/, '').split('/').pop()];
+export function wireRegister() {
+  const tier = tierFromSlug(location.pathname);
   if (!tier || !supa) return;
   const form = $('form[id*=mepr], form.mepr-form, form');
   if (!form) return;
@@ -149,7 +155,7 @@ function wireRegister() {
 }
 
 // ---------- Donate page -> Stripe checkout ----------
-function wireDonate() {
+export function wireDonate() {
   if (!/donate/.test(location.pathname)) return;
   const btn = [...document.querySelectorAll('a,button')].find((b) =>
     /donat|give/i.test(b.textContent),
@@ -169,7 +175,7 @@ function wireDonate() {
 }
 
 // ---------- Divi contact form -> /api/contact ----------
-function wireContact() {
+export function wireContact() {
   const form = $('.et_pb_contact_form') || document.querySelector('form[class*=contact]');
   if (!form) return;
   form.addEventListener('submit', async (e) => {
@@ -190,10 +196,29 @@ function wireContact() {
   });
 }
 
-for (const fn of [wireLogin, wireAccount, wireRegister, wireDonate, wireContact]) {
-  try {
-    fn();
-  } catch (err) {
-    console.warn('caaci-app:', err);
+// ---------- Bootstrap ----------
+// Creates the Supabase client (lazy remote import) then runs every wiring fn.
+// Each is feature-detected + isolated so a missing form just no-ops.
+export async function init() {
+  const cfg = (typeof window !== 'undefined' && window.CAACI_CONFIG) || {};
+  if (!supa && cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) {
+    // Wrapped so a failed CDN fetch doesn't block the forms that don't need
+    // Supabase (contact, donate) — they still wire up below.
+    try {
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+      supa = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+    } catch (err) {
+      console.warn('caaci-app: Supabase client unavailable —', err);
+    }
+  }
+  for (const fn of [wireLogin, wireAccount, wireRegister, wireDonate, wireContact]) {
+    try {
+      fn();
+    } catch (err) {
+      console.warn('caaci-app:', err);
+    }
   }
 }
+
+// Auto-run in the browser; skipped under test (window.__CAACI_TEST__) and in Node.
+if (typeof window !== 'undefined' && !window.__CAACI_TEST__) init();

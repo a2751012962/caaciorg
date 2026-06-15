@@ -25,4 +25,14 @@ export default defineConfig([
     files: ['**/*.mjs'],
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: globals.node },
   },
+  {
+    // Unit tests run under `node --test` but drive a jsdom DOM, so they touch
+    // both Node and browser globals.
+    files: ['test/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
 ]);
