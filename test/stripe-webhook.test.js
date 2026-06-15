@@ -33,7 +33,9 @@ test('webhook: bad signature -> 400 when a secret is configured', async () => {
     });
     assert.equal(r.status, 400);
     assert.equal(fetch.calls.length, 0, 'no DB write on a bad signature');
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });
 
 test('webhook: donation completed marks the donation paid', async () => {
@@ -48,10 +50,12 @@ test('webhook: donation completed marks the donation paid', async () => {
       env: fakeEnv({ STRIPE_WEBHOOK_SECRET: SECRET }),
     });
     assert.equal(r.status, 200);
-    const upd = fetch.calls.find(c => c.url.includes('/rest/v1/donations'));
+    const upd = fetch.calls.find((c) => c.url.includes('/rest/v1/donations'));
     assert.match(upd.url, /stripe_session_id=eq\.cs_42/);
     assert.deepEqual(JSON.parse(upd.options.body), { status: 'paid' });
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });
 
 test('webhook: membership completed activates the member with a 1-year expiry', async () => {
@@ -59,25 +63,32 @@ test('webhook: membership completed activates the member with a 1-year expiry', 
   try {
     const payload = JSON.stringify({
       type: 'checkout.session.completed',
-      data: { object: {
-        id: 'cs_99', customer: 'cus_1', subscription: 'sub_1',
-        metadata: { kind: 'membership', member_id: 'u1', tier_id: 'individual' },
-      } },
+      data: {
+        object: {
+          id: 'cs_99',
+          customer: 'cus_1',
+          subscription: 'sub_1',
+          metadata: { kind: 'membership', member_id: 'u1', tier_id: 'individual' },
+        },
+      },
     });
     const r = await onRequestPost({
       request: fakeRequest({ body: payload, headers: { 'stripe-signature': sign(payload) } }),
       env: fakeEnv({ STRIPE_WEBHOOK_SECRET: SECRET }),
     });
     assert.equal(r.status, 200);
-    const upd = fetch.calls.find(c => c.url.includes('/rest/v1/members'));
+    const upd = fetch.calls.find((c) => c.url.includes('/rest/v1/members'));
     assert.match(upd.url, /id=eq\.u1/);
     const patch = JSON.parse(upd.options.body);
     assert.equal(patch.status, 'active');
     assert.equal(patch.tier_id, 'individual');
     assert.equal(patch.stripe_customer_id, 'cus_1');
-    const years = new Date(patch.expires_at).getFullYear() - new Date(patch.member_since).getFullYear();
+    const years =
+      new Date(patch.expires_at).getFullYear() - new Date(patch.member_since).getFullYear();
     assert.equal(years, 1);
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });
 
 test('webhook: skips verification when no secret is set', async () => {
@@ -90,5 +101,7 @@ test('webhook: skips verification when no secret is set', async () => {
     });
     assert.equal(r.status, 200);
     assert.equal(await r.text(), 'ok');
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });

@@ -14,7 +14,9 @@ export function fakeRequest({ url = 'https://caaci.example/api', body, headers =
       if (typeof body === 'string') return JSON.parse(body); // may throw -> "invalid JSON"
       return body;
     },
-    async text() { return raw; },
+    async text() {
+      return raw;
+    },
   };
 }
 
@@ -33,12 +35,18 @@ export function mockFetch(handler) {
     return {
       ok,
       status,
-      async json() { return typeof payload === 'string' ? JSON.parse(payload) : payload; },
-      async text() { return typeof payload === 'string' ? payload : JSON.stringify(payload); },
+      async json() {
+        return typeof payload === 'string' ? JSON.parse(payload) : payload;
+      },
+      async text() {
+        return typeof payload === 'string' ? payload : JSON.stringify(payload);
+      },
     };
   };
   stub.calls = calls;
-  stub.restore = () => { globalThis.fetch = original; };
+  stub.restore = () => {
+    globalThis.fetch = original;
+  };
   globalThis.fetch = stub;
   return stub;
 }

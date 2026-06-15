@@ -8,31 +8,43 @@
 // imported in a test environment (Node/jsdom) without pulling the remote ESM
 // bundle. Tests inject a fake client via __setSupa().
 let supa = null;
-export function __setSupa(client) { supa = client; }
+export function __setSupa(client) {
+  supa = client;
+}
 
 const $ = (s, r = document) => r.querySelector(s);
 const api = (path, body, headers = {}) =>
-  fetch(path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) })
-    .then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) }));
+  fetch(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  }).then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) }));
 
 // Styling for all custom UI lives in src/caaci-ui.css (see UI_GUIDELINE.md).
 export function notice(el, msg, good = true) {
   let n = el.querySelector('.caaci-notice');
-  if (!n) { n = document.createElement('p'); n.className = 'caaci-notice'; el.appendChild(n); }
+  if (!n) {
+    n = document.createElement('p');
+    n.className = 'caaci-notice';
+    el.appendChild(n);
+  }
   n.textContent = msg;
-  if (good) n.removeAttribute('data-state'); else n.setAttribute('data-state', 'error');
+  if (good) n.removeAttribute('data-state');
+  else n.setAttribute('data-state', 'error');
 }
 
 export const TIER_BY_SLUG = {
-  'student-membership': 'student', 'individual-membership': 'individual',
-  'family-membership': 'family', 'business-membership': 'business',
+  'student-membership': 'student',
+  'individual-membership': 'individual',
+  'family-membership': 'family',
+  'business-membership': 'business',
 };
 
 // ---------- OAuth (Google / Microsoft) ----------
 export async function oauth(provider) {
   if (!supa) return;
   const { error } = await supa.auth.signInWithOAuth({
-    provider,                                   // 'google' | 'azure' (Microsoft)
+    provider, // 'google' | 'azure' (Microsoft)
     options: { redirectTo: location.origin + '/account/' },
   });
   if (error) alert(error.message);
@@ -49,7 +61,9 @@ export function oauthButtons() {
     `<div class="caaci-oauth-sep">— or continue with —</div>` +
     btn('google', 'Continue with Google', gSvg) +
     btn('azure', 'Continue with Microsoft', mSvg);
-  wrap.querySelectorAll('button').forEach(b => b.addEventListener('click', () => oauth(b.dataset.p)));
+  wrap
+    .querySelectorAll('button')
+    .forEach((b) => b.addEventListener('click', () => oauth(b.dataset.p)));
   return wrap;
 }
 
@@ -79,7 +93,9 @@ export function wireLogin() {
 // ---------- Account page: show member, sign out ----------
 export async function wireAccount() {
   if (!/account/.test(location.pathname) || !supa) return;
-  const { data: { user } } = await supa.auth.getUser();
+  const {
+    data: { user },
+  } = await supa.auth.getUser();
   const host = $('.et_pb_section') || $('main') || document.body;
   const box = document.createElement('div');
   box.className = 'caaci-card';
@@ -98,7 +114,9 @@ export async function wireAccount() {
   }
   host.prepend(box);
   $('#caaci-logout')?.addEventListener('click', async (e) => {
-    e.preventDefault(); await supa.auth.signOut(); location.href = '/';
+    e.preventDefault();
+    await supa.auth.signOut();
+    location.href = '/';
   });
 }
 
@@ -119,25 +137,40 @@ export function wireRegister() {
     const password = (form.querySelector('[type=password]') || {}).value || crypto.randomUUID();
     const full_name = (form.querySelector('[name*=name],[name*=first]') || {}).value || '';
     if (!email) return notice(form, 'Email is required.', false);
-    const { data, error } = await supa.auth.signUp({ email, password, options: { data: { full_name } } });
+    const { data, error } = await supa.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name } },
+    });
     if (error) return notice(form, error.message, false);
-    const { data: r } = await api('/api/checkout',
-      { type: 'membership', tier_id: tier, email, member_id: data.user?.id });
-    if (r.url) location.href = r.url; else notice(form, r.error || 'Checkout failed.', false);
+    const { data: r } = await api('/api/checkout', {
+      type: 'membership',
+      tier_id: tier,
+      email,
+      member_id: data.user?.id,
+    });
+    if (r.url) location.href = r.url;
+    else notice(form, r.error || 'Checkout failed.', false);
   });
 }
 
 // ---------- Donate page -> Stripe checkout ----------
 export function wireDonate() {
   if (!/donate/.test(location.pathname)) return;
-  const btn = [...document.querySelectorAll('a,button')].find(b => /donat|give/i.test(b.textContent));
+  const btn = [...document.querySelectorAll('a,button')].find((b) =>
+    /donat|give/i.test(b.textContent),
+  );
   if (!btn) return;
   btn.addEventListener('click', async (e) => {
     e.preventDefault();
     const amt = prompt('Donation amount (USD):', '50');
     if (!amt) return;
-    const { data: r } = await api('/api/checkout', { type: 'donation', amount_cents: Math.round(parseFloat(amt) * 100) });
-    if (r.url) location.href = r.url; else alert(r.error || 'Could not start donation.');
+    const { data: r } = await api('/api/checkout', {
+      type: 'donation',
+      amount_cents: Math.round(parseFloat(amt) * 100),
+    });
+    if (r.url) location.href = r.url;
+    else alert(r.error || 'Could not start donation.');
   });
 }
 
@@ -149,10 +182,16 @@ export function wireContact() {
     e.preventDefault();
     const v = (sel) => (form.querySelector(sel) || {}).value || '';
     const { ok, data } = await api('/api/contact', {
-      name: v('[name*=name]'), email: v('[name*=email]'),
-      phone: v('[name*=phone]'), message: v('[name*=message],textarea'),
+      name: v('[name*=name]'),
+      email: v('[name*=email]'),
+      phone: v('[name*=phone]'),
+      message: v('[name*=message],textarea'),
     });
-    notice(form, ok ? 'Thank you! Your message has been sent.' : (data.error || 'Could not send.'), ok);
+    notice(
+      form,
+      ok ? 'Thank you! Your message has been sent.' : data.error || 'Could not send.',
+      ok,
+    );
     if (ok) form.reset();
   });
 }
@@ -167,7 +206,11 @@ export async function init() {
     supa = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
   }
   for (const fn of [wireLogin, wireAccount, wireRegister, wireDonate, wireContact]) {
-    try { fn(); } catch (err) { console.warn('caaci-app:', err); }
+    try {
+      fn();
+    } catch (err) {
+      console.warn('caaci-app:', err);
+    }
   }
 }
 

@@ -36,17 +36,22 @@ test('stripe().call flattens nested objects and arrays into bracket keys', async
     assert.equal(body.get('metadata[kind]'), 'donation');
     assert.equal(body.get('line_items[0][quantity]'), '1');
     assert.equal(body.get('line_items[0][price_data][unit_amount]'), '5000');
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });
 
 test('stripe().call throws with the API error message on a non-ok response', async () => {
-  const fetch = mockFetch(() => ({ ok: false, status: 402, body: { error: { message: 'card declined' } } }));
+  const fetch = mockFetch(() => ({
+    ok: false,
+    status: 402,
+    body: { error: { message: 'card declined' } },
+  }));
   try {
-    await assert.rejects(
-      stripe(fakeEnv()).call('charges', {}),
-      /stripe charges: card declined/,
-    );
-  } finally { fetch.restore(); }
+    await assert.rejects(stripe(fakeEnv()).call('charges', {}), /stripe charges: card declined/);
+  } finally {
+    fetch.restore();
+  }
 });
 
 test('sb().insert sends the service-role headers and return preference', async () => {
@@ -59,7 +64,9 @@ test('sb().insert sends the service-role headers and return preference', async (
     assert.equal(options.method, 'POST');
     assert.equal(options.headers.apikey, 'service-key');
     assert.equal(options.headers.prefer, 'return=representation');
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });
 
 test('sb().insert with returning:false uses return=minimal and resolves null', async () => {
@@ -68,14 +75,18 @@ test('sb().insert with returning:false uses return=minimal and resolves null', a
     const out = await sb(fakeEnv()).insert('rsvps', { event_id: 'e1' }, { returning: false });
     assert.equal(out, null);
     assert.equal(fetch.calls[0].options.headers.prefer, 'return=minimal');
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });
 
 test('sb().insert throws on a non-ok response', async () => {
   const fetch = mockFetch(() => ({ ok: false, status: 409, body: 'conflict' }));
   try {
     await assert.rejects(sb(fakeEnv()).insert('rsvps', {}), /supabase insert rsvps: 409 conflict/);
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });
 
 test('sb().update builds an eq filter with URL-encoded values', async () => {
@@ -85,7 +96,9 @@ test('sb().update builds an eq filter with URL-encoded values', async () => {
     const { url, options } = fetch.calls[0];
     assert.equal(url, 'https://db.example/rest/v1/members?id=eq.a%20b%26c');
     assert.equal(options.method, 'PATCH');
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });
 
 test('sb().selectOne returns the first row, or null when empty', async () => {
@@ -94,12 +107,16 @@ test('sb().selectOne returns the first row, or null when empty', async () => {
     const row = await sb(fakeEnv()).selectOne('membership_tiers', { id: 't1' });
     assert.deepEqual(row, { id: 't1', name: 'Student' });
     assert.match(fetch.calls[0].url, /select=\*&id=eq\.t1&limit=1$/);
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 
   fetch = mockFetch(() => ({ body: [] }));
   try {
     assert.equal(await sb(fakeEnv()).selectOne('membership_tiers', { id: 'none' }), null);
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });
 
 test('sendEmail is a no-op (no fetch) when Resend env is unconfigured', async () => {
@@ -107,7 +124,9 @@ test('sendEmail is a no-op (no fetch) when Resend env is unconfigured', async ()
   try {
     await sendEmail(fakeEnv(), { subject: 's', html: 'h' });
     assert.equal(fetch.calls.length, 0);
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });
 
 test('sendEmail posts to Resend with reply_to when configured', async () => {
@@ -124,5 +143,7 @@ test('sendEmail posts to Resend with reply_to when configured', async () => {
     assert.equal(sent.subject, 'Hi');
     assert.equal(sent.reply_to, 'c@x.com');
     assert.equal(sent.from, 'a@x.com');
-  } finally { fetch.restore(); }
+  } finally {
+    fetch.restore();
+  }
 });

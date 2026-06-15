@@ -1,0 +1,4 @@
+dist/
+mirror/
+node_modules/
+package-lock.json
