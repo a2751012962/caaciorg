@@ -4,7 +4,8 @@
 import { sb } from './_lib.js';
 
 // Verify Stripe's signature (HMAC-SHA256) using Web Crypto (Workers-compatible).
-async function verify(payload, sigHeader, secret) {
+// Exported so the signature logic can be unit-tested directly.
+export async function verify(payload, sigHeader, secret) {
   const parts = Object.fromEntries(sigHeader.split(',').map(p => p.split('=')));
   const t = parts.t, v1 = parts.v1;
   if (!t || !v1) return false;

@@ -19,5 +19,7 @@ jobs:
         run: |
           find src functions *.mjs \( -name '*.js' -o -name '*.mjs' \) -print0 \
             | xargs -0 -r -n1 node --check
+      - name: Unit tests
+        run: npm test
       - name: Build
         run: npm run build
