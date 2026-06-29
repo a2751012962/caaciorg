@@ -10,7 +10,10 @@ pages_build_output_dir = "dist"
 #   npx wrangler pages secret put RESEND_API_KEY
 #
 # Public (browser-exposed) values are baked into dist/assets/caaci-config.js at
-# build time from SUPABASE_URL and SUPABASE_ANON_KEY in the build environment.
+# build time. Because this is a wrangler.toml-managed Pages project, the dashboard
+# only allows Secrets (which Pages does NOT expose to the build step), so build.mjs
+# hardcodes the PUBLIC SUPABASE_URL + SUPABASE_ANON_KEY as defaults. process.env
+# (SUPABASE_URL / SUPABASE_ANON_KEY) still overrides them when set.
 #
 # Server-side env (Pages Functions) needs:
 #   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
