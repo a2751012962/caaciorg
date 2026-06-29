@@ -51,8 +51,12 @@ wrangler.toml           Cloudflare Pages config (output dir = dist)
 
 1. Create products are not needed — checkout uses inline `price_data`.
 2. Get the **secret key** (test first: `sk_test_…`).
-3. Add a webhook endpoint → `https://<your-domain>/api/stripe-webhook`, event
-   `checkout.session.completed`; copy the **signing secret** (`whsec_…`).
+3. Add a webhook endpoint → `https://<your-domain>/api/stripe-webhook`; subscribe
+   these events, then copy the **signing secret** (`whsec_…`):
+   - `checkout.session.completed` — activates a membership / marks a donation paid
+   - `invoice.paid` — renewal: extends the membership another year
+   - `invoice.payment_failed` — flags the member `past_due`
+   - `customer.subscription.deleted` — flags the member `cancelled`
 
 ### 3. Email (Resend)
 
@@ -113,6 +117,30 @@ Then add the custom domain in the Pages project and point DNS. Set redirects in
       (dashboard → Account → Access Tokens) now that provisioning is done; rotate the
       Stripe test key and the Supabase `service_role` key since they passed through chat.
 - [ ] Any time you change a secret, **redeploy** (`npm run deploy`) — Pages binds env at deploy time.
+
+## Admin / back-office panel (`/admin/`)
+
+A branded staff panel lives at **`/admin/`**. It is gated two ways:
+
+- **Client:** the page shows nothing until a logged-in admin session is detected.
+- **Server (authoritative):** every `/api/admin/*` Function calls `requireAdmin`, which
+  validates the caller's Supabase session and re-checks `members.is_admin` with the
+  service-role key (RLS is bypassed by the server, so this check is essential).
+
+To grant access, set `is_admin` on a member (see the admin-bootstrap step below), then
+visit `/admin/` while logged in. The panel provides:
+
+- **Members & Subscriptions** — search/filter/paginate members; edit a member's status,
+  tier, or expiry inline. Subscription state is also updated automatically by the Stripe
+  webhook events listed above.
+- **Compose News** — email an announcement to members (active-only or all) via Resend.
+  Recipients are read server-side and never exposed to the browser; each member gets their
+  own message. Sends are throttled (one per minute) and require an explicit confirm.
+  Requires `RESEND_API_KEY` + `NOTIFY_FROM` to be set. Logged to the `news_posts` table.
+- **Refunds** — placeholder for now; issue refunds in the Stripe Dashboard.
+
+Apply migration `supabase/migrations/0003_admin.sql` (adds the `past_due` status and the
+`news_posts` audit table) before using the panel: `supabase db push`.
 
 ## Notes / TODO for the org
 
