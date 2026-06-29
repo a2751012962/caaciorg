@@ -100,7 +100,7 @@ export async function wireAccount() {
   const box = document.createElement('div');
   box.className = 'caaci-card';
   if (!user) {
-    box.innerHTML = `<p>You are not logged in. <a href="/login/">Log in</a>.</p>`;
+    box.innerHTML = `<p>You are not logged in. <a href="/login-3/">Log in</a>.</p>`;
   } else {
     const { data: m } = await supa.from('members').select('*').eq('id', user.id).maybeSingle();
     box.innerHTML = `
