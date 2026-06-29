@@ -174,3 +174,233 @@
 .caaci-oauth-btn:hover {
   background: var(--caaci-fill);
 }
+
+/* ============================================================ Admin panel === */
+/* Back-office (/admin) UI. Tokens only — see UI_GUIDELINE.md. */
+
+.caaci-admin-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--caaci-gap);
+  padding: 16px clamp(16px, 4vw, 48px);
+  background: var(--caaci-plum);
+  font-family: var(--caaci-font-body);
+}
+.caaci-admin-brand {
+  font-family: var(--caaci-font-display);
+  color: var(--caaci-surface);
+  font-size: var(--caaci-fs-h3);
+  letter-spacing: 1px;
+}
+.caaci-admin-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.caaci-lang-toggle {
+  background: transparent;
+  border: 1px solid var(--caaci-surface);
+  color: var(--caaci-surface);
+  border-radius: var(--caaci-radius);
+  padding: 0.35em 0.8em;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--caaci-transition);
+}
+.caaci-lang-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Tabs */
+.caaci-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: var(--caaci-content-max);
+  margin: 28px auto 0;
+  padding: 0 16px;
+  border-bottom: 2px solid var(--caaci-line);
+  font-family: var(--caaci-font-body);
+}
+.caaci-tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  padding: 12px 18px;
+  font-family: inherit;
+  font-size: var(--caaci-fs-sm);
+  font-weight: 600;
+  color: var(--caaci-muted);
+  cursor: pointer;
+  transition:
+    color var(--caaci-transition),
+    border-color var(--caaci-transition);
+}
+.caaci-tab:hover {
+  color: var(--caaci-brick);
+}
+.caaci-tab[aria-selected='true'] {
+  color: var(--caaci-brick);
+  border-bottom-color: var(--caaci-brick);
+}
+
+/* Wider cards for tables */
+.caaci-panel {
+  max-width: var(--caaci-content-max);
+}
+
+/* Form controls shared by filters / fields / inline editor */
+.caaci-input {
+  font-family: var(--caaci-font-body);
+  font-size: var(--caaci-fs-sm);
+  color: var(--caaci-body);
+  background: var(--caaci-surface);
+  border: 1px solid var(--caaci-line);
+  border-radius: var(--caaci-radius);
+  padding: 9px 12px;
+}
+.caaci-input:focus {
+  outline: 2px solid var(--caaci-gold);
+  outline-offset: 0;
+}
+
+.caaci-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: var(--caaci-gap);
+}
+.caaci-filters .caaci-input {
+  flex: 1 1 180px;
+}
+
+.caaci-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.caaci-field > label {
+  font-weight: 600;
+  font-size: var(--caaci-fs-sm);
+}
+.caaci-field .caaci-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.caaci-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+/* Table */
+.caaci-table-wrap {
+  overflow-x: auto;
+}
+.caaci-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--caaci-font-body);
+  font-size: var(--caaci-fs-sm);
+}
+.caaci-table th,
+.caaci-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--caaci-line);
+  vertical-align: middle;
+}
+.caaci-table th {
+  font-weight: 700;
+  color: var(--caaci-maroon);
+  text-transform: uppercase;
+  font-size: var(--caaci-fs-eyebrow);
+  letter-spacing: 1px;
+}
+.caaci-table tbody tr:hover {
+  background: var(--caaci-fill);
+}
+.caaci-link-btn {
+  background: transparent;
+  border: 0;
+  color: var(--caaci-red);
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.caaci-link-btn:hover {
+  text-decoration: underline;
+}
+
+/* Status badge — color carries state; fill stays neutral */
+.caaci-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--caaci-fill);
+  font-size: var(--caaci-fs-eyebrow);
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  border: 1px solid var(--caaci-line);
+  color: var(--caaci-muted);
+}
+.caaci-badge[data-state='active'] {
+  color: var(--caaci-success);
+  border-color: var(--caaci-success);
+}
+.caaci-badge[data-state='pending'] {
+  color: var(--caaci-rust-deep);
+  border-color: var(--caaci-gold);
+}
+.caaci-badge[data-state='past_due'] {
+  color: var(--caaci-rust);
+  border-color: var(--caaci-rust);
+}
+.caaci-badge[data-state='expired'] {
+  color: var(--caaci-muted);
+  border-color: var(--caaci-muted);
+}
+.caaci-badge[data-state='cancelled'] {
+  color: var(--caaci-error);
+  border-color: var(--caaci-error);
+}
+
+/* Inline editor row */
+.caaci-edit-row > td {
+  background: var(--caaci-fill);
+}
+.caaci-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 6px 0;
+}
+.caaci-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--caaci-fs-eyebrow);
+  font-weight: 600;
+}
+.caaci-edit-msg {
+  margin: 0 0 0 8px;
+}
+
+/* Pager */
+.caaci-pager {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: var(--caaci-gap);
+}
+.caaci-muted-text {
+  color: var(--caaci-muted);
+  font-size: var(--caaci-fs-sm);
+}

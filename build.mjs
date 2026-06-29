@@ -38,6 +38,11 @@ await writeFile(join(DIST, 'assets', 'caaci-config.js'), config);
 await copyFile(join(ROOT, 'src', 'caaci-app.js'), join(DIST, 'assets', 'caaci-app.js'));
 await copyFile(join(ROOT, 'src', 'caaci-ui.css'), join(DIST, 'assets', 'caaci-ui.css'));
 
+// Admin back-office page (hand-authored; mirror/ stays pristine). The HTML loads
+// /assets/caaci-admin.js itself; the inject loop below still adds config + CSS.
+await cp(join(ROOT, 'admin-src'), join(DIST, 'admin'), { recursive: true });
+await copyFile(join(ROOT, 'src', 'caaci-admin.js'), join(DIST, 'assets', 'caaci-admin.js'));
+
 const inject =
   `\n<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +
   `<script src="/assets/caaci-config.js"></script>\n` +

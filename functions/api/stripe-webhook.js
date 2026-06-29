@@ -36,6 +36,32 @@ export async function onRequestPost({ request, env }) {
   const event = JSON.parse(payload);
   const DB = sb(env);
 
+  // The Invoice object moved the subscription reference across API versions:
+  //   legacy (< 2025-03-31.basil): invoice.subscription (string)
+  //   newer:                       invoice.parent.subscription_details.subscription
+  //                                (and per-line under lines.data[].parent…)
+  // Read every known location so renewals/failures match regardless of version.
+  function invoiceSub(inv) {
+    return (
+      inv.subscription ||
+      inv.parent?.subscription_details?.subscription ||
+      inv.lines?.data?.[0]?.subscription ||
+      inv.lines?.data?.[0]?.parent?.subscription_item_details?.subscription ||
+      null
+    );
+  }
+
+  // Find the member behind a subscription invoice/event. Match on the most
+  // precise key first (subscription id), then fall back to customer id.
+  async function findMember({ sub, cust }) {
+    if (sub) {
+      const m = await DB.selectOne('members', { stripe_subscription_id: sub });
+      if (m) return m;
+    }
+    if (cust) return DB.selectOne('members', { stripe_customer_id: cust });
+    return null;
+  }
+
   try {
     if (event.type === 'checkout.session.completed') {
       const s = event.data.object;
@@ -59,6 +85,41 @@ export async function onRequestPost({ request, env }) {
           },
         );
       }
+    } else if (event.type === 'invoice.paid') {
+      // Only RENEWALS extend the membership. The first invoice at signup has
+      // billing_reason 'subscription_create' and is already handled by
+      // checkout.session.completed (which sets the initial year + customer/sub
+      // ids); extending here too would double-count the first year.
+      const inv = event.data.object;
+      if (inv.billing_reason === 'subscription_cycle') {
+        const sub = invoiceSub(inv);
+        const m = await findMember({ sub, cust: inv.customer });
+        if (m) {
+          // Extend from the current expiry if it's still in the future, else from now.
+          const base =
+            m.expires_at && new Date(m.expires_at) > new Date()
+              ? new Date(m.expires_at)
+              : new Date();
+          base.setFullYear(base.getFullYear() + 1);
+          await DB.update(
+            'members',
+            { id: m.id },
+            {
+              status: 'active',
+              expires_at: base.toISOString(),
+              stripe_subscription_id: sub || m.stripe_subscription_id,
+            },
+          );
+        }
+      }
+    } else if (event.type === 'invoice.payment_failed') {
+      const inv = event.data.object;
+      const m = await findMember({ sub: invoiceSub(inv), cust: inv.customer });
+      if (m) await DB.update('members', { id: m.id }, { status: 'past_due' });
+    } else if (event.type === 'customer.subscription.deleted') {
+      const s = event.data.object;
+      const m = await findMember({ sub: s.id, cust: s.customer });
+      if (m) await DB.update('members', { id: m.id }, { status: 'cancelled' });
     }
     return new Response('ok');
   } catch (e) {
