@@ -77,9 +77,21 @@ export function wireLogin() {
       const email = (form.querySelector('[name=log]') || {}).value?.trim();
       const password = (form.querySelector('[name=pwd]') || {}).value;
       if (!email || !password) return notice(form, 'Enter your email and password.', false);
-      const { error } = await supa.auth.signInWithPassword({ email, password });
+      const { data, error } = await supa.auth.signInWithPassword({ email, password });
       if (error) return notice(form, error.message, false);
-      location.href = '/account/';
+      // Admins land in the back-office; everyone else on their account page.
+      // Same is_admin check the /admin/ gate uses (RLS lets a user read their own row).
+      let dest = '/account/';
+      const uid = data?.user?.id;
+      if (uid) {
+        const { data: me } = await supa
+          .from('members')
+          .select('is_admin')
+          .eq('id', uid)
+          .maybeSingle();
+        if (me?.is_admin) dest = '/admin/';
+      }
+      location.href = dest;
     });
   }
   // inject the OAuth buttons once, right after the login form (or into the main area)
