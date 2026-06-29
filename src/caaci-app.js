@@ -197,16 +197,21 @@ export function wireContact() {
 }
 
 // ---------- Bootstrap ----------
-// Creates the Supabase client (lazy remote import) then runs every wiring fn.
-// Each is feature-detected + isolated so a missing form just no-ops.
+// Creates the Supabase client from the self-hosted UMD bundle, then runs every
+// wiring fn. Each is feature-detected + isolated so a missing form just no-ops.
 export async function init() {
   const cfg = (typeof window !== 'undefined' && window.CAACI_CONFIG) || {};
   if (!supa && cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY) {
-    // Wrapped so a failed CDN fetch doesn't block the forms that don't need
-    // Supabase (contact, donate) — they still wire up below.
+    // The Supabase client comes from assets/supabase.js (a self-hosted UMD bundle
+    // loaded as a classic <script> before this module), exposing window.supabase.
+    // Serving it from our own origin removes the runtime dependency on third-party
+    // CDNs like esm.sh, which are blocked/slow on some networks (e.g. China) and
+    // previously left login/account/checkout silently doing nothing. Wrapped so a
+    // missing client doesn't block the forms that don't need it (contact, donate).
     try {
-      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
-      supa = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+      const sb = typeof window !== 'undefined' ? window.supabase : null;
+      if (!sb || !sb.createClient) throw new Error('window.supabase not loaded');
+      supa = sb.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
     } catch (err) {
       console.warn('caaci-app: Supabase client unavailable —', err);
     }
