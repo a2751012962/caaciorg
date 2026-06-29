@@ -2,20 +2,26 @@ name = "caaci"
 compatibility_date = "2024-11-01"
 pages_build_output_dir = "dist"
 
-# Secrets are NOT stored here. Set them in the Cloudflare dashboard
-# (Pages > Settings > Environment variables) or via:
-#   npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY
-#   npx wrangler pages secret put STRIPE_SECRET_KEY
-#   npx wrangler pages secret put STRIPE_WEBHOOK_SECRET
-#   npx wrangler pages secret put RESEND_API_KEY
-#
-# Public (browser-exposed) values are baked into dist/assets/caaci-config.js at
-# build time. Because this is a wrangler.toml-managed Pages project, the dashboard
-# only allows Secrets (which Pages does NOT expose to the build step), so build.mjs
-# hardcodes the PUBLIC SUPABASE_URL + SUPABASE_ANON_KEY as defaults. process.env
-# (SUPABASE_URL / SUPABASE_ANON_KEY) still overrides them when set.
+# Public, browser-safe config — declared here as PLAINTEXT vars (NOT secrets).
+# This is a wrangler.toml-managed Pages project, so the dashboard env UI is locked
+# to "Secrets only"; plaintext variables must be declared here, and the Git build
+# applies them to the Pages Functions runtime. The Supabase anon key is public by
+# design (Row Level Security, not secrecy, protects the data) and is already shipped
+# to every browser, so it is safe to commit. (build.mjs also hardcodes these same
+# values as defaults for the browser bundle dist/assets/caaci-config.js.)
+[vars]
+SUPABASE_URL = "https://gczslluaxccbnftvfayn.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjenNsbHVheGNjYm5mdHZmYXluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMTE3NDUsImV4cCI6MjA5NjU4Nzc0NX0.g3O_oBuAEI8Z9aut8I-u9zgkUfe-COhg9uoLdyRTgs8"
+
+# Secrets are NOT stored here — set them with wrangler (targets production by default):
+#   npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci
+#   npx wrangler pages secret put STRIPE_SECRET_KEY         --project-name=caaci
+#   npx wrangler pages secret put STRIPE_WEBHOOK_SECRET     --project-name=caaci
+#   npx wrangler pages secret put RESEND_API_KEY            --project-name=caaci
+# NOTE: SUPABASE_URL / SUPABASE_ANON_KEY must NOT also exist as secrets — a secret
+# shadows the [vars] value of the same name. They were removed as secrets so the
+# plaintext vars above are authoritative.
 #
 # Server-side env (Pages Functions) needs:
-#   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
-#   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
-#   RESEND_API_KEY, NOTIFY_FROM, NOTIFY_TO
+#   SUPABASE_URL, SUPABASE_ANON_KEY (plaintext above), SUPABASE_SERVICE_ROLE_KEY,
+#   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, RESEND_API_KEY, NOTIFY_FROM, NOTIFY_TO
