@@ -85,7 +85,12 @@ for (const f of await walk(DIST)) {
   if (extname(f) !== '.html') continue;
   let html = await readFile(f, 'utf8');
   if (html.includes('caaci-app.js')) continue;
-  html = html.includes('</body>') ? html.replace('</body>', inject + '</body>') : html + inject;
+  // Inject before the LAST </body>: a page may carry a literal "</body>" inside an
+  // HTML comment (the admin page does), and String.replace would target that first
+  // match — burying the scripts inside the comment so they never run. lastIndexOf
+  // finds the real closing tag.
+  const close = html.lastIndexOf('</body>');
+  html = close === -1 ? html + inject : html.slice(0, close) + inject + html.slice(close);
   if (html.includes('<head>')) html = html.replace('<head>', '<head>\n' + guard);
   await writeFile(f, html);
   n++;
