@@ -53,4 +53,41 @@ for (const f of await walk(DIST)) {
   n++;
 }
 console.log(`Injected enhancement into ${n} HTML pages.`);
+
+// Consolidate the duplicate WordPress login/account pages.
+//   The mirror captured five "login" pages and two "account" pages. Only
+//   /login-3/ and /account/ are wired into the site navigation; the rest are
+//   orphan MemberPress drafts (login-2/4/5 and account-5 have no form at all).
+//   Auth is handled by caaci-app.js (Supabase), so the old form pages were
+//   interchangeable — funnel every duplicate to the single canonical pair.
+const CANON_LOGIN = 'login-3';
+const CANON_ACCOUNT = 'account';
+const REDIRECTS = {
+  login: CANON_LOGIN,
+  'login-2': CANON_LOGIN,
+  'login-4': CANON_LOGIN,
+  'login-5': CANON_LOGIN,
+  'account-5': CANON_ACCOUNT,
+};
+const redirectStub = (to) => {
+  const url = `/${to}/`;
+  // Single template literal (no concatenation) so the markup stays on one line.
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Redirecting…</title><link rel="canonical" href="${url}"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0; url=${url}"><script>location.replace(${JSON.stringify(url)} + location.search + location.hash)</script></head><body>Redirecting to <a href="${url}">${url}</a>…</body></html>\n`;
+};
+let r = 0;
+for (const base of ['', 'zh/']) {
+  for (const [from, to] of Object.entries(REDIRECTS)) {
+    const dir = join(DIST, base + from);
+    try {
+      await stat(dir); // skip if not in the mirror
+      await writeFile(join(dir, 'index.html'), redirectStub(base + to));
+      console.log(`Redirect: /${base + from}/ -> /${base + to}/`);
+      r++;
+    } catch {
+      /* page absent — nothing to consolidate */
+    }
+  }
+}
+console.log(`Consolidated ${r} duplicate login/account pages.`);
+
 console.log('dist/ ready. Deploy with:  npx wrangler pages deploy dist');

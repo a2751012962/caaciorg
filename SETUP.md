@@ -94,7 +94,9 @@ Then add the custom domain in the Pages project and point DNS. Set redirects in
   to `active` (check the `members` table) → `/account/` shows the membership.
 - Submit the contact form → row in `form_submissions` + email arrives.
 - Submit a business listing → row in `business_directory` (pending approval).
-- Log in / log out via `/login/` and `/account/`.
+- Log in / log out via `/login-3/` and `/account/`. (The old duplicate pages —
+  `/login/`, `/login-2/`, `/login-4/`, `/login-5/`, `/account-5/`, plus their
+  `/zh/` copies — now redirect to these two canonical pages.)
 
 ## Post-deploy checklist (remaining go-live steps)
 
