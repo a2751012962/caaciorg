@@ -8,6 +8,7 @@ import {
   tierFromSlug,
   TIER_BY_SLUG,
   wireLogin,
+  wireAccount,
   wireContact,
   wireDonate,
   wireRegister,
@@ -151,6 +152,46 @@ test('wireLogin redirects an admin to /admin/', async () => {
     .dispatchEvent(new Event('submit', { cancelable: true }));
   await tick();
   assert.equal(location.href, '/admin/');
+});
+
+// The mirrored /account/ page is a logged-out snapshot, so it ships with
+// MemberPress's "unauthorized" notice + login form baked in. A logged-in
+// visitor must not see that dead login UI lingering below the account card.
+const ACCOUNT_SNAPSHOT = `<main>
+  <div class="mepr-unauthorized-excerpt">You are unauthorized to view this page.</div>
+  <div class="mepr-login-form-wrap"><form name="mepr_loginform" id="mepr_loginform">
+    <input name="log"><input name="pwd"></form></div>
+</main>`;
+
+test('wireAccount removes the leftover login form for a logged-in member', async () => {
+  setup(ACCOUNT_SNAPSHOT, '/account/');
+  __setSupa({
+    auth: { getUser: async () => ({ data: { user: { id: 'u1', email: 'a@x.com' } } }) },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: { tier_id: 'individual', status: 'active' } }),
+        }),
+      }),
+    }),
+  });
+  await wireAccount();
+  assert.equal(document.querySelector('#mepr_loginform'), null, 'login form removed');
+  assert.equal(
+    document.querySelector('.mepr-unauthorized-excerpt'),
+    null,
+    'unauthorized notice removed',
+  );
+  assert.equal(document.querySelector('.mepr-login-form-wrap'), null, 'login wrap removed');
+  assert.match(document.querySelector('.caaci-card').textContent, /My Account/);
+});
+
+test('wireAccount keeps the login form for a logged-out visitor', async () => {
+  setup(ACCOUNT_SNAPSHOT, '/account/');
+  __setSupa({ auth: { getUser: async () => ({ data: { user: null } }) } });
+  await wireAccount();
+  assert.ok(document.querySelector('#mepr_loginform'), 'login form preserved');
+  assert.match(document.querySelector('.caaci-card').textContent, /not logged in/);
 });
 
 test('wireContact posts the form to /api/contact and resets on success', async () => {
