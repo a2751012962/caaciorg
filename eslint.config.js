@@ -7,7 +7,8 @@ import globals from 'globals';
 //   - functions/**  → Cloudflare Pages Functions (Workers runtime)
 //   - *.mjs         → Node build/tooling scripts
 export default defineConfig([
-  { ignores: ['dist/', 'mirror/', 'node_modules/'] },
+  // Vendored third-party bundle (Supabase UMD) — not our code; don't lint it.
+  { ignores: ['dist/', 'mirror/', 'node_modules/', 'src/supabase.js'] },
   js.configs.recommended,
   {
     files: ['src/**/*.js'],
