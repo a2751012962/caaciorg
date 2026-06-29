@@ -2,3 +2,4 @@ dist/
 mirror/
 node_modules/
 package-lock.json
+src/supabase.js

@@ -37,6 +37,11 @@ const config = `window.CAACI_CONFIG = ${JSON.stringify(
 await writeFile(join(DIST, 'assets', 'caaci-config.js'), config);
 await copyFile(join(ROOT, 'src', 'caaci-app.js'), join(DIST, 'assets', 'caaci-app.js'));
 await copyFile(join(ROOT, 'src', 'caaci-ui.css'), join(DIST, 'assets', 'caaci-ui.css'));
+// Self-hosted Supabase client (UMD) — served from our own origin so the site has
+// NO third-party CDN dependency at runtime. esm.sh and similar CDNs are blocked or
+// unreliable on some networks (e.g. mainland China), which previously left the
+// Supabase client unloaded and made login/account/checkout silently do nothing.
+await copyFile(join(ROOT, 'src', 'supabase.js'), join(DIST, 'assets', 'supabase.js'));
 
 // Admin back-office page (hand-authored; mirror/ stays pristine). The HTML loads
 // /assets/caaci-admin.js itself; the inject loop below still adds config + CSS.
@@ -45,6 +50,7 @@ await copyFile(join(ROOT, 'src', 'caaci-admin.js'), join(DIST, 'assets', 'caaci-
 
 const inject =
   `\n<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +
+  `<script src="/assets/supabase.js"></script>\n` +
   `<script src="/assets/caaci-config.js"></script>\n` +
   `<script type="module" src="/assets/caaci-app.js"></script>\n`;
 
