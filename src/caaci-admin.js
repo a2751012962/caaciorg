@@ -2,12 +2,16 @@
 // Gates on a live Supabase session + members.is_admin (real enforcement is
 // server-side in /api/admin/*; this is UX). All privileged data comes from
 // authenticated API calls, never baked into the page.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
+// The Supabase client comes from the self-hosted UMD bundle (assets/supabase.js,
+// a classic <script> the build injects before this deferred module), which sets
+// window.supabase.createClient. Serving it from our own origin drops the runtime
+// dependency on esm.sh — blocked/slow on some networks (e.g. China), which
+// otherwise leaves this panel stuck on "Checking access…".
 const cfg = window.CAACI_CONFIG || {};
+const sb = window.supabase;
 const supa =
-  cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY
-    ? createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
+  sb && sb.createClient && cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY
+    ? sb.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY)
     : null;
 
 const $ = (s, r = document) => r.querySelector(s);
