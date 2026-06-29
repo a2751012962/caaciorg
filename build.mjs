@@ -54,12 +54,28 @@ const inject =
   `<script src="/assets/caaci-config.js"></script>\n` +
   `<script type="module" src="/assets/caaci-app.js"></script>\n`;
 
+// Native-POST guard, injected at the TOP of <head> so it runs before the login
+// form is ever interactive. The mirrored MemberPress forms carry
+// method="post" action="/login-3/"; on the static host a native submit returns
+// HTTP 405. caaci-app.js normally intercepts the submit to run the Supabase
+// login, but it loads at end-of-body — behind the mirror's render-blocking
+// third-party (GoDaddy/wsimg) scripts — so a visitor on a slow network (e.g.
+// mainland China) can submit before it attaches and hit the 405. This
+// dependency-free inline guard cancels the native submit of the auth forms
+// immediately; the real handler, added later, still performs the login.
+const guard =
+  `<script>(function(){document.addEventListener('submit',function(e){` +
+  `var f=e.target;` +
+  `if(f&&f.tagName==='FORM'&&(f.id==='mepr_loginform'||/mepro?-form/.test(f.className||'')))e.preventDefault();` +
+  `},true);})();</script>\n`;
+
 let n = 0;
 for (const f of await walk(DIST)) {
   if (extname(f) !== '.html') continue;
   let html = await readFile(f, 'utf8');
   if (html.includes('caaci-app.js')) continue;
   html = html.includes('</body>') ? html.replace('</body>', inject + '</body>') : html + inject;
+  if (html.includes('<head>')) html = html.replace('<head>', '<head>\n' + guard);
   await writeFile(f, html);
   n++;
 }
