@@ -102,20 +102,34 @@ test('wireLogin validates empty fields before calling Supabase', async () => {
   assert.ok(document.querySelector('.caaci-oauth'));
 });
 
-test('wireLogin signs in and redirects on success', async () => {
+// Build a minimal Supabase mock: signInWithPassword returns a user, and the
+// chained members query (select -> eq -> maybeSingle) resolves to `member`.
+function loginSupa(member, seen = {}) {
+  return {
+    auth: {
+      signInWithPassword: async (creds) => {
+        Object.assign(seen, creds);
+        return { data: { user: { id: 'u-1' } }, error: null };
+      },
+    },
+    from: () => {
+      const q = {
+        select: () => q,
+        eq: () => q,
+        maybeSingle: async () => ({ data: member }),
+      };
+      return q;
+    },
+  };
+}
+
+test('wireLogin signs in and redirects a non-admin to /account/', async () => {
   setup(
     '<form id="mepr_loginform"><input name="log" value="a@x.com"><input name="pwd" value="pw"></form>',
     '/login/',
   );
   const seen = {};
-  __setSupa({
-    auth: {
-      signInWithPassword: async (creds) => {
-        Object.assign(seen, creds);
-        return { error: null };
-      },
-    },
-  });
+  __setSupa(loginSupa({ is_admin: false }, seen));
   wireLogin();
   document
     .getElementById('mepr_loginform')
@@ -123,6 +137,20 @@ test('wireLogin signs in and redirects on success', async () => {
   await tick();
   assert.deepEqual(seen, { email: 'a@x.com', password: 'pw' });
   assert.equal(location.href, '/account/');
+});
+
+test('wireLogin redirects an admin to /admin/', async () => {
+  setup(
+    '<form id="mepr_loginform"><input name="log" value="boss@x.com"><input name="pwd" value="pw"></form>',
+    '/login/',
+  );
+  __setSupa(loginSupa({ is_admin: true }));
+  wireLogin();
+  document
+    .getElementById('mepr_loginform')
+    .dispatchEvent(new Event('submit', { cancelable: true }));
+  await tick();
+  assert.equal(location.href, '/admin/');
 });
 
 test('wireContact posts the form to /api/contact and resets on success', async () => {
