@@ -66,11 +66,28 @@ Create an API key, verify the sending domain, set `NOTIFY_FROM` / `NOTIFY_TO`.
 
 1. `npm install`
 2. Connect this repo to Pages **or** use direct upload (below).
-3. Set environment variables (Pages → Settings → Environment variables) — all from
-   `.env.example`. Mark the secret ones as **encrypted**:
-   `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`.
-   `SUPABASE_URL` and `SUPABASE_ANON_KEY` must also be present at **build time**
-   (they are baked into `dist/assets/caaci-config.js`).
+3. Set the server-side config. This is a **`wrangler.toml`-managed** project, so the
+   Pages dashboard env UI is locked to **Secrets only** (no plain-text "Variables") —
+   set them with wrangler, which targets the **production** environment by default:
+
+   ```
+   npx wrangler pages secret put SUPABASE_URL              --project-name=caaci
+   npx wrangler pages secret put SUPABASE_ANON_KEY         --project-name=caaci
+   npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci
+   npx wrangler pages secret put STRIPE_SECRET_KEY         --project-name=caaci
+   npx wrangler pages secret put STRIPE_WEBHOOK_SECRET     --project-name=caaci
+   # optional (emails): RESEND_API_KEY, NOTIFY_FROM, NOTIFY_TO
+   ```
+
+   Verify with `wrangler pages secret list --project-name=caaci`. **Currently set on
+   production:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+   `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
+
+   `SUPABASE_URL` / `SUPABASE_ANON_KEY` are public values; `build.mjs` also hardcodes
+   them as defaults for the browser bundle (`dist/assets/caaci-config.js`), so the
+   client works even without the runtime secrets — only the Pages **Functions**
+   (`functions/api/_lib.js`, `rsvp.js`) read them at runtime. **Secret changes bind
+   only on the next deployment**, so redeploy after changing one.
 
 ## Local development
 
