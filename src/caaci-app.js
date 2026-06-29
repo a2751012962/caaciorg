@@ -102,6 +102,13 @@ export async function wireAccount() {
   if (!user) {
     box.innerHTML = `<p>You are not logged in. <a href="/login-3/">Log in</a>.</p>`;
   } else {
+    // The mirrored /account/ page was snapshotted while logged out, so it still
+    // carries MemberPress's "unauthorized" notice + login form. Strip that
+    // leftover markup now that we know the visitor is authenticated, otherwise a
+    // dead login form lingers below our account card.
+    document
+      .querySelectorAll('.mepr-unauthorized-excerpt, .mepr-login-form-wrap, #mepr_loginform')
+      .forEach((el) => el.remove());
     const { data: m } = await supa.from('members').select('*').eq('id', user.id).maybeSingle();
     box.innerHTML = `
       <span class="caaci-eyebrow">Membership</span>
