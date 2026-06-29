@@ -25,11 +25,22 @@ await rm(DIST, { recursive: true, force: true });
 await cp(MIRROR, DIST, { recursive: true });
 
 // Public runtime config — ONLY the public anon values are exposed to the browser.
+// These two values are PUBLIC by design: the anon key is meant to ship to every
+// browser (Row Level Security, not secrecy, protects the data) and is already
+// served in this very file. They are hardcoded as defaults so the Cloudflare Pages
+// Git build always produces a working config: the project's wrangler.toml locks the
+// dashboard to secrets-only, and Pages does not expose runtime secrets to the build
+// step — so build-time env vars are unavailable there. process.env still overrides
+// when set (local/manual builds, other environments). The SERVICE ROLE key is NOT
+// here and never belongs in the build — it stays a Pages Function secret.
+const SUPABASE_URL_DEFAULT = 'https://gczslluaxccbnftvfayn.supabase.co';
+const SUPABASE_ANON_KEY_DEFAULT =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjenNsbHVheGNjYm5mdHZmYXluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMTE3NDUsImV4cCI6MjA5NjU4Nzc0NX0.g3O_oBuAEI8Z9aut8I-u9zgkUfe-COhg9uoLdyRTgs8';
 await mkdir(join(DIST, 'assets'), { recursive: true });
 const config = `window.CAACI_CONFIG = ${JSON.stringify(
   {
-    SUPABASE_URL: process.env.SUPABASE_URL || '',
-    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
+    SUPABASE_URL: process.env.SUPABASE_URL || SUPABASE_URL_DEFAULT,
+    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_DEFAULT,
   },
   null,
   2,
