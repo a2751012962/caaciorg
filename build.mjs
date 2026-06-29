@@ -43,6 +43,11 @@ await copyFile(join(ROOT, 'src', 'caaci-ui.css'), join(DIST, 'assets', 'caaci-ui
 // Supabase client unloaded and made login/account/checkout silently do nothing.
 await copyFile(join(ROOT, 'src', 'supabase.js'), join(DIST, 'assets', 'supabase.js'));
 
+// Admin back-office page (hand-authored; mirror/ stays pristine). The HTML loads
+// /assets/caaci-admin.js itself; the inject loop below still adds config + CSS.
+await cp(join(ROOT, 'admin-src'), join(DIST, 'admin'), { recursive: true });
+await copyFile(join(ROOT, 'src', 'caaci-admin.js'), join(DIST, 'assets', 'caaci-admin.js'));
+
 const inject =
   `\n<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +
   `<script src="/assets/supabase.js"></script>\n` +

@@ -50,7 +50,49 @@ export function sb(env) {
       const rows = await r.json();
       return rows[0] || null;
     },
+    // Multi-row select. `filters` is an array of raw PostgREST clauses, e.g.
+    //   ['status=eq.active', 'or=(full_name.ilike.*ann*,email.ilike.*ann*)']
+    // Returns { rows, total } — total comes from the Content-Range header when
+    // `count` is set ('exact' | 'estimated' | 'planned').
+    async select(
+      table,
+      { columns = '*', filters = [], order, limit = 25, offset = 0, count } = {},
+    ) {
+      const qs = [`select=${columns}`, ...filters, `limit=${limit}`, `offset=${offset}`];
+      if (order) qs.push(`order=${order}`);
+      const h = { ...headers };
+      if (count) h.prefer = `count=${count}`;
+      const r = await fetch(`${base}/rest/v1/${table}?${qs.join('&')}`, { headers: h });
+      if (!r.ok) throw new Error(`supabase select ${table}: ${r.status} ${await r.text()}`);
+      const rows = await r.json();
+      // Content-Range looks like "0-24/137"; the part after the slash is the total.
+      const range = r.headers.get('content-range') || '';
+      const total = range.includes('/') ? Number(range.split('/')[1]) : rows.length;
+      return { rows, total: Number.isFinite(total) ? total : rows.length };
+    },
   };
+}
+
+// --- Admin gate: validate the caller's Supabase session, then confirm is_admin ---
+// Returns { member, user } on success, or { error: Response } to return directly.
+// The is_admin check uses the service-role select (authoritative) — never trust
+// the JWT claims, since admin Functions use sb() which bypasses RLS.
+export async function requireAdmin(request, env) {
+  const auth = request.headers.get('authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!token) return { error: bad('Missing bearer token.', 401) };
+
+  // Validate the access token against Supabase Auth (reflects expiry/revocation).
+  const r = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: env.SUPABASE_ANON_KEY, authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) return { error: bad('Invalid or expired session.', 401) };
+  const user = await r.json();
+  if (!user?.id) return { error: bad('Invalid session.', 401) };
+
+  const member = await sb(env).selectOne('members', { id: user.id }, 'id,email,full_name,is_admin');
+  if (!member || member.is_admin !== true) return { error: bad('Admin access required.', 403) };
+  return { member, user };
 }
 
 // --- Stripe via raw form-encoded API calls ---
@@ -105,4 +147,28 @@ export async function sendEmail(env, { subject, html, replyTo }) {
       ...(replyTo ? { reply_to: replyTo } : {}),
     }),
   });
+}
+
+// Send many DISTINCT messages in one call (Resend batch; max 100 per call) so a
+// large news blast uses few subrequests and stays within the Workers limit.
+// `messages` is an array of { to, subject, html, text? }. Returns how many were
+// accepted. Throws if Resend isn't configured or the call fails.
+export async function sendEmailBatch(env, messages) {
+  if (!env.RESEND_API_KEY || !env.NOTIFY_FROM) throw new Error('Email is not configured.');
+  const r = await fetch('https://api.resend.com/emails/batch', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify(
+      messages.map((m) => ({
+        from: env.NOTIFY_FROM,
+        to: m.to,
+        subject: m.subject,
+        html: m.html,
+        ...(m.text ? { text: m.text } : {}),
+      })),
+    ),
+  });
+  if (!r.ok) throw new Error(`resend batch: ${r.status} ${await r.text()}`);
+  const data = await r.json();
+  return Array.isArray(data?.data) ? data.data.length : messages.length;
 }

@@ -41,7 +41,8 @@ console.log(`Project: ${p.name} (${p.region}) status=${p.status}`);
 console.log('\nApplying migrations…');
 const ok1 = await runSql('schema', 'migrations/0001_init.sql');
 const ok2 = await runSql('RLS', 'migrations/0002_rls.sql');
-const ok3 = await runSql('seed', 'seed.sql');
+const ok3 = await runSql('admin', 'migrations/0003_admin.sql');
+const ok4 = await runSql('seed', 'seed.sql');
 
 console.log('\nFetching API keys…');
 let keysRes = await fetch(`${API}/projects/${REF}/api-keys?reveal=true`, { headers: H });
@@ -71,4 +72,4 @@ env = env
 await writeFile(envPath, env);
 console.log('✓ Wrote anon + service_role keys to .env (values not shown)');
 
-console.log(`\nDone. migrations: ${[ok1, ok2, ok3].filter(Boolean).length}/3 succeeded.`);
+console.log(`\nDone. migrations: ${[ok1, ok2, ok3, ok4].filter(Boolean).length}/4 succeeded.`);
