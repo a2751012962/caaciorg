@@ -327,6 +327,51 @@ test('wireRegister opens checkout; a new visitor signs up then starts membership
   }
 });
 
+test('openCheckout offers OAuth buttons and a log-in toggle for a logged-out visitor', async () => {
+  const fetch = mockFetch(() => ({ ok: true, body: { url: 'https://pay/m2' } }));
+  try {
+    setup('<main></main>', '/membership/');
+    let signedIn = null;
+    __setSupa({
+      auth: {
+        signInWithOAuth: async () => ({}),
+        signInWithPassword: async (creds) => {
+          signedIn = creds;
+          return { data: { user: { id: 'u7' } }, error: null };
+        },
+        signUp: async () => ({ data: { user: { id: 'should-not-be-used' } }, error: null }),
+      },
+    });
+    openCheckout({
+      type: 'membership',
+      tier: { id: 'individual', name: 'Individual', price_cents: 3000 },
+      user: null,
+    });
+    const modal = document.querySelector('.caaci-modal');
+    assert.equal(modal.querySelectorAll('.caaci-oauth-btn').length, 2, 'Google + Microsoft');
+
+    // Toggle from "create account" to "log in": the name field hides.
+    modal.querySelector('#caaci-auth-toggle').click();
+    assert.match(modal.querySelector('.caaci-auth-title').textContent, /Log in/);
+    assert.equal(modal.querySelector('.caaci-auth-name').style.display, 'none');
+
+    modal.querySelector('#caaci-email').value = 'me@x.com';
+    modal.querySelector('#caaci-pwd').value = 'secret';
+    modal.querySelector('.caaci-pay').click();
+    await tick();
+    assert.deepEqual(
+      signedIn,
+      { email: 'me@x.com', password: 'secret' },
+      'signed in, not signed up',
+    );
+    const call = fetch.calls.find((c) => c.url === '/api/checkout');
+    assert.equal(JSON.parse(call.options.body).member_id, 'u7');
+    assert.equal(location.href, 'https://pay/m2');
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('wirePlans renders four join cards and a log-in banner before login', async () => {
   setup('<main></main>', '/membership/');
   __setSupa(plansSupa({ user: null }));
