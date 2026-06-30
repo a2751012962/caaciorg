@@ -70,6 +70,49 @@ export function sb(env) {
       const total = range.includes('/') ? Number(range.split('/')[1]) : rows.length;
       return { rows, total: Number.isFinite(total) ? total : rows.length };
     },
+    async del(table, match) {
+      const qs = Object.entries(match)
+        .map(([k, v]) => `${k}=eq.${encodeURIComponent(v)}`)
+        .join('&');
+      const r = await fetch(`${base}/rest/v1/${table}?${qs}`, {
+        method: 'DELETE',
+        headers: { ...headers, prefer: 'return=minimal' },
+      });
+      if (!r.ok) throw new Error(`supabase delete ${table}: ${r.status} ${await r.text()}`);
+    },
+  };
+}
+
+// --- Supabase Auth Admin API (service-role) — create/delete login accounts ---
+// Used by the admin back-office to add a member (which needs a real auth user so
+// they can sign in) and to fully remove one (cascades to the members row).
+export function authAdmin(env) {
+  const base = env.SUPABASE_URL;
+  const key = env.SUPABASE_SERVICE_ROLE_KEY;
+  const headers = {
+    apikey: key,
+    authorization: `Bearer ${key}`,
+    'content-type': 'application/json',
+  };
+  return {
+    async createUser(attrs) {
+      const r = await fetch(`${base}/auth/v1/admin/users`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(attrs),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        throw new Error(
+          data.msg || data.error_description || data.error || `create user: ${r.status}`,
+        );
+      }
+      return data;
+    },
+    async deleteUser(id) {
+      const r = await fetch(`${base}/auth/v1/admin/users/${id}`, { method: 'DELETE', headers });
+      if (!r.ok) throw new Error(`delete user: ${r.status} ${await r.text()}`);
+    },
   };
 }
 

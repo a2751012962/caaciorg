@@ -48,6 +48,16 @@
         <button
           class="caaci-tab"
           role="tab"
+          data-tab="families"
+          aria-selected="false"
+          data-en="Families"
+          data-zh="家庭"
+        >
+          Families
+        </button>
+        <button
+          class="caaci-tab"
+          role="tab"
           data-tab="news"
           aria-selected="false"
           data-en="Compose News"
@@ -72,6 +82,18 @@
         <h2 data-en="Members &amp; Subscriptions" data-zh="会员与订阅">
           Members &amp; Subscriptions
         </h2>
+        <p>
+          <button
+            type="button"
+            class="caaci-btn"
+            id="caaci-member-add-btn"
+            data-en="+ Add member"
+            data-zh="+ 添加会员"
+          >
+            + Add member
+          </button>
+        </p>
+        <div id="caaci-member-add-host"></div>
         <div class="caaci-filters">
           <input
             type="search"
@@ -130,6 +152,37 @@
           </button>
         </div>
         <p class="caaci-notice" id="caaci-members-notice" hidden></p>
+      </section>
+
+      <!-- ============ Families ============ -->
+      <section class="caaci-card caaci-panel" data-panel="families" hidden>
+        <div class="caaci-panel-head">
+          <div>
+            <span class="caaci-eyebrow" data-en="Family memberships" data-zh="家庭会员"
+              >Family memberships</span
+            >
+            <h2 data-en="Families" data-zh="家庭">Families</h2>
+          </div>
+          <button
+            type="button"
+            class="caaci-btn"
+            id="caaci-family-add-btn"
+            data-en="+ New family"
+            data-zh="+ 新建家庭"
+          >
+            + New family
+          </button>
+        </div>
+        <p
+          class="caaci-muted-text"
+          data-en="A family covers several people under one membership. Link login accounts via a member's Family field; add members without their own login (children, a spouse) below."
+          data-zh="一个家庭会员可涵盖多人。通过会员的“家庭”字段关联登录账户；在下方添加没有独立登录的成员（如子女、配偶）。"
+        >
+          A family covers several people under one membership.
+        </p>
+        <div id="caaci-family-form-host"></div>
+        <p class="caaci-notice" id="caaci-families-notice" hidden></p>
+        <div id="caaci-families-list"></div>
       </section>
 
       <!-- ============ Compose News ============ -->
