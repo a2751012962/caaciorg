@@ -40,6 +40,343 @@ export const TIER_BY_SLUG = {
   'business-membership': 'business',
 };
 
+// ~3.5% card surcharge — must match CARD_SURCHARGE in functions/api/checkout.js
+// and functions/api/change-plan.js.
+export const CARD_SURCHARGE = 0.035;
+
+// Fallback tier catalogue (mirrors supabase/seed.sql). Used verbatim when
+// Supabase isn't configured, and merged over live rows so the plan view and
+// checkout summary always render. Keep ids/prices in sync with the seed.
+export const TIERS_FALLBACK = [
+  {
+    id: 'student',
+    name: 'Student Membership',
+    name_zh: '学生会员',
+    price_cents: 1000,
+    description: 'For currently enrolled college students.',
+    highlight: 'Best for students',
+  },
+  {
+    id: 'individual',
+    name: 'Individual Membership',
+    name_zh: '个人会员',
+    price_cents: 3000,
+    description: 'Full membership for one person.',
+    highlight: 'Most popular',
+    featured: true,
+  },
+  {
+    id: 'family',
+    name: 'Family Membership',
+    name_zh: '家庭会员',
+    price_cents: 6000,
+    description: 'Covers your whole household.',
+    highlight: 'Best value',
+  },
+  {
+    id: 'business',
+    name: 'Business Membership',
+    name_zh: '商业会员',
+    price_cents: 10000,
+    description: 'Includes a listing in the business directory.',
+    highlight: 'For businesses',
+  },
+];
+
+export const usd = (cents) => `$${(cents / 100).toFixed(2)}`;
+export const withFee = (cents) => Math.round(cents * (1 + CARD_SURCHARGE)); // total charged on card
+
+// Resolve a promise but give up after `ms`, returning `fallback` — so a slow or
+// unreachable Supabase never blocks the UI from rendering. The timer is cleared
+// once the race settles so it never lingers past the work it was guarding.
+const withTimeout = (promise, ms, fallback) => {
+  let t;
+  const timer = new Promise((r) => {
+    t = setTimeout(() => r(fallback), ms);
+  });
+  return Promise.race([promise, timer]).finally(() => clearTimeout(t));
+};
+
+// Merge live membership_tiers (if any) over the fallback, preserving order/labels.
+export async function loadTiers() {
+  const base = TIERS_FALLBACK.map((t) => ({ ...t }));
+  if (!supa) return base;
+  try {
+    const { data } = await withTimeout(
+      supa.from('membership_tiers').select('*').eq('active', true),
+      3500,
+      { data: null },
+    );
+    if (Array.isArray(data)) {
+      for (const row of data) {
+        const t = base.find((b) => b.id === row.id);
+        if (t)
+          Object.assign(t, {
+            name: row.name || t.name,
+            price_cents: row.price_cents ?? t.price_cents,
+            description: row.description || t.description,
+          });
+        else base.push({ ...row, highlight: '' });
+      }
+    }
+  } catch (e) {
+    console.warn('caaci-app: loadTiers', e);
+  }
+  return base.sort((a, b) => a.price_cents - b.price_cents);
+}
+
+export async function currentMember() {
+  if (!supa) return { user: null, member: null };
+  const { data: { user } = { user: null } } = await withTimeout(supa.auth.getUser(), 3500, {
+    data: { user: null },
+  });
+  if (!user) return { user: null, member: null };
+  const { data: member } = await withTimeout(
+    supa.from('members').select('*').eq('id', user.id).maybeSingle(),
+    3500,
+    { data: null },
+  );
+  return { user, member };
+}
+
+// ---------- Checkout (review + account step; card entry is on Stripe) ----------
+// opts: { type:'membership', tier, user, member, allTiers } | { type:'donation' }
+export function openCheckout(opts) {
+  document.querySelector('.caaci-modal')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'caaci-modal';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+
+  const isDonation = opts.type === 'donation';
+  const loggedIn = !!opts.user;
+  // A switch = a signed-in member with an active membership picking a different tier.
+  const fromTier = opts.member?.status === 'active' ? opts.member?.tier_id : null;
+  const isSwitch = !isDonation && loggedIn && fromTier && fromTier !== opts.tier?.id;
+
+  // ----- left column: account / amount fields -----
+  let mainHTML;
+  if (isDonation) {
+    mainHTML = `
+      <h2>Make a donation <span lang="zh">· 捐款</span></h2>
+      <div class="caaci-toggle" role="group" aria-label="Frequency">
+        <button type="button" data-freq="once" aria-pressed="true">One-time · 一次</button>
+        <button type="button" data-freq="month" aria-pressed="false">Monthly · 每月</button>
+      </div>
+      <div class="caaci-chips">
+        ${[2500, 5000, 10000, 25000]
+          .map(
+            (c, i) =>
+              `<button type="button" class="caaci-chip" data-amt="${c}" aria-pressed="${i === 1}">${usd(c)}</button>`,
+          )
+          .join('')}
+      </div>
+      <div class="caaci-field">
+        <label for="caaci-amt">Amount (USD) · 金额</label>
+        <input id="caaci-amt" type="number" min="1" step="1" value="50" inputmode="decimal">
+      </div>
+      <div class="caaci-field"><label for="caaci-name">Name · 姓名 <small>(optional)</small></label><input id="caaci-name" type="text" autocomplete="name"></div>
+      <div class="caaci-field"><label for="caaci-email">Email · 邮箱 <small>(optional)</small></label><input id="caaci-email" type="email" autocomplete="email"></div>`;
+  } else if (isSwitch) {
+    const fromName = (opts.allTiers || []).find((t) => t.id === fromTier)?.name || fromTier;
+    mainHTML = `
+      <h2>Change your plan <span lang="zh">· 更改方案</span></h2>
+      <p>Signed in as <b>${opts.user.email}</b>.</p>
+      <p class="caaci-switch-from"><span>${fromName}</span><span aria-hidden="true">→</span><span>${opts.tier.name}</span></p>
+      <p style="color:var(--caaci-muted);font-size:var(--caaci-fs-sm)">
+        We'll update your current subscription right away. Stripe prorates the
+        difference for the rest of this billing period; your renewal date stays the same.
+        <span lang="zh">将立即更新您当前的订阅，Stripe 会按本计费周期剩余时间计算差额，续费日期不变。</span></p>`;
+  } else if (loggedIn) {
+    mainHTML = `
+      <h2>Confirm your membership <span lang="zh">· 确认会员</span></h2>
+      <p>Signed in as <b>${opts.user.email}</b>.</p>
+      <p style="color:var(--caaci-muted);font-size:var(--caaci-fs-sm)">
+        Your membership renews automatically each year. You can cancel anytime from your account.
+        <span lang="zh">会员资格每年自动续费，可随时在账户中取消。</span></p>`;
+  } else {
+    mainHTML = `
+      <h2>Create your account <span lang="zh">· 创建账户</span></h2>
+      <div class="caaci-field"><label for="caaci-name">Full name · 姓名</label><input id="caaci-name" type="text" autocomplete="name"></div>
+      <div class="caaci-field"><label for="caaci-email">Email · 邮箱</label><input id="caaci-email" type="email" autocomplete="email" required></div>
+      <div class="caaci-field"><label for="caaci-pwd">Password · 密码</label><input id="caaci-pwd" type="password" autocomplete="new-password" required></div>`;
+  }
+
+  // ----- right column: order summary -----
+  const lock = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
+  overlay.innerHTML = `
+    <div class="caaci-checkout">
+      <button type="button" class="caaci-checkout-close" aria-label="Close">&times;</button>
+      <div class="caaci-checkout-main">${mainHTML}</div>
+      <aside class="caaci-summary">
+        <span class="caaci-eyebrow">Order summary · 订单</span>
+        <h3 class="caaci-summary-title"></h3>
+        <div class="caaci-summary-lines"></div>
+        <button type="button" class="caaci-btn caaci-pay"></button>
+        <p class="caaci-trust">${lock}<span>Secure checkout on Stripe. We never see your card details.<br><span lang="zh">由 Stripe 安全处理，我们不会接触您的卡信息。</span></span></p>
+      </aside>
+    </div>`;
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') close();
+  };
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+  overlay.querySelector('.caaci-checkout-close').addEventListener('click', close);
+  document.addEventListener('keydown', onKey);
+
+  const titleEl = overlay.querySelector('.caaci-summary-title');
+  const linesEl = overlay.querySelector('.caaci-summary-lines');
+  const payEl = overlay.querySelector('.caaci-pay');
+  const mainEl = overlay.querySelector('.caaci-checkout-main');
+
+  // ----- donation: live amount state -----
+  if (isDonation) {
+    let freq = 'once';
+    const amtInput = overlay.querySelector('#caaci-amt');
+    const refresh = () => {
+      const cents = Math.round(parseFloat(amtInput.value || '0') * 100);
+      titleEl.textContent =
+        freq === 'month' ? 'Monthly donation · 每月捐款' : 'One-time donation · 一次性捐款';
+      linesEl.innerHTML = `<div class="caaci-line caaci-line--total"><span>Total · 合计</span><span>${usd(cents || 0)}${freq === 'month' ? '/mo' : ''}</span></div>`;
+      payEl.textContent = cents ? `Donate ${usd(cents)} · 捐赠` : 'Donate · 捐赠';
+    };
+    overlay.querySelectorAll('.caaci-chip').forEach((chip) =>
+      chip.addEventListener('click', () => {
+        overlay
+          .querySelectorAll('.caaci-chip')
+          .forEach((c) => c.setAttribute('aria-pressed', 'false'));
+        chip.setAttribute('aria-pressed', 'true');
+        amtInput.value = (parseInt(chip.dataset.amt, 10) / 100).toString();
+        refresh();
+      }),
+    );
+    overlay.querySelectorAll('[data-freq]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        overlay
+          .querySelectorAll('[data-freq]')
+          .forEach((b) => b.setAttribute('aria-pressed', 'false'));
+        btn.setAttribute('aria-pressed', 'true');
+        freq = btn.dataset.freq;
+        refresh();
+      }),
+    );
+    amtInput.addEventListener('input', () => {
+      overlay
+        .querySelectorAll('.caaci-chip')
+        .forEach((c) => c.setAttribute('aria-pressed', 'false'));
+      refresh();
+    });
+    refresh();
+
+    payEl.addEventListener('click', async () => {
+      const cents = Math.round(parseFloat(amtInput.value || '0') * 100);
+      if (!cents || cents < 100)
+        return notice(mainEl, 'Minimum donation is $1. · 最低 $1。', false);
+      payEl.disabled = true;
+      payEl.textContent = 'Redirecting… · 跳转中…';
+      const { data: r } = await api('/api/checkout', {
+        type: 'donation',
+        amount_cents: cents,
+        recurring: freq === 'month',
+        name: (overlay.querySelector('#caaci-name') || {}).value || '',
+        email: (overlay.querySelector('#caaci-email') || {}).value || '',
+      });
+      if (r.url) location.href = r.url;
+      else {
+        payEl.disabled = false;
+        refresh();
+        notice(mainEl, r.error || 'Could not start donation.', false);
+      }
+    });
+
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  // ----- membership: order summary -----
+  const tier = opts.tier;
+  const total = withFee(tier.price_cents);
+  const fee = total - tier.price_cents;
+  titleEl.textContent = tier.name;
+  linesEl.innerHTML = `
+    <div class="caaci-line"><span>${tier.name} · billed yearly</span><span>${usd(tier.price_cents)}</span></div>
+    <div class="caaci-line"><span>Card processing fee (3.5%)</span><span>${usd(fee)}</span></div>
+    <div class="caaci-line caaci-line--total"><span>${isSwitch ? 'New rate · 新费率' : 'Total today · 今日合计'}</span><span>${usd(total)}/yr</span></div>
+    ${isSwitch ? `<p class="caaci-note">Prorated difference is charged today. · 今日按差额计费。</p>` : ''}`;
+  const payLabel = isSwitch ? 'Confirm change · 确认更改' : 'Continue to payment · 前往支付';
+  payEl.textContent = payLabel;
+
+  payEl.addEventListener('click', async () => {
+    // Switch path: update the existing subscription in place — no redirect.
+    if (isSwitch) {
+      payEl.disabled = true;
+      payEl.textContent = 'Updating… · 更新中…';
+      const { data: r } = await api('/api/change-plan', {
+        member_id: opts.user.id,
+        tier_id: tier.id,
+      });
+      if (r.url) {
+        location.href = r.url; // fell back to a fresh Checkout
+        return;
+      }
+      if (r.ok) {
+        notice(mainEl, 'Your plan has been updated. · 方案已更新。', true);
+        setTimeout(() => location.reload(), 1200);
+        return;
+      }
+      payEl.disabled = false;
+      payEl.textContent = payLabel;
+      return notice(mainEl, r.error || 'Could not change your plan.', false);
+    }
+
+    let email = opts.user?.email;
+    let memberId = opts.user?.id;
+    if (!loggedIn) {
+      email = (overlay.querySelector('#caaci-email') || {}).value?.trim();
+      const password = (overlay.querySelector('#caaci-pwd') || {}).value || crypto.randomUUID();
+      const full_name = (overlay.querySelector('#caaci-name') || {}).value || '';
+      if (!email) return notice(mainEl, 'Email is required. · 请填写邮箱。', false);
+      payEl.disabled = true;
+      payEl.textContent = 'Creating account…';
+      const { data, error } = await supa.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name } },
+      });
+      if (error) {
+        payEl.disabled = false;
+        payEl.textContent = payLabel;
+        return notice(mainEl, error.message, false);
+      }
+      memberId = data.user?.id;
+    }
+    payEl.disabled = true;
+    payEl.textContent = 'Redirecting… · 跳转中…';
+    const { data: r } = await api('/api/checkout', {
+      type: 'membership',
+      tier_id: tier.id,
+      email,
+      member_id: memberId,
+    });
+    if (r.url) location.href = r.url;
+    else {
+      payEl.disabled = false;
+      payEl.textContent = payLabel;
+      notice(mainEl, r.error || 'Checkout failed.', false);
+    }
+  });
+
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
 // ---------- OAuth (Google / Microsoft) ----------
 export async function oauth(provider) {
   if (!supa) return;
@@ -144,52 +481,128 @@ export function tierFromSlug(pathname) {
   return TIER_BY_SLUG[pathname.replace(/\/+$/, '').split('/').pop()];
 }
 
-// ---------- Register pages -> signup + Stripe checkout ----------
-export function wireRegister() {
-  const tier = tierFromSlug(location.pathname);
-  if (!tier || !supa) return;
-  const form = $('form[id*=mepr], form.mepr-form, form');
-  if (!form) return;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = (form.querySelector('[type=email],[name*=email]') || {}).value?.trim();
-    const password = (form.querySelector('[type=password]') || {}).value || crypto.randomUUID();
-    const full_name = (form.querySelector('[name*=name],[name*=first]') || {}).value || '';
-    if (!email) return notice(form, 'Email is required.', false);
-    const { data, error } = await supa.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name } },
-    });
-    if (error) return notice(form, error.message, false);
-    const { data: r } = await api('/api/checkout', {
-      type: 'membership',
-      tier_id: tier,
-      email,
-      member_id: data.user?.id,
-    });
-    if (r.url) location.href = r.url;
-    else notice(form, r.error || 'Checkout failed.', false);
-  });
+// ---------- Membership plan view (login-aware) on /membership/ ----------
+export async function wirePlans() {
+  if (!/\/membership\/?$/.test(location.pathname) || !supa) return;
+  if (document.querySelector('.caaci-plans')) return;
+  const host = $('main') || $('.et_pb_section') || document.body;
+
+  const [tiers, { user, member }] = await Promise.all([loadTiers(), currentMember()]);
+  const currentTier = member?.status && member.status !== 'cancelled' ? member.tier_id : null;
+
+  const section = document.createElement('section');
+  section.className = 'caaci-plans';
+
+  const youBanner = user
+    ? `<div class="caaci-plans-you">Signed in as <b>${user.email}</b>${
+        currentTier
+          ? ` — your plan: <b>${tiers.find((t) => t.id === currentTier)?.name || currentTier}</b> (${member.status})`
+          : ''
+      }. <a href="/account/">My account</a></div>`
+    : `<div class="caaci-plans-you">Already a member? <a href="/login-3/">Log in</a> to manage or renew your plan.</div>`;
+
+  section.innerHTML = `
+    <div class="caaci-plans-head">
+      <span class="caaci-eyebrow">Membership · 会员</span>
+      <h2>Choose your plan</h2>
+      <p>Annual membership supports CAACI's programs. Prices include the 3.5% card fee. · 价格已含 3.5% 卡费。</p>
+    </div>
+    ${youBanner}
+    <div class="caaci-plans-grid"></div>`;
+
+  const grid = section.querySelector('.caaci-plans-grid');
+  for (const t of tiers) {
+    const total = withFee(t.price_cents);
+    const isCurrent = t.id === currentTier;
+    const card = document.createElement('div');
+    card.className = 'caaci-plan';
+    if (t.featured && !isCurrent) card.setAttribute('data-featured', '');
+    if (isCurrent) card.setAttribute('data-current', '');
+
+    const badge = isCurrent
+      ? `<span class="caaci-badge caaci-badge--current">Current plan · 当前</span>`
+      : t.featured
+        ? `<span class="caaci-badge">${t.highlight || 'Most popular'}</span>`
+        : '';
+
+    const status = isCurrent
+      ? `<p class="caaci-plan-status"${member.status === 'expired' ? ' data-state="expired"' : ''}>${
+          member.status === 'expired' ? 'Expired' : 'Active'
+        }${member.expires_at ? ` · until ${new Date(member.expires_at).toLocaleDateString()}` : ''}</p>`
+      : '';
+
+    let cta;
+    if (isCurrent)
+      cta = `<a class="caaci-btn caaci-btn--secondary" href="/account/">Manage · 管理</a>`;
+    else
+      cta = `<button type="button" class="caaci-btn caaci-plan-cta" data-tier="${t.id}">${
+        currentTier ? 'Switch to this · 切换' : 'Join · 加入'
+      }</button>`;
+
+    card.innerHTML = `
+      ${badge}
+      <h3 class="caaci-plan-name">${t.name}${
+        t.name_zh ? ` <span lang="zh" style="font-weight:400">${t.name_zh}</span>` : ''
+      }</h3>
+      <div class="caaci-plan-price">${usd(total)} <small>/ year</small></div>
+      <div class="caaci-plan-fee">Base ${usd(t.price_cents)} + 3.5% card fee</div>
+      ${status}
+      <p class="caaci-plan-desc">${t.description || ''}</p>
+      ${cta}`;
+    grid.appendChild(card);
+  }
+
+  section.querySelectorAll('.caaci-plan-cta').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const tier = tiers.find((t) => t.id === btn.dataset.tier);
+      if (tier) openCheckout({ type: 'membership', tier, user, member, allTiers: tiers });
+    }),
+  );
+
+  host.prepend(section);
 }
 
-// ---------- Donate page -> Stripe checkout ----------
+// ---------- Register pages -> open the checkout overlay for that tier ----------
+export async function wireRegister() {
+  const tierId = tierFromSlug(location.pathname);
+  if (!tierId || !supa) return;
+  const [tiers, { user, member }] = await Promise.all([loadTiers(), currentMember()]);
+  const tier = tiers.find((t) => t.id === tierId);
+  if (!tier) return;
+
+  // Replace the clunky MemberPress form's submit with our checkout overlay, and
+  // surface an explicit button so the flow works even if the form isn't found.
+  const open = () => openCheckout({ type: 'membership', tier, user, member, allTiers: tiers });
+  const form = $('form[id*=mepr], form.mepr-form, form:not(.et-search-form)');
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      open();
+    });
+    if (!form.querySelector('.caaci-register-cta')) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'caaci-btn caaci-register-cta';
+      btn.style.marginBottom = '18px';
+      btn.textContent = `Join — ${usd(withFee(tier.price_cents))}/yr · 加入`;
+      btn.addEventListener('click', open);
+      form.parentNode.insertBefore(btn, form);
+    }
+  } else {
+    open();
+  }
+}
+
+// ---------- Donate page -> open the checkout overlay (donation mode) ----------
 export function wireDonate() {
   if (!/donate/.test(location.pathname)) return;
   const btn = [...document.querySelectorAll('a,button')].find((b) =>
     /donat|give/i.test(b.textContent),
   );
   if (!btn) return;
-  btn.addEventListener('click', async (e) => {
+  btn.addEventListener('click', (e) => {
     e.preventDefault();
-    const amt = prompt('Donation amount (USD):', '50');
-    if (!amt) return;
-    const { data: r } = await api('/api/checkout', {
-      type: 'donation',
-      amount_cents: Math.round(parseFloat(amt) * 100),
-    });
-    if (r.url) location.href = r.url;
-    else alert(r.error || 'Could not start donation.');
+    openCheckout({ type: 'donation' });
   });
 }
 
@@ -235,9 +648,11 @@ export async function init() {
       console.warn('caaci-app: Supabase client unavailable —', err);
     }
   }
-  for (const fn of [wireLogin, wireAccount, wireRegister, wireDonate, wireContact]) {
+  for (const fn of [wireLogin, wireAccount, wirePlans, wireRegister, wireDonate, wireContact]) {
     try {
-      fn();
+      // Some wiring fns are async (they fetch tiers/member state); isolate their
+      // rejections too so one failing page never blocks the others.
+      Promise.resolve(fn()).catch((err) => console.warn('caaci-app:', err));
     } catch (err) {
       console.warn('caaci-app:', err);
     }

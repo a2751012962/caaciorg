@@ -173,7 +173,15 @@ export function stripe(env) {
     if (!r.ok) throw new Error(`stripe ${path}: ${data.error?.message || r.status}`);
     return data;
   };
-  return { call };
+  const get = async (path) => {
+    const r = await fetch(`https://api.stripe.com/v1/${path}`, {
+      headers: { authorization: `Bearer ${key}` },
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(`stripe ${path}: ${data.error?.message || r.status}`);
+    return data;
+  };
+  return { call, get };
 }
 
 // Send a notification email (Resend by default; falls back to no-op if unset).
