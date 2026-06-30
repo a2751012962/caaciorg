@@ -154,6 +154,9 @@ export function openCheckout(opts) {
   // A switch = a signed-in member with an active membership picking a different tier.
   const fromTier = opts.member?.status === 'active' ? opts.member?.tier_id : null;
   const isSwitch = !isDonation && loggedIn && fromTier && fromTier !== opts.tier?.id;
+  // For a logged-out membership checkout the account step can either create an
+  // account ('signup') or sign in to an existing one ('login').
+  let authMode = 'signup';
 
   // ----- left column: account / amount fields -----
   let mainHTML;
@@ -197,10 +200,11 @@ export function openCheckout(opts) {
         <span lang="zh">会员资格每年自动续费，可随时在账户中取消。</span></p>`;
   } else {
     mainHTML = `
-      <h2>Create your account <span lang="zh">· 创建账户</span></h2>
-      <div class="caaci-field"><label for="caaci-name">Full name · 姓名</label><input id="caaci-name" type="text" autocomplete="name"></div>
+      <h2 class="caaci-auth-title">Create your account <span lang="zh">· 创建账户</span></h2>
+      <div class="caaci-field caaci-auth-name"><label for="caaci-name">Full name · 姓名</label><input id="caaci-name" type="text" autocomplete="name"></div>
       <div class="caaci-field"><label for="caaci-email">Email · 邮箱</label><input id="caaci-email" type="email" autocomplete="email" required></div>
-      <div class="caaci-field"><label for="caaci-pwd">Password · 密码</label><input id="caaci-pwd" type="password" autocomplete="new-password" required></div>`;
+      <div class="caaci-field"><label for="caaci-pwd">Password · 密码</label><input id="caaci-pwd" type="password" autocomplete="new-password" required></div>
+      <p class="caaci-auth-switch"><span class="caaci-auth-prefix">Already have an account?</span> <a href="#" id="caaci-auth-toggle">Log in · 登录</a></p>`;
   }
 
   // ----- right column: order summary -----
@@ -235,6 +239,30 @@ export function openCheckout(opts) {
   const linesEl = overlay.querySelector('.caaci-summary-lines');
   const payEl = overlay.querySelector('.caaci-pay');
   const mainEl = overlay.querySelector('.caaci-checkout-main');
+
+  // ----- logged-out membership: OAuth + sign-up / log-in toggle -----
+  if (!isDonation && !loggedIn) {
+    // Google / Microsoft — return to this page (not /account/) so the visitor
+    // can carry on with checkout after authenticating.
+    mainEl.appendChild(oauthButtons(location.href));
+    const titleH2 = overlay.querySelector('.caaci-auth-title');
+    const nameField = overlay.querySelector('.caaci-auth-name');
+    const pwd = overlay.querySelector('#caaci-pwd');
+    const prefix = overlay.querySelector('.caaci-auth-prefix');
+    const toggle = overlay.querySelector('#caaci-auth-toggle');
+    toggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      authMode = authMode === 'signup' ? 'login' : 'signup';
+      const signup = authMode === 'signup';
+      titleH2.innerHTML = signup
+        ? 'Create your account <span lang="zh">· 创建账户</span>'
+        : 'Log in <span lang="zh">· 登录</span>';
+      nameField.style.display = signup ? '' : 'none';
+      pwd.setAttribute('autocomplete', signup ? 'new-password' : 'current-password');
+      prefix.textContent = signup ? 'Already have an account?' : 'Need an account?';
+      toggle.textContent = signup ? 'Log in · 登录' : 'Create one · 注册';
+    });
+  }
 
   // ----- donation: live amount state -----
   if (isDonation) {
@@ -340,22 +368,36 @@ export function openCheckout(opts) {
     let memberId = opts.user?.id;
     if (!loggedIn) {
       email = (overlay.querySelector('#caaci-email') || {}).value?.trim();
-      const password = (overlay.querySelector('#caaci-pwd') || {}).value || crypto.randomUUID();
-      const full_name = (overlay.querySelector('#caaci-name') || {}).value || '';
+      const password = (overlay.querySelector('#caaci-pwd') || {}).value;
       if (!email) return notice(mainEl, 'Email is required. · 请填写邮箱。', false);
-      payEl.disabled = true;
-      payEl.textContent = 'Creating account…';
-      const { data, error } = await supa.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name } },
-      });
-      if (error) {
-        payEl.disabled = false;
-        payEl.textContent = payLabel;
-        return notice(mainEl, error.message, false);
+      if (authMode === 'login') {
+        // Sign in to an existing account, then carry on to checkout.
+        if (!password) return notice(mainEl, 'Enter your password. · 请输入密码。', false);
+        payEl.disabled = true;
+        payEl.textContent = 'Signing in… · 登录中…';
+        const { data, error } = await supa.auth.signInWithPassword({ email, password });
+        if (error) {
+          payEl.disabled = false;
+          payEl.textContent = payLabel;
+          return notice(mainEl, error.message, false);
+        }
+        memberId = data.user?.id;
+      } else {
+        const full_name = (overlay.querySelector('#caaci-name') || {}).value || '';
+        payEl.disabled = true;
+        payEl.textContent = 'Creating account…';
+        const { data, error } = await supa.auth.signUp({
+          email,
+          password: password || crypto.randomUUID(),
+          options: { data: { full_name } },
+        });
+        if (error) {
+          payEl.disabled = false;
+          payEl.textContent = payLabel;
+          return notice(mainEl, error.message, false);
+        }
+        memberId = data.user?.id;
       }
-      memberId = data.user?.id;
     }
     payEl.disabled = true;
     payEl.textContent = 'Redirecting… · 跳转中…';
@@ -378,16 +420,18 @@ export function openCheckout(opts) {
 }
 
 // ---------- OAuth (Google / Microsoft) ----------
-export async function oauth(provider) {
+// redirectTo lets callers come back where they started (e.g. the checkout on
+// /membership/) instead of always landing on /account/.
+export async function oauth(provider, redirectTo) {
   if (!supa) return;
   const { error } = await supa.auth.signInWithOAuth({
     provider, // 'google' | 'azure' (Microsoft)
-    options: { redirectTo: location.origin + '/account/' },
+    options: { redirectTo: redirectTo || location.origin + '/account/' },
   });
   if (error) alert(error.message);
 }
 
-export function oauthButtons() {
+export function oauthButtons(redirectTo) {
   const wrap = document.createElement('div');
   wrap.className = 'caaci-oauth';
   const btn = (p, label, svg) =>
@@ -400,7 +444,7 @@ export function oauthButtons() {
     btn('azure', 'Continue with Microsoft', mSvg);
   wrap
     .querySelectorAll('button')
-    .forEach((b) => b.addEventListener('click', () => oauth(b.dataset.p)));
+    .forEach((b) => b.addEventListener('click', () => oauth(b.dataset.p, redirectTo)));
   return wrap;
 }
 

@@ -716,6 +716,15 @@
   outline: none;
   border-color: var(--caaci-brick);
 }
+.caaci-auth-switch {
+  margin: -4px 0 4px;
+  font-size: var(--caaci-fs-sm);
+  color: var(--caaci-muted);
+}
+.caaci-auth-switch a {
+  color: var(--caaci-red);
+  font-weight: 600;
+}
 .caaci-switch-from {
   display: flex;
   align-items: center;
