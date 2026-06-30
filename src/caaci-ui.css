@@ -404,3 +404,83 @@
   color: var(--caaci-muted);
   font-size: var(--caaci-fs-sm);
 }
+
+/* Panel header with a right-aligned action (Families) */
+.caaci-panel-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--caaci-gap);
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.caaci-panel-head h2 {
+  margin: 4px 0 0;
+}
+
+/* Inline create/edit form (add member, new family, add person) */
+.caaci-card-inset {
+  background: var(--caaci-fill);
+  border: 1px solid var(--caaci-line);
+  border-radius: var(--caaci-radius);
+  padding: 16px;
+  margin: 12px 0 18px;
+}
+.caaci-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.caaci-form-grid .caaci-field {
+  margin-bottom: 0;
+}
+
+/* Destructive action (delete) — red link/button */
+.caaci-danger {
+  color: var(--caaci-error) !important;
+  border-color: var(--caaci-error);
+}
+.caaci-link-btn.caaci-danger {
+  margin-left: 10px;
+}
+
+/* Family cards */
+.caaci-family {
+  max-width: var(--caaci-content-max);
+  margin: 16px 0;
+}
+.caaci-family-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--caaci-gap);
+  flex-wrap: wrap;
+}
+.caaci-family-head h3 {
+  font-family: var(--caaci-font-display);
+  color: var(--caaci-maroon);
+  margin: 0 0 4px;
+}
+.caaci-family-actions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+.caaci-family-sub {
+  margin-top: 18px;
+}
+.caaci-family-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.caaci-family-accts {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: var(--caaci-fs-sm);
+}
+.caaci-family-accts li {
+  margin: 3px 0;
+}

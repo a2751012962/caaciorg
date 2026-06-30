@@ -147,17 +147,25 @@ A branded staff panel lives at **`/admin/`**. It is gated two ways:
 To grant access, set `is_admin` on a member (see the admin-bootstrap step below), then
 visit `/admin/` while logged in. The panel provides:
 
-- **Members & Subscriptions** — search/filter/paginate members; edit a member's status,
-  tier, or expiry inline. Subscription state is also updated automatically by the Stripe
-  webhook events listed above.
+- **Members & Subscriptions** — search/filter/paginate members; **add** a member (creates a
+  login account so they can sign in — set a password or leave it blank for a sign-in link),
+  **edit** status / tier / expiry / family inline, and **delete** a member (removes their
+  login account too). Subscription state is also updated automatically by the Stripe webhook
+  events listed above.
+- **Families** — manage family memberships. A household groups several people under one
+  membership: link login accounts via a member's _Family_ field, and add family members who
+  **don't** have their own login (children, a spouse) directly on the family card. Create,
+  edit, and delete families and their members.
 - **Compose News** — email an announcement to members (active-only or all) via Resend.
   Recipients are read server-side and never exposed to the browser; each member gets their
   own message. Sends are throttled (one per minute) and require an explicit confirm.
   Requires `RESEND_API_KEY` + `NOTIFY_FROM` to be set. Logged to the `news_posts` table.
 - **Refunds** — placeholder for now; issue refunds in the Stripe Dashboard.
 
-Apply migration `supabase/migrations/0003_admin.sql` (adds the `past_due` status and the
-`news_posts` audit table) before using the panel: `supabase db push`.
+Apply the admin migrations before using the panel (`supabase db push` runs them all):
+`0003_admin.sql` (adds the `past_due` status and the `news_posts` audit table) and
+`0004_households.sql` + `0005_households_rls.sql` (the `households` / `household_members`
+tables and `members.household_id` that power the **Families** tab and member add/edit).
 
 ## Notes / TODO for the org
 
