@@ -36,8 +36,15 @@
   /* ---- Typography ---- */
   /* NOTE: the live site overrides everything to cwTeXFangSong for the bilingual
      layout; we list it first so added UI inherits the same face. */
-  --caaci-font-body: 'cwTeXFangSong', 'Poppins', Helvetica, Arial, sans-serif;
-  --caaci-font-display: 'cwTeXFangSong', 'Playfair Display', Georgia, 'Times New Roman', serif;
+  /* Match the official site's font stacks exactly. Its preferred web fonts
+     (Poppins / Playfair Display / Saira Extra Condensed) are NOT loaded on the
+     mirror, so the live site actually renders Latin text in the Helvetica /
+     Georgia fallbacks below — listing the same stacks makes our added UI match.
+     cwTeXFangSong (the one face the mirror does load) sits last as the CJK (中文)
+     fallback so bilingual text still uses it for Chinese glyphs. */
+  --caaci-font-body: 'Poppins', Helvetica, Arial, 'cwTeXFangSong', sans-serif;
+  --caaci-font-display: 'Playfair Display', Georgia, 'Times New Roman', 'cwTeXFangSong', serif;
+  --caaci-font-button: 'Saira Extra Condensed', Helvetica, Arial, 'cwTeXFangSong', sans-serif;
 
   --caaci-fs-display: 48px; /* hero h1/h2  */
   --caaci-fs-h2: 38px; /* section heading */
@@ -106,19 +113,22 @@
 
 /* --- Button — matches the mirror's primary action (contact submit) --- */
 .caaci-btn {
+  /* Matches the official site's Divi button (.et_pb_button): the square
+     brick-on-white CTA in uppercase Saira/Helvetica with 1px tracking. */
   display: inline-block;
-  font-family: var(--caaci-font-body);
+  font-family: var(--caaci-font-button);
   font-weight: 600;
-  font-size: var(--caaci-fs-sm);
+  font-size: 18px;
   text-transform: uppercase;
   letter-spacing: 1px;
+  line-height: 1.7;
   /* !important defeats Divi's high-specificity `.et_color_scheme_red a` link
      color so a .caaci-btn used as an <a> stays white-on-brick. */
   color: var(--caaci-surface) !important;
   background: var(--caaci-brick);
   border: 0;
-  border-radius: var(--caaci-radius);
-  padding: 0.6em 1.4em;
+  border-radius: var(--caaci-radius-0);
+  padding: 0.5em 1.5em;
   cursor: pointer;
   transition: background var(--caaci-transition);
   text-decoration: none;
@@ -598,11 +608,12 @@
   top: -11px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 3px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  padding: 4px 14px;
+  border-radius: var(--caaci-radius-0);
+  font-family: var(--caaci-font-button);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
   text-transform: uppercase;
   white-space: nowrap;
   background: var(--caaci-brick);
