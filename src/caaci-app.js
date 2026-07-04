@@ -953,6 +953,11 @@ export async function wireRegister() {
       btn.addEventListener('click', open);
       form.parentNode.insertBefore(btn, form);
     }
+    // The dead MemberPress signup/payment form stays in the mirrored HTML, but
+    // it can't submit anywhere (the head guard blocks its native POST) and its
+    // 10+ fields only compete with the single CTA above. Hide it — one clear
+    // action converts better than a broken form.
+    form.style.display = 'none';
   } else {
     open();
   }
