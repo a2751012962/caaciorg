@@ -58,6 +58,16 @@
         <button
           class="caaci-tab"
           role="tab"
+          data-tab="discounts"
+          aria-selected="false"
+          data-en="Discounts"
+          data-zh="折扣码"
+        >
+          Discounts
+        </button>
+        <button
+          class="caaci-tab"
+          role="tab"
           data-tab="news"
           aria-selected="false"
           data-en="Compose News"
@@ -185,6 +195,51 @@
         <div id="caaci-families-list"></div>
       </section>
 
+      <!-- ============ Discounts ============ -->
+      <section class="caaci-card caaci-panel" data-panel="discounts" hidden>
+        <div class="caaci-panel-head">
+          <div>
+            <span class="caaci-eyebrow" data-en="Promotions" data-zh="优惠活动">Promotions</span>
+            <h2 data-en="Discount codes" data-zh="折扣码">Discount codes</h2>
+          </div>
+          <button
+            type="button"
+            class="caaci-btn"
+            id="caaci-discount-add-btn"
+            data-en="+ New code"
+            data-zh="+ 新建折扣码"
+          >
+            + New code
+          </button>
+        </div>
+        <p
+          class="caaci-muted-text"
+          data-en="Each code gets a QR code that opens the membership page with the discount pre-applied — print it on flyers or show it at events. Discounts apply to the first year only."
+          data-zh="每个折扣码都有对应的二维码，扫码即打开会员页面并自动应用折扣——可印在传单上或在活动现场展示。折扣仅适用于首年。"
+        >
+          Each code gets a QR code that opens the membership page with the discount pre-applied.
+        </p>
+        <div id="caaci-discount-form-host"></div>
+        <div id="caaci-discount-qr-host"></div>
+        <div class="caaci-table-wrap">
+          <table class="caaci-table" id="caaci-discounts-table">
+            <thead>
+              <tr>
+                <th data-en="Code" data-zh="折扣码">Code</th>
+                <th data-en="Off" data-zh="折扣">Off</th>
+                <th data-en="Description" data-zh="说明">Description</th>
+                <th data-en="Status" data-zh="状态">Status</th>
+                <th data-en="Used" data-zh="已用">Used</th>
+                <th data-en="Expires" data-zh="到期">Expires</th>
+                <th data-en="Actions" data-zh="操作">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="caaci-discounts-body"></tbody>
+          </table>
+        </div>
+        <p class="caaci-notice" id="caaci-discounts-notice" hidden></p>
+      </section>
+
       <!-- ============ Compose News ============ -->
       <section class="caaci-card caaci-panel" data-panel="news" hidden>
         <span class="caaci-eyebrow" data-en="Email the membership" data-zh="向会员发送邮件"
@@ -246,6 +301,9 @@
       </section>
     </main>
 
+    <!-- Self-hosted QR generator (assets/qrcode.js, MIT — kazuhikoarase/qrcode-generator);
+         classic script so window.qrcode is ready before the admin module runs. -->
+    <script src="/assets/qrcode.js"></script>
     <script type="module" src="/assets/caaci-admin.js"></script>
   </body>
 </html>

@@ -84,6 +84,16 @@ export async function onRequestPost({ request, env }) {
             stripe_subscription_id: s.subscription || null,
           },
         );
+        // Count the discount redemption (atomic — see 0006_discounts.sql). Never
+        // let a missing function/table fail the webhook: the membership is
+        // already active, and a 500 here would make Stripe retry the event.
+        if (md.discount_code) {
+          try {
+            await DB.rpc('redeem_discount_code', { p_code: md.discount_code });
+          } catch (err) {
+            console.warn('stripe-webhook: redeem_discount_code failed —', err.message);
+          }
+        }
       }
     } else if (event.type === 'invoice.paid') {
       // Only RENEWALS extend the membership. The first invoice at signup has

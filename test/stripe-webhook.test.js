@@ -91,6 +91,62 @@ test('webhook: membership completed activates the member with a 1-year expiry', 
   }
 });
 
+test('webhook: membership completed with a discount bumps the redemption count', async () => {
+  const fetch = mockFetch(() => ({ body: '' }));
+  try {
+    const payload = JSON.stringify({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_disc',
+          metadata: {
+            kind: 'membership',
+            member_id: 'u1',
+            tier_id: 'individual',
+            discount_code: 'SPRING20',
+          },
+        },
+      },
+    });
+    const r = await onRequestPost({
+      request: fakeRequest({ body: payload, headers: { 'stripe-signature': sign(payload) } }),
+      env: fakeEnv({ STRIPE_WEBHOOK_SECRET: SECRET }),
+    });
+    assert.equal(r.status, 200);
+    const rpc = fetch.calls.find((c) => c.url.includes('/rpc/redeem_discount_code'));
+    assert.ok(rpc, 'called the atomic redemption RPC');
+    assert.deepEqual(JSON.parse(rpc.options.body), { p_code: 'SPRING20' });
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('webhook: a failing redemption count never fails the webhook', async () => {
+  const fetch = mockFetch((url) =>
+    url.includes('/rpc/redeem_discount_code')
+      ? { status: 404, body: 'no such function' }
+      : { body: '' },
+  );
+  try {
+    const payload = JSON.stringify({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_disc2',
+          metadata: { kind: 'membership', member_id: 'u1', discount_code: 'X' },
+        },
+      },
+    });
+    const r = await onRequestPost({
+      request: fakeRequest({ body: payload, headers: { 'stripe-signature': sign(payload) } }),
+      env: fakeEnv({ STRIPE_WEBHOOK_SECRET: SECRET }),
+    });
+    assert.equal(r.status, 200, 'membership already active — no Stripe retry loop');
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('webhook: skips verification when no secret is set', async () => {
   const fetch = mockFetch(() => ({ body: '' }));
   try {

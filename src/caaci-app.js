@@ -13,12 +13,27 @@ export function __setSupa(client) {
 }
 
 const $ = (s, r = document) => r.querySelector(s);
+// POST helper. A rejected fetch (offline, DNS, CORS) resolves to a normal error
+// result instead of throwing — otherwise the await inside a click handler dies
+// silently and leaves the button stuck on "Redirecting…" forever.
 const api = (path, body, headers = {}) =>
   fetch(path, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
-  }).then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) }));
+  })
+    .then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
+    .catch(() => ({
+      ok: false,
+      data: { error: 'Network error — please try again. · 网络错误，请重试。' },
+    }));
+
+// Escape user/DB-sourced text before it lands in innerHTML.
+export const esc = (s) =>
+  String(s ?? '').replace(
+    /[<>&"]/g,
+    (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c],
+  );
 
 // Styling for all custom UI lives in src/caaci-ui.css (see UI_GUIDELINE.md).
 export function notice(el, msg, good = true) {
@@ -139,8 +154,28 @@ export async function currentMember() {
   return { user, member };
 }
 
+// Member status → bilingual label. Shared by the plan view and account page.
+export const STATUS_LABEL = {
+  active: 'Active · 有效',
+  pending: 'Pending payment · 待付款',
+  past_due: 'Payment past due · 付款逾期',
+  expired: 'Expired · 已过期',
+  cancelled: 'Cancelled · 已取消',
+};
+
+// Read + validate a ?code=XYZ discount from the URL (QR codes encode
+// /membership/?code=XYZ). Returns { code, percent_off } when the server accepts
+// it, { invalid: true, code, error } when it rejects it, or null when absent.
+export async function urlDiscount() {
+  const code = new URLSearchParams(location.search || '').get('code');
+  if (!code) return null;
+  const { ok, data } = await api('/api/discount', { code });
+  if (ok && data.code) return data;
+  return { invalid: true, code, error: data.error || 'Invalid discount code.' };
+}
+
 // ---------- Checkout (review + account step; card entry is on Stripe) ----------
-// opts: { type:'membership', tier, user, member, allTiers } | { type:'donation' }
+// opts: { type:'membership', tier, user, member, allTiers, discount } | { type:'donation' }
 export function openCheckout(opts) {
   document.querySelector('.caaci-modal')?.remove();
 
@@ -185,8 +220,8 @@ export function openCheckout(opts) {
     const fromName = (opts.allTiers || []).find((t) => t.id === fromTier)?.name || fromTier;
     mainHTML = `
       <h2>Change your plan <span lang="zh">· 更改方案</span></h2>
-      <p>Signed in as <b>${opts.user.email}</b>.</p>
-      <p class="caaci-switch-from"><span>${fromName}</span><span aria-hidden="true">→</span><span>${opts.tier.name}</span></p>
+      <p>Signed in as <b>${esc(opts.user.email)}</b>.</p>
+      <p class="caaci-switch-from"><span>${esc(fromName)}</span><span aria-hidden="true">→</span><span>${esc(opts.tier.name)}</span></p>
       <p style="color:var(--caaci-muted);font-size:var(--caaci-fs-sm)">
         We'll update your current subscription right away. Stripe prorates the
         difference for the rest of this billing period; your renewal date stays the same.
@@ -194,7 +229,7 @@ export function openCheckout(opts) {
   } else if (loggedIn) {
     mainHTML = `
       <h2>Confirm your membership <span lang="zh">· 确认会员</span></h2>
-      <p>Signed in as <b>${opts.user.email}</b>.</p>
+      <p>Signed in as <b>${esc(opts.user.email)}</b>.</p>
       <p style="color:var(--caaci-muted);font-size:var(--caaci-fs-sm)">
         Your membership renews automatically each year. You can cancel anytime from your account.
         <span lang="zh">会员资格每年自动续费，可随时在账户中取消。</span></p>`;
@@ -203,7 +238,7 @@ export function openCheckout(opts) {
       <h2 class="caaci-auth-title">Create your account <span lang="zh">· 创建账户</span></h2>
       <div class="caaci-field caaci-auth-name"><label for="caaci-name">Full name · 姓名</label><input id="caaci-name" type="text" autocomplete="name"></div>
       <div class="caaci-field"><label for="caaci-email">Email · 邮箱</label><input id="caaci-email" type="email" autocomplete="email" required></div>
-      <div class="caaci-field"><label for="caaci-pwd">Password · 密码</label><input id="caaci-pwd" type="password" autocomplete="new-password" required></div>
+      <div class="caaci-field"><label for="caaci-pwd">Password · 密码 <small>(at least 8 characters · 至少 8 位)</small></label><input id="caaci-pwd" type="password" autocomplete="new-password" minlength="8" required></div>
       <p class="caaci-auth-switch"><span class="caaci-auth-prefix">Already have an account?</span> <a href="#" id="caaci-auth-toggle">Log in · 登录</a></p>`;
   }
 
@@ -328,18 +363,78 @@ export function openCheckout(opts) {
     return overlay;
   }
 
-  // ----- membership: order summary -----
+  // ----- membership: order summary (re-rendered when a discount is applied) -----
   const tier = opts.tier;
-  const total = withFee(tier.price_cents);
-  const fee = total - tier.price_cents;
-  titleEl.textContent = tier.name;
-  linesEl.innerHTML = `
-    <div class="caaci-line"><span>${tier.name} · billed yearly</span><span>${usd(tier.price_cents)}</span></div>
-    <div class="caaci-line"><span>Card processing fee (3.5%)</span><span>${usd(fee)}</span></div>
-    <div class="caaci-line caaci-line--total"><span>${isSwitch ? 'New rate · 新费率' : 'Total today · 今日合计'}</span><span>${usd(total)}/yr</span></div>
-    ${isSwitch ? `<p class="caaci-note">Prorated difference is charged today. · 今日按差额计费。</p>` : ''}`;
+  // Discounts apply to a fresh checkout only — an in-place plan switch is
+  // prorated by Stripe on the existing subscription, so no coupon is involved.
+  let discount = !isSwitch && opts.discount?.percent_off ? opts.discount : null;
+  const renderSummary = () => {
+    const total = withFee(tier.price_cents);
+    const fee = total - tier.price_cents;
+    // Stripe applies percent_off to the invoice subtotal (= our fee-inclusive
+    // unit_amount), so mirror that math here.
+    const off = discount ? Math.round((total * discount.percent_off) / 100) : 0;
+    titleEl.textContent = tier.name;
+    linesEl.innerHTML = `
+      <div class="caaci-line"><span>${esc(tier.name)} · billed yearly</span><span>${usd(tier.price_cents)}</span></div>
+      <div class="caaci-line"><span>Card processing fee (3.5%)</span><span>${usd(fee)}</span></div>
+      ${
+        discount
+          ? `<div class="caaci-line caaci-line--discount"><span>Discount ${esc(discount.code)} (−${discount.percent_off}%)</span><span>−${usd(off)}</span></div>`
+          : ''
+      }
+      <div class="caaci-line caaci-line--total"><span>${isSwitch ? 'New rate · 新费率' : 'Total today · 今日合计'}</span><span>${usd(total - off)}${discount ? '' : '/yr'}</span></div>
+      ${isSwitch ? `<p class="caaci-note">Prorated difference is charged today. · 今日按差额计费。</p>` : ''}
+      ${discount ? `<p class="caaci-note">Discount applies to your first year; renews at ${usd(total)}/yr. · 折扣仅限首年，续费 ${usd(total)}/年。</p>` : ''}`;
+  };
+  renderSummary();
   const payLabel = isSwitch ? 'Confirm change · 确认更改' : 'Continue to payment · 前往支付';
   payEl.textContent = payLabel;
+
+  // ----- discount code entry (fresh checkouts only) -----
+  if (!isSwitch) {
+    const dWrap = document.createElement('div');
+    dWrap.className = 'caaci-discount';
+    dWrap.innerHTML = `
+      <label for="caaci-code">Discount code <span lang="zh">· 折扣码</span></label>
+      <div class="caaci-discount-row">
+        <input id="caaci-code" type="text" autocomplete="off" spellcheck="false" value="${discount ? esc(discount.code) : ''}">
+        <button type="button" class="caaci-discount-apply">Apply · 使用</button>
+      </div>
+      <p class="caaci-discount-msg" hidden></p>`;
+    payEl.parentNode.insertBefore(dWrap, payEl);
+    const codeInput = dWrap.querySelector('#caaci-code');
+    const msgEl = dWrap.querySelector('.caaci-discount-msg');
+    const showMsg = (text, good) => {
+      msgEl.hidden = false;
+      msgEl.textContent = text;
+      if (good) msgEl.removeAttribute('data-state');
+      else msgEl.setAttribute('data-state', 'error');
+    };
+    if (discount)
+      showMsg(
+        `${discount.code} — ${discount.percent_off}% off · 已减 ${discount.percent_off}%`,
+        true,
+      );
+    dWrap.querySelector('.caaci-discount-apply').addEventListener('click', async () => {
+      const code = codeInput.value.trim();
+      if (!code) {
+        discount = null;
+        msgEl.hidden = true;
+        renderSummary();
+        return;
+      }
+      const { ok, data } = await api('/api/discount', { code });
+      if (ok && data.code) {
+        discount = data;
+        showMsg(`${data.code} — ${data.percent_off}% off · 已减 ${data.percent_off}%`, true);
+      } else {
+        discount = null;
+        showMsg(data.error || 'Invalid discount code. · 折扣码无效。', false);
+      }
+      renderSummary();
+    });
+  }
 
   payEl.addEventListener('click', async () => {
     // Switch path: update the existing subscription in place — no redirect.
@@ -384,17 +479,33 @@ export function openCheckout(opts) {
         memberId = data.user?.id;
       } else {
         const full_name = (overlay.querySelector('#caaci-name') || {}).value || '';
+        // A real password is required — the old silent random-UUID fallback left
+        // people with an account they could never sign back into.
+        if (!password || password.length < 8)
+          return notice(mainEl, 'Password must be at least 8 characters. · 密码至少 8 位。', false);
         payEl.disabled = true;
         payEl.textContent = 'Creating account…';
         const { data, error } = await supa.auth.signUp({
           email,
-          password: password || crypto.randomUUID(),
-          options: { data: { full_name } },
+          password,
+          options: { data: { full_name }, emailRedirectTo: location.origin + '/account/' },
         });
         if (error) {
           payEl.disabled = false;
           payEl.textContent = payLabel;
           return notice(mainEl, error.message, false);
+        }
+        // Supabase obfuscates an already-registered email: signUp "succeeds" but
+        // returns a user with no identities. Continuing would start a checkout
+        // for a member row that doesn't exist — paid but never activated.
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          payEl.disabled = false;
+          payEl.textContent = payLabel;
+          return notice(
+            mainEl,
+            'This email already has an account — please log in. · 该邮箱已注册，请登录。',
+            false,
+          );
         }
         memberId = data.user?.id;
       }
@@ -406,6 +517,7 @@ export function openCheckout(opts) {
       tier_id: tier.id,
       email,
       member_id: memberId,
+      ...(discount ? { discount_code: discount.code } : {}),
     });
     if (r.url) location.href = r.url;
     else {
@@ -481,9 +593,133 @@ export function wireLogin() {
     if (form) form.parentNode.insertBefore(oauthButtons(), form.nextSibling);
     else anchor.prepend(oauthButtons());
   }
+  // Forgot-password + create-account links, then the (initially hidden) signup card.
+  if (form && !document.querySelector('.caaci-auth-links')) {
+    const links = document.createElement('p');
+    links.className = 'caaci-auth-links';
+    links.innerHTML =
+      `<a href="#" id="caaci-forgot">Forgot your password? · 忘记密码</a>` +
+      `<span aria-hidden="true"> · </span>` +
+      `<a href="#" id="caaci-show-signup">New here? Create an account · 注册新账户</a>`;
+    form.parentNode.insertBefore(links, form.nextSibling);
+
+    links.querySelector('#caaci-forgot').addEventListener('click', async (e) => {
+      e.preventDefault();
+      const email = (form.querySelector('[name=log]') || {}).value?.trim();
+      if (!email)
+        return notice(form, 'Enter your email above first. · 请先在上方填写邮箱。', false);
+      const { error } = await supa.auth.resetPasswordForEmail(email, {
+        redirectTo: location.origin + '/account/?recovery=1',
+      });
+      if (error) return notice(form, error.message, false);
+      notice(
+        form,
+        'Password reset email sent — check your inbox. · 重置密码邮件已发送，请查收。',
+        true,
+      );
+    });
+
+    links.querySelector('#caaci-show-signup').addEventListener('click', (e) => {
+      e.preventDefault();
+      let card = document.querySelector('.caaci-signup-card');
+      if (card) {
+        card.hidden = !card.hidden;
+        return;
+      }
+      card = signupCard();
+      links.parentNode.insertBefore(card, links.nextSibling);
+    });
+  }
 }
 
-// ---------- Account page: show member, sign out ----------
+// ---------- Registration (full signup form, shown from the login page) ----------
+export function signupCard() {
+  const card = document.createElement('div');
+  card.className = 'caaci-card caaci-signup-card';
+  card.innerHTML = `
+    <span class="caaci-eyebrow">New member · 新用户</span>
+    <h2>Create your account <span lang="zh">· 创建账户</span></h2>
+    <div class="caaci-field"><label for="caaci-su-name">Full name · 姓名</label><input id="caaci-su-name" type="text" autocomplete="name"></div>
+    <div class="caaci-field"><label for="caaci-su-email">Email · 邮箱 *</label><input id="caaci-su-email" type="email" autocomplete="email" required></div>
+    <div class="caaci-field"><label for="caaci-su-phone">Phone · 电话 <small>(optional)</small></label><input id="caaci-su-phone" type="tel" autocomplete="tel"></div>
+    <div class="caaci-field"><label for="caaci-su-pwd">Password · 密码 <small>(at least 8 characters · 至少 8 位)</small></label><input id="caaci-su-pwd" type="password" autocomplete="new-password" minlength="8" required></div>
+    <div class="caaci-field"><label for="caaci-su-pwd2">Confirm password · 确认密码</label><input id="caaci-su-pwd2" type="password" autocomplete="new-password" required></div>
+    <p><button type="button" class="caaci-btn" id="caaci-su-submit">Create account · 注册</button></p>
+    <p class="caaci-auth-switch">Creating an account is free — pick a plan on the <a href="/membership/">membership page</a> when you're ready. <span lang="zh">注册免费，随后可在会员页面选择方案。</span></p>`;
+
+  card.querySelector('#caaci-su-submit').addEventListener('click', async () => {
+    const v = (id) => (card.querySelector(id) || {}).value || '';
+    const email = v('#caaci-su-email').trim();
+    const password = v('#caaci-su-pwd');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return notice(card, 'Enter a valid email address. · 请填写有效邮箱。', false);
+    if (password.length < 8)
+      return notice(card, 'Password must be at least 8 characters. · 密码至少 8 位。', false);
+    if (password !== v('#caaci-su-pwd2'))
+      return notice(card, 'Passwords do not match. · 两次输入的密码不一致。', false);
+    const btn = card.querySelector('#caaci-su-submit');
+    btn.disabled = true;
+    const { data, error } = await supa.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: v('#caaci-su-name').trim(), phone: v('#caaci-su-phone').trim() },
+        emailRedirectTo: location.origin + '/account/',
+      },
+    });
+    btn.disabled = false;
+    if (error) return notice(card, error.message, false);
+    // Supabase obfuscates an existing email: a "successful" signUp with no
+    // identities means the account already exists.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0)
+      return notice(
+        card,
+        'This email already has an account — log in above instead. · 该邮箱已注册，请直接登录。',
+        false,
+      );
+    if (data.session) {
+      location.href = '/account/';
+      return;
+    }
+    notice(
+      card,
+      'Account created! Check your email to confirm it, then log in. · 账户已创建！请查收确认邮件后登录。',
+      true,
+    );
+  });
+  return card;
+}
+
+// ---------- Account page: subscription card, billing portal, sign out ----------
+
+// Set-new-password card, shown when the visitor arrives from a Supabase
+// password-recovery link (the reset email redirects to /account/?recovery=1 and
+// the client establishes a session from the URL hash automatically).
+export function passwordResetCard() {
+  const card = document.createElement('div');
+  card.className = 'caaci-card caaci-reset-card';
+  card.innerHTML = `
+    <span class="caaci-eyebrow">Password reset · 重置密码</span>
+    <h2>Choose a new password <span lang="zh">· 设置新密码</span></h2>
+    <div class="caaci-field"><label for="caaci-np">New password · 新密码 <small>(at least 8 characters · 至少 8 位)</small></label><input id="caaci-np" type="password" autocomplete="new-password" minlength="8"></div>
+    <div class="caaci-field"><label for="caaci-np2">Confirm password · 确认密码</label><input id="caaci-np2" type="password" autocomplete="new-password"></div>
+    <p><button type="button" class="caaci-btn" id="caaci-np-save">Save password · 保存密码</button></p>`;
+  card.querySelector('#caaci-np-save').addEventListener('click', async () => {
+    const pwd = card.querySelector('#caaci-np').value;
+    if (pwd.length < 8)
+      return notice(card, 'Password must be at least 8 characters. · 密码至少 8 位。', false);
+    if (pwd !== card.querySelector('#caaci-np2').value)
+      return notice(card, 'Passwords do not match. · 两次输入的密码不一致。', false);
+    const btn = card.querySelector('#caaci-np-save');
+    btn.disabled = true;
+    const { error } = await supa.auth.updateUser({ password: pwd });
+    btn.disabled = false;
+    if (error) return notice(card, error.message, false);
+    notice(card, 'Password updated — you are signed in. · 密码已更新，您已登录。', true);
+  });
+  return card;
+}
+
 export async function wireAccount() {
   if (!/account/.test(location.pathname) || !supa) return;
   const {
@@ -493,26 +729,78 @@ export async function wireAccount() {
   const box = document.createElement('div');
   box.className = 'caaci-card';
   if (!user) {
-    box.innerHTML = `<p>You are not logged in. <a href="/login-3/">Log in</a>.</p>`;
-  } else {
-    // The mirrored /account/ page was snapshotted while logged out, so it still
-    // carries MemberPress's "unauthorized" notice + login form. Strip that
-    // leftover markup now that we know the visitor is authenticated, otherwise a
-    // dead login form lingers below our account card.
-    document
-      .querySelectorAll('.mepr-unauthorized-excerpt, .mepr-login-form-wrap, #mepr_loginform')
-      .forEach((el) => el.remove());
-    const { data: m } = await supa.from('members').select('*').eq('id', user.id).maybeSingle();
-    box.innerHTML = `
-      <span class="caaci-eyebrow">Membership</span>
-      <h2>My Account</h2>
-      <p><b>Email:</b> ${user.email}</p>
-      <p><b>Membership:</b> ${m?.tier_id || '—'} (${m?.status || 'none'})</p>
-      ${m?.expires_at ? `<p><b>Renews/expires:</b> ${new Date(m.expires_at).toLocaleDateString()}</p>` : ''}
-      <p style="margin-top:20px"><a href="/membership/">Manage membership</a> &nbsp;·&nbsp;
-      <a href="#" id="caaci-logout">Sign out</a></p>`;
+    box.innerHTML = `<p>You are not logged in. <a href="/login-3/">Log in</a>. <span lang="zh">请<a href="/login-3/">登录</a>。</span></p>`;
+    host.prepend(box);
+    return;
   }
+
+  // The mirrored /account/ page was snapshotted while logged out, so it still
+  // carries MemberPress's "unauthorized" notice + login form. Strip that
+  // leftover markup now that we know the visitor is authenticated, otherwise a
+  // dead login form lingers below our account card.
+  document
+    .querySelectorAll('.mepr-unauthorized-excerpt, .mepr-login-form-wrap, #mepr_loginform')
+    .forEach((el) => el.remove());
+
+  // Arrived from a password-recovery email → offer the new-password form first.
+  const recovery =
+    /type=recovery/.test(location.hash || '') || /[?&]recovery=/.test(location.search || '');
+  if (recovery) host.prepend(passwordResetCard());
+
+  const [tiers, mres] = await Promise.all([
+    loadTiers(),
+    supa.from('members').select('*').eq('id', user.id).maybeSingle(),
+  ]);
+  const m = mres?.data;
+  const tier = tiers.find((t) => t.id === m?.tier_id);
+  const statusTxt = STATUS_LABEL[m?.status] || m?.status || '';
+
+  const subscription = m?.tier_id
+    ? `
+      <div class="caaci-subscription">
+        <div class="caaci-sub-row"><span>Plan · 方案</span><b>${esc(tier?.name || m.tier_id)}${tier?.name_zh ? ` <span lang="zh">${esc(tier.name_zh)}</span>` : ''}</b></div>
+        <div class="caaci-sub-row"><span>Status · 状态</span><span class="caaci-badge" data-state="${esc(m.status || '')}">${esc(statusTxt)}</span></div>
+        ${tier ? `<div class="caaci-sub-row"><span>Price · 价格</span><span>${usd(withFee(tier.price_cents))}/yr <small>(incl. 3.5% card fee)</small></span></div>` : ''}
+        ${m.expires_at ? `<div class="caaci-sub-row"><span>${m.status === 'active' ? 'Renews · 续费日' : 'Expires · 到期日'}</span><span>${new Date(m.expires_at).toLocaleDateString()}</span></div>` : ''}
+        ${m.status === 'past_due' ? `<p class="caaci-notice" data-state="error">Your last payment failed — update your card in "Manage billing". · 上次扣款失败，请在“管理账单”中更新银行卡。</p>` : ''}
+      </div>
+      <p class="caaci-account-actions">
+        <a class="caaci-btn caaci-btn--secondary" href="/membership/">Change plan · 更改方案</a>
+        <button type="button" class="caaci-btn caaci-btn--secondary" id="caaci-billing">Manage billing · 管理账单</button>
+      </p>
+      <p class="caaci-muted-text" style="font-size:13px">"Manage billing" opens Stripe to update your card, view invoices, or cancel. <span lang="zh">“管理账单”将打开 Stripe，可更新银行卡、查看账单或取消订阅。</span></p>`
+    : `
+      <div class="caaci-subscription">
+        <p>No membership yet. · 尚未加入会员。</p>
+      </div>
+      <p class="caaci-account-actions"><a class="caaci-btn" href="/membership/">Join a membership · 加入会员</a></p>`;
+
+  box.innerHTML = `
+    <span class="caaci-eyebrow">Membership · 会员</span>
+    <h2>My Account <span lang="zh">· 我的账户</span></h2>
+    ${m?.full_name ? `<p><b>Name · 姓名:</b> ${esc(m.full_name)}</p>` : ''}
+    <p><b>Email · 邮箱:</b> ${esc(user.email)}</p>
+    ${subscription}
+    <p style="margin-top:20px"><a href="#" id="caaci-logout">Sign out · 退出登录</a></p>`;
   host.prepend(box);
+
+  $('#caaci-billing')?.addEventListener('click', async () => {
+    const btn = $('#caaci-billing');
+    btn.disabled = true;
+    const { data: { session } = { session: null } } = (await supa.auth.getSession?.()) || {};
+    const { data: r } = await api(
+      '/api/portal',
+      {},
+      session ? { authorization: `Bearer ${session.access_token}` } : {},
+    );
+    if (r.url) {
+      location.href = r.url;
+      return;
+    }
+    btn.disabled = false;
+    notice(box, r.error || 'Could not open the billing portal. · 无法打开账单管理。', false);
+  });
+
   $('#caaci-logout')?.addEventListener('click', async (e) => {
     e.preventDefault();
     await supa.auth.signOut();
@@ -531,19 +819,31 @@ export async function wirePlans() {
   if (document.querySelector('.caaci-plans')) return;
   const host = $('main') || $('.et_pb_section') || document.body;
 
-  const [tiers, { user, member }] = await Promise.all([loadTiers(), currentMember()]);
+  const [tiers, { user, member }, discount] = await Promise.all([
+    loadTiers(),
+    currentMember(),
+    urlDiscount(),
+  ]);
   const currentTier = member?.status && member.status !== 'cancelled' ? member.tier_id : null;
 
   const section = document.createElement('section');
   section.className = 'caaci-plans';
 
   const youBanner = user
-    ? `<div class="caaci-plans-you">Signed in as <b>${user.email}</b>${
+    ? `<div class="caaci-plans-you">Signed in as <b>${esc(user.email)}</b>${
         currentTier
-          ? ` — your plan: <b>${tiers.find((t) => t.id === currentTier)?.name || currentTier}</b> (${member.status})`
+          ? ` — your plan: <b>${esc(tiers.find((t) => t.id === currentTier)?.name || currentTier)}</b> (${STATUS_LABEL[member.status] || esc(member.status)})`
           : ''
       }. <a href="/account/">My account</a></div>`
     : `<div class="caaci-plans-you">Already a member? <a href="/login-3/">Log in</a> to manage or renew your plan.</div>`;
+
+  // A scanned QR / shared link lands here as /membership/?code=XYZ — surface
+  // whether the code is good before the visitor even opens a checkout.
+  const discountBanner = !discount
+    ? ''
+    : discount.invalid
+      ? `<div class="caaci-plans-you caaci-plans-discount" data-state="error">Discount code <b>${esc(discount.code)}</b>: ${esc(discount.error)} <span lang="zh">折扣码无效。</span></div>`
+      : `<div class="caaci-plans-you caaci-plans-discount">Discount code <b>${esc(discount.code)}</b> applied — ${discount.percent_off}% off your first year. <span lang="zh">折扣码已应用，首年减 ${discount.percent_off}%。</span></div>`;
 
   section.innerHTML = `
     <div class="caaci-plans-head">
@@ -552,6 +852,7 @@ export async function wirePlans() {
       <p>Annual membership supports CAACI's programs. Prices include the 3.5% card fee. · 价格已含 3.5% 卡费。</p>
     </div>
     ${youBanner}
+    ${discountBanner}
     <div class="caaci-plans-grid"></div>`;
 
   const grid = section.querySelector('.caaci-plans-grid');
@@ -570,8 +871,8 @@ export async function wirePlans() {
         : '';
 
     const status = isCurrent
-      ? `<p class="caaci-plan-status"${member.status === 'expired' ? ' data-state="expired"' : ''}>${
-          member.status === 'expired' ? 'Expired' : 'Active'
+      ? `<p class="caaci-plan-status"${member.status !== 'active' ? ` data-state="${esc(member.status)}"` : ''}>${
+          STATUS_LABEL[member.status] || esc(member.status)
         }${member.expires_at ? ` · until ${new Date(member.expires_at).toLocaleDateString()}` : ''}</p>`
       : '';
 
@@ -585,13 +886,13 @@ export async function wirePlans() {
 
     card.innerHTML = `
       ${badge}
-      <h3 class="caaci-plan-name">${t.name}${
-        t.name_zh ? ` <span lang="zh" style="font-weight:400">${t.name_zh}</span>` : ''
+      <h3 class="caaci-plan-name">${esc(t.name)}${
+        t.name_zh ? ` <span lang="zh" style="font-weight:400">${esc(t.name_zh)}</span>` : ''
       }</h3>
       <div class="caaci-plan-price">${usd(total)} <small>/ year</small></div>
       <div class="caaci-plan-fee">Base ${usd(t.price_cents)} + 3.5% card fee</div>
       ${status}
-      <p class="caaci-plan-desc">${t.description || ''}</p>
+      <p class="caaci-plan-desc">${esc(t.description || '')}</p>
       ${cta}`;
     grid.appendChild(card);
   }
@@ -599,7 +900,15 @@ export async function wirePlans() {
   section.querySelectorAll('.caaci-plan-cta').forEach((btn) =>
     btn.addEventListener('click', () => {
       const tier = tiers.find((t) => t.id === btn.dataset.tier);
-      if (tier) openCheckout({ type: 'membership', tier, user, member, allTiers: tiers });
+      if (tier)
+        openCheckout({
+          type: 'membership',
+          tier,
+          user,
+          member,
+          allTiers: tiers,
+          discount: discount && !discount.invalid ? discount : null,
+        });
     }),
   );
 
@@ -610,13 +919,25 @@ export async function wirePlans() {
 export async function wireRegister() {
   const tierId = tierFromSlug(location.pathname);
   if (!tierId || !supa) return;
-  const [tiers, { user, member }] = await Promise.all([loadTiers(), currentMember()]);
+  const [tiers, { user, member }, discount] = await Promise.all([
+    loadTiers(),
+    currentMember(),
+    urlDiscount(),
+  ]);
   const tier = tiers.find((t) => t.id === tierId);
   if (!tier) return;
 
   // Replace the clunky MemberPress form's submit with our checkout overlay, and
   // surface an explicit button so the flow works even if the form isn't found.
-  const open = () => openCheckout({ type: 'membership', tier, user, member, allTiers: tiers });
+  const open = () =>
+    openCheckout({
+      type: 'membership',
+      tier,
+      user,
+      member,
+      allTiers: tiers,
+      discount: discount && !discount.invalid ? discount : null,
+    });
   const form = $('form[id*=mepr], form.mepr-form, form:not(.et-search-form)');
   if (form) {
     form.addEventListener('submit', (e) => {

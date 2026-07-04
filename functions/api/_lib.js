@@ -80,6 +80,17 @@ export function sb(env) {
       });
       if (!r.ok) throw new Error(`supabase delete ${table}: ${r.status} ${await r.text()}`);
     },
+    // Call a Postgres function (PostgREST /rpc). Used where a plain UPDATE would
+    // race, e.g. the atomic discount-redemption counter.
+    async rpc(fn, args = {}) {
+      const r = await fetch(`${base}/rest/v1/rpc/${fn}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(args),
+      });
+      if (!r.ok) throw new Error(`supabase rpc ${fn}: ${r.status} ${await r.text()}`);
+      return r.json().catch(() => null);
+    },
   };
 }
 
@@ -116,11 +127,9 @@ export function authAdmin(env) {
   };
 }
 
-// --- Admin gate: validate the caller's Supabase session, then confirm is_admin ---
-// Returns { member, user } on success, or { error: Response } to return directly.
-// The is_admin check uses the service-role select (authoritative) — never trust
-// the JWT claims, since admin Functions use sb() which bypasses RLS.
-export async function requireAdmin(request, env) {
+// --- User gate: validate the caller's Supabase session (any signed-in user) ---
+// Returns { user } on success, or { error: Response } to return directly.
+export async function requireUser(request, env) {
   const auth = request.headers.get('authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (!token) return { error: bad('Missing bearer token.', 401) };
@@ -132,6 +141,17 @@ export async function requireAdmin(request, env) {
   if (!r.ok) return { error: bad('Invalid or expired session.', 401) };
   const user = await r.json();
   if (!user?.id) return { error: bad('Invalid session.', 401) };
+  return { user };
+}
+
+// --- Admin gate: validate the caller's Supabase session, then confirm is_admin ---
+// Returns { member, user } on success, or { error: Response } to return directly.
+// The is_admin check uses the service-role select (authoritative) — never trust
+// the JWT claims, since admin Functions use sb() which bypasses RLS.
+export async function requireAdmin(request, env) {
+  const gate = await requireUser(request, env);
+  if (gate.error) return gate;
+  const { user } = gate;
 
   const member = await sb(env).selectOne('members', { id: user.id }, 'id,email,full_name,is_admin');
   if (!member || member.is_admin !== true) return { error: bad('Admin access required.', 403) };
