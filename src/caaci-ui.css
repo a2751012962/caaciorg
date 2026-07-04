@@ -962,6 +962,64 @@
   margin: 18px 0 6px;
 }
 
+/* Digital membership card (account page — show at partner businesses) */
+.caaci-mcard {
+  margin: 18px 0 8px;
+  border: 1px solid var(--caaci-line);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--caaci-shadow);
+  background: var(--caaci-surface);
+}
+.caaci-mcard-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 14px 20px;
+  background: var(--caaci-brick);
+  border-bottom: 4px solid var(--caaci-gold);
+  color: var(--caaci-surface);
+}
+.caaci-mcard-head b {
+  font-family: var(--caaci-font-display);
+  font-size: 22px;
+  letter-spacing: 1px;
+}
+.caaci-mcard-head span {
+  font-size: 12px;
+  opacity: 0.9;
+}
+.caaci-mcard-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--caaci-gap);
+  padding: 20px;
+}
+.caaci-mcard-name {
+  font-family: var(--caaci-font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--caaci-maroon);
+  margin: 0 0 4px;
+}
+.caaci-mcard-tier {
+  font-size: var(--caaci-fs-sm);
+  color: var(--caaci-body);
+  margin: 0 0 4px;
+}
+.caaci-mcard-until {
+  font-size: 13px;
+  color: var(--caaci-muted);
+  margin: 0;
+}
+.caaci-mcard-qr img {
+  display: block;
+  width: 120px;
+  height: 120px;
+  image-rendering: pixelated;
+}
+
 /* Auth helper links (forgot password / create account) under the login form */
 .caaci-auth-links {
   margin: 14px 0;

@@ -189,6 +189,11 @@ onto the members row).
   renewal date) and a "Manage billing" button — `/api/portal` mints a Stripe Billing
   Portal session for updating cards, viewing invoices, or cancelling. Enable the
   portal once in Stripe Dashboard → Settings → Billing → Customer portal.
+- **Digital membership card**: active members see a branded card on `/account/`
+  (name, tier, valid-through, QR) and can download it as a PNG to show at partner
+  businesses. The QR encodes `/api/verify?m=<member-id>`, a public page that checks
+  status LIVE (green valid / red not valid) — so screenshots of expired cards fail.
+  It reveals only name, tier, and validity.
 
 ## Notes / TODO for the org
 

@@ -720,6 +720,113 @@ export function passwordResetCard() {
   return card;
 }
 
+// ---------- Digital membership card (show at partner restaurants) ----------
+
+// Load the self-hosted QR bundle on demand — only the account page needs it,
+// so it isn't injected globally like the Supabase client.
+function loadQrLib() {
+  return new Promise((resolve, reject) => {
+    if (window.qrcode) return resolve(window.qrcode);
+    const s = document.createElement('script');
+    s.src = '/assets/qrcode.js';
+    s.onload = () => (window.qrcode ? resolve(window.qrcode) : reject(new Error('qrcode missing')));
+    s.onerror = () => reject(new Error('qrcode failed to load'));
+    document.head.appendChild(s);
+  });
+}
+
+// Draw the card as a PNG for download (phones keep it in the photo album).
+async function drawCardPng({ name, tierName, until, qrPng }) {
+  const W = 1050,
+    H = 630; // credit-card aspect ratio
+  const cv = document.createElement('canvas');
+  cv.width = W;
+  cv.height = H;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#ffffff';
+  c.fillRect(0, 0, W, H);
+  c.fillStyle = '#8e2e11';
+  c.fillRect(0, 0, W, 130);
+  c.fillStyle = '#edbb5f';
+  c.fillRect(0, 130, W, 6);
+  c.fillStyle = '#ffffff';
+  c.font = '700 52px Georgia, "Times New Roman", serif';
+  c.fillText('CAACI', 48, 84);
+  c.font = '20px Helvetica, Arial, sans-serif';
+  c.fillText('Chinese American Association of Central Illinois · 华人协会', 232, 78);
+  c.fillStyle = '#300200';
+  c.font = '700 54px Helvetica, Arial, sans-serif';
+  c.fillText(name, 48, 260);
+  c.fillStyle = '#555555';
+  c.font = '32px Helvetica, Arial, sans-serif';
+  c.fillText(tierName, 48, 320);
+  if (until) {
+    c.fillStyle = '#888888';
+    c.font = '24px Helvetica, Arial, sans-serif';
+    c.fillText(`Valid through · 有效期至 ${until}`, 48, 372);
+  }
+  c.fillStyle = '#888888';
+  c.font = '20px Helvetica, Arial, sans-serif';
+  c.fillText('Scan to verify · 扫码实时验证', W - 320, H - 44);
+  const img = new Image();
+  await new Promise((res, rej) => {
+    img.onload = res;
+    img.onerror = rej;
+    img.src = qrPng;
+  });
+  c.drawImage(img, W - 328, H - 330, 260, 260);
+  return cv.toDataURL('image/png');
+}
+
+// Render the member's digital card into `host`. The QR encodes /api/verify?m=…
+// which shows LIVE membership status — an expired card's QR turns red at the
+// restaurant, so old screenshots can't pass.
+export function renderMemberCard(host, { user, member, tierName }) {
+  const until = member.expires_at ? new Date(member.expires_at).toLocaleDateString() : '';
+  const name = member.full_name || user.email;
+  host.innerHTML = `
+    <div class="caaci-mcard">
+      <div class="caaci-mcard-head"><b>CAACI</b><span>Chinese American Association of Central Illinois · 华人协会</span></div>
+      <div class="caaci-mcard-body">
+        <div>
+          <p class="caaci-mcard-name">${esc(name)}</p>
+          <p class="caaci-mcard-tier">${esc(tierName)}</p>
+          ${until ? `<p class="caaci-mcard-until">Valid through · 有效期至 ${until}</p>` : ''}
+        </div>
+        <div class="caaci-mcard-qr" aria-label="Verification QR code"></div>
+      </div>
+    </div>
+    <p class="caaci-account-actions"><button type="button" class="caaci-btn caaci-btn--secondary" id="caaci-mcard-dl" disabled>Download card · 下载会员卡</button></p>
+    <p class="caaci-muted-text" style="font-size:13px">Show this card at partner businesses — scanning the QR verifies your membership live. <span lang="zh">在合作商家出示会员卡，扫码即可实时验证会员资格。</span></p>`;
+
+  const verifyUrl = `${location.origin}/api/verify?m=${encodeURIComponent(user.id)}`;
+  loadQrLib()
+    .then(async (qrcode) => {
+      const qr = qrcode(0, 'M');
+      qr.addData(verifyUrl);
+      qr.make();
+      const png = qr.createDataURL(6, 12);
+      const img = document.createElement('img');
+      img.alt = 'Scan to verify membership · 扫码验证会员';
+      img.src = png;
+      host.querySelector('.caaci-mcard-qr').appendChild(img);
+      const dl = host.querySelector('#caaci-mcard-dl');
+      dl.disabled = false;
+      dl.addEventListener('click', async () => {
+        try {
+          const data = await drawCardPng({ name, tierName, until, qrPng: png });
+          const a = document.createElement('a');
+          a.href = data;
+          a.download = 'caaci-membership-card.png';
+          a.click();
+        } catch (err) {
+          console.warn('caaci-app: card download', err);
+        }
+      });
+    })
+    .catch((err) => console.warn('caaci-app: member card QR', err));
+}
+
 export async function wireAccount() {
   if (!/account/.test(location.pathname) || !supa) return;
   const {
@@ -781,8 +888,22 @@ export async function wireAccount() {
     ${m?.full_name ? `<p><b>Name · 姓名:</b> ${esc(m.full_name)}</p>` : ''}
     <p><b>Email · 邮箱:</b> ${esc(user.email)}</p>
     ${subscription}
+    <div id="caaci-mcard-host"></div>
     <p style="margin-top:20px"><a href="#" id="caaci-logout">Sign out · 退出登录</a></p>`;
   host.prepend(box);
+
+  // Active members get a digital membership card to show at partner businesses.
+  if (m?.tier_id && m.status === 'active') {
+    try {
+      renderMemberCard(box.querySelector('#caaci-mcard-host'), {
+        user,
+        member: m,
+        tierName: tier?.name || m.tier_id,
+      });
+    } catch (err) {
+      console.warn('caaci-app: member card', err);
+    }
+  }
 
   $('#caaci-billing')?.addEventListener('click', async () => {
     const btn = $('#caaci-billing');

@@ -645,3 +645,46 @@ test('wireLogin adds forgot-password + create-account links that work', async ()
   links.querySelector('#caaci-show-signup').click();
   assert.equal(card.hidden, true, 'second click hides it');
 });
+
+test('wireAccount renders a digital membership card for an active member', async () => {
+  setup(ACCOUNT_SNAPSHOT, '/account/');
+  __setSupa({
+    auth: { getUser: async () => ({ data: { user: { id: 'u1', email: 'a@x.com' } } }) },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({
+            data: {
+              full_name: 'Mei Lin',
+              tier_id: 'family',
+              status: 'active',
+              expires_at: '2027-01-01T00:00:00Z',
+            },
+          }),
+        }),
+      }),
+    }),
+  });
+  await wireAccount();
+  const card = document.querySelector('.caaci-mcard');
+  assert.ok(card, 'membership card rendered');
+  assert.match(card.textContent, /Mei Lin/);
+  assert.match(card.textContent, /Family Membership/);
+  assert.match(card.textContent, /Valid through/);
+});
+
+test('wireAccount shows no membership card for a cancelled member', async () => {
+  setup(ACCOUNT_SNAPSHOT, '/account/');
+  __setSupa({
+    auth: { getUser: async () => ({ data: { user: { id: 'u1', email: 'a@x.com' } } }) },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: { tier_id: 'family', status: 'cancelled' } }),
+        }),
+      }),
+    }),
+  });
+  await wireAccount();
+  assert.equal(document.querySelector('.caaci-mcard'), null);
+});
