@@ -1020,6 +1020,30 @@
   image-rendering: pixelated;
 }
 
+/* "Add to Apple Wallet" — Apple's badge style: black pill, white text */
+.caaci-wallet-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.5em 1.3em;
+  background: #000;
+  color: #fff;
+  border: 1px solid #000;
+  border-radius: 6px;
+  font-family: var(--caaci-font-body);
+  font-size: var(--caaci-fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--caaci-transition);
+}
+.caaci-wallet-btn:hover {
+  opacity: 0.8;
+}
+.caaci-wallet-btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Auth helper links (forgot password / create account) under the login form */
 .caaci-auth-links {
   margin: 14px 0;
@@ -1030,6 +1054,44 @@
 .caaci-auth-links a {
   color: var(--caaci-red);
   font-weight: 600;
+}
+
+/* ============================================ Admin: payment stat tiles === */
+.caaci-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0 0 var(--caaci-gap);
+}
+.caaci-stat {
+  padding: 16px;
+  background: var(--caaci-fill);
+  border: 1px solid var(--caaci-line);
+  border-radius: var(--caaci-radius);
+  text-align: center;
+}
+.caaci-stat-value {
+  display: block;
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--caaci-ink);
+  font-variant-numeric: tabular-nums;
+}
+.caaci-stat[data-state='active'] .caaci-stat-value {
+  color: var(--caaci-success);
+}
+.caaci-stat[data-state='past_due'] .caaci-stat-value {
+  color: var(--caaci-rust);
+}
+.caaci-stat[data-state='expired'] .caaci-stat-value {
+  color: var(--caaci-muted);
+}
+.caaci-stat-label {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--caaci-fs-eyebrow);
+  font-weight: 600;
+  color: var(--caaci-muted);
 }
 
 /* ================================================= Admin: discount QRs === */

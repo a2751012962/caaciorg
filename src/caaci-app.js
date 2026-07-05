@@ -796,8 +796,46 @@ export function renderMemberCard(host, { user, member, tierName }) {
         <div class="caaci-mcard-qr" aria-label="Verification QR code"></div>
       </div>
     </div>
-    <p class="caaci-account-actions"><button type="button" class="caaci-btn caaci-btn--secondary" id="caaci-mcard-dl" disabled>Download card · 下载会员卡</button></p>
+    <p class="caaci-account-actions">
+      <button type="button" class="caaci-btn caaci-btn--secondary" id="caaci-mcard-dl" disabled>Download card · 下载会员卡</button>
+      <button type="button" class="caaci-wallet-btn" id="caaci-wallet" hidden>Add to Apple Wallet · 加入钱包</button>
+    </p>
     <p class="caaci-muted-text" style="font-size:13px">Show this card at partner businesses — scanning the QR verifies your membership live. <span lang="zh">在合作商家出示会员卡，扫码即可实时验证会员资格。</span></p>`;
+
+  // Apple Wallet needs signing certificates on the server — probe once and only
+  // reveal the button when the endpoint says it's ready (204).
+  try {
+    fetch('/api/wallet-pass')
+      .then((r) => {
+        if (r.status !== 204) return;
+        const wbtn = host.querySelector('#caaci-wallet');
+        wbtn.hidden = false;
+        wbtn.addEventListener('click', async () => {
+          wbtn.disabled = true;
+          try {
+            const { data: { session } = { session: null } } =
+              (await supa.auth.getSession?.()) || {};
+            const res = await fetch('/api/wallet-pass', {
+              method: 'POST',
+              headers: session ? { authorization: `Bearer ${session.access_token}` } : {},
+            });
+            if (!res.ok) throw new Error('wallet pass failed');
+            const blob = await res.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'caaci-membership.pkpass';
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+          } catch {
+            notice(host, 'Could not create the Wallet pass. · 无法生成钱包卡券。', false);
+          }
+          wbtn.disabled = false;
+        });
+      })
+      .catch(() => {});
+  } catch {
+    /* fetch unavailable (tests) — button stays hidden */
+  }
 
   const verifyUrl = `${location.origin}/api/verify?m=${encodeURIComponent(user.id)}`;
   loadQrLib()
@@ -889,8 +927,43 @@ export async function wireAccount() {
     <p><b>Email · 邮箱:</b> ${esc(user.email)}</p>
     ${subscription}
     <div id="caaci-mcard-host"></div>
+    <div id="caaci-payhist-host"></div>
     <p style="margin-top:20px"><a href="#" id="caaci-logout">Sign out · 退出登录</a></p>`;
   host.prepend(box);
+
+  // Personal payment history (RLS lets a member read only their own rows).
+  // Fire-and-forget: an older mock/client without .order, or the migration not
+  // yet applied, just means the section stays empty.
+  (async () => {
+    try {
+      const { data: pays } = await withTimeout(
+        supa
+          .from('payments')
+          .select('paid_at,kind,amount_cents')
+          .eq('member_id', user.id)
+          .order('paid_at', { ascending: false })
+          .limit(10),
+        3500,
+        { data: null },
+      );
+      if (!Array.isArray(pays) || !pays.length) return;
+      const kindTxt = { membership: 'Membership · 入会', renewal: 'Renewal · 续费' };
+      box.querySelector('#caaci-payhist-host').innerHTML = `
+        <div class="caaci-subscription">
+          <p style="margin:10px 0 0;font-weight:700">Payment history · 付款记录</p>
+          ${pays
+            .map(
+              (p) => `<div class="caaci-sub-row">
+                <span>${new Date(p.paid_at).toLocaleDateString()} · ${kindTxt[p.kind] || esc(p.kind)}</span>
+                <span>${usd(p.amount_cents || 0)}</span>
+              </div>`,
+            )
+            .join('')}
+        </div>`;
+    } catch (err) {
+      console.warn('caaci-app: payment history', err);
+    }
+  })();
 
   // Active members get a digital membership card to show at partner businesses.
   if (m?.tier_id && m.status === 'active') {

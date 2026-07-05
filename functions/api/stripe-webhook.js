@@ -62,6 +62,19 @@ export async function onRequestPost({ request, env }) {
     return null;
   }
 
+  // Append a row to the payments ledger (who paid, when, how much) so staff can
+  // track dues in the admin panel without opening the Stripe Dashboard. Never
+  // fatal: the membership state is already updated, the unique indexes on the
+  // Stripe ids swallow webhook-retry duplicates, and a missing table (migration
+  // not yet applied) must not 500 the webhook into a retry loop.
+  async function recordPayment(row) {
+    try {
+      await DB.insert('payments', row, { returning: false });
+    } catch (err) {
+      console.warn('stripe-webhook: payments insert failed —', err.message);
+    }
+  }
+
   try {
     if (event.type === 'checkout.session.completed') {
       const s = event.data.object;
@@ -94,6 +107,15 @@ export async function onRequestPost({ request, env }) {
             console.warn('stripe-webhook: redeem_discount_code failed —', err.message);
           }
         }
+        await recordPayment({
+          member_id: md.member_id,
+          kind: 'membership',
+          amount_cents: s.amount_total ?? 0,
+          currency: s.currency || 'usd',
+          tier_id: md.tier_id || null,
+          discount_code: md.discount_code || null,
+          stripe_session_id: s.id,
+        });
       }
     } else if (event.type === 'invoice.paid') {
       // Only RENEWALS extend the membership. The first invoice at signup has
@@ -120,6 +142,14 @@ export async function onRequestPost({ request, env }) {
               stripe_subscription_id: sub || m.stripe_subscription_id,
             },
           );
+          await recordPayment({
+            member_id: m.id,
+            kind: 'renewal',
+            amount_cents: inv.amount_paid ?? 0,
+            currency: inv.currency || 'usd',
+            tier_id: m.tier_id || null,
+            stripe_invoice_id: inv.id,
+          });
         }
       }
     } else if (event.type === 'invoice.payment_failed') {

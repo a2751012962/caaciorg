@@ -305,6 +305,90 @@ function wireMembers() {
   });
 }
 
+// ---------- payments ledger (membership tracking) ----------
+const PAY_LIMIT = 50;
+let payOffset = 0,
+  payTotal = 0;
+
+const usdFmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
+const KIND_LABEL = {
+  membership: () => t('First year', '首年入会'),
+  renewal: () => t('Auto-renewal', '自动续费'),
+};
+
+async function loadPayments() {
+  const notb = $('#caaci-payments-notice');
+  const params = new URLSearchParams({ limit: String(PAY_LIMIT), offset: String(payOffset) });
+  const { ok, data } = await api(`/api/admin/payments?${params}`);
+  if (!ok) {
+    notice(notb, data.error || t('Could not load payments.', '无法加载收款记录。'), false);
+    return;
+  }
+  notb.hidden = true;
+
+  // Stat tiles: membership head-counts + revenue this year.
+  const sc = data.status_counts || {};
+  const tiles = [
+    [t('Active members', '有效会员'), sc.active ?? '—', 'active'],
+    [t('Past due — follow up', '逾期需补交'), sc.past_due ?? '—', 'past_due'],
+    [t('Expired', '已过期'), sc.expired ?? '—', 'expired'],
+    [t('Revenue this year', '今年收款'), usdFmt(data.revenue_ytd_cents), ''],
+  ];
+  $('#caaci-pay-stats').innerHTML = tiles
+    .map(
+      ([label, value, state]) => `
+      <div class="caaci-stat"${state ? ` data-state="${state}"` : ''}>
+        <span class="caaci-stat-value">${esc(String(value))}</span>
+        <span class="caaci-stat-label">${esc(label)}</span>
+      </div>`,
+    )
+    .join('');
+
+  const tb = $('#caaci-payments-body');
+  tb.innerHTML = '';
+  const rows = data.rows || [];
+  if (!rows.length && payOffset === 0) {
+    tb.innerHTML = `<tr><td colspan="6" class="caaci-muted-text">${t('No payments recorded yet.', '暂无收款记录。')}</td></tr>`;
+  }
+  for (const p of rows) {
+    const who = p.members
+      ? `${esc(p.members.full_name || '—')}<br><span class="caaci-muted-text">${esc(p.members.email || '')}</span>`
+      : `<span class="caaci-muted-text">${t('(deleted member)', '（已删除会员）')}</span>`;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtDate(p.paid_at)}</td>
+      <td>${who}</td>
+      <td>${KIND_LABEL[p.kind]?.() || esc(p.kind)}</td>
+      <td>${esc(tierName[p.tier_id] || p.tier_id || '—')}</td>
+      <td>${p.discount_code ? `<code>${esc(p.discount_code)}</code>` : '—'}</td>
+      <td>${usdFmt(p.amount_cents)}</td>`;
+    tb.appendChild(tr);
+  }
+
+  payTotal = data.total || 0;
+  $('#caaci-pay-info').textContent = payTotal
+    ? t(
+        `${payOffset + 1}–${Math.min(payOffset + PAY_LIMIT, payTotal)} of ${payTotal}`,
+        `${payOffset + 1}–${Math.min(payOffset + PAY_LIMIT, payTotal)} / 共 ${payTotal}`,
+      )
+    : t('No payments', '暂无记录');
+  $('#caaci-pay-prev').disabled = payOffset === 0;
+  $('#caaci-pay-next').disabled = payOffset + PAY_LIMIT >= payTotal;
+}
+
+function wirePayments() {
+  $('#caaci-pay-prev').addEventListener('click', () => {
+    payOffset = Math.max(0, payOffset - PAY_LIMIT);
+    loadPayments();
+  });
+  $('#caaci-pay-next').addEventListener('click', () => {
+    payOffset += PAY_LIMIT;
+    loadPayments();
+  });
+  const tab = $('.caaci-tab[data-tab="payments"]');
+  if (tab) tab.addEventListener('click', () => loadPayments());
+}
+
 // ---------- discount codes (+ shareable QR) ----------
 // The QR encodes /membership/?code=XYZ so scanning lands on the plan grid with
 // the discount pre-applied. window.qrcode is the self-hosted UMD generator the
@@ -878,6 +962,7 @@ function wireFamilies() {
   wireMembers();
   wireMemberAdd();
   wireFamilies();
+  wirePayments();
   wireDiscounts();
   wireNews();
   await loadTiers();

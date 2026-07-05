@@ -189,6 +189,26 @@ onto the members row).
   renewal date) and a "Manage billing" button — `/api/portal` mints a Stripe Billing
   Portal session for updating cards, viewing invoices, or cancelling. Enable the
   portal once in Stripe Dashboard → Settings → Billing → Customer portal.
+- **Payments tracking**: every membership charge (first year + yearly auto-renewal)
+  is written to the `payments` ledger by the Stripe webhook. The admin panel's
+  **Payments** tab shows the ledger plus live stats — active / past-due / expired
+  head-counts and revenue this year — so staff can see who paid, when, and who
+  needs to be chased without opening Stripe. Members see their own payment
+  history on `/account/`. Requires migration `0008_payments.sql`.
+- **Apple Wallet**: active members can add their card to Apple Wallet from
+  `/account/` — `POST /api/wallet-pass` builds and signs the `.pkpass` on the
+  server. Needs an Apple Developer account ($99/yr) and five secrets; until they
+  exist the endpoint answers 503 and the button stays hidden:
+  1. developer.apple.com → Certificates, Identifiers & Profiles → Identifiers →
+     new **Pass Type ID** (e.g. `pass.org.caaci.member`).
+  2. Create its certificate; download, import into Keychain, export as `.p12`;
+     split: `openssl pkcs12 -in pass.p12 -clcerts -nokeys -out cert.pem` and
+     `openssl pkcs12 -in pass.p12 -nocerts -nodes -out key.pem`.
+  3. Download Apple's **WWDR G4** intermediate certificate and convert to PEM.
+  4. `npx wrangler pages secret put APPLE_PASS_CERT_PEM / APPLE_PASS_KEY_PEM /
+APPLE_WWDR_CERT_PEM / APPLE_PASS_TYPE_ID / APPLE_TEAM_ID --project-name=caaci`
+  5. Redeploy. The pass front mirrors the web card; its QR is the same live
+     `/api/verify` check, and the pass auto-expires with the membership.
 - **Digital membership card**: active members see a branded card on `/account/`
   (name, tier, valid-through, QR) and can download it as a PNG to show at partner
   businesses. The QR encodes `/api/verify?m=<member-id>`, a public page that checks

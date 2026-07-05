@@ -23,5 +23,8 @@
     "jsdom": "^29.1.1",
     "prettier": "^3.9.1",
     "wrangler": "^4.105.0"
+  },
+  "dependencies": {
+    "node-forge": "^1.4.0"
   }
 }
