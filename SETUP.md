@@ -160,12 +160,60 @@ visit `/admin/` while logged in. The panel provides:
   Recipients are read server-side and never exposed to the browser; each member gets their
   own message. Sends are throttled (one per minute) and require an explicit confirm.
   Requires `RESEND_API_KEY` + `NOTIFY_FROM` to be set. Logged to the `news_posts` table.
+- **Discounts** — create discount codes (percent off, optional expiry / redemption cap).
+  Every code gets a shareable **QR code** that opens `/membership/?code=XXX` with the
+  discount pre-applied — download the image and print it on flyers. Codes are validated
+  server-side (`/api/discount`) and re-checked at checkout; Stripe applies them as a
+  `duration: once` coupon, so **only the first year is discounted** and renewals bill at
+  full price. The webhook counts redemptions atomically (`redeem_discount_code`).
 - **Refunds** — placeholder for now; issue refunds in the Stripe Dashboard.
 
 Apply the admin migrations before using the panel (`supabase db push` runs them all):
-`0003_admin.sql` (adds the `past_due` status and the `news_posts` audit table) and
+`0003_admin.sql` (adds the `past_due` status and the `news_posts` audit table),
 `0004_households.sql` + `0005_households_rls.sql` (the `households` / `household_members`
-tables and `members.household_id` that power the **Families** tab and member add/edit).
+tables and `members.household_id` that power the **Families** tab and member add/edit),
+`0006_discounts.sql` (the `discount_codes` table + atomic redemption counter behind the
+**Discounts** tab), and `0007_signup_phone.sql` (copies the signup form's phone number
+onto the members row).
+
+## Self-service auth & billing
+
+- **Registration**: `/login-3/` offers "Create an account" (name, email, phone,
+  password + confirm, duplicate-email detection, email-confirmation notice). The
+  checkout overlay's inline signup enforces the same password rules and detects
+  already-registered emails instead of silently continuing. `/register/` (which the
+  mirror never captured an index page for) now redirects to `/membership/`.
+- **Password reset**: "Forgot your password?" on the login page emails a reset link
+  that lands on `/account/?recovery=1` with a set-new-password form.
+- **Billing portal**: `/account/` shows the full subscription (plan, status, price,
+  renewal date) and a "Manage billing" button — `/api/portal` mints a Stripe Billing
+  Portal session for updating cards, viewing invoices, or cancelling. Enable the
+  portal once in Stripe Dashboard → Settings → Billing → Customer portal.
+- **Payments tracking**: every membership charge (first year + yearly auto-renewal)
+  is written to the `payments` ledger by the Stripe webhook. The admin panel's
+  **Payments** tab shows the ledger plus live stats — active / past-due / expired
+  head-counts and revenue this year — so staff can see who paid, when, and who
+  needs to be chased without opening Stripe. Members see their own payment
+  history on `/account/`. Requires migration `0008_payments.sql`.
+- **Apple Wallet**: active members can add their card to Apple Wallet from
+  `/account/` — `POST /api/wallet-pass` builds and signs the `.pkpass` on the
+  server. Needs an Apple Developer account ($99/yr) and five secrets; until they
+  exist the endpoint answers 503 and the button stays hidden:
+  1. developer.apple.com → Certificates, Identifiers & Profiles → Identifiers →
+     new **Pass Type ID** (e.g. `pass.org.caaci.member`).
+  2. Create its certificate; download, import into Keychain, export as `.p12`;
+     split: `openssl pkcs12 -in pass.p12 -clcerts -nokeys -out cert.pem` and
+     `openssl pkcs12 -in pass.p12 -nocerts -nodes -out key.pem`.
+  3. Download Apple's **WWDR G4** intermediate certificate and convert to PEM.
+  4. `npx wrangler pages secret put APPLE_PASS_CERT_PEM / APPLE_PASS_KEY_PEM /
+APPLE_WWDR_CERT_PEM / APPLE_PASS_TYPE_ID / APPLE_TEAM_ID --project-name=caaci`
+  5. Redeploy. The pass front mirrors the web card; its QR is the same live
+     `/api/verify` check, and the pass auto-expires with the membership.
+- **Digital membership card**: active members see a branded card on `/account/`
+  (name, tier, valid-through, QR) and can download it as a PNG to show at partner
+  businesses. The QR encodes `/api/verify?m=<member-id>`, a public page that checks
+  status LIVE (green valid / red not valid) — so screenshots of expired cards fail.
+  It reveals only name, tier, and validity.
 
 ## Notes / TODO for the org
 

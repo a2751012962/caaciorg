@@ -32,9 +32,12 @@ export function mockFetch(handler) {
     const status = res.status ?? (res.ok === false ? 400 : 200);
     const ok = res.ok ?? (status >= 200 && status < 300);
     const payload = res.body ?? {};
+    const headerMap = {};
+    for (const [k, v] of Object.entries(res.headers ?? {})) headerMap[k.toLowerCase()] = v;
     return {
       ok,
       status,
+      headers: { get: (name) => headerMap[String(name).toLowerCase()] ?? null },
       async json() {
         return typeof payload === 'string' ? JSON.parse(payload) : payload;
       },

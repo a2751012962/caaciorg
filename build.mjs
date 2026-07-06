@@ -58,6 +58,9 @@ await copyFile(join(ROOT, 'src', 'supabase.js'), join(DIST, 'assets', 'supabase.
 // /assets/caaci-admin.js itself; the inject loop below still adds config + CSS.
 await cp(join(ROOT, 'admin-src'), join(DIST, 'admin'), { recursive: true });
 await copyFile(join(ROOT, 'src', 'caaci-admin.js'), join(DIST, 'assets', 'caaci-admin.js'));
+// Self-hosted QR generator (MIT, kazuhikoarase/qrcode-generator) — used by the
+// admin Discounts tab to render shareable /membership/?code=… QR codes.
+await copyFile(join(ROOT, 'src', 'vendor', 'qrcode.js'), join(DIST, 'assets', 'qrcode.js'));
 
 const inject =
   `\n<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +
@@ -111,6 +114,11 @@ const REDIRECTS = {
   'login-4': CANON_LOGIN,
   'login-5': CANON_LOGIN,
   'account-5': CANON_ACCOUNT,
+  // /register/ itself was never mirrored with an index (only the per-tier
+  // /register/<tier>/ pages exist), so the bare URL 404'd. Send it to the plan
+  // grid, which is the real start of registration. The redirect stub preserves
+  // ?query, so /register/?code=XYZ keeps a scanned discount code.
+  register: 'membership',
 };
 const redirectStub = (to) => {
   const url = `/${to}/`;
