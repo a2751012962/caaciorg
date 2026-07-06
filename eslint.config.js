@@ -8,7 +8,7 @@ import globals from 'globals';
 //   - *.mjs         → Node build/tooling scripts
 export default defineConfig([
   // Vendored third-party bundle (Supabase UMD) — not our code; don't lint it.
-  { ignores: ['dist/', 'mirror/', 'node_modules/', 'src/supabase.js'] },
+  { ignores: ['dist/', 'mirror/', 'node_modules/', 'src/supabase.js', 'src/vendor/'] },
   js.configs.recommended,
   {
     files: ['src/**/*.js'],

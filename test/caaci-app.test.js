@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom';
 import { mockFetch } from './helpers.js';
 import {
   notice,
+  esc,
   oauthButtons,
   tierFromSlug,
   TIER_BY_SLUG,
@@ -17,6 +18,7 @@ import {
   wireRegister,
   wirePlans,
   openCheckout,
+  signupCard,
   __setSupa,
 } from '../src/caaci-app.js';
 
@@ -314,6 +316,7 @@ test('wireRegister opens checkout; a new visitor signs up then starts membership
     assert.ok(document.querySelector('.caaci-modal'), 'overlay opened');
 
     document.querySelector('#caaci-email').value = 'm@x.com';
+    document.querySelector('#caaci-pwd').value = 'longenough'; // signup now requires a real password
     document.querySelector('.caaci-pay').click();
     await tick();
     const call = fetch.calls.find((c) => c.url === '/api/checkout');
@@ -430,4 +433,258 @@ test('openCheckout switch path updates the plan via /api/change-plan (no redirec
   } finally {
     fetch.restore();
   }
+});
+
+test('esc() neutralises HTML in user-supplied strings', () => {
+  assert.equal(esc('<img src=x onerror=alert(1)>'), '&lt;img src=x onerror=alert(1)&gt;');
+  assert.equal(esc('a & "b"'), 'a &amp; &quot;b&quot;');
+  assert.equal(esc(null), '');
+});
+
+test('openCheckout signup blocks a short password and an already-registered email', async () => {
+  const fetch = mockFetch(() => ({ ok: true, body: { url: 'https://pay/m3' } }));
+  try {
+    setup('<main></main>', '/membership/');
+    __setSupa({
+      auth: {
+        signInWithOAuth: async () => ({}),
+        // Supabase's obfuscated "existing account" response: success, but the
+        // returned user carries no identities.
+        signUp: async () => ({
+          data: { user: { id: 'ghost', identities: [] }, session: null },
+          error: null,
+        }),
+      },
+    });
+    openCheckout({
+      type: 'membership',
+      tier: { id: 'individual', name: 'Individual', price_cents: 3000 },
+      user: null,
+    });
+    const modal = document.querySelector('.caaci-modal');
+    modal.querySelector('#caaci-email').value = 'dup@x.com';
+
+    modal.querySelector('#caaci-pwd').value = 'short';
+    modal.querySelector('.caaci-pay').click();
+    await tick();
+    assert.match(modal.querySelector('.caaci-notice').textContent, /at least 8 characters/);
+
+    modal.querySelector('#caaci-pwd').value = 'longenough';
+    modal.querySelector('.caaci-pay').click();
+    await tick();
+    assert.match(modal.querySelector('.caaci-notice').textContent, /already has an account/);
+    assert.equal(
+      fetch.calls.filter((c) => c.url === '/api/checkout').length,
+      0,
+      'no checkout for a duplicate account',
+    );
+    assert.equal(modal.querySelector('.caaci-pay').disabled, false, 'button re-enabled');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('openCheckout applies a discount code to the summary and the checkout call', async () => {
+  const fetch = mockFetch((url) => {
+    if (url === '/api/discount') return { ok: true, body: { code: 'SPRING20', percent_off: 20 } };
+    return { ok: true, body: { url: 'https://pay/m4' } };
+  });
+  try {
+    setup('<main></main>', '/membership/');
+    __setSupa({ auth: {} });
+    openCheckout({
+      type: 'membership',
+      tier: { id: 'individual', name: 'Individual', price_cents: 3000 },
+      user: { id: 'u1', email: 'mei@x.com' },
+    });
+    const modal = document.querySelector('.caaci-modal');
+    // withFee(3000) = 3105; 20% off = 621 -> total 2484
+    modal.querySelector('#caaci-code').value = 'spring20';
+    modal.querySelector('.caaci-discount-apply').click();
+    await tick();
+    assert.match(modal.querySelector('.caaci-line--discount').textContent, /SPRING20.*\$6\.21/s);
+    assert.match(modal.querySelector('.caaci-line--total').textContent, /\$24\.84/);
+    assert.match(modal.querySelector('.caaci-discount-msg').textContent, /20% off/);
+
+    modal.querySelector('.caaci-pay').click();
+    await tick();
+    const call = fetch.calls.find((c) => c.url === '/api/checkout');
+    const sent = JSON.parse(call.options.body);
+    assert.equal(sent.discount_code, 'SPRING20');
+    assert.equal(sent.member_id, 'u1');
+    assert.equal(location.href, 'https://pay/m4');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('openCheckout rejects a bad discount code and keeps the full price', async () => {
+  const fetch = mockFetch((url) => {
+    if (url === '/api/discount')
+      return { ok: false, status: 400, body: { error: 'This discount code has expired.' } };
+    return { ok: true, body: {} };
+  });
+  try {
+    setup('<main></main>', '/membership/');
+    __setSupa({ auth: {} });
+    openCheckout({
+      type: 'membership',
+      tier: { id: 'individual', name: 'Individual', price_cents: 3000 },
+      user: { id: 'u1', email: 'mei@x.com' },
+    });
+    const modal = document.querySelector('.caaci-modal');
+    modal.querySelector('#caaci-code').value = 'OLD';
+    modal.querySelector('.caaci-discount-apply').click();
+    await tick();
+    const msg = modal.querySelector('.caaci-discount-msg');
+    assert.equal(msg.getAttribute('data-state'), 'error');
+    assert.match(msg.textContent, /expired/);
+    assert.equal(modal.querySelector('.caaci-line--discount'), null);
+    assert.match(modal.querySelector('.caaci-line--total').textContent, /\$31\.05/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wirePlans surfaces a valid ?code= discount as a banner', async () => {
+  const fetch = mockFetch((url) =>
+    url === '/api/discount'
+      ? { ok: true, body: { code: 'QR10', percent_off: 10 } }
+      : { ok: true, body: {} },
+  );
+  try {
+    setup('<main></main>', '/membership/');
+    globalThis.location.search = '?code=QR10';
+    __setSupa(plansSupa({ user: null }));
+    await wirePlans();
+    const banner = document.querySelector('.caaci-plans-discount');
+    assert.ok(banner, 'discount banner rendered');
+    assert.match(banner.textContent, /QR10.*10% off/s);
+    assert.equal(banner.getAttribute('data-state'), null);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('signupCard validates, detects duplicates, and confirms a pending signup', async () => {
+  setup('', '/login-3/');
+  let mode = 'ok';
+  __setSupa({
+    auth: {
+      signUp: async ({ email, password, options }) => {
+        assert.equal(email, 'new@x.com');
+        assert.equal(password, 'longenough');
+        assert.equal(options.data.full_name, 'Mei');
+        if (mode === 'dup')
+          return { data: { user: { id: 'x', identities: [] }, session: null }, error: null };
+        return { data: { user: { id: 'u5', identities: [{}] }, session: null }, error: null };
+      },
+    },
+  });
+  const card = signupCard();
+  document.body.appendChild(card);
+  const v = (id, val) => (card.querySelector(id).value = val);
+  v('#caaci-su-name', 'Mei');
+  v('#caaci-su-email', 'not-an-email');
+  v('#caaci-su-pwd', 'longenough');
+  v('#caaci-su-pwd2', 'longenough');
+  card.querySelector('#caaci-su-submit').click();
+  await tick();
+  assert.match(card.querySelector('.caaci-notice').textContent, /valid email/);
+
+  v('#caaci-su-email', 'new@x.com');
+  v('#caaci-su-pwd2', 'different1');
+  card.querySelector('#caaci-su-submit').click();
+  await tick();
+  assert.match(card.querySelector('.caaci-notice').textContent, /do not match/);
+
+  v('#caaci-su-pwd2', 'longenough');
+  mode = 'dup';
+  card.querySelector('#caaci-su-submit').click();
+  await tick();
+  assert.match(card.querySelector('.caaci-notice').textContent, /already has an account/);
+
+  mode = 'ok';
+  card.querySelector('#caaci-su-submit').click();
+  await tick();
+  // no session -> email confirmation required, stay on the page
+  assert.match(card.querySelector('.caaci-notice').textContent, /Check your email/);
+  assert.equal(location.href, '');
+});
+
+test('wireLogin adds forgot-password + create-account links that work', async () => {
+  setup(
+    '<form id="mepr_loginform"><input name="log" value="mei@x.com"><input name="pwd"></form>',
+    '/login-3/',
+  );
+  let resetFor = null;
+  __setSupa({
+    auth: {
+      signInWithPassword: async () => ({ data: {}, error: null }),
+      signInWithOAuth: async () => ({}),
+      resetPasswordForEmail: async (email, opts) => {
+        resetFor = { email, ...opts };
+        return { error: null };
+      },
+    },
+  });
+  wireLogin();
+  const links = document.querySelector('.caaci-auth-links');
+  assert.ok(links, 'auth links injected');
+
+  links.querySelector('#caaci-forgot').click();
+  await tick();
+  assert.equal(resetFor.email, 'mei@x.com');
+  assert.equal(resetFor.redirectTo, 'https://caaci.example/account/?recovery=1');
+  const form = document.getElementById('mepr_loginform');
+  assert.match(form.querySelector('.caaci-notice').textContent, /reset email sent/i);
+
+  links.querySelector('#caaci-show-signup').click();
+  const card = document.querySelector('.caaci-signup-card');
+  assert.ok(card, 'signup card shown');
+  links.querySelector('#caaci-show-signup').click();
+  assert.equal(card.hidden, true, 'second click hides it');
+});
+
+test('wireAccount renders a digital membership card for an active member', async () => {
+  setup(ACCOUNT_SNAPSHOT, '/account/');
+  __setSupa({
+    auth: { getUser: async () => ({ data: { user: { id: 'u1', email: 'a@x.com' } } }) },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({
+            data: {
+              full_name: 'Mei Lin',
+              tier_id: 'family',
+              status: 'active',
+              expires_at: '2027-01-01T00:00:00Z',
+            },
+          }),
+        }),
+      }),
+    }),
+  });
+  await wireAccount();
+  const card = document.querySelector('.caaci-mcard');
+  assert.ok(card, 'membership card rendered');
+  assert.match(card.textContent, /Mei Lin/);
+  assert.match(card.textContent, /Family Membership/);
+  assert.match(card.textContent, /Valid through/);
+});
+
+test('wireAccount shows no membership card for a cancelled member', async () => {
+  setup(ACCOUNT_SNAPSHOT, '/account/');
+  __setSupa({
+    auth: { getUser: async () => ({ data: { user: { id: 'u1', email: 'a@x.com' } } }) },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: { tier_id: 'family', status: 'cancelled' } }),
+        }),
+      }),
+    }),
+  });
+  await wireAccount();
+  assert.equal(document.querySelector('.caaci-mcard'), null);
 });

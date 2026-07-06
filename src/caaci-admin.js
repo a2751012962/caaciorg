@@ -305,6 +305,261 @@ function wireMembers() {
   });
 }
 
+// ---------- payments ledger (membership tracking) ----------
+const PAY_LIMIT = 50;
+let payOffset = 0,
+  payTotal = 0;
+
+const usdFmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
+const KIND_LABEL = {
+  membership: () => t('First year', '首年入会'),
+  renewal: () => t('Auto-renewal', '自动续费'),
+};
+
+async function loadPayments() {
+  const notb = $('#caaci-payments-notice');
+  const params = new URLSearchParams({ limit: String(PAY_LIMIT), offset: String(payOffset) });
+  const { ok, data } = await api(`/api/admin/payments?${params}`);
+  if (!ok) {
+    notice(notb, data.error || t('Could not load payments.', '无法加载收款记录。'), false);
+    return;
+  }
+  notb.hidden = true;
+
+  // Stat tiles: membership head-counts + revenue this year.
+  const sc = data.status_counts || {};
+  const tiles = [
+    [t('Active members', '有效会员'), sc.active ?? '—', 'active'],
+    [t('Past due — follow up', '逾期需补交'), sc.past_due ?? '—', 'past_due'],
+    [t('Expired', '已过期'), sc.expired ?? '—', 'expired'],
+    [t('Revenue this year', '今年收款'), usdFmt(data.revenue_ytd_cents), ''],
+  ];
+  $('#caaci-pay-stats').innerHTML = tiles
+    .map(
+      ([label, value, state]) => `
+      <div class="caaci-stat"${state ? ` data-state="${state}"` : ''}>
+        <span class="caaci-stat-value">${esc(String(value))}</span>
+        <span class="caaci-stat-label">${esc(label)}</span>
+      </div>`,
+    )
+    .join('');
+
+  const tb = $('#caaci-payments-body');
+  tb.innerHTML = '';
+  const rows = data.rows || [];
+  if (!rows.length && payOffset === 0) {
+    tb.innerHTML = `<tr><td colspan="6" class="caaci-muted-text">${t('No payments recorded yet.', '暂无收款记录。')}</td></tr>`;
+  }
+  for (const p of rows) {
+    const who = p.members
+      ? `${esc(p.members.full_name || '—')}<br><span class="caaci-muted-text">${esc(p.members.email || '')}</span>`
+      : `<span class="caaci-muted-text">${t('(deleted member)', '（已删除会员）')}</span>`;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtDate(p.paid_at)}</td>
+      <td>${who}</td>
+      <td>${KIND_LABEL[p.kind]?.() || esc(p.kind)}</td>
+      <td>${esc(tierName[p.tier_id] || p.tier_id || '—')}</td>
+      <td>${p.discount_code ? `<code>${esc(p.discount_code)}</code>` : '—'}</td>
+      <td>${usdFmt(p.amount_cents)}</td>`;
+    tb.appendChild(tr);
+  }
+
+  payTotal = data.total || 0;
+  $('#caaci-pay-info').textContent = payTotal
+    ? t(
+        `${payOffset + 1}–${Math.min(payOffset + PAY_LIMIT, payTotal)} of ${payTotal}`,
+        `${payOffset + 1}–${Math.min(payOffset + PAY_LIMIT, payTotal)} / 共 ${payTotal}`,
+      )
+    : t('No payments', '暂无记录');
+  $('#caaci-pay-prev').disabled = payOffset === 0;
+  $('#caaci-pay-next').disabled = payOffset + PAY_LIMIT >= payTotal;
+}
+
+function wirePayments() {
+  $('#caaci-pay-prev').addEventListener('click', () => {
+    payOffset = Math.max(0, payOffset - PAY_LIMIT);
+    loadPayments();
+  });
+  $('#caaci-pay-next').addEventListener('click', () => {
+    payOffset += PAY_LIMIT;
+    loadPayments();
+  });
+  const tab = $('.caaci-tab[data-tab="payments"]');
+  if (tab) tab.addEventListener('click', () => loadPayments());
+}
+
+// ---------- discount codes (+ shareable QR) ----------
+// The QR encodes /membership/?code=XYZ so scanning lands on the plan grid with
+// the discount pre-applied. window.qrcode is the self-hosted UMD generator the
+// admin page loads before this module (assets/qrcode.js).
+const discountUrl = (code) => `${location.origin}/membership/?code=${encodeURIComponent(code)}`;
+
+function qrDataUrl(text) {
+  const qr = window.qrcode(0, 'M'); // type 0 = auto-size to the payload
+  qr.addData(text);
+  qr.make();
+  return qr.createDataURL(8, 16); // cellSize 8px, 16px quiet-zone margin
+}
+
+// Why a code can't be used right now (mirrors functions/api/discount.js).
+function discountState(d) {
+  if (!d.active) return { key: 'cancelled', label: t('Inactive', '已停用') };
+  if (d.expires_at && new Date(d.expires_at) <= new Date())
+    return { key: 'expired', label: t('Expired', '已过期') };
+  if (d.max_redemptions != null && d.times_redeemed >= d.max_redemptions)
+    return { key: 'expired', label: t('Used up', '已用完') };
+  return { key: 'active', label: t('Active', '有效') };
+}
+
+async function loadDiscounts() {
+  const notb = $('#caaci-discounts-notice');
+  const { ok, data } = await api('/api/admin/discounts');
+  if (!ok) {
+    notice(notb, data.error || t('Could not load discount codes.', '无法加载折扣码。'), false);
+    return;
+  }
+  notb.hidden = true;
+  const rows = data.rows || [];
+  const tb = $('#caaci-discounts-body');
+  tb.innerHTML = '';
+  if (!rows.length) {
+    tb.innerHTML = `<tr><td colspan="7" class="caaci-muted-text">${t('No discount codes yet.', '暂无折扣码。')}</td></tr>`;
+    return;
+  }
+  for (const d of rows) {
+    const st = discountState(d);
+    const used = `${d.times_redeemed}${d.max_redemptions != null ? ` / ${d.max_redemptions}` : ''}`;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><code>${esc(d.code)}</code></td>
+      <td>−${d.percent_off}%</td>
+      <td>${esc(d.description || '—')}</td>
+      <td><span class="caaci-badge" data-state="${st.key}">${st.label}</span></td>
+      <td>${used}</td>
+      <td>${fmtDate(d.expires_at)}</td>
+      <td>
+        <button type="button" class="caaci-link-btn" data-act="qr">${t('QR code', '二维码')}</button>
+        <button type="button" class="caaci-link-btn" data-act="toggle">${d.active ? t('Deactivate', '停用') : t('Activate', '启用')}</button>
+        <button type="button" class="caaci-link-btn caaci-danger" data-act="delete">${t('Delete', '删除')}</button>
+      </td>`;
+    tr.querySelector('[data-act="qr"]').addEventListener('click', () => showDiscountQr(d));
+    tr.querySelector('[data-act="toggle"]').addEventListener('click', async () => {
+      const { ok: ok2, data: d2 } = await api('/api/admin/discounts', {
+        method: 'POST',
+        body: { code: d.code, active: !d.active },
+      });
+      if (!ok2) return notice(notb, d2.error || t('Update failed.', '更新失败。'), false);
+      await loadDiscounts();
+    });
+    tr.querySelector('[data-act="delete"]').addEventListener('click', async () => {
+      if (
+        !window.confirm(
+          t(
+            `Delete code ${d.code}? Existing QR flyers will stop working.`,
+            `删除折扣码 ${d.code}？已印发的二维码将失效。`,
+          ),
+        )
+      )
+        return;
+      const { ok: ok2, data: d2 } = await api(
+        `/api/admin/discounts?code=${encodeURIComponent(d.code)}`,
+        { method: 'DELETE' },
+      );
+      if (!ok2) return notice(notb, d2.error || t('Delete failed.', '删除失败。'), false);
+      $('#caaci-discount-qr-host').innerHTML = '';
+      await loadDiscounts();
+    });
+    tb.appendChild(tr);
+  }
+}
+
+function showDiscountQr(d) {
+  const host = $('#caaci-discount-qr-host');
+  const url = discountUrl(d.code);
+  let png;
+  try {
+    png = qrDataUrl(url);
+  } catch (e) {
+    notice($('#caaci-discounts-notice'), `QR: ${e.message}`, false);
+    return;
+  }
+  host.innerHTML = `
+    <div class="caaci-qr">
+      <img alt="QR code for ${esc(d.code)}" src="${png}">
+      <div class="caaci-qr-meta">
+        <h3>${esc(d.code)} — −${d.percent_off}%</h3>
+        <p>${t('Scanning opens', '扫码打开')} <code>${esc(url)}</code></p>
+        <p>
+          <a class="caaci-btn caaci-btn--secondary" download="caaci-${esc(d.code)}-qr.gif" href="${png}">${t('Download image', '下载图片')}</a>
+          <button type="button" class="caaci-btn caaci-btn--secondary" data-act="close">${t('Close', '关闭')}</button>
+        </p>
+      </div>
+    </div>`;
+  host.querySelector('[data-act="close"]').addEventListener('click', () => {
+    host.innerHTML = '';
+  });
+  host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function discountForm(host) {
+  if (host.firstChild) {
+    host.innerHTML = '';
+    return;
+  }
+  host.innerHTML = `
+    <form class="caaci-card-inset">
+      <div class="caaci-form-grid">
+        ${field(`${t('Code', '折扣码')} *`, `<input type="text" class="caaci-input" data-f="code" maxlength="32" placeholder="SPRING2026" style="text-transform:uppercase">`)}
+        ${field(`${t('Percent off', '折扣百分比')} *`, `<input type="number" class="caaci-input" data-f="percent_off" min="1" max="100" step="1" placeholder="20">`)}
+        ${field(t('Description', '说明'), `<input type="text" class="caaci-input" data-f="description">`)}
+        ${field(t('Expires (optional)', '到期（可选）'), `<input type="date" class="caaci-input" data-f="expires_at">`)}
+        ${field(t('Max redemptions (optional)', '最多使用次数（可选）'), `<input type="number" class="caaci-input" data-f="max_redemptions" min="1" step="1">`)}
+      </div>
+      <p>
+        <button type="submit" class="caaci-btn">${t('Create code', '创建折扣码')}</button>
+        <button type="button" class="caaci-btn caaci-btn--secondary" data-act="cancel">${t('Cancel', '取消')}</button>
+      </p>
+      <p class="caaci-notice" data-msg hidden></p>
+    </form>`;
+  const form = host.querySelector('form');
+  const msg = form.querySelector('[data-msg]');
+  form.querySelector('[data-act="cancel"]').addEventListener('click', () => {
+    host.innerHTML = '';
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const val = (f) => form.querySelector(`[data-f="${f}"]`).value;
+    const body = {
+      code: val('code').trim().toUpperCase(),
+      percent_off: val('percent_off'),
+      description: val('description').trim(),
+      expires_at: val('expires_at'),
+      max_redemptions: val('max_redemptions'),
+    };
+    if (!body.code) return notice(msg, t('Code is required.', '折扣码为必填项。'), false);
+    if (!body.percent_off)
+      return notice(msg, t('Percent off is required.', '折扣百分比为必填项。'), false);
+    const submit = form.querySelector('[type="submit"]');
+    submit.disabled = true;
+    const { ok, data } = await api('/api/admin/discounts', { method: 'PUT', body });
+    submit.disabled = false;
+    if (!ok)
+      return notice(msg, data.error || t('Could not create code.', '无法创建折扣码。'), false);
+    host.innerHTML = '';
+    await loadDiscounts();
+    if (data.discount) showDiscountQr(data.discount); // hand the QR over right away
+  });
+}
+
+function wireDiscounts() {
+  $('#caaci-discount-add-btn').addEventListener('click', () =>
+    discountForm($('#caaci-discount-form-host')),
+  );
+  const tab = $('.caaci-tab[data-tab="discounts"]');
+  if (tab) tab.addEventListener('click', () => loadDiscounts());
+}
+
 // ---------- news composer ----------
 function wireNews() {
   $('#caaci-news-send').addEventListener('click', async () => {
@@ -707,6 +962,8 @@ function wireFamilies() {
   wireMembers();
   wireMemberAdd();
   wireFamilies();
+  wirePayments();
+  wireDiscounts();
   wireNews();
   await loadTiers();
   await loadHouseholds(); // for the member "Family" dropdown
