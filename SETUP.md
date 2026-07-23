@@ -166,15 +166,24 @@ visit `/admin/` while logged in. The panel provides:
   server-side (`/api/discount`) and re-checked at checkout; Stripe applies them as a
   `duration: once` coupon, so **only the first year is discounted** and renewals bill at
   full price. The webhook counts redemptions atomically (`redeem_discount_code`).
-- **Refunds** — placeholder for now; issue refunds in the Stripe Dashboard.
+- **Refunds** — issue a refund against any ledger row without leaving the panel.
+  Pick a payment, refund the full amount or a partial amount, and the money is
+  returned through Stripe (`/api/admin/refunds`) and written back to the row. A
+  charge can be refunded more than once up to what was paid; the running
+  `refunded_cents` total shows on both the Payments and Refunds tabs. The Stripe
+  charge is resolved from whichever reference the ledger stored (Checkout Session
+  for the first year, Invoice for renewals), so staff never handle charge ids.
+  Requires migration `0009_refunds.sql`.
 
 Apply the admin migrations before using the panel (`supabase db push` runs them all):
 `0003_admin.sql` (adds the `past_due` status and the `news_posts` audit table),
 `0004_households.sql` + `0005_households_rls.sql` (the `households` / `household_members`
 tables and `members.household_id` that power the **Families** tab and member add/edit),
 `0006_discounts.sql` (the `discount_codes` table + atomic redemption counter behind the
-**Discounts** tab), and `0007_signup_phone.sql` (copies the signup form's phone number
-onto the members row).
+**Discounts** tab), `0007_signup_phone.sql` (copies the signup form's phone number
+onto the members row), `0008_payments.sql` (the `payments` ledger behind the **Payments**
+tab), and `0009_refunds.sql` (adds the `refunded_cents` running total + refund audit
+columns behind the **Refunds** tab).
 
 ## Self-service auth & billing
 

@@ -361,7 +361,7 @@ async function loadPayments() {
       <td>${KIND_LABEL[p.kind]?.() || esc(p.kind)}</td>
       <td>${esc(tierName[p.tier_id] || p.tier_id || '—')}</td>
       <td>${p.discount_code ? `<code>${esc(p.discount_code)}</code>` : '—'}</td>
-      <td>${usdFmt(p.amount_cents)}</td>`;
+      <td>${usdFmt(p.amount_cents)}${p.refunded_cents ? `<br><span class="caaci-muted-text">−${usdFmt(p.refunded_cents)} ${t('refunded', '已退')}</span>` : ''}</td>`;
     tb.appendChild(tr);
   }
 
@@ -387,6 +387,148 @@ function wirePayments() {
   });
   const tab = $('.caaci-tab[data-tab="payments"]');
   if (tab) tab.addEventListener('click', () => loadPayments());
+}
+
+// ---------- refunds ----------
+// Reuses the payments ledger (same /api/admin/payments feed) and adds a Refund
+// action per row. Issuing a refund POSTs /api/admin/refunds, which talks to
+// Stripe and updates the row's running refunded_cents total.
+const REF_LIMIT = 50;
+let refOffset = 0,
+  refTotal = 0;
+
+async function loadRefunds() {
+  const notb = $('#caaci-refunds-notice');
+  const params = new URLSearchParams({ limit: String(REF_LIMIT), offset: String(refOffset) });
+  const { ok, data } = await api(`/api/admin/payments?${params}`);
+  if (!ok) {
+    notice(notb, data.error || t('Could not load payments.', '无法加载收款记录。'), false);
+    return;
+  }
+  notb.hidden = true;
+
+  const tb = $('#caaci-refunds-body');
+  tb.innerHTML = '';
+  const rows = data.rows || [];
+  if (!rows.length && refOffset === 0) {
+    tb.innerHTML = `<tr><td colspan="6" class="caaci-muted-text">${t('No payments to refund.', '暂无可退款的付款。')}</td></tr>`;
+  }
+  for (const p of rows) {
+    const who = p.members
+      ? `${esc(p.members.full_name || '—')}<br><span class="caaci-muted-text">${esc(p.members.email || '')}</span>`
+      : `<span class="caaci-muted-text">${t('(deleted member)', '（已删除会员）')}</span>`;
+    const refunded = p.refunded_cents || 0;
+    const remaining = (p.amount_cents || 0) - refunded;
+    const refCell = refunded
+      ? `${usdFmt(refunded)}${remaining <= 0 ? ` <span class="caaci-muted-text">(${t('full', '全额')})</span>` : ''}`
+      : '—';
+    const action =
+      remaining > 0
+        ? `<button type="button" class="caaci-btn caaci-btn--secondary" data-refund="${esc(p.id)}">${t('Refund', '退款')}</button>`
+        : `<span class="caaci-muted-text">${t('Refunded', '已退款')}</span>`;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtDate(p.paid_at)}</td>
+      <td>${who}</td>
+      <td>${KIND_LABEL[p.kind]?.() || esc(p.kind)}</td>
+      <td>${usdFmt(p.amount_cents)}</td>
+      <td>${refCell}</td>
+      <td>${action}</td>`;
+    const btn = tr.querySelector('[data-refund]');
+    if (btn) btn.addEventListener('click', () => refundForm(p, remaining));
+    tb.appendChild(tr);
+  }
+
+  refTotal = data.total || 0;
+  $('#caaci-refund-info').textContent = refTotal
+    ? t(
+        `${refOffset + 1}–${Math.min(refOffset + REF_LIMIT, refTotal)} of ${refTotal}`,
+        `${refOffset + 1}–${Math.min(refOffset + REF_LIMIT, refTotal)} / 共 ${refTotal}`,
+      )
+    : t('No payments', '暂无记录');
+  $('#caaci-refund-prev').disabled = refOffset === 0;
+  $('#caaci-refund-next').disabled = refOffset + REF_LIMIT >= refTotal;
+}
+
+// Inline "issue a refund" form for one ledger row. Amount defaults to the full
+// refundable balance; staff may enter a smaller partial amount.
+function refundForm(p, remaining) {
+  const host = $('#caaci-refund-form-host');
+  const max = (remaining / 100).toFixed(2);
+  const who = p.members?.full_name || p.members?.email || t('this member', '该会员');
+  host.innerHTML = `
+    <form class="caaci-card-inset">
+      <h3>${t('Refund', '退款')} — ${esc(who)}</h3>
+      <p class="caaci-muted-text">${t('Refundable balance', '可退余额')}: ${usdFmt(remaining)}</p>
+      <div class="caaci-form-grid">
+        ${field(t('Amount (USD)', '金额（美元）'), `<input type="number" class="caaci-input" data-f="amount" min="0.01" max="${max}" step="0.01" value="${max}">`)}
+        ${field(t('Reason (optional)', '原因（可选）'), `<input type="text" class="caaci-input" data-f="reason" maxlength="200">`)}
+      </div>
+      <p>
+        <button type="submit" class="caaci-btn">${t('Issue refund', '确认退款')}</button>
+        <button type="button" class="caaci-btn caaci-btn--secondary" data-act="cancel">${t('Cancel', '取消')}</button>
+      </p>
+      <p class="caaci-notice" data-msg hidden></p>
+    </form>`;
+  const form = host.querySelector('form');
+  const msg = form.querySelector('[data-msg]');
+  form.querySelector('[data-act="cancel"]').addEventListener('click', () => {
+    host.innerHTML = '';
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const dollars = parseFloat(form.querySelector('[data-f="amount"]').value);
+    if (!Number.isFinite(dollars) || dollars <= 0)
+      return notice(msg, t('Enter a valid amount.', '请输入有效金额。'), false);
+    const cents = Math.round(dollars * 100);
+    if (cents > remaining)
+      return notice(msg, t('Amount exceeds the refundable balance.', '金额超过可退余额。'), false);
+    if (
+      !confirm(
+        t(
+          `Refund ${usdFmt(cents)} to ${who}? This returns the money through Stripe.`,
+          `确认向 ${who} 退款 ${usdFmt(cents)}？款项将通过 Stripe 原路退回。`,
+        ),
+      )
+    )
+      return;
+    const submit = form.querySelector('[type="submit"]');
+    submit.disabled = true;
+    const { ok, data } = await api('/api/admin/refunds', {
+      method: 'POST',
+      body: {
+        payment_id: p.id,
+        amount_cents: cents,
+        reason: form.querySelector('[data-f="reason"]').value.trim() || undefined,
+      },
+    });
+    submit.disabled = false;
+    if (!ok) return notice(msg, data.error || t('Refund failed.', '退款失败。'), false);
+    host.innerHTML = '';
+    notice(
+      $('#caaci-refunds-notice'),
+      t(
+        `Refunded ${usdFmt(data.amount_cents)}${data.fully_refunded ? ' (payment now fully refunded)' : ''}.`,
+        `已退款 ${usdFmt(data.amount_cents)}${data.fully_refunded ? '（该付款已全额退回）' : ''}。`,
+      ),
+      true,
+    );
+    await loadRefunds();
+  });
+  host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function wireRefunds() {
+  $('#caaci-refund-prev').addEventListener('click', () => {
+    refOffset = Math.max(0, refOffset - REF_LIMIT);
+    loadRefunds();
+  });
+  $('#caaci-refund-next').addEventListener('click', () => {
+    refOffset += REF_LIMIT;
+    loadRefunds();
+  });
+  const tab = $('.caaci-tab[data-tab="refunds"]');
+  if (tab) tab.addEventListener('click', () => loadRefunds());
 }
 
 // ---------- discount codes (+ shareable QR) ----------
@@ -963,6 +1105,7 @@ function wireFamilies() {
   wireMemberAdd();
   wireFamilies();
   wirePayments();
+  wireRefunds();
   wireDiscounts();
   wireNews();
   await loadTiers();
