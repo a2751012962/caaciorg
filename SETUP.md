@@ -166,6 +166,20 @@ visit `/admin/` while logged in. The panel provides:
   server-side (`/api/discount`) and re-checked at checkout; Stripe applies them as a
   `duration: once` coupon, so **only the first year is discounted** and renewals bill at
   full price. The webhook counts redemptions atomically (`redeem_discount_code`).
+- **Events** — create, edit, and delete calendar events, complete with an image. The
+  **Publish/Unpublish** toggle is what makes an event official: only published events are
+  publicly readable (the `events_read` RLS policy) and open for RSVPs; drafts stay
+  admin-only.
+- **Directory** — the review queue for the business directory. Community submissions from
+  the business-services form arrive as **Pending**; **Approve** makes a listing official
+  (publicly visible via the `biz_read` RLS policy), and staff can also create, edit, and
+  delete listings directly. A stat tile shows how many are awaiting review.
+- **Media** — upload images (JPEG/PNG/WebP/GIF, up to 5 MB) to the site's own
+  **Supabase Storage** bucket (`media`, public-read) and copy their URLs into events and
+  directory listings. The uploader UI is the open-source **FilePond** library (MIT,
+  self-hosted like every other asset — no CDN). Writes go only through
+  `/api/admin/media` with the service-role key; the bucket re-enforces the size/type
+  limits server-side.
 - **Refunds** — placeholder for now; issue refunds in the Stripe Dashboard.
 
 Apply the admin migrations before using the panel (`supabase db push` runs them all):
@@ -173,8 +187,9 @@ Apply the admin migrations before using the panel (`supabase db push` runs them 
 `0004_households.sql` + `0005_households_rls.sql` (the `households` / `household_members`
 tables and `members.household_id` that power the **Families** tab and member add/edit),
 `0006_discounts.sql` (the `discount_codes` table + atomic redemption counter behind the
-**Discounts** tab), and `0007_signup_phone.sql` (copies the signup form's phone number
-onto the members row).
+**Discounts** tab), `0007_signup_phone.sql` (copies the signup form's phone number
+onto the members row), and `0009_storage_media.sql` (creates the public `media`
+storage bucket with its size/MIME limits, behind the **Media** tab).
 
 ## Self-service auth & billing
 
@@ -217,9 +232,10 @@ APPLE_WWDR_CERT_PEM / APPLE_PASS_TYPE_ID / APPLE_TEAM_ID --project-name=caaci`
 
 ## Notes / TODO for the org
 
-- Events: the seed has the 3 annual festivals. Add the rest via the `events` table
-  (or build a small admin page) — the live Events Calendar list wasn't in the static mirror.
-- Business directory: seed real listings into `business_directory` (set `approved = true`).
+- Events: the seed has the 3 annual festivals. Add the rest in the admin panel's
+  **Events** tab — the live Events Calendar list wasn't in the static mirror.
+- Business directory: add real listings in the admin panel's **Directory** tab (or
+  approve the ones the community submits through the business-services form).
 - Commercial-plugin look is reproduced via the mirror's CSS — no Divi/MemberPress
   license is required on this stack.
 

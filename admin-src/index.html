@@ -78,6 +78,36 @@
         <button
           class="caaci-tab"
           role="tab"
+          data-tab="events"
+          aria-selected="false"
+          data-en="Events"
+          data-zh="活动"
+        >
+          Events
+        </button>
+        <button
+          class="caaci-tab"
+          role="tab"
+          data-tab="directory"
+          aria-selected="false"
+          data-en="Directory"
+          data-zh="商家名录"
+        >
+          Directory
+        </button>
+        <button
+          class="caaci-tab"
+          role="tab"
+          data-tab="media"
+          aria-selected="false"
+          data-en="Media"
+          data-zh="媒体库"
+        >
+          Media
+        </button>
+        <button
+          class="caaci-tab"
+          role="tab"
           data-tab="news"
           aria-selected="false"
           data-en="Compose News"
@@ -303,6 +333,190 @@
         <p class="caaci-notice" id="caaci-discounts-notice" hidden></p>
       </section>
 
+      <!-- ============ Events ============ -->
+      <section class="caaci-card caaci-panel" data-panel="events" hidden>
+        <div class="caaci-panel-head">
+          <div>
+            <span class="caaci-eyebrow" data-en="Community calendar" data-zh="社区日历"
+              >Community calendar</span
+            >
+            <h2 data-en="Events" data-zh="活动">Events</h2>
+          </div>
+          <button
+            type="button"
+            class="caaci-btn"
+            id="caaci-event-add-btn"
+            data-en="+ New event"
+            data-zh="+ 新建活动"
+          >
+            + New event
+          </button>
+        </div>
+        <p
+          class="caaci-muted-text"
+          data-en="Only published events are visible to the public and open for RSVPs — drafts stay admin-only until you publish them."
+          data-zh="只有已发布的活动才对公众可见并接受报名——草稿在发布前仅管理员可见。"
+        >
+          Only published events are visible to the public and open for RSVPs.
+        </p>
+        <div id="caaci-event-form-host"></div>
+        <div class="caaci-filters">
+          <input
+            type="search"
+            id="caaci-ev-q"
+            class="caaci-input"
+            data-ph-en="Search title or location"
+            data-ph-zh="搜索标题或地点"
+            placeholder="Search title or location"
+          />
+          <select id="caaci-ev-pub" class="caaci-input">
+            <option value="" data-en="All events" data-zh="全部活动">All events</option>
+            <option value="true" data-en="Published" data-zh="已发布">Published</option>
+            <option value="false" data-en="Draft" data-zh="草稿">Draft</option>
+          </select>
+        </div>
+        <div class="caaci-table-wrap">
+          <table class="caaci-table" id="caaci-events-table">
+            <thead>
+              <tr>
+                <th data-en="Title" data-zh="标题">Title</th>
+                <th data-en="When" data-zh="时间">When</th>
+                <th data-en="Location" data-zh="地点">Location</th>
+                <th data-en="Status" data-zh="状态">Status</th>
+                <th data-en="Actions" data-zh="操作">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="caaci-events-body"></tbody>
+          </table>
+        </div>
+        <div class="caaci-pager">
+          <button
+            type="button"
+            class="caaci-btn caaci-btn--secondary"
+            id="caaci-ev-prev"
+            data-en="Previous"
+            data-zh="上一页"
+          >
+            Previous
+          </button>
+          <span id="caaci-ev-info" class="caaci-muted-text"></span>
+          <button
+            type="button"
+            class="caaci-btn caaci-btn--secondary"
+            id="caaci-ev-next"
+            data-en="Next"
+            data-zh="下一页"
+          >
+            Next
+          </button>
+        </div>
+        <p class="caaci-notice" id="caaci-events-notice" hidden></p>
+      </section>
+
+      <!-- ============ Business directory ============ -->
+      <section class="caaci-card caaci-panel" data-panel="directory" hidden>
+        <div class="caaci-panel-head">
+          <div>
+            <span class="caaci-eyebrow" data-en="Business services" data-zh="商家服务"
+              >Business services</span
+            >
+            <h2 data-en="Directory" data-zh="商家名录">Directory</h2>
+          </div>
+          <button
+            type="button"
+            class="caaci-btn"
+            id="caaci-biz-add-btn"
+            data-en="+ New listing"
+            data-zh="+ 新建条目"
+          >
+            + New listing
+          </button>
+        </div>
+        <p
+          class="caaci-muted-text"
+          data-en="Community submissions land here as Pending. Approving a listing makes it official — it becomes publicly visible in the directory."
+          data-zh="社区提交的商家信息会以“待审核”状态出现在这里。批准后即正式生效——将在名录中公开显示。"
+        >
+          Community submissions land here as Pending. Approving a listing makes it official.
+        </p>
+        <div class="caaci-stats" id="caaci-biz-stats"></div>
+        <div id="caaci-biz-form-host"></div>
+        <div class="caaci-filters">
+          <input
+            type="search"
+            id="caaci-biz-q"
+            class="caaci-input"
+            data-ph-en="Search name or description"
+            data-ph-zh="搜索名称或描述"
+            placeholder="Search name or description"
+          />
+          <select id="caaci-biz-approved" class="caaci-input">
+            <option value="" data-en="All listings" data-zh="全部条目">All listings</option>
+            <option value="true" data-en="Approved" data-zh="已批准">Approved</option>
+            <option value="false" data-en="Pending" data-zh="待审核">Pending</option>
+          </select>
+        </div>
+        <div class="caaci-table-wrap">
+          <table class="caaci-table" id="caaci-biz-table">
+            <thead>
+              <tr>
+                <th data-en="Name" data-zh="名称">Name</th>
+                <th data-en="Category" data-zh="类别">Category</th>
+                <th data-en="Contact" data-zh="联系方式">Contact</th>
+                <th data-en="Status" data-zh="状态">Status</th>
+                <th data-en="Actions" data-zh="操作">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="caaci-biz-body"></tbody>
+          </table>
+        </div>
+        <div class="caaci-pager">
+          <button
+            type="button"
+            class="caaci-btn caaci-btn--secondary"
+            id="caaci-biz-prev"
+            data-en="Previous"
+            data-zh="上一页"
+          >
+            Previous
+          </button>
+          <span id="caaci-biz-info" class="caaci-muted-text"></span>
+          <button
+            type="button"
+            class="caaci-btn caaci-btn--secondary"
+            id="caaci-biz-next"
+            data-en="Next"
+            data-zh="下一页"
+          >
+            Next
+          </button>
+        </div>
+        <p class="caaci-notice" id="caaci-biz-notice" hidden></p>
+      </section>
+
+      <!-- ============ Media library ============ -->
+      <section class="caaci-card caaci-panel" data-panel="media" hidden>
+        <span class="caaci-eyebrow" data-en="Image storage" data-zh="图片存储">Image storage</span>
+        <h2 data-en="Media" data-zh="媒体库">Media</h2>
+        <p
+          class="caaci-muted-text"
+          data-en="Upload images here (JPEG/PNG/WebP/GIF, up to 5 MB), then copy the URL into an event or directory listing. Files are stored in the site's own Supabase Storage bucket."
+          data-zh="在此上传图片（JPEG/PNG/WebP/GIF，最大 5 MB），然后将链接复制到活动或商家条目中。文件保存在本站自己的 Supabase 存储桶中。"
+        >
+          Upload images here, then copy the URL into an event or directory listing.
+        </p>
+        <!-- FilePond (open-source, MIT) enhances this input into its drag-and-drop uploader. -->
+        <div class="caaci-media-drop">
+          <input
+            type="file"
+            id="caaci-media-file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+          />
+        </div>
+        <div class="caaci-media-grid" id="caaci-media-grid"></div>
+        <p class="caaci-notice" id="caaci-media-notice" hidden></p>
+      </section>
+
       <!-- ============ Compose News ============ -->
       <section class="caaci-card caaci-panel" data-panel="news" hidden>
         <span class="caaci-eyebrow" data-en="Email the membership" data-zh="向会员发送邮件"
@@ -367,6 +581,14 @@
     <!-- Self-hosted QR generator (assets/qrcode.js, MIT — kazuhikoarase/qrcode-generator);
          classic script so window.qrcode is ready before the admin module runs. -->
     <script src="/assets/qrcode.js"></script>
+    <!-- FilePond uploader (MIT — pqina/filepond), self-hosted like everything else.
+         Classic scripts so window.FilePond is ready before the admin module runs. -->
+    <link rel="stylesheet" href="/assets/filepond.css" />
+    <link rel="stylesheet" href="/assets/filepond-plugin-image-preview.css" />
+    <script src="/assets/filepond.js"></script>
+    <script src="/assets/filepond-plugin-file-validate-type.js"></script>
+    <script src="/assets/filepond-plugin-file-validate-size.js"></script>
+    <script src="/assets/filepond-plugin-image-preview.js"></script>
     <script type="module" src="/assets/caaci-admin.js"></script>
   </body>
 </html>

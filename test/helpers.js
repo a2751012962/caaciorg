@@ -1,8 +1,15 @@
 // Shared test utilities: a fake Workers Request, a fetch stub, and a fake env.
 
 // Minimal stand-in for the Workers `Request` shape the handlers actually use:
-// `.json()`, `.text()`, `.url`, and `.headers.get(name)`.
-export function fakeRequest({ url = 'https://caaci.example/api', body, headers = {} } = {}) {
+// `.json()`, `.text()`, `.url`, `.headers.get(name)`, and — when a `formData`
+// map is provided — `.formData()`. A fake uploaded file is a plain object like
+// { name, type, size, async arrayBuffer() {…} } (see fakeFile below).
+export function fakeRequest({
+  url = 'https://caaci.example/api',
+  body,
+  headers = {},
+  formData,
+} = {}) {
   const raw = typeof body === 'string' ? body : JSON.stringify(body ?? {});
   const lower = {};
   for (const [k, v] of Object.entries(headers)) lower[k.toLowerCase()] = v;
@@ -16,6 +23,22 @@ export function fakeRequest({ url = 'https://caaci.example/api', body, headers =
     },
     async text() {
       return raw;
+    },
+    async formData() {
+      if (!formData) throw new TypeError('not multipart');
+      return { get: (name) => formData[name] ?? null };
+    },
+  };
+}
+
+// A fake multipart file entry for fakeRequest({ formData: { file: fakeFile(…) } }).
+export function fakeFile({ name = 'photo.jpg', type = 'image/jpeg', size = 1024 } = {}) {
+  return {
+    name,
+    type,
+    size,
+    async arrayBuffer() {
+      return new ArrayBuffer(size);
     },
   };
 }

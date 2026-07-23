@@ -1125,3 +1125,72 @@
   border: 1px solid var(--caaci-line);
   border-radius: var(--caaci-radius);
 }
+
+/* ================================================== Admin: media library === */
+/* The upload control itself is FilePond (vendored, MIT) — these styles only
+   cover the library grid below it and small brand-color nudges. */
+.caaci-media-drop {
+  margin: 0 0 var(--caaci-gap);
+}
+.caaci-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0 0 var(--caaci-gap);
+}
+.caaci-media-item {
+  margin: 0;
+  background: var(--caaci-fill);
+  border: 1px solid var(--caaci-line);
+  border-radius: var(--caaci-radius);
+  overflow: hidden;
+}
+.caaci-media-thumb {
+  display: block;
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  background: var(--caaci-surface);
+}
+.caaci-media-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 0;
+  font-size: var(--caaci-fs-sm);
+}
+.caaci-media-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.caaci-media-actions {
+  display: flex;
+  gap: 10px;
+  padding: 6px 10px 10px;
+}
+/* Tiny thumbnail shown next to a title in the events / directory tables */
+.caaci-row-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: var(--caaci-radius);
+  border: 1px solid var(--caaci-line);
+  vertical-align: middle;
+  margin-left: 6px;
+}
+/* FilePond, in CAACI colors */
+.filepond--panel-root {
+  background: var(--caaci-fill);
+  border: 1px dashed var(--caaci-line);
+  border-radius: var(--caaci-radius);
+}
+.filepond--label-action {
+  color: var(--caaci-red);
+  text-decoration-color: var(--caaci-red);
+}
+.filepond--drop-label {
+  color: var(--caaci-body);
+  font-family: var(--caaci-font-body);
+  font-size: var(--caaci-fs-sm);
+}
