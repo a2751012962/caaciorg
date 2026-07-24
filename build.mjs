@@ -73,6 +73,11 @@ for (const f of [
 ]) {
   await copyFile(join(ROOT, 'src', 'vendor', f), join(DIST, 'assets', f));
 }
+// Self-hosted Tabler UI kit (MIT, tabler/tabler) — the admin panel's design
+// system (Bootstrap-5-based back-office look). CSS + JS served from our origin.
+for (const f of ['tabler.min.css', 'tabler.min.js']) {
+  await copyFile(join(ROOT, 'src', 'vendor', f), join(DIST, 'assets', f));
+}
 
 const inject =
   `\n<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +

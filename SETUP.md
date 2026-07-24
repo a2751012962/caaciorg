@@ -137,7 +137,12 @@ Then add the custom domain in the Pages project and point DNS. Set redirects in
 
 ## Admin / back-office panel (`/admin/`)
 
-A branded staff panel lives at **`/admin/`**. It is gated two ways:
+A staff panel lives at **`/admin/`**. Its UI is built on **Tabler** (`@tabler/core`
+1.4.0, MIT — an open-source Bootstrap-5 admin/dashboard kit designed for exactly this
+kind of subscription back office), self-hosted at `/assets/tabler.min.css` +
+`/assets/tabler.min.js` from `src/vendor/` — the same no-CDN policy as supabase.js,
+qrcode.js, and FilePond. (The Inter webfont is not bundled, so the panel renders in
+system fonts.) It is gated two ways:
 
 - **Client:** the page shows nothing until a logged-in admin session is detected.
 - **Server (authoritative):** every `/api/admin/*` Function calls `requireAdmin`, which

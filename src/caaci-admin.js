@@ -99,20 +99,24 @@ async function api(path, { method = 'GET', body } = {}) {
   return { ok: r.ok, status: r.status, data };
 }
 
+// Feedback line — a Tabler alert, green for success, red for errors.
 function notice(el, msg, good = true) {
   el.hidden = false;
   el.textContent = msg;
-  if (good) el.removeAttribute('data-state');
-  else el.setAttribute('data-state', 'error');
+  el.classList.remove('alert-success', 'alert-danger');
+  el.classList.add('alert', good ? 'alert-success' : 'alert-danger');
 }
 
 // ---------- tabs ----------
 function wireTabs() {
-  for (const tab of $$('.caaci-tab')) {
+  for (const tab of $$('[data-tab]')) {
     tab.addEventListener('click', () => {
       const name = tab.dataset.tab;
-      for (const tt of $$('.caaci-tab')) tt.setAttribute('aria-selected', String(tt === tab));
-      for (const p of $$('.caaci-panel')) p.hidden = p.dataset.panel !== name;
+      for (const tt of $$('[data-tab]')) {
+        tt.classList.toggle('active', tt === tab);
+        tt.setAttribute('aria-selected', String(tt === tab));
+      }
+      for (const p of $$('[data-panel]')) p.hidden = p.dataset.panel !== name;
     });
   }
 }
@@ -149,6 +153,17 @@ const esc = (s) =>
     /[<>&"]/g,
     (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c],
   );
+
+// Status chips — Tabler soft badges (bg-*-lt sets tinted bg + readable fg).
+const BADGE_BG = {
+  active: 'bg-success-lt',
+  pending: 'bg-warning-lt',
+  past_due: 'bg-orange-lt',
+  expired: 'bg-secondary-lt',
+  cancelled: 'bg-danger-lt',
+};
+const badgeHtml = (state, label) =>
+  `<span class="badge ${BADGE_BG[state] || 'bg-secondary-lt'}">${esc(label)}</span>`;
 
 async function loadMembers() {
   const q = $('#caaci-q').value.trim();
@@ -188,9 +203,9 @@ function renderRows(rows) {
       <td>${esc(m.full_name) || '—'}</td>
       <td>${esc(m.email)}</td>
       <td>${esc(tierName[m.tier_id] || m.tier_id || '—')}</td>
-      <td><span class="caaci-badge" data-state="${esc(m.status || '')}">${esc(statusTxt)}</span></td>
+      <td>${badgeHtml(m.status, statusTxt)}</td>
       <td>${fmtDate(m.expires_at)}</td>
-      <td><button type="button" class="caaci-link-btn">${t('Edit', '编辑')}</button></td>`;
+      <td><button type="button" class="btn btn-sm">${t('Edit', '编辑')}</button></td>`;
     tr.querySelector('button').addEventListener('click', () => toggleEditor(tr, m));
     tb.appendChild(tr);
   }
@@ -198,11 +213,11 @@ function renderRows(rows) {
 
 function toggleEditor(tr, m) {
   const next = tr.nextElementSibling;
-  if (next?.classList.contains('caaci-edit-row')) {
+  if (next?.hasAttribute('data-edit-row')) {
     next.remove();
     return;
   }
-  $$('.caaci-edit-row').forEach((r) => r.remove());
+  $$('tr[data-edit-row]').forEach((r) => r.remove());
 
   const opt = (val, sel) =>
     `<option value="${val}"${val === sel ? ' selected' : ''}>${STATUS_LABEL[val]?.() || val}</option>`;
@@ -215,28 +230,38 @@ function toggleEditor(tr, m) {
   const exp = m.expires_at ? new Date(m.expires_at).toISOString().slice(0, 10) : '';
 
   const row = document.createElement('tr');
-  row.className = 'caaci-edit-row';
-  row.innerHTML = `<td colspan="6">
-    <div class="caaci-edit">
-      <label>${t('Status', '状态')}
-        <select class="caaci-input" data-f="status">
+  row.setAttribute('data-edit-row', '');
+  row.innerHTML = `<td colspan="6" class="bg-surface-secondary">
+    <div class="row g-2 align-items-end">
+      <div class="col-sm-6 col-lg">
+        <label class="form-label">${t('Status', '状态')}</label>
+        <select class="form-select" data-f="status">
           ${['active', 'pending', 'past_due', 'expired', 'cancelled'].map((s) => opt(s, m.status)).join('')}
-        </select></label>
-      <label>${t('Tier', '类型')}
-        <select class="caaci-input" data-f="tier_id">${tierOpts}</select></label>
-      <label>${t('Expires', '到期')}
-        <input type="date" class="caaci-input" data-f="expires_at" value="${exp}"></label>
-      <label>${t('Family', '家庭')}
-        <select class="caaci-input" data-f="household_id">${householdOptionsHtml(m.household_id)}</select></label>
-      <button type="button" class="caaci-btn" data-act="save">${t('Save', '保存')}</button>
-      <button type="button" class="caaci-btn caaci-btn--secondary caaci-danger" data-act="delete">${t('Delete', '删除')}</button>
-      <span class="caaci-notice caaci-edit-msg" hidden></span>
-    </div></td>`;
+        </select>
+      </div>
+      <div class="col-sm-6 col-lg">
+        <label class="form-label">${t('Tier', '类型')}</label>
+        <select class="form-select" data-f="tier_id">${tierOpts}</select>
+      </div>
+      <div class="col-sm-6 col-lg">
+        <label class="form-label">${t('Expires', '到期')}</label>
+        <input type="date" class="form-control" data-f="expires_at" value="${exp}">
+      </div>
+      <div class="col-sm-6 col-lg">
+        <label class="form-label">${t('Family', '家庭')}</label>
+        <select class="form-select" data-f="household_id">${householdOptionsHtml(m.household_id)}</select>
+      </div>
+      <div class="col-auto btn-list">
+        <button type="button" class="btn btn-primary" data-act="save">${t('Save', '保存')}</button>
+        <button type="button" class="btn btn-outline-danger" data-act="delete">${t('Delete', '删除')}</button>
+      </div>
+    </div>
+    <div class="alert mb-0 mt-2" data-msg hidden></div></td>`;
   tr.after(row);
 
   row.querySelector('[data-act="save"]').addEventListener('click', async () => {
     const get = (f) => row.querySelector(`[data-f="${f}"]`).value;
-    const msg = row.querySelector('.caaci-edit-msg');
+    const msg = row.querySelector('[data-msg]');
     const { ok, data } = await api('/api/admin/members', {
       method: 'POST',
       body: {
@@ -256,7 +281,7 @@ function toggleEditor(tr, m) {
   });
 
   row.querySelector('[data-act="delete"]').addEventListener('click', async () => {
-    const msg = row.querySelector('.caaci-edit-msg');
+    const msg = row.querySelector('[data-msg]');
     const who = m.full_name || m.email;
     if (
       !window.confirm(
@@ -334,12 +359,15 @@ async function loadPayments() {
     [t('Expired', '已过期'), sc.expired ?? '—', 'expired'],
     [t('Revenue this year', '今年收款'), usdFmt(data.revenue_ytd_cents), ''],
   ];
+  const STAT_FG = { active: 'text-success', past_due: 'text-orange', expired: 'text-secondary' };
   $('#caaci-pay-stats').innerHTML = tiles
     .map(
       ([label, value, state]) => `
-      <div class="caaci-stat"${state ? ` data-state="${state}"` : ''}>
-        <span class="caaci-stat-value">${esc(String(value))}</span>
-        <span class="caaci-stat-label">${esc(label)}</span>
+      <div class="col-6 col-sm-3">
+        <div class="card card-sm"><div class="card-body">
+          <div class="subheader">${esc(label)}</div>
+          <div class="h1 mb-0 ${STAT_FG[state] || ''}">${esc(String(value))}</div>
+        </div></div>
       </div>`,
     )
     .join('');
@@ -348,12 +376,12 @@ async function loadPayments() {
   tb.innerHTML = '';
   const rows = data.rows || [];
   if (!rows.length && payOffset === 0) {
-    tb.innerHTML = `<tr><td colspan="6" class="caaci-muted-text">${t('No payments recorded yet.', '暂无收款记录。')}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="6" class="text-secondary">${t('No payments recorded yet.', '暂无收款记录。')}</td></tr>`;
   }
   for (const p of rows) {
     const who = p.members
-      ? `${esc(p.members.full_name || '—')}<br><span class="caaci-muted-text">${esc(p.members.email || '')}</span>`
-      : `<span class="caaci-muted-text">${t('(deleted member)', '（已删除会员）')}</span>`;
+      ? `${esc(p.members.full_name || '—')}<br><span class="text-secondary">${esc(p.members.email || '')}</span>`
+      : `<span class="text-secondary">${t('(deleted member)', '（已删除会员）')}</span>`;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${fmtDate(p.paid_at)}</td>
@@ -385,7 +413,7 @@ function wirePayments() {
     payOffset += PAY_LIMIT;
     loadPayments();
   });
-  const tab = $('.caaci-tab[data-tab="payments"]');
+  const tab = $('[data-tab="payments"]');
   if (tab) tab.addEventListener('click', () => loadPayments());
 }
 
@@ -424,7 +452,7 @@ async function loadDiscounts() {
   const tb = $('#caaci-discounts-body');
   tb.innerHTML = '';
   if (!rows.length) {
-    tb.innerHTML = `<tr><td colspan="7" class="caaci-muted-text">${t('No discount codes yet.', '暂无折扣码。')}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="7" class="text-secondary">${t('No discount codes yet.', '暂无折扣码。')}</td></tr>`;
     return;
   }
   for (const d of rows) {
@@ -435,14 +463,14 @@ async function loadDiscounts() {
       <td><code>${esc(d.code)}</code></td>
       <td>−${d.percent_off}%</td>
       <td>${esc(d.description || '—')}</td>
-      <td><span class="caaci-badge" data-state="${st.key}">${st.label}</span></td>
+      <td>${badgeHtml(st.key, st.label)}</td>
       <td>${used}</td>
       <td>${fmtDate(d.expires_at)}</td>
-      <td>
-        <button type="button" class="caaci-link-btn" data-act="qr">${t('QR code', '二维码')}</button>
-        <button type="button" class="caaci-link-btn" data-act="toggle">${d.active ? t('Deactivate', '停用') : t('Activate', '启用')}</button>
-        <button type="button" class="caaci-link-btn caaci-danger" data-act="delete">${t('Delete', '删除')}</button>
-      </td>`;
+      <td><div class="btn-list flex-nowrap">
+        <button type="button" class="btn btn-sm" data-act="qr">${t('QR code', '二维码')}</button>
+        <button type="button" class="btn btn-sm" data-act="toggle">${d.active ? t('Deactivate', '停用') : t('Activate', '启用')}</button>
+        <button type="button" class="btn btn-sm btn-ghost-danger" data-act="delete">${t('Delete', '删除')}</button>
+      </div></td>`;
     tr.querySelector('[data-act="qr"]').addEventListener('click', () => showDiscountQr(d));
     tr.querySelector('[data-act="toggle"]').addEventListener('click', async () => {
       const { ok: ok2, data: d2 } = await api('/api/admin/discounts', {
@@ -485,15 +513,19 @@ function showDiscountQr(d) {
     return;
   }
   host.innerHTML = `
-    <div class="caaci-qr">
-      <img alt="QR code for ${esc(d.code)}" src="${png}">
-      <div class="caaci-qr-meta">
-        <h3>${esc(d.code)} — −${d.percent_off}%</h3>
-        <p>${t('Scanning opens', '扫码打开')} <code>${esc(url)}</code></p>
-        <p>
-          <a class="caaci-btn caaci-btn--secondary" download="caaci-${esc(d.code)}-qr.gif" href="${png}">${t('Download image', '下载图片')}</a>
-          <button type="button" class="caaci-btn caaci-btn--secondary" data-act="close">${t('Close', '关闭')}</button>
-        </p>
+    <div class="card card-body mb-3">
+      <div class="row g-3 align-items-center">
+        <div class="col-auto">
+          <img class="img-thumbnail" style="width: 180px" alt="QR code for ${esc(d.code)}" src="${png}">
+        </div>
+        <div class="col">
+          <h3 class="mb-1">${esc(d.code)} — −${d.percent_off}%</h3>
+          <p class="text-secondary">${t('Scanning opens', '扫码打开')} <code>${esc(url)}</code></p>
+          <div class="btn-list">
+            <a class="btn" download="caaci-${esc(d.code)}-qr.gif" href="${png}">${t('Download image', '下载图片')}</a>
+            <button type="button" class="btn" data-act="close">${t('Close', '关闭')}</button>
+          </div>
+        </div>
       </div>
     </div>`;
   host.querySelector('[data-act="close"]').addEventListener('click', () => {
@@ -508,19 +540,19 @@ function discountForm(host) {
     return;
   }
   host.innerHTML = `
-    <form class="caaci-card-inset">
-      <div class="caaci-form-grid">
-        ${field(`${t('Code', '折扣码')} *`, `<input type="text" class="caaci-input" data-f="code" maxlength="32" placeholder="SPRING2026" style="text-transform:uppercase">`)}
-        ${field(`${t('Percent off', '折扣百分比')} *`, `<input type="number" class="caaci-input" data-f="percent_off" min="1" max="100" step="1" placeholder="20">`)}
-        ${field(t('Description', '说明'), `<input type="text" class="caaci-input" data-f="description">`)}
-        ${field(t('Expires (optional)', '到期（可选）'), `<input type="date" class="caaci-input" data-f="expires_at">`)}
-        ${field(t('Max redemptions (optional)', '最多使用次数（可选）'), `<input type="number" class="caaci-input" data-f="max_redemptions" min="1" step="1">`)}
+    <form class="card card-body mb-3">
+      <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
+        ${field(`${t('Code', '折扣码')} *`, `<input type="text" class="form-control" data-f="code" maxlength="32" placeholder="SPRING2026" style="text-transform:uppercase">`)}
+        ${field(`${t('Percent off', '折扣百分比')} *`, `<input type="number" class="form-control" data-f="percent_off" min="1" max="100" step="1" placeholder="20">`)}
+        ${field(t('Description', '说明'), `<input type="text" class="form-control" data-f="description">`)}
+        ${field(t('Expires (optional)', '到期（可选）'), `<input type="date" class="form-control" data-f="expires_at">`)}
+        ${field(t('Max redemptions (optional)', '最多使用次数（可选）'), `<input type="number" class="form-control" data-f="max_redemptions" min="1" step="1">`)}
       </div>
       <p>
-        <button type="submit" class="caaci-btn">${t('Create code', '创建折扣码')}</button>
-        <button type="button" class="caaci-btn caaci-btn--secondary" data-act="cancel">${t('Cancel', '取消')}</button>
+        <button type="submit" class="btn btn-primary">${t('Create code', '创建折扣码')}</button>
+        <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
       </p>
-      <p class="caaci-notice" data-msg hidden></p>
+      <div class="alert" data-msg hidden></div>
     </form>`;
   const form = host.querySelector('form');
   const msg = form.querySelector('[data-msg]');
@@ -556,7 +588,7 @@ function wireDiscounts() {
   $('#caaci-discount-add-btn').addEventListener('click', () =>
     discountForm($('#caaci-discount-form-host')),
   );
-  const tab = $('.caaci-tab[data-tab="discounts"]');
+  const tab = $('[data-tab="discounts"]');
   if (tab) tab.addEventListener('click', () => loadDiscounts());
 }
 
@@ -592,8 +624,10 @@ function wireNews() {
 }
 
 // ---------- shared form helpers ----------
-const field = (label, inputHtml) =>
-  `<div class="caaci-field"><label>${label}</label>${inputHtml}</div>`;
+// `wrap` is the wrapper class: 'col' inside a form row grid (default), 'mb-3'
+// for a standalone full-width field.
+const field = (label, inputHtml, wrap = 'col') =>
+  `<div class="${wrap}"><label class="form-label">${label}</label>${inputHtml}</div>`;
 const dateInput = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
 
 function tierOptionsHtml(selected) {
@@ -640,26 +674,26 @@ function wireMemberAdd() {
       return;
     }
     host.innerHTML = `
-      <form class="caaci-card-inset caaci-add-form">
-        <div class="caaci-form-grid">
-          ${field(t('Full name', '姓名'), `<input type="text" class="caaci-input" data-f="full_name">`)}
-          ${field(`${t('Email (login)', '邮箱（登录）')} *`, `<input type="email" class="caaci-input" data-f="email" required>`)}
-          ${field(t('Password (optional)', '密码（可选）'), `<input type="password" class="caaci-input" data-f="password">`)}
-          ${field(t('Phone', '电话'), `<input type="tel" class="caaci-input" data-f="phone">`)}
-          ${field(t('Tier', '类型'), `<select class="caaci-input" data-f="tier_id">${tierOptionsHtml('')}</select>`)}
-          ${field(t('Status', '状态'), `<select class="caaci-input" data-f="status">${statusOptionsHtml('active', ['active', 'pending', 'past_due', 'expired', 'cancelled'])}</select>`)}
-          ${field(t('Member since', '加入时间'), `<input type="date" class="caaci-input" data-f="member_since">`)}
-          ${field(t('Expires', '到期'), `<input type="date" class="caaci-input" data-f="expires_at">`)}
-          ${field(t('Family', '家庭'), `<select class="caaci-input" data-f="household_id">${householdOptionsHtml('')}</select>`)}
+      <form class="card card-body mb-3">
+        <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
+          ${field(t('Full name', '姓名'), `<input type="text" class="form-control" data-f="full_name">`)}
+          ${field(`${t('Email (login)', '邮箱（登录）')} *`, `<input type="email" class="form-control" data-f="email" required>`)}
+          ${field(t('Password (optional)', '密码（可选）'), `<input type="password" class="form-control" data-f="password">`)}
+          ${field(t('Phone', '电话'), `<input type="tel" class="form-control" data-f="phone">`)}
+          ${field(t('Tier', '类型'), `<select class="form-select" data-f="tier_id">${tierOptionsHtml('')}</select>`)}
+          ${field(t('Status', '状态'), `<select class="form-select" data-f="status">${statusOptionsHtml('active', ['active', 'pending', 'past_due', 'expired', 'cancelled'])}</select>`)}
+          ${field(t('Member since', '加入时间'), `<input type="date" class="form-control" data-f="member_since">`)}
+          ${field(t('Expires', '到期'), `<input type="date" class="form-control" data-f="expires_at">`)}
+          ${field(t('Family', '家庭'), `<select class="form-select" data-f="household_id">${householdOptionsHtml('')}</select>`)}
         </div>
-        <label class="caaci-check"><input type="checkbox" data-f="is_admin" />
-          <span>${t('Administrator', '管理员')}</span></label>
-        ${field(t('Notes', '备注'), `<textarea class="caaci-input" data-f="notes" rows="2"></textarea>`)}
+        <label class="form-check"><input type="checkbox" class="form-check-input" data-f="is_admin" />
+          <span class="form-check-label">${t('Administrator', '管理员')}</span></label>
+        ${field(t('Notes', '备注'), `<textarea class="form-control" data-f="notes" rows="2"></textarea>`, 'mb-3')}
         <p>
-          <button type="submit" class="caaci-btn">${t('Create member', '创建会员')}</button>
-          <button type="button" class="caaci-btn caaci-btn--secondary" data-act="cancel">${t('Cancel', '取消')}</button>
+          <button type="submit" class="btn btn-primary">${t('Create member', '创建会员')}</button>
+          <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
         </p>
-        <p class="caaci-notice" data-msg hidden></p>
+        <div class="alert" data-msg hidden></div>
       </form>`;
     const form = host.querySelector('form');
     const msg = form.querySelector('[data-msg]');
@@ -709,68 +743,68 @@ async function loadFamilies() {
   const host = $('#caaci-families-list');
   host.innerHTML = '';
   if (!households.length) {
-    host.innerHTML = `<p class="caaci-muted-text">${t('No families yet.', '暂无家庭。')}</p>`;
+    host.innerHTML = `<p class="text-secondary">${t('No families yet.', '暂无家庭。')}</p>`;
     return;
   }
   for (const h of households) host.appendChild(familyCard(h));
 }
 
 function personRow(p) {
-  const primary = p.is_primary ? ` <span class="caaci-badge">${t('primary', '主要')}</span>` : '';
+  const primary = p.is_primary ? ` <span class="badge">${t('primary', '主要')}</span>` : '';
   return `<tr>
     <td>${esc(p.full_name)}${primary}</td>
     <td>${esc(p.relationship || '—')}</td>
     <td>${esc(p.email || '—')}</td>
     <td>${esc(p.phone || '—')}</td>
-    <td>
-      <button type="button" class="caaci-link-btn" data-person="${p.id}" data-act="edit-person">${t('Edit', '编辑')}</button>
-      <button type="button" class="caaci-link-btn caaci-danger" data-person="${p.id}" data-act="del-person">${t('Delete', '删除')}</button>
-    </td></tr>`;
+    <td><div class="btn-list flex-nowrap">
+      <button type="button" class="btn btn-sm" data-person="${p.id}" data-act="edit-person">${t('Edit', '编辑')}</button>
+      <button type="button" class="btn btn-sm btn-ghost-danger" data-person="${p.id}" data-act="del-person">${t('Delete', '删除')}</button>
+    </div></td></tr>`;
 }
 
 function familyCard(h) {
   const card = document.createElement('section');
-  card.className = 'caaci-card caaci-family';
+  card.className = 'card mb-3';
   const tierTxt = esc(tierName[h.tier_id] || h.tier_id || t('— no tier —', '— 无类型 —'));
   const statusTxt = STATUS_LABEL[h.status]?.() || h.status;
   const expTxt = h.expires_at ? ` · ${t('expires', '到期')} ${fmtDate(h.expires_at)}` : '';
   const accounts = h.accounts || [];
   const people = h.people || [];
   const acctList = accounts.length
-    ? `<ul class="caaci-family-accts">${accounts
+    ? `<ul class="list-unstyled mb-0">${accounts
         .map(
           (a) =>
-            `<li>${esc(a.full_name || '—')} — ${esc(a.email || '')} <span class="caaci-badge" data-state="${esc(a.status || '')}">${STATUS_LABEL[a.status]?.() || a.status || '—'}</span></li>`,
+            `<li>${esc(a.full_name || '—')} — ${esc(a.email || '')} ${badgeHtml(a.status, STATUS_LABEL[a.status]?.() || a.status || '—')}</li>`,
         )
         .join('')}</ul>`
-    : `<p class="caaci-muted-text">${t('None linked. Edit a member and choose this family.', '暂无关联账户。编辑会员并选择该家庭即可关联。')}</p>`;
+    : `<p class="text-secondary mb-0">${t('None linked. Edit a member and choose this family.', '暂无关联账户。编辑会员并选择该家庭即可关联。')}</p>`;
   const peopleBlock = people.length
-    ? `<div class="caaci-table-wrap"><table class="caaci-table"><thead><tr>
+    ? `<div class="table-responsive"><table class="table table-sm table-vcenter"><thead><tr>
         <th>${t('Name', '姓名')}</th><th>${t('Relationship', '关系')}</th>
         <th>${t('Email', '邮箱')}</th><th>${t('Phone', '电话')}</th><th></th></tr></thead>
         <tbody>${people.map(personRow).join('')}</tbody></table></div>`
-    : `<p class="caaci-muted-text">${t('No family members added yet.', '尚未添加家庭成员。')}</p>`;
+    : `<p class="text-secondary mb-0">${t('No family members added yet.', '尚未添加家庭成员。')}</p>`;
   card.innerHTML = `
-    <div class="caaci-family-head">
+    <div class="card-header">
       <div>
-        <h3>${esc(h.name)}</h3>
-        <p class="caaci-muted-text">${tierTxt} · ${statusTxt}${expTxt}</p>
-        ${h.notes ? `<p class="caaci-muted-text">${esc(h.notes)}</p>` : ''}
+        <h3 class="card-title mb-0">${esc(h.name)}</h3>
+        <div class="text-secondary small">${tierTxt} · ${statusTxt}${expTxt}</div>
+        ${h.notes ? `<div class="text-secondary small">${esc(h.notes)}</div>` : ''}
       </div>
-      <div class="caaci-family-actions">
-        <button type="button" class="caaci-link-btn" data-act="edit">${t('Edit', '编辑')}</button>
-        <button type="button" class="caaci-link-btn caaci-danger" data-act="delete">${t('Delete', '删除')}</button>
+      <div class="card-actions btn-list">
+        <button type="button" class="btn btn-sm" data-act="edit">${t('Edit', '编辑')}</button>
+        <button type="button" class="btn btn-sm btn-ghost-danger" data-act="delete">${t('Delete', '删除')}</button>
       </div>
     </div>
     <div data-edit-host></div>
-    <div class="caaci-family-sub">
-      <span class="caaci-eyebrow">${t('Login accounts', '登录账户')}</span>
+    <div class="card-body border-top">
+      <div class="subheader mb-2">${t('Login accounts', '登录账户')}</div>
       ${acctList}
     </div>
-    <div class="caaci-family-sub">
-      <div class="caaci-family-subhead">
-        <span class="caaci-eyebrow">${t('Family members', '家庭成员')}</span>
-        <button type="button" class="caaci-link-btn" data-act="add-person">${t('+ Add person', '+ 添加成员')}</button>
+    <div class="card-body border-top">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="subheader">${t('Family members', '家庭成员')}</div>
+        <button type="button" class="btn btn-sm" data-act="add-person">${t('+ Add person', '+ 添加成员')}</button>
       </div>
       <div data-person-host></div>
       ${peopleBlock}
@@ -799,20 +833,20 @@ function familyForm(host, h) {
   }
   const edit = !!h;
   host.innerHTML = `
-    <form class="caaci-card-inset">
-      <div class="caaci-form-grid">
-        ${field(`${t('Family name', '家庭名称')} *`, `<input type="text" class="caaci-input" data-f="name" value="${edit ? esc(h.name) : ''}" required>`)}
-        ${field(t('Tier', '类型'), `<select class="caaci-input" data-f="tier_id">${tierOptionsHtml(edit ? h.tier_id : 'family')}</select>`)}
-        ${field(t('Status', '状态'), `<select class="caaci-input" data-f="status">${statusOptionsHtml(edit ? h.status : 'active')}</select>`)}
-        ${field(t('Member since', '加入时间'), `<input type="date" class="caaci-input" data-f="member_since" value="${edit ? dateInput(h.member_since) : ''}">`)}
-        ${field(t('Expires', '到期'), `<input type="date" class="caaci-input" data-f="expires_at" value="${edit ? dateInput(h.expires_at) : ''}">`)}
+    <form class="card card-body mb-3">
+      <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
+        ${field(`${t('Family name', '家庭名称')} *`, `<input type="text" class="form-control" data-f="name" value="${edit ? esc(h.name) : ''}" required>`)}
+        ${field(t('Tier', '类型'), `<select class="form-select" data-f="tier_id">${tierOptionsHtml(edit ? h.tier_id : 'family')}</select>`)}
+        ${field(t('Status', '状态'), `<select class="form-select" data-f="status">${statusOptionsHtml(edit ? h.status : 'active')}</select>`)}
+        ${field(t('Member since', '加入时间'), `<input type="date" class="form-control" data-f="member_since" value="${edit ? dateInput(h.member_since) : ''}">`)}
+        ${field(t('Expires', '到期'), `<input type="date" class="form-control" data-f="expires_at" value="${edit ? dateInput(h.expires_at) : ''}">`)}
       </div>
-      ${field(t('Notes', '备注'), `<textarea class="caaci-input" data-f="notes" rows="2">${edit ? esc(h.notes || '') : ''}</textarea>`)}
+      ${field(t('Notes', '备注'), `<textarea class="form-control" data-f="notes" rows="2">${edit ? esc(h.notes || '') : ''}</textarea>`, 'mb-3')}
       <p>
-        <button type="submit" class="caaci-btn">${edit ? t('Save', '保存') : t('Create', '创建')}</button>
-        <button type="button" class="caaci-btn caaci-btn--secondary" data-act="cancel">${t('Cancel', '取消')}</button>
+        <button type="submit" class="btn btn-primary">${edit ? t('Save', '保存') : t('Create', '创建')}</button>
+        <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
       </p>
-      <p class="caaci-notice" data-msg hidden></p>
+      <div class="alert" data-msg hidden></div>
     </form>`;
   const form = host.querySelector('form');
   const msg = form.querySelector('[data-msg]');
@@ -854,20 +888,20 @@ function personForm(host, householdId, p) {
     )
     .join('');
   host.innerHTML = `
-    <form class="caaci-card-inset">
-      <div class="caaci-form-grid">
-        ${field(`${t('Full name', '姓名')} *`, `<input type="text" class="caaci-input" data-f="full_name" value="${edit ? esc(p.full_name) : ''}" required>`)}
-        ${field(t('Relationship', '关系'), `<select class="caaci-input" data-f="relationship"><option value=""></option>${relOpts}</select>`)}
-        ${field(t('Email', '邮箱'), `<input type="email" class="caaci-input" data-f="email" value="${edit ? esc(p.email || '') : ''}">`)}
-        ${field(t('Phone', '电话'), `<input type="tel" class="caaci-input" data-f="phone" value="${edit ? esc(p.phone || '') : ''}">`)}
+    <form class="card card-body mb-3">
+      <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
+        ${field(`${t('Full name', '姓名')} *`, `<input type="text" class="form-control" data-f="full_name" value="${edit ? esc(p.full_name) : ''}" required>`)}
+        ${field(t('Relationship', '关系'), `<select class="form-select" data-f="relationship"><option value=""></option>${relOpts}</select>`)}
+        ${field(t('Email', '邮箱'), `<input type="email" class="form-control" data-f="email" value="${edit ? esc(p.email || '') : ''}">`)}
+        ${field(t('Phone', '电话'), `<input type="tel" class="form-control" data-f="phone" value="${edit ? esc(p.phone || '') : ''}">`)}
       </div>
-      <label class="caaci-check"><input type="checkbox" data-f="is_primary"${edit && p.is_primary ? ' checked' : ''} />
-        <span>${t('Primary contact', '主要联系人')}</span></label>
+      <label class="form-check"><input type="checkbox" class="form-check-input" data-f="is_primary"${edit && p.is_primary ? ' checked' : ''} />
+        <span class="form-check-label">${t('Primary contact', '主要联系人')}</span></label>
       <p>
-        <button type="submit" class="caaci-btn">${edit ? t('Save', '保存') : t('Add', '添加')}</button>
-        <button type="button" class="caaci-btn caaci-btn--secondary" data-act="cancel">${t('Cancel', '取消')}</button>
+        <button type="submit" class="btn btn-primary">${edit ? t('Save', '保存') : t('Add', '添加')}</button>
+        <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
       </p>
-      <p class="caaci-notice" data-msg hidden></p>
+      <div class="alert" data-msg hidden></div>
     </form>`;
   const form = host.querySelector('form');
   const msg = form.querySelector('[data-msg]');
@@ -934,7 +968,7 @@ function wireFamilies() {
   $('#caaci-family-add-btn').addEventListener('click', () =>
     familyForm($('#caaci-family-form-host')),
   );
-  const tab = $('.caaci-tab[data-tab="families"]');
+  const tab = $('[data-tab="families"]');
   if (tab) tab.addEventListener('click', () => loadFamilies());
 }
 
@@ -1012,7 +1046,7 @@ function createPond(input, opts = {}) {
 const imageFieldHtml = (current) =>
   field(
     t('Image', '图片'),
-    `<input type="text" class="caaci-input" data-f="image_url" value="${esc(current || '')}" placeholder="https://…">
+    `<input type="text" class="form-control mb-2" data-f="image_url" value="${esc(current || '')}" placeholder="https://…">
      <input type="file" data-pond accept="image/jpeg,image/png,image/webp,image/gif">`,
   );
 
@@ -1038,22 +1072,26 @@ async function loadMedia() {
   const grid = $('#caaci-media-grid');
   grid.innerHTML = '';
   if (!rows.length) {
-    grid.innerHTML = `<p class="caaci-muted-text">${t('No images yet — upload one above.', '暂无图片——请在上方上传。')}</p>`;
+    grid.innerHTML = `<p class="text-secondary">${t('No images yet — upload one above.', '暂无图片——请在上方上传。')}</p>`;
     return;
   }
   for (const f of rows) {
     const kb = f.size != null ? `${Math.max(1, Math.round(f.size / 1024))} KB` : '';
-    const item = document.createElement('figure');
-    item.className = 'caaci-media-item';
+    const item = document.createElement('div');
+    item.className = 'col-6 col-sm-4 col-lg-3';
     item.innerHTML = `
-      <img class="caaci-media-thumb" loading="lazy" src="${esc(f.url)}" alt="${esc(f.name)}">
-      <figcaption class="caaci-media-meta">
-        <span class="caaci-media-name" title="${esc(f.name)}">${esc(f.name)}</span>
-        <span class="caaci-muted-text">${kb}</span>
-      </figcaption>
-      <div class="caaci-media-actions">
-        <button type="button" class="caaci-link-btn" data-act="copy">${t('Copy URL', '复制链接')}</button>
-        <button type="button" class="caaci-link-btn caaci-danger" data-act="delete">${t('Delete', '删除')}</button>
+      <div class="card">
+        <div class="ratio ratio-4x3">
+          <img class="object-cover card-img-top" loading="lazy" src="${esc(f.url)}" alt="${esc(f.name)}">
+        </div>
+        <div class="card-body p-2">
+          <span class="text-truncate d-block" title="${esc(f.name)}">${esc(f.name)}</span>
+          <span class="text-secondary small">${kb}</span>
+        </div>
+        <div class="card-footer p-2 btn-list">
+          <button type="button" class="btn btn-sm" data-act="copy">${t('Copy URL', '复制链接')}</button>
+          <button type="button" class="btn btn-sm btn-ghost-danger" data-act="delete">${t('Delete', '删除')}</button>
+        </div>
       </div>`;
     item.querySelector('[data-act="copy"]').addEventListener('click', async () => {
       try {
@@ -1086,7 +1124,7 @@ async function loadMedia() {
 
 let mediaPond = null;
 function wireMedia() {
-  const tab = $('.caaci-tab[data-tab="media"]');
+  const tab = $('[data-tab="media"]');
   if (!tab) return;
   tab.addEventListener('click', () => {
     if (!mediaPond) {
@@ -1143,7 +1181,7 @@ async function loadEvents() {
   const tb = $('#caaci-events-body');
   tb.innerHTML = '';
   if (!rows.length && evOffset === 0) {
-    tb.innerHTML = `<tr><td colspan="5" class="caaci-muted-text">${t('No events yet.', '暂无活动。')}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="5" class="text-secondary">${t('No events yet.', '暂无活动。')}</td></tr>`;
   }
   for (const e of rows) {
     const st = e.published
@@ -1151,15 +1189,15 @@ async function loadEvents() {
       : { key: 'pending', label: t('Draft', '草稿') };
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${esc(e.title)}${e.image_url ? ` <img class="caaci-row-thumb" src="${esc(e.image_url)}" alt="" loading="lazy">` : ''}</td>
+      <td>${esc(e.title)}${e.image_url ? ` <span class="avatar avatar-sm ms-1" style="background-image: url('${esc(e.image_url)}')"></span>` : ''}</td>
       <td>${fmtWhen(e)}</td>
       <td>${esc(e.location || '—')}</td>
-      <td><span class="caaci-badge" data-state="${st.key}">${st.label}</span></td>
-      <td>
-        <button type="button" class="caaci-link-btn" data-act="edit">${t('Edit', '编辑')}</button>
-        <button type="button" class="caaci-link-btn" data-act="toggle">${e.published ? t('Unpublish', '取消发布') : t('Publish', '发布')}</button>
-        <button type="button" class="caaci-link-btn caaci-danger" data-act="delete">${t('Delete', '删除')}</button>
-      </td>`;
+      <td>${badgeHtml(st.key, st.label)}</td>
+      <td><div class="btn-list flex-nowrap">
+        <button type="button" class="btn btn-sm" data-act="edit">${t('Edit', '编辑')}</button>
+        <button type="button" class="btn btn-sm" data-act="toggle">${e.published ? t('Unpublish', '取消发布') : t('Publish', '发布')}</button>
+        <button type="button" class="btn btn-sm btn-ghost-danger" data-act="delete">${t('Delete', '删除')}</button>
+      </div></td>`;
     tr.querySelector('[data-act="edit"]').addEventListener('click', () =>
       eventForm($('#caaci-event-form-host'), e),
     );
@@ -1208,22 +1246,22 @@ function eventForm(host, ev) {
   }
   const edit = !!ev;
   host.innerHTML = `
-    <form class="caaci-card-inset">
-      <div class="caaci-form-grid">
-        ${field(`${t('Title', '标题')} *`, `<input type="text" class="caaci-input" data-f="title" value="${edit ? esc(ev.title) : ''}" required>`)}
-        ${field(t('Location', '地点'), `<input type="text" class="caaci-input" data-f="location" value="${edit ? esc(ev.location || '') : ''}">`)}
-        ${field(`${t('Starts', '开始')} *`, `<input type="datetime-local" class="caaci-input" data-f="starts_at" value="${edit ? dtInput(ev.starts_at) : ''}">`)}
-        ${field(t('Ends (optional)', '结束（可选）'), `<input type="datetime-local" class="caaci-input" data-f="ends_at" value="${edit ? dtInput(ev.ends_at) : ''}">`)}
+    <form class="card card-body mb-3">
+      <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
+        ${field(`${t('Title', '标题')} *`, `<input type="text" class="form-control" data-f="title" value="${edit ? esc(ev.title) : ''}" required>`)}
+        ${field(t('Location', '地点'), `<input type="text" class="form-control" data-f="location" value="${edit ? esc(ev.location || '') : ''}">`)}
+        ${field(`${t('Starts', '开始')} *`, `<input type="datetime-local" class="form-control" data-f="starts_at" value="${edit ? dtInput(ev.starts_at) : ''}">`)}
+        ${field(t('Ends (optional)', '结束（可选）'), `<input type="datetime-local" class="form-control" data-f="ends_at" value="${edit ? dtInput(ev.ends_at) : ''}">`)}
         ${imageFieldHtml(edit ? ev.image_url : '')}
       </div>
-      ${field(t('Description', '描述'), `<textarea class="caaci-input" data-f="description" rows="3">${edit ? esc(ev.description || '') : ''}</textarea>`)}
-      <label class="caaci-check"><input type="checkbox" data-f="published"${!edit || ev.published ? ' checked' : ''} />
-        <span>${t('Published (publicly visible)', '发布（公开可见）')}</span></label>
+      ${field(t('Description', '描述'), `<textarea class="form-control" data-f="description" rows="3">${edit ? esc(ev.description || '') : ''}</textarea>`, 'mb-3')}
+      <label class="form-check"><input type="checkbox" class="form-check-input" data-f="published"${!edit || ev.published ? ' checked' : ''} />
+        <span class="form-check-label">${t('Published (publicly visible)', '发布（公开可见）')}</span></label>
       <p>
-        <button type="submit" class="caaci-btn">${edit ? t('Save', '保存') : t('Create event', '创建活动')}</button>
-        <button type="button" class="caaci-btn caaci-btn--secondary" data-act="cancel">${t('Cancel', '取消')}</button>
+        <button type="submit" class="btn btn-primary">${edit ? t('Save', '保存') : t('Create event', '创建活动')}</button>
+        <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
       </p>
-      <p class="caaci-notice" data-msg hidden></p>
+      <div class="alert" data-msg hidden></div>
     </form>`;
   const form = host.querySelector('form');
   const msg = form.querySelector('[data-msg]');
@@ -1280,7 +1318,7 @@ function wireEvents() {
     evOffset += EV_LIMIT;
     loadEvents();
   });
-  const tab = $('.caaci-tab[data-tab="events"]');
+  const tab = $('[data-tab="events"]');
   if (tab) tab.addEventListener('click', () => loadEvents());
 }
 
@@ -1313,16 +1351,18 @@ async function loadBusiness() {
 
   const pending = data.pending_total ?? 0;
   $('#caaci-biz-stats').innerHTML = `
-    <div class="caaci-stat"${pending ? ' data-state="past_due"' : ''}>
-      <span class="caaci-stat-value">${pending}</span>
-      <span class="caaci-stat-label">${t('Pending review', '待审核')}</span>
+    <div class="col-6 col-sm-3">
+      <div class="card card-sm"><div class="card-body">
+        <div class="subheader">${t('Pending review', '待审核')}</div>
+        <div class="h1 mb-0${pending ? ' text-orange' : ''}">${pending}</div>
+      </div></div>
     </div>`;
 
   const rows = data.rows || [];
   const tb = $('#caaci-biz-body');
   tb.innerHTML = '';
   if (!rows.length && bizOffset === 0) {
-    tb.innerHTML = `<tr><td colspan="5" class="caaci-muted-text">${t('No listings yet.', '暂无商家条目。')}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="5" class="text-secondary">${t('No listings yet.', '暂无商家条目。')}</td></tr>`;
   }
   for (const r of rows) {
     const st = r.approved
@@ -1331,15 +1371,15 @@ async function loadBusiness() {
     const contact = [r.phone, r.website].filter(Boolean).map(esc).join('<br>') || '—';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${esc(r.name)}${r.image_url ? ` <img class="caaci-row-thumb" src="${esc(r.image_url)}" alt="" loading="lazy">` : ''}</td>
+      <td>${esc(r.name)}${r.image_url ? ` <span class="avatar avatar-sm ms-1" style="background-image: url('${esc(r.image_url)}')"></span>` : ''}</td>
       <td>${r.category ? CATEGORY_LABEL[r.category]?.() || esc(r.category) : '—'}</td>
       <td>${contact}</td>
-      <td><span class="caaci-badge" data-state="${st.key}">${st.label}</span></td>
-      <td>
-        <button type="button" class="caaci-link-btn" data-act="edit">${t('Edit', '编辑')}</button>
-        <button type="button" class="caaci-link-btn" data-act="toggle">${r.approved ? t('Unapprove', '取消批准') : t('Approve', '批准')}</button>
-        <button type="button" class="caaci-link-btn caaci-danger" data-act="delete">${t('Delete', '删除')}</button>
-      </td>`;
+      <td>${badgeHtml(st.key, st.label)}</td>
+      <td><div class="btn-list flex-nowrap">
+        <button type="button" class="btn btn-sm" data-act="edit">${t('Edit', '编辑')}</button>
+        <button type="button" class="btn btn-sm" data-act="toggle">${r.approved ? t('Unapprove', '取消批准') : t('Approve', '批准')}</button>
+        <button type="button" class="btn btn-sm btn-ghost-danger" data-act="delete">${t('Delete', '删除')}</button>
+      </div></td>`;
     tr.querySelector('[data-act="edit"]').addEventListener('click', () =>
       businessForm($('#caaci-biz-form-host'), r),
     );
@@ -1387,23 +1427,23 @@ function businessForm(host, biz) {
     )
     .join('');
   host.innerHTML = `
-    <form class="caaci-card-inset">
-      <div class="caaci-form-grid">
-        ${field(`${t('Name', '名称')} *`, `<input type="text" class="caaci-input" data-f="name" value="${edit ? esc(biz.name) : ''}" required>`)}
-        ${field(t('Category', '类别'), `<select class="caaci-input" data-f="category">${catOpts}</select>`)}
-        ${field(t('Phone', '电话'), `<input type="tel" class="caaci-input" data-f="phone" value="${edit ? esc(biz.phone || '') : ''}">`)}
-        ${field(t('Website', '网站'), `<input type="url" class="caaci-input" data-f="website" value="${edit ? esc(biz.website || '') : ''}">`)}
-        ${field(t('Address', '地址'), `<input type="text" class="caaci-input" data-f="address" value="${edit ? esc(biz.address || '') : ''}">`)}
+    <form class="card card-body mb-3">
+      <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
+        ${field(`${t('Name', '名称')} *`, `<input type="text" class="form-control" data-f="name" value="${edit ? esc(biz.name) : ''}" required>`)}
+        ${field(t('Category', '类别'), `<select class="form-select" data-f="category">${catOpts}</select>`)}
+        ${field(t('Phone', '电话'), `<input type="tel" class="form-control" data-f="phone" value="${edit ? esc(biz.phone || '') : ''}">`)}
+        ${field(t('Website', '网站'), `<input type="url" class="form-control" data-f="website" value="${edit ? esc(biz.website || '') : ''}">`)}
+        ${field(t('Address', '地址'), `<input type="text" class="form-control" data-f="address" value="${edit ? esc(biz.address || '') : ''}">`)}
         ${imageFieldHtml(edit ? biz.image_url : '')}
       </div>
-      ${field(t('Description', '描述'), `<textarea class="caaci-input" data-f="description" rows="3">${edit ? esc(biz.description || '') : ''}</textarea>`)}
-      <label class="caaci-check"><input type="checkbox" data-f="approved"${!edit || biz.approved ? ' checked' : ''} />
-        <span>${t('Approved (publicly listed)', '已批准（公开显示）')}</span></label>
+      ${field(t('Description', '描述'), `<textarea class="form-control" data-f="description" rows="3">${edit ? esc(biz.description || '') : ''}</textarea>`, 'mb-3')}
+      <label class="form-check"><input type="checkbox" class="form-check-input" data-f="approved"${!edit || biz.approved ? ' checked' : ''} />
+        <span class="form-check-label">${t('Approved (publicly listed)', '已批准（公开显示）')}</span></label>
       <p>
-        <button type="submit" class="caaci-btn">${edit ? t('Save', '保存') : t('Create listing', '创建条目')}</button>
-        <button type="button" class="caaci-btn caaci-btn--secondary" data-act="cancel">${t('Cancel', '取消')}</button>
+        <button type="submit" class="btn btn-primary">${edit ? t('Save', '保存') : t('Create listing', '创建条目')}</button>
+        <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
       </p>
-      <p class="caaci-notice" data-msg hidden></p>
+      <div class="alert" data-msg hidden></div>
     </form>`;
   const form = host.querySelector('form');
   const msg = form.querySelector('[data-msg]');
@@ -1459,7 +1499,7 @@ function wireBusiness() {
     bizOffset += BIZ_LIMIT;
     loadBusiness();
   });
-  const tab = $('.caaci-tab[data-tab="directory"]');
+  const tab = $('[data-tab="directory"]');
   if (tab) tab.addEventListener('click', () => loadBusiness());
 }
 
