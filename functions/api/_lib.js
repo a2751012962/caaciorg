@@ -127,6 +127,51 @@ export function authAdmin(env) {
   };
 }
 
+// --- Supabase Storage (service-role) — the admin media library bucket ---
+// Public reads never come through here: a public bucket serves
+// /storage/v1/object/public/<bucket>/<name> directly. Writes/lists/deletes are
+// service-role only (storage.objects has RLS enabled with no policies).
+export function storage(env) {
+  const base = env.SUPABASE_URL;
+  const key = env.SUPABASE_SERVICE_ROLE_KEY;
+  const headers = { apikey: key, authorization: `Bearer ${key}` };
+  return {
+    publicUrl(bucket, name) {
+      return `${base}/storage/v1/object/public/${bucket}/${name}`;
+    },
+    async upload(bucket, name, body, contentType) {
+      const r = await fetch(`${base}/storage/v1/object/${bucket}/${name}`, {
+        method: 'POST',
+        headers: { ...headers, 'content-type': contentType },
+        body,
+      });
+      if (!r.ok) throw new Error(`storage upload ${name}: ${r.status} ${await r.text()}`);
+      return r.json().catch(() => null);
+    },
+    async list(bucket, { limit = 100, offset = 0 } = {}) {
+      const r = await fetch(`${base}/storage/v1/object/list/${bucket}`, {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prefix: '',
+          limit,
+          offset,
+          sortBy: { column: 'created_at', order: 'desc' },
+        }),
+      });
+      if (!r.ok) throw new Error(`storage list: ${r.status} ${await r.text()}`);
+      return r.json();
+    },
+    async remove(bucket, name) {
+      const r = await fetch(`${base}/storage/v1/object/${bucket}/${name}`, {
+        method: 'DELETE',
+        headers,
+      });
+      if (!r.ok) throw new Error(`storage delete ${name}: ${r.status} ${await r.text()}`);
+    },
+  };
+}
+
 // --- User gate: validate the caller's Supabase session (any signed-in user) ---
 // Returns { user } on success, or { error: Response } to return directly.
 export async function requireUser(request, env) {

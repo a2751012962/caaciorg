@@ -5,407 +5,751 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
     <title>CAACI Admin / 管理后台</title>
+    <!-- Tabler (MIT, tabler/tabler) — the panel's design system; self-hosted, no CDN.
+         FilePond CSS comes after so the uploader keeps its component styling. -->
+    <link rel="stylesheet" href="/assets/tabler.min.css" />
+    <link rel="stylesheet" href="/assets/filepond.css" />
+    <link rel="stylesheet" href="/assets/filepond-plugin-image-preview.css" />
   </head>
-  <body>
-    <!-- The build injects /assets/caaci-config.js + /assets/caaci-ui.css before the closing body tag. -->
-    <header class="caaci-admin-bar">
-      <span class="caaci-admin-brand" data-en="CAACI Admin" data-zh="CAACI 管理后台"
-        >CAACI Admin</span
-      >
-      <span class="caaci-admin-bar-actions">
-        <button type="button" class="caaci-lang-toggle" id="caaci-lang">中文</button>
-        <a
-          href="#"
-          id="caaci-admin-signout"
-          class="caaci-btn--secondary caaci-btn"
-          data-en="Sign out"
-          data-zh="退出登录"
-          >Sign out</a
-        >
-      </span>
-    </header>
-
-    <!-- Access gate: shown until the session + is_admin check resolves. -->
-    <div class="caaci-card" id="caaci-admin-gate">
-      <span class="caaci-eyebrow" data-en="Back office" data-zh="后台管理">Back office</span>
-      <h2 data-en="Checking access…" data-zh="正在验证权限…">Checking access…</h2>
-      <p id="caaci-gate-msg"></p>
-    </div>
-
-    <!-- Main app: hidden until access is granted. -->
-    <main id="caaci-admin-app" hidden>
-      <nav class="caaci-tabs" role="tablist">
-        <button
-          class="caaci-tab"
-          role="tab"
-          data-tab="members"
-          aria-selected="true"
-          data-en="Members &amp; Subscriptions"
-          data-zh="会员与订阅"
-        >
-          Members &amp; Subscriptions
-        </button>
-        <button
-          class="caaci-tab"
-          role="tab"
-          data-tab="families"
-          aria-selected="false"
-          data-en="Families"
-          data-zh="家庭"
-        >
-          Families
-        </button>
-        <button
-          class="caaci-tab"
-          role="tab"
-          data-tab="payments"
-          aria-selected="false"
-          data-en="Payments"
-          data-zh="收款记录"
-        >
-          Payments
-        </button>
-        <button
-          class="caaci-tab"
-          role="tab"
-          data-tab="discounts"
-          aria-selected="false"
-          data-en="Discounts"
-          data-zh="折扣码"
-        >
-          Discounts
-        </button>
-        <button
-          class="caaci-tab"
-          role="tab"
-          data-tab="news"
-          aria-selected="false"
-          data-en="Compose News"
-          data-zh="发送通讯"
-        >
-          Compose News
-        </button>
-        <button
-          class="caaci-tab"
-          role="tab"
-          data-tab="refunds"
-          aria-selected="false"
-          data-en="Refunds"
-          data-zh="退款"
-        >
-          Refunds
-        </button>
-      </nav>
-
-      <!-- ============ Members & Subscriptions ============ -->
-      <section class="caaci-card caaci-panel" data-panel="members">
-        <h2 data-en="Members &amp; Subscriptions" data-zh="会员与订阅">
-          Members &amp; Subscriptions
-        </h2>
-        <p>
-          <button
-            type="button"
-            class="caaci-btn"
-            id="caaci-member-add-btn"
-            data-en="+ Add member"
-            data-zh="+ 添加会员"
+  <body class="layout-fluid">
+    <!-- The build injects /assets/caaci-config.js + /assets/caaci-ui.css before the closing body
+         tag; caaci-ui.css is .caaci-*-namespaced and inert here (this page uses Tabler classes). -->
+    <div class="page">
+      <header class="navbar navbar-expand-md d-print-none" data-bs-theme="dark">
+        <div class="container-xl">
+          <span class="navbar-brand" data-en="CAACI Admin" data-zh="CAACI 管理后台"
+            >CAACI Admin</span
           >
-            + Add member
-          </button>
-        </p>
-        <div id="caaci-member-add-host"></div>
-        <div class="caaci-filters">
-          <input
-            type="search"
-            id="caaci-q"
-            class="caaci-input"
-            data-ph-en="Search name or email"
-            data-ph-zh="搜索姓名或邮箱"
-            placeholder="Search name or email"
-          />
-          <select id="caaci-status" class="caaci-input">
-            <option value="" data-en="All statuses" data-zh="全部状态">All statuses</option>
-            <option value="active" data-en="Active" data-zh="有效">Active</option>
-            <option value="pending" data-en="Pending" data-zh="待处理">Pending</option>
-            <option value="past_due" data-en="Past due" data-zh="逾期">Past due</option>
-            <option value="expired" data-en="Expired" data-zh="已过期">Expired</option>
-            <option value="cancelled" data-en="Cancelled" data-zh="已取消">Cancelled</option>
-          </select>
-          <select id="caaci-tier" class="caaci-input">
-            <option value="" data-en="All tiers" data-zh="全部类型">All tiers</option>
-          </select>
-        </div>
-        <div class="caaci-table-wrap">
-          <table class="caaci-table" id="caaci-members-table">
-            <thead>
-              <tr>
-                <th data-en="Name" data-zh="姓名">Name</th>
-                <th data-en="Email" data-zh="邮箱">Email</th>
-                <th data-en="Tier" data-zh="类型">Tier</th>
-                <th data-en="Status" data-zh="状态">Status</th>
-                <th data-en="Expires" data-zh="到期">Expires</th>
-                <th data-en="Edit" data-zh="编辑">Edit</th>
-              </tr>
-            </thead>
-            <tbody id="caaci-members-body"></tbody>
-          </table>
-        </div>
-        <div class="caaci-pager">
-          <button
-            type="button"
-            class="caaci-btn caaci-btn--secondary"
-            id="caaci-prev"
-            data-en="Previous"
-            data-zh="上一页"
-          >
-            Previous
-          </button>
-          <span id="caaci-page-info" class="caaci-muted-text"></span>
-          <button
-            type="button"
-            class="caaci-btn caaci-btn--secondary"
-            id="caaci-next"
-            data-en="Next"
-            data-zh="下一页"
-          >
-            Next
-          </button>
-        </div>
-        <p class="caaci-notice" id="caaci-members-notice" hidden></p>
-      </section>
-
-      <!-- ============ Families ============ -->
-      <section class="caaci-card caaci-panel" data-panel="families" hidden>
-        <div class="caaci-panel-head">
-          <div>
-            <span class="caaci-eyebrow" data-en="Family memberships" data-zh="家庭会员"
-              >Family memberships</span
+          <div class="navbar-nav flex-row ms-auto align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-light" id="caaci-lang">中文</button>
+            <a
+              href="#"
+              id="caaci-admin-signout"
+              class="btn btn-sm btn-outline-light"
+              data-en="Sign out"
+              data-zh="退出登录"
+              >Sign out</a
             >
-            <h2 data-en="Families" data-zh="家庭">Families</h2>
           </div>
-          <button
-            type="button"
-            class="caaci-btn"
-            id="caaci-family-add-btn"
-            data-en="+ New family"
-            data-zh="+ 新建家庭"
-          >
-            + New family
-          </button>
         </div>
-        <p
-          class="caaci-muted-text"
-          data-en="A family covers several people under one membership. Link login accounts via a member's Family field; add members without their own login (children, a spouse) below."
-          data-zh="一个家庭会员可涵盖多人。通过会员的“家庭”字段关联登录账户；在下方添加没有独立登录的成员（如子女、配偶）。"
-        >
-          A family covers several people under one membership.
-        </p>
-        <div id="caaci-family-form-host"></div>
-        <p class="caaci-notice" id="caaci-families-notice" hidden></p>
-        <div id="caaci-families-list"></div>
-      </section>
+      </header>
 
-      <!-- ============ Payments (membership tracking) ============ -->
-      <section class="caaci-card caaci-panel" data-panel="payments" hidden>
-        <span class="caaci-eyebrow" data-en="Membership tracking" data-zh="会员费追踪"
-          >Membership tracking</span
-        >
-        <h2 data-en="Payments" data-zh="收款记录">Payments</h2>
-        <p
-          class="caaci-muted-text"
-          data-en="Every membership charge lands here automatically via the Stripe webhook — first-year payments and yearly auto-renewals. Members whose card failed show as Past due; follow up or they expire."
-          data-zh="每笔会员费都会通过 Stripe webhook 自动记录——包括首年付款和每年自动续费扣款。扣款失败的会员显示为“逾期”，需要跟进补交，否则会过期。"
-        >
-          Every membership charge lands here automatically via the Stripe webhook.
-        </p>
-        <div class="caaci-stats" id="caaci-pay-stats"></div>
-        <div class="caaci-table-wrap">
-          <table class="caaci-table">
-            <thead>
-              <tr>
-                <th data-en="Date" data-zh="日期">Date</th>
-                <th data-en="Member" data-zh="会员">Member</th>
-                <th data-en="Type" data-zh="类型">Type</th>
-                <th data-en="Tier" data-zh="方案">Tier</th>
-                <th data-en="Discount" data-zh="折扣码">Discount</th>
-                <th data-en="Amount" data-zh="金额">Amount</th>
-              </tr>
-            </thead>
-            <tbody id="caaci-payments-body"></tbody>
-          </table>
-        </div>
-        <div class="caaci-pager">
-          <button
-            type="button"
-            class="caaci-btn caaci-btn--secondary"
-            id="caaci-pay-prev"
-            data-en="Previous"
-            data-zh="上一页"
-          >
-            Previous
-          </button>
-          <span id="caaci-pay-info" class="caaci-muted-text"></span>
-          <button
-            type="button"
-            class="caaci-btn caaci-btn--secondary"
-            id="caaci-pay-next"
-            data-en="Next"
-            data-zh="下一页"
-          >
-            Next
-          </button>
-        </div>
-        <p class="caaci-notice" id="caaci-payments-notice" hidden></p>
-      </section>
+      <div class="page-wrapper">
+        <div class="page-body">
+          <div class="container-xl">
+            <!-- Access gate: shown until the session + is_admin check resolves. -->
+            <div class="card" id="caaci-admin-gate">
+              <div class="card-body">
+                <div class="subheader" data-en="Back office" data-zh="后台管理">Back office</div>
+                <h2 class="card-title" data-en="Checking access…" data-zh="正在验证权限…">
+                  Checking access…
+                </h2>
+                <p id="caaci-gate-msg" class="mb-0"></p>
+              </div>
+            </div>
 
-      <!-- ============ Discounts ============ -->
-      <section class="caaci-card caaci-panel" data-panel="discounts" hidden>
-        <div class="caaci-panel-head">
-          <div>
-            <span class="caaci-eyebrow" data-en="Promotions" data-zh="优惠活动">Promotions</span>
-            <h2 data-en="Discount codes" data-zh="折扣码">Discount codes</h2>
+            <!-- Main app: hidden until access is granted. -->
+            <main id="caaci-admin-app" hidden>
+              <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link active"
+                    role="tab"
+                    data-tab="members"
+                    aria-selected="true"
+                    data-en="Members &amp; Subscriptions"
+                    data-zh="会员与订阅"
+                  >
+                    Members &amp; Subscriptions
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
+                    data-tab="families"
+                    aria-selected="false"
+                    data-en="Families"
+                    data-zh="家庭"
+                  >
+                    Families
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
+                    data-tab="payments"
+                    aria-selected="false"
+                    data-en="Payments"
+                    data-zh="收款记录"
+                  >
+                    Payments
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
+                    data-tab="discounts"
+                    aria-selected="false"
+                    data-en="Discounts"
+                    data-zh="折扣码"
+                  >
+                    Discounts
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
+                    data-tab="events"
+                    aria-selected="false"
+                    data-en="Events"
+                    data-zh="活动"
+                  >
+                    Events
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
+                    data-tab="directory"
+                    aria-selected="false"
+                    data-en="Directory"
+                    data-zh="商家名录"
+                  >
+                    Directory
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
+                    data-tab="media"
+                    aria-selected="false"
+                    data-en="Media"
+                    data-zh="媒体库"
+                  >
+                    Media
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
+                    data-tab="news"
+                    aria-selected="false"
+                    data-en="Compose News"
+                    data-zh="发送通讯"
+                  >
+                    Compose News
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
+                    data-tab="refunds"
+                    aria-selected="false"
+                    data-en="Refunds"
+                    data-zh="退款"
+                  >
+                    Refunds
+                  </button>
+                </li>
+              </ul>
+
+              <!-- ============ Members & Subscriptions ============ -->
+              <section class="card" data-panel="members">
+                <div class="card-header">
+                  <h2
+                    class="card-title mb-0"
+                    data-en="Members &amp; Subscriptions"
+                    data-zh="会员与订阅"
+                  >
+                    Members &amp; Subscriptions
+                  </h2>
+                  <div class="card-actions">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      id="caaci-member-add-btn"
+                      data-en="+ Add member"
+                      data-zh="+ 添加会员"
+                    >
+                      + Add member
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <div id="caaci-member-add-host"></div>
+                  <div class="row g-2">
+                    <div class="col-sm-6 col-md-4">
+                      <input
+                        type="search"
+                        id="caaci-q"
+                        class="form-control"
+                        data-ph-en="Search name or email"
+                        data-ph-zh="搜索姓名或邮箱"
+                        placeholder="Search name or email"
+                      />
+                    </div>
+                    <div class="col-sm-3 col-md-2">
+                      <select id="caaci-status" class="form-select">
+                        <option value="" data-en="All statuses" data-zh="全部状态">
+                          All statuses
+                        </option>
+                        <option value="active" data-en="Active" data-zh="有效">Active</option>
+                        <option value="pending" data-en="Pending" data-zh="待处理">Pending</option>
+                        <option value="past_due" data-en="Past due" data-zh="逾期">Past due</option>
+                        <option value="expired" data-en="Expired" data-zh="已过期">Expired</option>
+                        <option value="cancelled" data-en="Cancelled" data-zh="已取消">
+                          Cancelled
+                        </option>
+                      </select>
+                    </div>
+                    <div class="col-sm-3 col-md-2">
+                      <select id="caaci-tier" class="form-select">
+                        <option value="" data-en="All tiers" data-zh="全部类型">All tiers</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-vcenter card-table" id="caaci-members-table">
+                    <thead>
+                      <tr>
+                        <th data-en="Name" data-zh="姓名">Name</th>
+                        <th data-en="Email" data-zh="邮箱">Email</th>
+                        <th data-en="Tier" data-zh="类型">Tier</th>
+                        <th data-en="Status" data-zh="状态">Status</th>
+                        <th data-en="Expires" data-zh="到期">Expires</th>
+                        <th data-en="Edit" data-zh="编辑">Edit</th>
+                      </tr>
+                    </thead>
+                    <tbody id="caaci-members-body"></tbody>
+                  </table>
+                </div>
+                <div class="card-footer d-flex align-items-center gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    id="caaci-prev"
+                    data-en="Previous"
+                    data-zh="上一页"
+                  >
+                    Previous
+                  </button>
+                  <span id="caaci-page-info" class="text-secondary"></span>
+                  <button
+                    type="button"
+                    class="btn btn-sm ms-auto"
+                    id="caaci-next"
+                    data-en="Next"
+                    data-zh="下一页"
+                  >
+                    Next
+                  </button>
+                </div>
+                <p class="alert m-3" id="caaci-members-notice" hidden></p>
+              </section>
+
+              <!-- ============ Families ============ -->
+              <section class="card" data-panel="families" hidden>
+                <div class="card-header">
+                  <div>
+                    <div class="subheader" data-en="Family memberships" data-zh="家庭会员">
+                      Family memberships
+                    </div>
+                    <h2 class="card-title mb-0" data-en="Families" data-zh="家庭">Families</h2>
+                  </div>
+                  <div class="card-actions">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      id="caaci-family-add-btn"
+                      data-en="+ New family"
+                      data-zh="+ 新建家庭"
+                    >
+                      + New family
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <p
+                    class="text-secondary"
+                    data-en="A family covers several people under one membership. Link login accounts via a member's Family field; add members without their own login (children, a spouse) below."
+                    data-zh="一个家庭会员可涵盖多人。通过会员的“家庭”字段关联登录账户；在下方添加没有独立登录的成员（如子女、配偶）。"
+                  >
+                    A family covers several people under one membership.
+                  </p>
+                  <div id="caaci-family-form-host"></div>
+                  <p class="alert" id="caaci-families-notice" hidden></p>
+                  <div id="caaci-families-list"></div>
+                </div>
+              </section>
+
+              <!-- ============ Payments (membership tracking) ============ -->
+              <section class="card" data-panel="payments" hidden>
+                <div class="card-header">
+                  <div>
+                    <div class="subheader" data-en="Membership tracking" data-zh="会员费追踪">
+                      Membership tracking
+                    </div>
+                    <h2 class="card-title mb-0" data-en="Payments" data-zh="收款记录">Payments</h2>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <p
+                    class="text-secondary"
+                    data-en="Every membership charge lands here automatically via the Stripe webhook — first-year payments and yearly auto-renewals. Members whose card failed show as Past due; follow up or they expire."
+                    data-zh="每笔会员费都会通过 Stripe webhook 自动记录——包括首年付款和每年自动续费扣款。扣款失败的会员显示为“逾期”，需要跟进补交，否则会过期。"
+                  >
+                    Every membership charge lands here automatically via the Stripe webhook.
+                  </p>
+                  <div class="row row-cards mb-3" id="caaci-pay-stats"></div>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-vcenter card-table">
+                    <thead>
+                      <tr>
+                        <th data-en="Date" data-zh="日期">Date</th>
+                        <th data-en="Member" data-zh="会员">Member</th>
+                        <th data-en="Type" data-zh="类型">Type</th>
+                        <th data-en="Tier" data-zh="方案">Tier</th>
+                        <th data-en="Discount" data-zh="折扣码">Discount</th>
+                        <th data-en="Amount" data-zh="金额">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody id="caaci-payments-body"></tbody>
+                  </table>
+                </div>
+                <div class="card-footer d-flex align-items-center gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    id="caaci-pay-prev"
+                    data-en="Previous"
+                    data-zh="上一页"
+                  >
+                    Previous
+                  </button>
+                  <span id="caaci-pay-info" class="text-secondary"></span>
+                  <button
+                    type="button"
+                    class="btn btn-sm ms-auto"
+                    id="caaci-pay-next"
+                    data-en="Next"
+                    data-zh="下一页"
+                  >
+                    Next
+                  </button>
+                </div>
+                <p class="alert m-3" id="caaci-payments-notice" hidden></p>
+              </section>
+
+              <!-- ============ Discounts ============ -->
+              <section class="card" data-panel="discounts" hidden>
+                <div class="card-header">
+                  <div>
+                    <div class="subheader" data-en="Promotions" data-zh="优惠活动">Promotions</div>
+                    <h2 class="card-title mb-0" data-en="Discount codes" data-zh="折扣码">
+                      Discount codes
+                    </h2>
+                  </div>
+                  <div class="card-actions">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      id="caaci-discount-add-btn"
+                      data-en="+ New code"
+                      data-zh="+ 新建折扣码"
+                    >
+                      + New code
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <p
+                    class="text-secondary"
+                    data-en="Each code gets a QR code that opens the membership page with the discount pre-applied — print it on flyers or show it at events. Discounts apply to the first year only."
+                    data-zh="每个折扣码都有对应的二维码，扫码即打开会员页面并自动应用折扣——可印在传单上或在活动现场展示。折扣仅适用于首年。"
+                  >
+                    Each code gets a QR code that opens the membership page with the discount
+                    pre-applied.
+                  </p>
+                  <div id="caaci-discount-form-host"></div>
+                  <div id="caaci-discount-qr-host"></div>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-vcenter card-table" id="caaci-discounts-table">
+                    <thead>
+                      <tr>
+                        <th data-en="Code" data-zh="折扣码">Code</th>
+                        <th data-en="Off" data-zh="折扣">Off</th>
+                        <th data-en="Description" data-zh="说明">Description</th>
+                        <th data-en="Status" data-zh="状态">Status</th>
+                        <th data-en="Used" data-zh="已用">Used</th>
+                        <th data-en="Expires" data-zh="到期">Expires</th>
+                        <th data-en="Actions" data-zh="操作">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="caaci-discounts-body"></tbody>
+                  </table>
+                </div>
+                <p class="alert m-3" id="caaci-discounts-notice" hidden></p>
+              </section>
+
+              <!-- ============ Events ============ -->
+              <section class="card" data-panel="events" hidden>
+                <div class="card-header">
+                  <div>
+                    <div class="subheader" data-en="Community calendar" data-zh="社区日历">
+                      Community calendar
+                    </div>
+                    <h2 class="card-title mb-0" data-en="Events" data-zh="活动">Events</h2>
+                  </div>
+                  <div class="card-actions">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      id="caaci-event-add-btn"
+                      data-en="+ New event"
+                      data-zh="+ 新建活动"
+                    >
+                      + New event
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <p
+                    class="text-secondary"
+                    data-en="Only published events are visible to the public and open for RSVPs — drafts stay admin-only until you publish them."
+                    data-zh="只有已发布的活动才对公众可见并接受报名——草稿在发布前仅管理员可见。"
+                  >
+                    Only published events are visible to the public and open for RSVPs.
+                  </p>
+                  <div id="caaci-event-form-host"></div>
+                  <div class="row g-2">
+                    <div class="col-sm-6 col-md-4">
+                      <input
+                        type="search"
+                        id="caaci-ev-q"
+                        class="form-control"
+                        data-ph-en="Search title or location"
+                        data-ph-zh="搜索标题或地点"
+                        placeholder="Search title or location"
+                      />
+                    </div>
+                    <div class="col-sm-3 col-md-2">
+                      <select id="caaci-ev-pub" class="form-select">
+                        <option value="" data-en="All events" data-zh="全部活动">All events</option>
+                        <option value="true" data-en="Published" data-zh="已发布">Published</option>
+                        <option value="false" data-en="Draft" data-zh="草稿">Draft</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-vcenter card-table" id="caaci-events-table">
+                    <thead>
+                      <tr>
+                        <th data-en="Title" data-zh="标题">Title</th>
+                        <th data-en="When" data-zh="时间">When</th>
+                        <th data-en="Location" data-zh="地点">Location</th>
+                        <th data-en="Status" data-zh="状态">Status</th>
+                        <th data-en="Actions" data-zh="操作">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="caaci-events-body"></tbody>
+                  </table>
+                </div>
+                <div class="card-footer d-flex align-items-center gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    id="caaci-ev-prev"
+                    data-en="Previous"
+                    data-zh="上一页"
+                  >
+                    Previous
+                  </button>
+                  <span id="caaci-ev-info" class="text-secondary"></span>
+                  <button
+                    type="button"
+                    class="btn btn-sm ms-auto"
+                    id="caaci-ev-next"
+                    data-en="Next"
+                    data-zh="下一页"
+                  >
+                    Next
+                  </button>
+                </div>
+                <p class="alert m-3" id="caaci-events-notice" hidden></p>
+              </section>
+
+              <!-- ============ Business directory ============ -->
+              <section class="card" data-panel="directory" hidden>
+                <div class="card-header">
+                  <div>
+                    <div class="subheader" data-en="Business services" data-zh="商家服务">
+                      Business services
+                    </div>
+                    <h2 class="card-title mb-0" data-en="Directory" data-zh="商家名录">
+                      Directory
+                    </h2>
+                  </div>
+                  <div class="card-actions">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      id="caaci-biz-add-btn"
+                      data-en="+ New listing"
+                      data-zh="+ 新建条目"
+                    >
+                      + New listing
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <p
+                    class="text-secondary"
+                    data-en="Community submissions land here as Pending. Approving a listing makes it official — it becomes publicly visible in the directory."
+                    data-zh="社区提交的商家信息会以“待审核”状态出现在这里。批准后即正式生效——将在名录中公开显示。"
+                  >
+                    Community submissions land here as Pending. Approving a listing makes it
+                    official.
+                  </p>
+                  <div class="row row-cards mb-3" id="caaci-biz-stats"></div>
+                  <div id="caaci-biz-form-host"></div>
+                  <div class="row g-2">
+                    <div class="col-sm-6 col-md-4">
+                      <input
+                        type="search"
+                        id="caaci-biz-q"
+                        class="form-control"
+                        data-ph-en="Search name or description"
+                        data-ph-zh="搜索名称或描述"
+                        placeholder="Search name or description"
+                      />
+                    </div>
+                    <div class="col-sm-3 col-md-2">
+                      <select id="caaci-biz-approved" class="form-select">
+                        <option value="" data-en="All listings" data-zh="全部条目">
+                          All listings
+                        </option>
+                        <option value="true" data-en="Approved" data-zh="已批准">Approved</option>
+                        <option value="false" data-en="Pending" data-zh="待审核">Pending</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-vcenter card-table" id="caaci-biz-table">
+                    <thead>
+                      <tr>
+                        <th data-en="Name" data-zh="名称">Name</th>
+                        <th data-en="Category" data-zh="类别">Category</th>
+                        <th data-en="Contact" data-zh="联系方式">Contact</th>
+                        <th data-en="Status" data-zh="状态">Status</th>
+                        <th data-en="Actions" data-zh="操作">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="caaci-biz-body"></tbody>
+                  </table>
+                </div>
+                <div class="card-footer d-flex align-items-center gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    id="caaci-biz-prev"
+                    data-en="Previous"
+                    data-zh="上一页"
+                  >
+                    Previous
+                  </button>
+                  <span id="caaci-biz-info" class="text-secondary"></span>
+                  <button
+                    type="button"
+                    class="btn btn-sm ms-auto"
+                    id="caaci-biz-next"
+                    data-en="Next"
+                    data-zh="下一页"
+                  >
+                    Next
+                  </button>
+                </div>
+                <p class="alert m-3" id="caaci-biz-notice" hidden></p>
+              </section>
+
+              <!-- ============ Media library ============ -->
+              <section class="card" data-panel="media" hidden>
+                <div class="card-header">
+                  <div>
+                    <div class="subheader" data-en="Image storage" data-zh="图片存储">
+                      Image storage
+                    </div>
+                    <h2 class="card-title mb-0" data-en="Media" data-zh="媒体库">Media</h2>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <p
+                    class="text-secondary"
+                    data-en="Upload images here (JPEG/PNG/WebP/GIF, up to 5 MB), then copy the URL into an event or directory listing. Files are stored in the site's own Supabase Storage bucket."
+                    data-zh="在此上传图片（JPEG/PNG/WebP/GIF，最大 5 MB），然后将链接复制到活动或商家条目中。文件保存在本站自己的 Supabase 存储桶中。"
+                  >
+                    Upload images here, then copy the URL into an event or directory listing.
+                  </p>
+                  <!-- FilePond (open-source, MIT) enhances this input into its drag-and-drop uploader. -->
+                  <div class="mb-3">
+                    <input
+                      type="file"
+                      id="caaci-media-file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                    />
+                  </div>
+                  <div class="row row-cards g-3" id="caaci-media-grid"></div>
+                  <p class="alert mt-3" id="caaci-media-notice" hidden></p>
+                </div>
+              </section>
+
+              <!-- ============ Compose News ============ -->
+              <section class="card" data-panel="news" hidden>
+                <div class="card-header">
+                  <div>
+                    <div class="subheader" data-en="Email the membership" data-zh="向会员发送邮件">
+                      Email the membership
+                    </div>
+                    <h2 class="card-title mb-0" data-en="Compose News" data-zh="发送通讯">
+                      Compose News
+                    </h2>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <label class="form-label" data-en="Audience" data-zh="收件对象">Audience</label>
+                    <select id="caaci-news-audience" class="form-select">
+                      <option value="active" data-en="Active members only" data-zh="仅有效会员">
+                        Active members only
+                      </option>
+                      <option value="all" data-en="All members" data-zh="全部会员">
+                        All members
+                      </option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label" data-en="Subject" data-zh="主题">Subject</label>
+                    <input type="text" id="caaci-news-subject" class="form-control" />
+                  </div>
+                  <div class="mb-3">
+                    <label
+                      class="form-label"
+                      data-en="Message (HTML allowed)"
+                      data-zh="正文（支持 HTML）"
+                      >Message (HTML allowed)</label
+                    >
+                    <textarea id="caaci-news-body" class="form-control" rows="10"></textarea>
+                  </div>
+                  <label class="form-check">
+                    <input type="checkbox" class="form-check-input" id="caaci-news-confirm" />
+                    <span
+                      class="form-check-label"
+                      data-en="I understand this emails real members."
+                      data-zh="我确认这将向真实会员发送邮件。"
+                      >I understand this emails real members.</span
+                    >
+                  </label>
+                  <div class="mt-3">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      id="caaci-news-send"
+                      data-en="Send news email"
+                      data-zh="发送通讯邮件"
+                    >
+                      Send news email
+                    </button>
+                  </div>
+                  <p class="alert mt-3" id="caaci-news-notice" hidden></p>
+                </div>
+              </section>
+
+              <!-- ============ Refunds ============ -->
+              <section class="card" data-panel="refunds" hidden>
+                <div class="card-header">
+                  <div>
+                    <div class="subheader" data-en="Money back" data-zh="退款处理">Money back</div>
+                    <h2 class="card-title mb-0" data-en="Refunds" data-zh="退款">Refunds</h2>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <p
+                    class="text-secondary"
+                    data-en="Refund a charge straight from here — the money is returned through Stripe and the ledger is updated. Refund the full amount or a partial amount; a charge can be refunded more than once up to what was paid."
+                    data-zh="可直接在此退款——款项通过 Stripe 原路退回并更新收款记录。可全额或部分退款；同一笔付款可多次退款，累计不超过实付金额。"
+                  >
+                    Refund a charge straight from here — the money is returned through Stripe and
+                    the ledger is updated.
+                  </p>
+                  <div id="caaci-refund-form-host"></div>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-vcenter card-table">
+                    <thead>
+                      <tr>
+                        <th data-en="Date" data-zh="日期">Date</th>
+                        <th data-en="Member" data-zh="会员">Member</th>
+                        <th data-en="Type" data-zh="类型">Type</th>
+                        <th data-en="Paid" data-zh="实付">Paid</th>
+                        <th data-en="Refunded" data-zh="已退">Refunded</th>
+                        <th data-en="Actions" data-zh="操作">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="caaci-refunds-body"></tbody>
+                  </table>
+                </div>
+                <div class="card-footer d-flex align-items-center gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    id="caaci-refund-prev"
+                    data-en="Previous"
+                    data-zh="上一页"
+                  >
+                    Previous
+                  </button>
+                  <span id="caaci-refund-info" class="text-secondary"></span>
+                  <button
+                    type="button"
+                    class="btn btn-sm ms-auto"
+                    id="caaci-refund-next"
+                    data-en="Next"
+                    data-zh="下一页"
+                  >
+                    Next
+                  </button>
+                </div>
+                <p class="alert m-3" id="caaci-refunds-notice" hidden></p>
+              </section>
+            </main>
           </div>
-          <button
-            type="button"
-            class="caaci-btn"
-            id="caaci-discount-add-btn"
-            data-en="+ New code"
-            data-zh="+ 新建折扣码"
-          >
-            + New code
-          </button>
         </div>
-        <p
-          class="caaci-muted-text"
-          data-en="Each code gets a QR code that opens the membership page with the discount pre-applied — print it on flyers or show it at events. Discounts apply to the first year only."
-          data-zh="每个折扣码都有对应的二维码，扫码即打开会员页面并自动应用折扣——可印在传单上或在活动现场展示。折扣仅适用于首年。"
-        >
-          Each code gets a QR code that opens the membership page with the discount pre-applied.
-        </p>
-        <div id="caaci-discount-form-host"></div>
-        <div id="caaci-discount-qr-host"></div>
-        <div class="caaci-table-wrap">
-          <table class="caaci-table" id="caaci-discounts-table">
-            <thead>
-              <tr>
-                <th data-en="Code" data-zh="折扣码">Code</th>
-                <th data-en="Off" data-zh="折扣">Off</th>
-                <th data-en="Description" data-zh="说明">Description</th>
-                <th data-en="Status" data-zh="状态">Status</th>
-                <th data-en="Used" data-zh="已用">Used</th>
-                <th data-en="Expires" data-zh="到期">Expires</th>
-                <th data-en="Actions" data-zh="操作">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="caaci-discounts-body"></tbody>
-          </table>
-        </div>
-        <p class="caaci-notice" id="caaci-discounts-notice" hidden></p>
-      </section>
-
-      <!-- ============ Compose News ============ -->
-      <section class="caaci-card caaci-panel" data-panel="news" hidden>
-        <span class="caaci-eyebrow" data-en="Email the membership" data-zh="向会员发送邮件"
-          >Email the membership</span
-        >
-        <h2 data-en="Compose News" data-zh="发送通讯">Compose News</h2>
-        <div class="caaci-field">
-          <label data-en="Audience" data-zh="收件对象">Audience</label>
-          <select id="caaci-news-audience" class="caaci-input">
-            <option value="active" data-en="Active members only" data-zh="仅有效会员">
-              Active members only
-            </option>
-            <option value="all" data-en="All members" data-zh="全部会员">All members</option>
-          </select>
-        </div>
-        <div class="caaci-field">
-          <label data-en="Subject" data-zh="主题">Subject</label>
-          <input type="text" id="caaci-news-subject" class="caaci-input" />
-        </div>
-        <div class="caaci-field">
-          <label data-en="Message (HTML allowed)" data-zh="正文（支持 HTML）"
-            >Message (HTML allowed)</label
-          >
-          <textarea id="caaci-news-body" class="caaci-input" rows="10"></textarea>
-        </div>
-        <label class="caaci-check">
-          <input type="checkbox" id="caaci-news-confirm" />
-          <span
-            data-en="I understand this emails real members."
-            data-zh="我确认这将向真实会员发送邮件。"
-            >I understand this emails real members.</span
-          >
-        </label>
-        <p>
-          <button
-            type="button"
-            class="caaci-btn"
-            id="caaci-news-send"
-            data-en="Send news email"
-            data-zh="发送通讯邮件"
-          >
-            Send news email
-          </button>
-        </p>
-        <p class="caaci-notice" id="caaci-news-notice" hidden></p>
-      </section>
-
-      <!-- ============ Refunds ============ -->
-      <section class="caaci-card caaci-panel" data-panel="refunds" hidden>
-        <span class="caaci-eyebrow" data-en="Money back" data-zh="退款处理">Money back</span>
-        <h2 data-en="Refunds" data-zh="退款">Refunds</h2>
-        <p
-          class="caaci-muted-text"
-          data-en="Refund a charge straight from here — the money is returned through Stripe and the ledger is updated. Refund the full amount or a partial amount; a charge can be refunded more than once up to what was paid."
-          data-zh="可直接在此退款——款项通过 Stripe 原路退回并更新收款记录。可全额或部分退款；同一笔付款可多次退款，累计不超过实付金额。"
-        >
-          Refund a charge straight from here — the money is returned through Stripe and the ledger
-          is updated.
-        </p>
-        <div id="caaci-refund-form-host"></div>
-        <div class="caaci-table-wrap">
-          <table class="caaci-table">
-            <thead>
-              <tr>
-                <th data-en="Date" data-zh="日期">Date</th>
-                <th data-en="Member" data-zh="会员">Member</th>
-                <th data-en="Type" data-zh="类型">Type</th>
-                <th data-en="Paid" data-zh="实付">Paid</th>
-                <th data-en="Refunded" data-zh="已退">Refunded</th>
-                <th data-en="Actions" data-zh="操作">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="caaci-refunds-body"></tbody>
-          </table>
-        </div>
-        <div class="caaci-pager">
-          <button
-            type="button"
-            class="caaci-btn caaci-btn--secondary"
-            id="caaci-refund-prev"
-            data-en="Previous"
-            data-zh="上一页"
-          >
-            Previous
-          </button>
-          <span id="caaci-refund-info" class="caaci-muted-text"></span>
-          <button
-            type="button"
-            class="caaci-btn caaci-btn--secondary"
-            id="caaci-refund-next"
-            data-en="Next"
-            data-zh="下一页"
-          >
-            Next
-          </button>
-        </div>
-        <p class="caaci-notice" id="caaci-refunds-notice" hidden></p>
-      </section>
-    </main>
+      </div>
+    </div>
 
     <!-- Self-hosted QR generator (assets/qrcode.js, MIT — kazuhikoarase/qrcode-generator);
          classic script so window.qrcode is ready before the admin module runs. -->
     <script src="/assets/qrcode.js"></script>
+    <!-- FilePond uploader (MIT — pqina/filepond), self-hosted like everything else.
+         Classic scripts so window.FilePond is ready before the admin module runs. -->
+    <script src="/assets/filepond.js"></script>
+    <script src="/assets/filepond-plugin-file-validate-type.js"></script>
+    <script src="/assets/filepond-plugin-file-validate-size.js"></script>
+    <script src="/assets/filepond-plugin-image-preview.js"></script>
+    <!-- Tabler behaviors (optional — tabs/panels are driven by caaci-admin.js). -->
+    <script src="/assets/tabler.min.js" defer></script>
     <script type="module" src="/assets/caaci-admin.js"></script>
   </body>
 </html>

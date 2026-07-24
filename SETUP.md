@@ -137,7 +137,12 @@ Then add the custom domain in the Pages project and point DNS. Set redirects in
 
 ## Admin / back-office panel (`/admin/`)
 
-A branded staff panel lives at **`/admin/`**. It is gated two ways:
+A staff panel lives at **`/admin/`**. Its UI is built on **Tabler** (`@tabler/core`
+1.4.0, MIT — an open-source Bootstrap-5 admin/dashboard kit designed for exactly this
+kind of subscription back office), self-hosted at `/assets/tabler.min.css` +
+`/assets/tabler.min.js` from `src/vendor/` — the same no-CDN policy as supabase.js,
+qrcode.js, and FilePond. (The Inter webfont is not bundled, so the panel renders in
+system fonts.) It is gated two ways:
 
 - **Client:** the page shows nothing until a logged-in admin session is detected.
 - **Server (authoritative):** every `/api/admin/*` Function calls `requireAdmin`, which
@@ -166,6 +171,20 @@ visit `/admin/` while logged in. The panel provides:
   server-side (`/api/discount`) and re-checked at checkout; Stripe applies them as a
   `duration: once` coupon, so **only the first year is discounted** and renewals bill at
   full price. The webhook counts redemptions atomically (`redeem_discount_code`).
+- **Events** — create, edit, and delete calendar events, complete with an image. The
+  **Publish/Unpublish** toggle is what makes an event official: only published events are
+  publicly readable (the `events_read` RLS policy) and open for RSVPs; drafts stay
+  admin-only.
+- **Directory** — the review queue for the business directory. Community submissions from
+  the business-services form arrive as **Pending**; **Approve** makes a listing official
+  (publicly visible via the `biz_read` RLS policy), and staff can also create, edit, and
+  delete listings directly. A stat tile shows how many are awaiting review.
+- **Media** — upload images (JPEG/PNG/WebP/GIF, up to 5 MB) to the site's own
+  **Supabase Storage** bucket (`media`, public-read) and copy their URLs into events and
+  directory listings. The uploader UI is the open-source **FilePond** library (MIT,
+  self-hosted like every other asset — no CDN). Writes go only through
+  `/api/admin/media` with the service-role key; the bucket re-enforces the size/type
+  limits server-side.
 - **Refunds** — issue a refund against any ledger row without leaving the panel.
   Pick a payment, refund the full amount or a partial amount, and the money is
   returned through Stripe (`/api/admin/refunds`) and written back to the row. A
@@ -173,7 +192,7 @@ visit `/admin/` while logged in. The panel provides:
   `refunded_cents` total shows on both the Payments and Refunds tabs. The Stripe
   charge is resolved from whichever reference the ledger stored (Checkout Session
   for the first year, Invoice for renewals), so staff never handle charge ids.
-  Requires migration `0009_refunds.sql`.
+  Requires migration `0010_refunds.sql`.
 
 Apply the admin migrations before using the panel (`supabase db push` runs them all):
 `0003_admin.sql` (adds the `past_due` status and the `news_posts` audit table),
@@ -182,8 +201,9 @@ tables and `members.household_id` that power the **Families** tab and member add
 `0006_discounts.sql` (the `discount_codes` table + atomic redemption counter behind the
 **Discounts** tab), `0007_signup_phone.sql` (copies the signup form's phone number
 onto the members row), `0008_payments.sql` (the `payments` ledger behind the **Payments**
-tab), and `0009_refunds.sql` (adds the `refunded_cents` running total + refund audit
-columns behind the **Refunds** tab).
+tab), `0009_storage_media.sql` (creates the public `media` storage bucket with its
+size/MIME limits, behind the **Media** tab), and `0010_refunds.sql` (adds the
+`refunded_cents` running total + refund audit columns behind the **Refunds** tab).
 
 ## Self-service auth & billing
 
@@ -226,9 +246,10 @@ APPLE_WWDR_CERT_PEM / APPLE_PASS_TYPE_ID / APPLE_TEAM_ID --project-name=caaci`
 
 ## Notes / TODO for the org
 
-- Events: the seed has the 3 annual festivals. Add the rest via the `events` table
-  (or build a small admin page) — the live Events Calendar list wasn't in the static mirror.
-- Business directory: seed real listings into `business_directory` (set `approved = true`).
+- Events: the seed has the 3 annual festivals. Add the rest in the admin panel's
+  **Events** tab — the live Events Calendar list wasn't in the static mirror.
+- Business directory: add real listings in the admin panel's **Directory** tab (or
+  approve the ones the community submits through the business-services form).
 - Commercial-plugin look is reproduced via the mirror's CSS — no Divi/MemberPress
   license is required on this stack.
 
