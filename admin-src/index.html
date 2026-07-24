@@ -676,26 +676,62 @@
                 </div>
               </section>
 
-              <!-- ============ Refunds (placeholder) ============ -->
+              <!-- ============ Refunds ============ -->
               <section class="card" data-panel="refunds" hidden>
                 <div class="card-header">
                   <div>
-                    <div class="subheader" data-en="Coming soon" data-zh="即将推出">
-                      Coming soon
-                    </div>
+                    <div class="subheader" data-en="Money back" data-zh="退款处理">Money back</div>
                     <h2 class="card-title mb-0" data-en="Refunds" data-zh="退款">Refunds</h2>
                   </div>
                 </div>
                 <div class="card-body">
                   <p
-                    class="alert alert-info mb-0"
-                    data-en="Refunds are handled in the Stripe Dashboard for now. In-panel refunds are coming soon."
-                    data-zh="退款功能即将推出，目前请在 Stripe 后台处理。"
+                    class="text-secondary"
+                    data-en="Refund a charge straight from here — the money is returned through Stripe and the ledger is updated. Refund the full amount or a partial amount; a charge can be refunded more than once up to what was paid."
+                    data-zh="可直接在此退款——款项通过 Stripe 原路退回并更新收款记录。可全额或部分退款；同一笔付款可多次退款，累计不超过实付金额。"
                   >
-                    Refunds are handled in the Stripe Dashboard for now. In-panel refunds are coming
-                    soon.
+                    Refund a charge straight from here — the money is returned through Stripe and
+                    the ledger is updated.
                   </p>
+                  <div id="caaci-refund-form-host"></div>
                 </div>
+                <div class="table-responsive">
+                  <table class="table table-vcenter card-table">
+                    <thead>
+                      <tr>
+                        <th data-en="Date" data-zh="日期">Date</th>
+                        <th data-en="Member" data-zh="会员">Member</th>
+                        <th data-en="Type" data-zh="类型">Type</th>
+                        <th data-en="Paid" data-zh="实付">Paid</th>
+                        <th data-en="Refunded" data-zh="已退">Refunded</th>
+                        <th data-en="Actions" data-zh="操作">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="caaci-refunds-body"></tbody>
+                  </table>
+                </div>
+                <div class="card-footer d-flex align-items-center gap-2">
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    id="caaci-refund-prev"
+                    data-en="Previous"
+                    data-zh="上一页"
+                  >
+                    Previous
+                  </button>
+                  <span id="caaci-refund-info" class="text-secondary"></span>
+                  <button
+                    type="button"
+                    class="btn btn-sm ms-auto"
+                    id="caaci-refund-next"
+                    data-en="Next"
+                    data-zh="下一页"
+                  >
+                    Next
+                  </button>
+                </div>
+                <p class="alert m-3" id="caaci-refunds-notice" hidden></p>
               </section>
             </main>
           </div>

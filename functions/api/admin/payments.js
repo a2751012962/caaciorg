@@ -23,7 +23,7 @@ export async function onRequestGet({ request, env }) {
     // Ledger page — member name/email come along via the FK embed.
     const { rows, total } = await DB.select('payments', {
       columns:
-        'id,kind,amount_cents,currency,tier_id,discount_code,paid_at,members(full_name,email)',
+        'id,kind,amount_cents,currency,tier_id,discount_code,paid_at,refunded_cents,refunded_at,members(full_name,email)',
       order: 'paid_at.desc',
       limit,
       offset,
