@@ -61,6 +61,23 @@ await copyFile(join(ROOT, 'src', 'caaci-admin.js'), join(DIST, 'assets', 'caaci-
 // Self-hosted QR generator (MIT, kazuhikoarase/qrcode-generator) — used by the
 // admin Discounts tab to render shareable /membership/?code=… QR codes.
 await copyFile(join(ROOT, 'src', 'vendor', 'qrcode.js'), join(DIST, 'assets', 'qrcode.js'));
+// Self-hosted FilePond uploader (MIT, pqina/filepond) — the admin Media tab's
+// drag-and-drop upload UI (core + type/size validation + image preview).
+for (const f of [
+  'filepond.js',
+  'filepond.css',
+  'filepond-plugin-file-validate-type.js',
+  'filepond-plugin-file-validate-size.js',
+  'filepond-plugin-image-preview.js',
+  'filepond-plugin-image-preview.css',
+]) {
+  await copyFile(join(ROOT, 'src', 'vendor', f), join(DIST, 'assets', f));
+}
+// Self-hosted Tabler UI kit (MIT, tabler/tabler) — the admin panel's design
+// system (Bootstrap-5-based back-office look). CSS + JS served from our origin.
+for (const f of ['tabler.min.css', 'tabler.min.js']) {
+  await copyFile(join(ROOT, 'src', 'vendor', f), join(DIST, 'assets', f));
+}
 
 const inject =
   `\n<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +

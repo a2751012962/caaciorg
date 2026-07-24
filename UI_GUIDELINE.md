@@ -2,12 +2,19 @@
 
 The public site is a **byte-for-byte mirror** of caaciorg.com (WordPress + Divi).
 Its look is therefore _fixed_ — we do not restyle it. This guideline governs the
-**custom UI we layer on top** (login wiring, the account box, form notices, and
-any future member/admin pages or modals) so that everything we add looks like it
-was always part of the site.
+**custom UI we layer on top of the public mirror** (login wiring, the account box,
+form notices, member-facing modals) so that everything we add looks like it was
+always part of the site.
 
 > 网站前端是 caaciorg.com 的逐字节镜像，外观固定不可改。本规范约束我们**新增**的
-> 界面（账户区、表单提示、未来的会员/管理页面等），确保新组件与镜像风格一致。
+> 界面（账户区、表单提示、面向会员的弹窗等），确保新组件与镜像风格一致。
+
+**Scope note — the admin panel is exempt.** `/admin/` is a standalone back-office
+page built on **Tabler** (`@tabler/core`, MIT — an open-source Bootstrap-5 admin
+kit) and must use Tabler/Bootstrap classes, never `.caaci-*` visual classes.
+`caaci-ui.css` is injected there too but stays inert because the admin markup
+doesn't reference its classes — element `id`s and `data-*` hooks keep the
+`caaci-` prefix, CSS classes do not.
 
 **Source of truth:** [`src/caaci-ui.css`](src/caaci-ui.css) holds every token below as a
 CSS variable. Use the variables / classes — never hard-code a hex value or paste
