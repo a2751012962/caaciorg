@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Account | Chinese American Association of Central Illinois</title>
+    <!-- Standalone Tabler page (like /admin/). The literal token caaci-app.js in this
+         comment opts the page out of build.mjs's mirror-enhancement injection — this
+         page loads its own assets below and never runs the mirror layer. -->
+    <link rel="stylesheet" href="/assets/tabler.min.css" />
+    <style>
+      /* The digital membership card — brand look, shown at partner businesses. */
+      .caaci-mcard2 {
+        max-width: 460px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--tblr-border-color);
+        box-shadow: var(--tblr-shadow-card, 0 2px 8px rgba(0, 0, 0, 0.08));
+        background: #fff;
+      }
+      .caaci-mcard2-head {
+        background: #8e2e11;
+        border-bottom: 5px solid #edbb5f;
+        color: #fff;
+        padding: 12px 18px;
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+      .caaci-mcard2-head b {
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 26px;
+        letter-spacing: 1px;
+      }
+      .caaci-mcard2-head span {
+        font-size: 11px;
+        opacity: 0.9;
+      }
+      .caaci-mcard2-body {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 12px;
+        padding: 18px;
+      }
+      .caaci-mcard2-qr img {
+        width: 108px;
+        height: 108px;
+        image-rendering: pixelated;
+      }
+    </style>
+  </head>
+  <body class="layout-fluid" data-page="account">
+    <div class="page">
+      <header class="navbar navbar-expand-md d-print-none" data-bs-theme="dark">
+        <div class="container-xl">
+          <a href="/" class="navbar-brand text-decoration-none">CAACI</a>
+          <div class="navbar-nav flex-row align-items-center gap-2 ms-auto">
+            <a href="/" class="nav-link px-2" data-en="Home" data-zh="首页">Home</a>
+            <a href="/membership/" class="nav-link px-2" data-en="Membership" data-zh="会员"
+              >Membership</a
+            >
+            <a href="/account/" class="nav-link px-2 active" data-en="My Account" data-zh="我的账户"
+              >My Account</a
+            >
+            <button type="button" class="btn btn-sm btn-outline-light" id="caaci-lang">中文</button>
+            <a
+              href="/login-3/"
+              class="btn btn-sm btn-outline-light"
+              id="caaci-nav-auth"
+              data-en="Sign in"
+              data-zh="登录"
+              >Sign in</a
+            >
+          </div>
+        </div>
+      </header>
+
+      <div class="page-wrapper">
+        <div class="page-header d-print-none">
+          <div class="container-xl">
+            <div class="subheader" data-en="Membership" data-zh="会员">Membership</div>
+            <h1 class="page-title" data-en="My Account" data-zh="我的账户">My Account</h1>
+          </div>
+        </div>
+        <div class="page-body">
+          <div class="container-xl">
+            <div id="caaci-recovery-host"></div>
+            <div id="caaci-account-host">
+              <div class="card">
+                <div class="card-body">
+                  <p class="text-secondary mb-0" data-en="Loading…" data-zh="加载中…">Loading…</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/assets/supabase.js"></script>
+    <script src="/assets/caaci-config.js"></script>
+    <script src="/assets/qrcode.js"></script>
+    <script type="module" src="/assets/caaci-member.js"></script>
+  </body>
+</html>

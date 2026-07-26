@@ -135,6 +135,31 @@ Then add the custom domain in the Pages project and point DNS. Set redirects in
       Stripe test key and the Supabase `service_role` key since they passed through chat.
 - [ ] Any time you change a secret, **redeploy** (`npm run deploy`) — Pages binds env at deploy time.
 
+## Member pages (`/login-3/`, `/membership/`, `/account/`)
+
+The three member-facing flows are standalone **Tabler** pages (same open-source
+UI kit as `/admin/`, self-hosted, bilingual EN/中文 with a toggle), replacing the
+mirrored WordPress pages **at the same URLs** — every inbound link and Stripe
+return URL keeps working:
+
+- **`/login-3/`** — sign in, create account (with duplicate-email detection),
+  forgot-password (reset link lands on `/account/?recovery=1`), and Google /
+  Microsoft OAuth.
+- **`/membership/`** — the plan grid (live `membership_tiers` merged over the
+  built-in fallback), `?code=` discount validation, and the checkout dialog:
+  fresh joins POST `/api/checkout` (Stripe Checkout), active members switching
+  plans POST `/api/change-plan` (in-place proration). `/register/<tier>/` pages
+  and the `/zh/` copies now redirect here (`?tier=` pre-opens the dialog,
+  `?lang=zh` preselects Chinese).
+- **`/account/`** — profile, subscription status, Stripe billing portal
+  (`/api/portal`), payment history (RLS self-read), the digital membership card
+  (live-verifying QR + PNG download + Apple Wallet when configured), and the
+  password-recovery form.
+
+Source: `member-src/*.html` + `src/caaci-member.js` (+ `src/caaci-shared.js`,
+pure helpers shared with the mirror layer `caaci-app.js`). The rest of the site
+remains the untouched mirror; `caaci-app.js` still powers its forms.
+
 ## Admin / back-office panel (`/admin/`)
 
 A staff panel lives at **`/admin/`**. Its UI is built on **Tabler** (`@tabler/core`

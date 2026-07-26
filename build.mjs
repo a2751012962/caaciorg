@@ -73,10 +73,26 @@ for (const f of [
 ]) {
   await copyFile(join(ROOT, 'src', 'vendor', f), join(DIST, 'assets', f));
 }
-// Self-hosted Tabler UI kit (MIT, tabler/tabler) — the admin panel's design
-// system (Bootstrap-5-based back-office look). CSS + JS served from our origin.
+// Self-hosted Tabler UI kit (MIT, tabler/tabler) — the design system for the
+// admin panel AND the standalone member pages. CSS + JS served from our origin.
 for (const f of ['tabler.min.css', 'tabler.min.js']) {
   await copyFile(join(ROOT, 'src', 'vendor', f), join(DIST, 'assets', f));
+}
+
+// Standalone member pages (Tabler, like /admin/) — replace the mirrored
+// WordPress pages at the SAME routes, so every inbound link and Stripe
+// return URL (/account/, /membership/) keeps working. Each page contains the
+// literal token "caaci-app.js" in a comment, which opts it out of the
+// enhancement-injection loop below; they load their own assets.
+await copyFile(join(ROOT, 'src', 'caaci-shared.js'), join(DIST, 'assets', 'caaci-shared.js'));
+await copyFile(join(ROOT, 'src', 'caaci-member.js'), join(DIST, 'assets', 'caaci-member.js'));
+for (const [src, route] of [
+  ['login.html', 'login-3'],
+  ['membership.html', 'membership'],
+  ['account.html', 'account'],
+]) {
+  await mkdir(join(DIST, route), { recursive: true });
+  await copyFile(join(ROOT, 'member-src', src), join(DIST, route, 'index.html'));
 }
 
 const inject =
@@ -157,5 +173,39 @@ for (const base of ['', 'zh/']) {
   }
 }
 console.log(`Consolidated ${r} duplicate login/account pages.`);
+
+// The member pages are single bilingual documents (data-en/data-zh + toggle,
+// like /admin/), so their /zh/ mirror copies and the old per-tier /register/
+// pages become redirect stubs into them. ?lang=zh preselects Chinese; ?tier=
+// opens the checkout for that tier directly. Existing query strings survive.
+const paramStub = (to, extra) => {
+  const url = `/${to}/`;
+  const dest = `${url}?${extra}`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Redirecting…</title><link rel="canonical" href="${url}"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0; url=${dest}"><script>location.replace(${JSON.stringify(url)} + (location.search ? location.search + '&' : '?') + ${JSON.stringify(extra)} + location.hash)</script></head><body>Redirecting to <a href="${dest}">${dest}</a>…</body></html>\n`;
+};
+let m = 0;
+const memberStubs = [];
+for (const route of ['login-3', 'membership', 'account'])
+  memberStubs.push([`zh/${route}`, route, 'lang=zh']);
+for (const [slug, id] of Object.entries({
+  'student-membership': 'student',
+  'individual-membership': 'individual',
+  'family-membership': 'family',
+  'business-membership': 'business',
+})) {
+  memberStubs.push([`register/${slug}`, 'membership', `tier=${id}`]);
+  memberStubs.push([`zh/register/${slug}`, 'membership', `tier=${id}&lang=zh`]);
+}
+for (const [from, to, extra] of memberStubs) {
+  const dir = join(DIST, from);
+  try {
+    await stat(dir); // skip if not in the mirror
+    await writeFile(join(dir, 'index.html'), paramStub(to, extra));
+    m++;
+  } catch {
+    /* page absent — nothing to redirect */
+  }
+}
+console.log(`Member-page stubs (zh + register tiers): ${m}.`);
 
 console.log('dist/ ready. Deploy with:  npx wrangler pages deploy dist');

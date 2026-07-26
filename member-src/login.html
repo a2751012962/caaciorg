@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login | Chinese American Association of Central Illinois</title>
+    <!-- Standalone Tabler page (like /admin/). The literal token caaci-app.js in this
+         comment opts the page out of build.mjs's mirror-enhancement injection — this
+         page loads its own assets below and never runs the mirror layer. -->
+    <link rel="stylesheet" href="/assets/tabler.min.css" />
+  </head>
+  <body class="d-flex flex-column" data-page="login">
+    <div class="page page-center">
+      <div class="container container-tight py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <a href="/" class="navbar-brand text-decoration-none h2 mb-0">CAACI</a>
+          <button type="button" class="btn btn-sm" id="caaci-lang">中文</button>
+        </div>
+
+        <div class="card card-md">
+          <div class="card-body">
+            <h2
+              class="h2 text-center mb-4"
+              data-en="Sign in to your account"
+              data-zh="登录您的账户"
+            >
+              Sign in to your account
+            </h2>
+            <form id="caaci-login-form" novalidate>
+              <div class="mb-3">
+                <label class="form-label" data-en="Email address" data-zh="邮箱地址"
+                  >Email address</label
+                >
+                <input
+                  type="email"
+                  id="caaci-li-email"
+                  class="form-control"
+                  autocomplete="username"
+                  data-ph-en="you@example.com"
+                  data-ph-zh="you@example.com"
+                  placeholder="you@example.com"
+                />
+              </div>
+              <div class="mb-2">
+                <label class="form-label">
+                  <span data-en="Password" data-zh="密码">Password</span>
+                  <span class="form-label-description">
+                    <a href="#" id="caaci-forgot" data-en="Forgot password?" data-zh="忘记密码？"
+                      >Forgot password?</a
+                    >
+                  </span>
+                </label>
+                <input
+                  type="password"
+                  id="caaci-li-pwd"
+                  class="form-control"
+                  autocomplete="current-password"
+                />
+              </div>
+              <div class="form-footer">
+                <button
+                  type="submit"
+                  class="btn btn-primary w-100"
+                  data-en="Sign in"
+                  data-zh="登录"
+                >
+                  Sign in
+                </button>
+              </div>
+            </form>
+            <div class="hr-text" data-en="or continue with" data-zh="或使用以下方式登录">
+              or continue with
+            </div>
+            <div class="row g-2" id="caaci-oauth-host"></div>
+            <p class="alert mt-3 mb-0" id="caaci-login-notice" hidden></p>
+          </div>
+        </div>
+
+        <div class="text-center text-secondary mt-3">
+          <span data-en="New to CAACI?" data-zh="还没有账户？">New to CAACI?</span>
+          <a href="#" id="caaci-show-signup" data-en="Create an account" data-zh="注册新账户"
+            >Create an account</a
+          >
+        </div>
+
+        <div class="card card-md mt-3" id="caaci-signup-card" hidden>
+          <div class="card-body">
+            <h2 class="h3 text-center mb-4" data-en="Create your account" data-zh="创建您的账户">
+              Create your account
+            </h2>
+            <form id="caaci-signup-form" novalidate>
+              <div class="mb-3">
+                <label class="form-label" data-en="Full name" data-zh="姓名">Full name</label>
+                <input type="text" id="caaci-su-name" class="form-control" autocomplete="name" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label" data-en="Email address" data-zh="邮箱地址"
+                  >Email address</label
+                >
+                <input
+                  type="email"
+                  id="caaci-su-email"
+                  class="form-control"
+                  autocomplete="username"
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label" data-en="Phone (optional)" data-zh="电话（可选）"
+                  >Phone (optional)</label
+                >
+                <input type="tel" id="caaci-su-phone" class="form-control" autocomplete="tel" />
+              </div>
+              <div class="mb-3">
+                <label
+                  class="form-label"
+                  data-en="Password (at least 8 characters)"
+                  data-zh="密码（至少 8 位）"
+                  >Password (at least 8 characters)</label
+                >
+                <input
+                  type="password"
+                  id="caaci-su-pwd"
+                  class="form-control"
+                  minlength="8"
+                  autocomplete="new-password"
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label" data-en="Confirm password" data-zh="确认密码"
+                  >Confirm password</label
+                >
+                <input
+                  type="password"
+                  id="caaci-su-pwd2"
+                  class="form-control"
+                  autocomplete="new-password"
+                />
+              </div>
+              <div class="form-footer">
+                <button
+                  type="submit"
+                  id="caaci-su-submit"
+                  class="btn btn-primary w-100"
+                  data-en="Create account"
+                  data-zh="创建账户"
+                >
+                  Create account
+                </button>
+              </div>
+            </form>
+            <p class="alert mt-3 mb-0" id="caaci-signup-notice" hidden></p>
+            <p class="text-secondary text-center mt-3 mb-0">
+              <span
+                data-en="Ready to join? Pick a plan after signing up on the"
+                data-zh="注册后即可在会员页面选择方案："
+                >Ready to join? Pick a plan after signing up on the</span
+              >
+              <a href="/membership/" data-en="membership page" data-zh="会员页面"
+                >membership page</a
+              >
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/assets/supabase.js"></script>
+    <script src="/assets/caaci-config.js"></script>
+    <script type="module" src="/assets/caaci-member.js"></script>
+  </body>
+</html>
