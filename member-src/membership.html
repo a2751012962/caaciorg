@@ -9,6 +9,11 @@
          page loads its own assets below and never runs the mirror layer. -->
     <link rel="stylesheet" href="/assets/tabler.min.css" />
     <style>
+      /* Boxed layout — match the old site's 1080px content column. */
+      .container-xl {
+        max-width: 1080px;
+      }
+
       /* Old-site (Divi) navigation look — white bar, hairline shadow, 14px/600
          links in soft black, current page in the red scheme color. */
       .caaci-sitenav {
@@ -50,7 +55,7 @@
       }
     </style>
   </head>
-  <body class="layout-fluid" data-page="membership">
+  <body data-page="membership">
     <div class="page">
       <!-- Site navigation — same menu as the mirrored site, plus language + auth. -->
       <header class="navbar navbar-expand-md d-print-none caaci-sitenav">
