@@ -2,7 +2,7 @@
 // Usage: SBP=<personal access token> node apply-supabase.mjs
 // Reads SQL from supabase/, runs it, fetches anon+service keys, writes .env.
 // Never prints the token or the keys.
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, readdir } from 'node:fs/promises';
 
 const REF = 'gczslluaxccbnftvfayn';
 const TOKEN = process.env.SBP;
@@ -39,10 +39,16 @@ const p = await proj.json();
 console.log(`Project: ${p.name} (${p.region}) status=${p.status}`);
 
 console.log('\nApplying migrations…');
-const ok1 = await runSql('schema', 'migrations/0001_init.sql');
-const ok2 = await runSql('RLS', 'migrations/0002_rls.sql');
-const ok3 = await runSql('admin', 'migrations/0003_admin.sql');
-const ok4 = await runSql('seed', 'seed.sql');
+// Every file in supabase/migrations/, in order. All migrations are idempotent
+// (if-not-exists / drop-if-exists / on-conflict), so re-running is safe.
+const migrations = (await readdir(new URL('./supabase/migrations/', import.meta.url)))
+  .filter((f) => f.endsWith('.sql'))
+  .sort();
+const results = [];
+for (const file of migrations) {
+  results.push(await runSql(file.replace(/^\d+_|\.sql$/g, ''), `migrations/${file}`));
+}
+results.push(await runSql('seed', 'seed.sql'));
 
 console.log('\nFetching API keys…');
 let keysRes = await fetch(`${API}/projects/${REF}/api-keys?reveal=true`, { headers: H });
@@ -72,4 +78,4 @@ env = env
 await writeFile(envPath, env);
 console.log('✓ Wrote anon + service_role keys to .env (values not shown)');
 
-console.log(`\nDone. migrations: ${[ok1, ok2, ok3, ok4].filter(Boolean).length}/4 succeeded.`);
+console.log(`\nDone. migrations: ${results.filter(Boolean).length}/${results.length} succeeded.`);
