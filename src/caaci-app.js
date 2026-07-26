@@ -7,6 +7,19 @@
 // The Supabase client is created lazily inside init() so this module can be
 // imported in a test environment (Node/jsdom) without pulling the remote ESM
 // bundle. Tests inject a fake client via __setSupa().
+import {
+  esc,
+  TIER_BY_SLUG,
+  CARD_SURCHARGE,
+  TIERS_FALLBACK,
+  usd,
+  withFee,
+  STATUS_LABEL,
+  mergeTiers,
+} from './caaci-shared.js';
+// Re-export so existing importers (tests, other modules) keep one entry point.
+export { esc, TIER_BY_SLUG, CARD_SURCHARGE, TIERS_FALLBACK, usd, withFee, STATUS_LABEL };
+
 let supa = null;
 export function __setSupa(client) {
   supa = client;
@@ -28,13 +41,6 @@ const api = (path, body, headers = {}) =>
       data: { error: 'Network error — please try again. · 网络错误，请重试。' },
     }));
 
-// Escape user/DB-sourced text before it lands in innerHTML.
-export const esc = (s) =>
-  String(s ?? '').replace(
-    /[<>&"]/g,
-    (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c],
-  );
-
 // Styling for all custom UI lives in src/caaci-ui.css (see UI_GUIDELINE.md).
 export function notice(el, msg, good = true) {
   let n = el.querySelector('.caaci-notice');
@@ -47,59 +53,6 @@ export function notice(el, msg, good = true) {
   if (good) n.removeAttribute('data-state');
   else n.setAttribute('data-state', 'error');
 }
-
-export const TIER_BY_SLUG = {
-  'student-membership': 'student',
-  'individual-membership': 'individual',
-  'family-membership': 'family',
-  'business-membership': 'business',
-};
-
-// ~3.5% card surcharge — must match CARD_SURCHARGE in functions/api/checkout.js
-// and functions/api/change-plan.js.
-export const CARD_SURCHARGE = 0.035;
-
-// Fallback tier catalogue (mirrors supabase/seed.sql). Used verbatim when
-// Supabase isn't configured, and merged over live rows so the plan view and
-// checkout summary always render. Keep ids/prices in sync with the seed.
-export const TIERS_FALLBACK = [
-  {
-    id: 'student',
-    name: 'Student Membership',
-    name_zh: '学生会员',
-    price_cents: 1000,
-    description: 'For currently enrolled college students.',
-    highlight: 'Best for students',
-  },
-  {
-    id: 'individual',
-    name: 'Individual Membership',
-    name_zh: '个人会员',
-    price_cents: 3000,
-    description: 'Full membership for one person.',
-    highlight: 'Most popular',
-    featured: true,
-  },
-  {
-    id: 'family',
-    name: 'Family Membership',
-    name_zh: '家庭会员',
-    price_cents: 6000,
-    description: 'Covers your whole household.',
-    highlight: 'Best value',
-  },
-  {
-    id: 'business',
-    name: 'Business Membership',
-    name_zh: '商业会员',
-    price_cents: 10000,
-    description: 'Includes a listing in the business directory.',
-    highlight: 'For businesses',
-  },
-];
-
-export const usd = (cents) => `$${(cents / 100).toFixed(2)}`;
-export const withFee = (cents) => Math.round(cents * (1 + CARD_SURCHARGE)); // total charged on card
 
 // Resolve a promise but give up after `ms`, returning `fallback` — so a slow or
 // unreachable Supabase never blocks the UI from rendering. The timer is cleared
@@ -114,30 +67,18 @@ const withTimeout = (promise, ms, fallback) => {
 
 // Merge live membership_tiers (if any) over the fallback, preserving order/labels.
 export async function loadTiers() {
-  const base = TIERS_FALLBACK.map((t) => ({ ...t }));
-  if (!supa) return base;
+  if (!supa) return mergeTiers(null);
   try {
     const { data } = await withTimeout(
       supa.from('membership_tiers').select('*').eq('active', true),
       3500,
       { data: null },
     );
-    if (Array.isArray(data)) {
-      for (const row of data) {
-        const t = base.find((b) => b.id === row.id);
-        if (t)
-          Object.assign(t, {
-            name: row.name || t.name,
-            price_cents: row.price_cents ?? t.price_cents,
-            description: row.description || t.description,
-          });
-        else base.push({ ...row, highlight: '' });
-      }
-    }
+    return mergeTiers(data);
   } catch (e) {
     console.warn('caaci-app: loadTiers', e);
+    return mergeTiers(null);
   }
-  return base.sort((a, b) => a.price_cents - b.price_cents);
 }
 
 export async function currentMember() {
@@ -153,15 +94,6 @@ export async function currentMember() {
   );
   return { user, member };
 }
-
-// Member status → bilingual label. Shared by the plan view and account page.
-export const STATUS_LABEL = {
-  active: 'Active · 有效',
-  pending: 'Pending payment · 待付款',
-  past_due: 'Payment past due · 付款逾期',
-  expired: 'Expired · 已过期',
-  cancelled: 'Cancelled · 已取消',
-};
 
 // Read + validate a ?code=XYZ discount from the URL (QR codes encode
 // /membership/?code=XYZ). Returns { code, percent_off } when the server accepts

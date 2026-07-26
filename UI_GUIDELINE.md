@@ -9,12 +9,14 @@ always part of the site.
 > 网站前端是 caaciorg.com 的逐字节镜像，外观固定不可改。本规范约束我们**新增**的
 > 界面（账户区、表单提示、面向会员的弹窗等），确保新组件与镜像风格一致。
 
-**Scope note — the admin panel is exempt.** `/admin/` is a standalone back-office
-page built on **Tabler** (`@tabler/core`, MIT — an open-source Bootstrap-5 admin
-kit) and must use Tabler/Bootstrap classes, never `.caaci-*` visual classes.
-`caaci-ui.css` is injected there too but stays inert because the admin markup
-doesn't reference its classes — element `id`s and `data-*` hooks keep the
-`caaci-` prefix, CSS classes do not.
+**Scope note — the admin panel and member pages are exempt.** `/admin/`,
+`/login-3/`, `/membership/`, and `/account/` are standalone pages built on
+**Tabler** (`@tabler/core`, MIT — an open-source Bootstrap-5 UI kit) and must
+use Tabler/Bootstrap classes, never `.caaci-*` visual classes. `caaci-ui.css`
+may load on them but stays inert because their markup doesn't reference its
+classes — element `id`s and `data-*` hooks keep the `caaci-` prefix, CSS
+classes do not. The `.caaci-*` vocabulary below applies only to UI layered
+onto the remaining mirror pages by `caaci-app.js`.
 
 **Source of truth:** [`src/caaci-ui.css`](src/caaci-ui.css) holds every token below as a
 CSS variable. Use the variables / classes — never hard-code a hex value or paste
