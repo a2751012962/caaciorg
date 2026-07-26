@@ -10,6 +10,29 @@
          page loads its own assets below and never runs the mirror layer. -->
     <link rel="stylesheet" href="/assets/tabler.min.css" />
     <style>
+      /* Old-site (Divi) navigation look — white bar, hairline shadow, 14px/600
+         links in soft black, current page in the red scheme color. */
+      .caaci-sitenav {
+        background: #fff;
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+        min-height: 64px;
+      }
+      .caaci-sitenav .nav-link {
+        font-family: 'Open Sans', Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        color: rgba(0, 0, 0, 0.6);
+        transition: opacity 0.4s ease-in-out;
+      }
+      .caaci-sitenav .nav-link:hover {
+        color: rgba(0, 0, 0, 0.6);
+        opacity: 0.7;
+      }
+      .caaci-sitenav .nav-link.active {
+        color: #cd5c5c;
+        box-shadow: none;
+      }
+
       /* Brand hero band — matches the mirror's Divi hero (brick + gold rule). */
       .caaci-hero {
         background: linear-gradient(135deg, #8e2e11, #561100);
@@ -67,7 +90,7 @@
   <body class="layout-fluid" data-page="account">
     <div class="page">
       <!-- Site navigation — same menu as the mirrored site, plus language + auth. -->
-      <header class="navbar navbar-expand-md d-print-none">
+      <header class="navbar navbar-expand-md d-print-none caaci-sitenav">
         <div class="container-xl">
           <button
             class="navbar-toggler"
@@ -84,7 +107,7 @@
             <img
               src="/wp-content/uploads/2025/01/CAACI-logo-1-e1737551037290.png"
               alt="Chinese American Association of Central Illinois"
-              style="height: 42px; width: auto"
+              style="height: 48px; width: auto"
             />
           </a>
           <div class="collapse navbar-collapse" id="caaci-nav-menu">
