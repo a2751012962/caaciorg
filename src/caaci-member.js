@@ -41,6 +41,11 @@ export function applyLang() {
     const v = el.getAttribute(`data-ph-${lang}`);
     if (v != null) el.placeholder = v;
   }
+  // Site-nav links point at the /zh/ mirror copies when Chinese is active.
+  for (const a of $$('[data-zh-href]')) {
+    if (!a.dataset.enHref) a.dataset.enHref = a.getAttribute('href');
+    a.setAttribute('href', lang === 'zh' ? a.getAttribute('data-zh-href') : a.dataset.enHref);
+  }
   const tgl = $('#caaci-lang');
   if (tgl) tgl.textContent = lang === 'en' ? '中文' : 'EN';
 }

@@ -10,6 +10,19 @@
          page loads its own assets below and never runs the mirror layer. -->
     <link rel="stylesheet" href="/assets/tabler.min.css" />
     <style>
+      /* Brand hero band — matches the mirror's Divi hero (brick + gold rule). */
+      .caaci-hero {
+        background: linear-gradient(135deg, #8e2e11, #561100);
+        border-bottom: 5px solid #edbb5f;
+        color: #fff;
+      }
+      .caaci-hero .caaci-hero-eyebrow {
+        color: #edbb5f;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
       /* The digital membership card — brand look, shown at partner businesses. */
       .caaci-mcard2 {
         max-width: 460px;
@@ -53,37 +66,119 @@
   </head>
   <body class="layout-fluid" data-page="account">
     <div class="page">
-      <header class="navbar navbar-expand-md d-print-none" data-bs-theme="dark">
+      <!-- Site navigation — same menu as the mirrored site, plus language + auth. -->
+      <header class="navbar navbar-expand-md d-print-none">
         <div class="container-xl">
-          <a href="/" class="navbar-brand text-decoration-none">CAACI</a>
-          <div class="navbar-nav flex-row align-items-center gap-2 ms-auto">
-            <a href="/" class="nav-link px-2" data-en="Home" data-zh="首页">Home</a>
-            <a href="/membership/" class="nav-link px-2" data-en="Membership" data-zh="会员"
-              >Membership</a
-            >
-            <a href="/account/" class="nav-link px-2 active" data-en="My Account" data-zh="我的账户"
-              >My Account</a
-            >
-            <button type="button" class="btn btn-sm btn-outline-light" id="caaci-lang">中文</button>
-            <a
-              href="/login-3/"
-              class="btn btn-sm btn-outline-light"
-              id="caaci-nav-auth"
-              data-en="Sign in"
-              data-zh="登录"
-              >Sign in</a
-            >
+          <button
+            class="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#caaci-nav-menu"
+            aria-controls="caaci-nav-menu"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+          >
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <a href="/" class="navbar-brand pe-2" data-zh-href="/zh/">
+            <img
+              src="/wp-content/uploads/2025/01/CAACI-logo-1-e1737551037290.png"
+              alt="Chinese American Association of Central Illinois"
+              style="height: 42px; width: auto"
+            />
+          </a>
+          <div class="collapse navbar-collapse" id="caaci-nav-menu">
+            <ul class="navbar-nav">
+              <li class="nav-item">
+                <a class="nav-link" href="/" data-zh-href="/zh/" data-en="Welcome" data-zh="首页"
+                  >Welcome</a
+                >
+              </li>
+              <li class="nav-item">
+                <a
+                  class="nav-link"
+                  href="/about/"
+                  data-zh-href="/zh/about/"
+                  data-en="About Us"
+                  data-zh="关于我们"
+                  >About Us</a
+                >
+              </li>
+              <li class="nav-item">
+                <a
+                  class="nav-link"
+                  href="/donate/"
+                  data-zh-href="/zh/donate/"
+                  data-en="Donate"
+                  data-zh="捐赠"
+                  >Donate</a
+                >
+              </li>
+              <li class="nav-item">
+                <a
+                  class="nav-link"
+                  href="/events/"
+                  data-zh-href="/zh/events/"
+                  data-en="Events"
+                  data-zh="活动"
+                  >Events</a
+                >
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/membership/" data-en="Membership" data-zh="会员"
+                  >Membership</a
+                >
+              </li>
+              <li class="nav-item">
+                <a
+                  class="nav-link"
+                  href="/resources/"
+                  data-zh-href="/zh/resources/"
+                  data-en="Resources"
+                  data-zh="资源"
+                  >Resources</a
+                >
+              </li>
+              <li class="nav-item">
+                <a
+                  class="nav-link"
+                  href="/business-services/"
+                  data-zh-href="/zh/business-services/"
+                  data-en="Business Services"
+                  data-zh="商家服务"
+                  >Business Services</a
+                >
+              </li>
+              <li class="nav-item">
+                <a class="nav-link active" href="/account/" data-en="My Account" data-zh="我的账户"
+                  >My Account</a
+                >
+              </li>
+            </ul>
+            <div class="ms-auto d-flex align-items-center gap-2 mt-2 mt-md-0">
+              <button type="button" class="btn btn-sm" id="caaci-lang">中文</button>
+              <a
+                href="/login-3/"
+                class="btn btn-sm btn-primary"
+                id="caaci-nav-auth"
+                data-en="Sign in"
+                data-zh="登录"
+                >Sign in</a
+              >
+            </div>
           </div>
         </div>
       </header>
 
-      <div class="page-wrapper">
-        <div class="page-header d-print-none">
-          <div class="container-xl">
-            <div class="subheader" data-en="Membership" data-zh="会员">Membership</div>
-            <h1 class="page-title" data-en="My Account" data-zh="我的账户">My Account</h1>
-          </div>
+      <!-- Hero -->
+      <div class="caaci-hero d-print-none">
+        <div class="container-xl py-4">
+          <div class="caaci-hero-eyebrow mb-1" data-en="Membership" data-zh="会员">Membership</div>
+          <h1 class="display-6 fw-bold mb-0" data-en="My Account" data-zh="我的账户">My Account</h1>
         </div>
+      </div>
+
+      <div class="page-wrapper">
         <div class="page-body">
           <div class="container-xl">
             <div id="caaci-recovery-host"></div>
@@ -102,6 +197,7 @@
     <script src="/assets/supabase.js"></script>
     <script src="/assets/caaci-config.js"></script>
     <script src="/assets/qrcode.js"></script>
+    <script src="/assets/tabler.min.js" defer></script>
     <script type="module" src="/assets/caaci-member.js"></script>
   </body>
 </html>
