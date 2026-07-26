@@ -11,6 +11,7 @@ import {
   usd,
   withFee,
   loadTiers,
+  wireFloatingLabels,
   wireLogin,
   wireAccount,
   wireContact,
@@ -89,6 +90,42 @@ test('oauthButtons() renders both providers and clicks trigger signInWithOAuth',
   btns[0].click();
   btns[1].click();
   assert.deepEqual(calls, ['google', 'azure']);
+});
+
+test('wireFloatingLabels floats the label while its input has a value', () => {
+  setup(
+    `<div class="mp-form-row">
+       <div class="mp-form-label">
+         <label for="user_login" class="placeholder-text">Username or E-mail</label>
+       </div>
+       <input type="text" id="user_login" value="">
+     </div>`,
+  );
+  wireFloatingLabels();
+  const label = document.querySelector('label.placeholder-text');
+  const input = document.getElementById('user_login');
+  assert.equal(label.classList.contains('active'), false, 'empty + unfocused → resting');
+
+  input.value = 'demo@caaci.test';
+  input.dispatchEvent(new Event('input'));
+  assert.equal(label.classList.contains('active'), true, 'typing floats the label');
+
+  input.value = '';
+  input.dispatchEvent(new Event('input'));
+  assert.equal(label.classList.contains('active'), false, 'cleared → label returns');
+});
+
+test('wireFloatingLabels floats immediately for prefilled/autofilled inputs', () => {
+  setup(
+    `<div class="mp-form-row">
+       <div class="mp-form-label">
+         <label for="user_pass" class="placeholder-text">Password</label>
+       </div>
+       <div class="mp-hide-pw"><input type="password" id="user_pass" value="hunter2"></div>
+     </div>`,
+  );
+  wireFloatingLabels();
+  assert.equal(document.querySelector('label.placeholder-text').classList.contains('active'), true);
 });
 
 test('wireLogin validates empty fields before calling Supabase', async () => {

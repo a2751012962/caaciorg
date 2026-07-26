@@ -560,6 +560,26 @@ export function oauthButtons(redirectTo) {
   return wrap;
 }
 
+// ---------- Floating "placeholder" labels (MemberPress markup) ----------
+// The mirrored MemberPress pages absolutely position label.placeholder-text on
+// top of its input (theme.css) and relied on WordPress-bundled JS — which the
+// mirror doesn't carry — to float the label away via the `active` class. With
+// that JS gone the label just sits over whatever the user types. Re-create the
+// behavior: float whenever the input is focused or holds a value.
+export function wireFloatingLabels() {
+  document.querySelectorAll('label.placeholder-text').forEach((label) => {
+    const id = label.getAttribute('for');
+    const input =
+      (id && document.getElementById(id)) ||
+      label.closest('.mp-form-row')?.querySelector('input, select, textarea');
+    if (!input) return;
+    const sync = () =>
+      label.classList.toggle('active', document.activeElement === input || !!input.value);
+    for (const ev of ['focus', 'blur', 'input', 'change']) input.addEventListener(ev, sync);
+    sync(); // values already present (autofill, back/forward navigation)
+  });
+}
+
 // ---------- Login (MemberPress form: #mepr_loginform, fields log/pwd) + OAuth ----------
 export function wireLogin() {
   if (!supa || !/login/.test(location.pathname)) return;
@@ -1212,7 +1232,15 @@ export async function init() {
       console.warn('caaci-app: Supabase client unavailable —', err);
     }
   }
-  for (const fn of [wireLogin, wireAccount, wirePlans, wireRegister, wireDonate, wireContact]) {
+  for (const fn of [
+    wireFloatingLabels,
+    wireLogin,
+    wireAccount,
+    wirePlans,
+    wireRegister,
+    wireDonate,
+    wireContact,
+  ]) {
     try {
       // Some wiring fns are async (they fetch tiers/member state); isolate their
       // rejections too so one failing page never blocks the others.
