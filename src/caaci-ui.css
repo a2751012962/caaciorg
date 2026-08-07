@@ -1194,3 +1194,77 @@
   font-family: var(--caaci-font-body);
   font-size: var(--caaci-fs-sm);
 }
+
+/* ==========================================================================
+   Accessibility repairs for the mirrored (Divi) pages.
+
+   These override rules that ship inside the WordPress mirror, which we keep
+   byte-identical. caaci-ui.css is injected after the mirror's own <style>
+   blocks, so equal-specificity rules here win on source order.
+   ========================================================================== */
+
+/* Divi's inline reset sets a bare `:focus { outline: 0 }`, which removes the
+   keyboard focus indicator on every mirrored page (WCAG 2.4.7). Put it back
+   for keyboard users only, so mouse users see no change. */
+:focus-visible {
+  outline: 3px solid var(--caaci-rust);
+  outline-offset: 2px;
+}
+
+/* The three hero call-to-action tiles are Divi text modules with the theme's
+   default #666 body colour sitting on saturated brand fills — 1.9:1 to 3.1:1,
+   all well under the 4.5:1 AA threshold. Re-colour the text per fill instead
+   of changing the fills, which are part of the mirrored design.
+   .et_pb_text_1 = green "Make A Donation", _2 = tan "Check Out Events",
+   _3 = navy "Become A Member". Only the navy tile is dark enough for white
+   text; the green and the tan both need near-black to clear 4.5:1. */
+.et_pb_text_3.et_clickable,
+.et_pb_text_3.et_clickable p {
+  color: #fff;
+}
+.et_pb_text_1.et_clickable,
+.et_pb_text_1.et_clickable p,
+.et_pb_text_2.et_clickable,
+.et_pb_text_2.et_clickable p {
+  color: #1a1a1a;
+}
+/* They are plain <div>s made clickable by Divi's JS. caaci-app.js promotes
+   them to real buttons; give the resulting focus ring room to breathe. */
+.et_clickable[role='button'] {
+  cursor: pointer;
+}
+
+/* The hero H1 is a single long token ("…Illinois(CAACI)") at 41px inside a
+   269px column on phones, so `overflow-wrap: break-word` splits it mid-word
+   ("CAA / CI"). Scale it down so the word fits. */
+@media (max-width: 480px) {
+  .et_pb_section_0 h1,
+  .et_pb_fullwidth_header .et_pb_module_header {
+    font-size: 30px;
+    line-height: 1.25;
+  }
+}
+
+/* Keyboard-only skip link, injected by caaci-app.js. The colour is repeated on
+   every state because Divi styles `a`, `a:hover` and `a:visited` separately in
+   its own scheme red — inheriting that would put 2:1 text on the brick fill. */
+a.caaci-skip-link,
+a.caaci-skip-link:link,
+a.caaci-skip-link:visited,
+a.caaci-skip-link:hover,
+a.caaci-skip-link:focus,
+a.caaci-skip-link:active {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100000;
+  padding: 12px 20px;
+  background: var(--caaci-brick);
+  color: #fff;
+  font-family: var(--caaci-font-body);
+  text-decoration: none;
+}
+a.caaci-skip-link:focus {
+  left: 8px;
+  top: 8px;
+}

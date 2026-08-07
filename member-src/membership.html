@@ -185,7 +185,52 @@
           <div class="container-xl">
             <div id="caaci-plans-you"></div>
             <div id="caaci-plans-discount"></div>
-            <div class="row row-cards" id="caaci-plans-row"></div>
+            <!-- Placeholder cards. Tiers are fetched from Supabase with a 3.5s
+                 timeout before falling back to the built-in catalogue, so
+                 without these the page shows several seconds of empty space.
+                 caaci-member.js replaces the whole row once tiers resolve. -->
+            <div class="row row-cards" id="caaci-plans-row" aria-busy="true">
+              <div class="col-sm-6 col-lg-3">
+                <div class="card placeholder-glow">
+                  <div class="card-body text-center">
+                    <div class="placeholder col-6 mb-3"></div>
+                    <div class="placeholder col-9 mb-2"></div>
+                    <div class="placeholder col-5 mb-3"></div>
+                    <div class="placeholder col-12"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-sm-6 col-lg-3">
+                <div class="card placeholder-glow">
+                  <div class="card-body text-center">
+                    <div class="placeholder col-6 mb-3"></div>
+                    <div class="placeholder col-9 mb-2"></div>
+                    <div class="placeholder col-5 mb-3"></div>
+                    <div class="placeholder col-12"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-sm-6 col-lg-3">
+                <div class="card placeholder-glow">
+                  <div class="card-body text-center">
+                    <div class="placeholder col-6 mb-3"></div>
+                    <div class="placeholder col-9 mb-2"></div>
+                    <div class="placeholder col-5 mb-3"></div>
+                    <div class="placeholder col-12"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-sm-6 col-lg-3">
+                <div class="card placeholder-glow">
+                  <div class="card-body text-center">
+                    <div class="placeholder col-6 mb-3"></div>
+                    <div class="placeholder col-9 mb-2"></div>
+                    <div class="placeholder col-5 mb-3"></div>
+                    <div class="placeholder col-12"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <p
               class="text-secondary text-center mt-3"
               data-en="Prices include a 3.5% card-processing fee. Memberships renew yearly; cancel anytime from your account."
@@ -193,7 +238,7 @@
             >
               Prices include a 3.5% card-processing fee.
             </p>
-            <p class="alert m-0 mt-3" id="caaci-plans-notice" hidden></p>
+            <p class="alert m-0 mt-3" id="caaci-plans-notice" role="alert" hidden></p>
           </div>
         </div>
       </div>

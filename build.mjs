@@ -5,8 +5,11 @@
 // Frontend stays byte-identical to the live site; only behaviour is layered on.
 import { cp, rm, mkdir, readFile, writeFile, readdir, stat, copyFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('./', import.meta.url).pathname;
+// fileURLToPath, not .pathname — the latter percent-encodes non-ASCII path
+// segments, which breaks checkouts under a directory with CJK characters.
+const ROOT = fileURLToPath(new URL('./', import.meta.url));
 const MIRROR = join(ROOT, 'mirror');
 const DIST = join(ROOT, 'dist');
 
@@ -128,6 +131,27 @@ for (const f of await walk(DIST)) {
   const close = html.lastIndexOf('</body>');
   html = close === -1 ? html + inject : html.slice(0, close) + inject + html.slice(close);
   if (html.includes('<head>')) html = html.replace('<head>', '<head>\n' + guard);
+  // The mirror carries the TrustedSite badge loader on all 62 pages. Its config
+  // endpoint now answers 403 (the WordPress account behind it is gone), so every
+  // page makes two failing third-party requests and logs two console errors for
+  // a badge that never renders. Drop the tag and its dns-prefetch hint.
+  html = html
+    .replace(/<script[^>]*cdn\.trustedsite\.com[^>]*>\s*<\/script>\s*/gi, '')
+    .replace(/<link[^>]*rel=['"]dns-prefetch['"][^>]*trustedsite\.com[^>]*>\s*/gi, '');
+  // WordPress mirrored a viewport meta with `maximum-scale=1.0,user-scalable=0`,
+  // which blocks pinch-zoom on phones (WCAG 1.4.4). Drop the two locking
+  // directives and keep the rest of the tag as-is.
+  html = html.replace(
+    /(<meta[^>]+name=["']viewport["'][^>]*content=["'])([^"']*)(["'])/gi,
+    (m, open, content, close) => {
+      const cleaned = content
+        .split(',')
+        .map((p) => p.trim())
+        .filter((p) => p && !/^(maximum-scale|user-scalable)\s*=/i.test(p))
+        .join(', ');
+      return open + cleaned + close;
+    },
+  );
   await writeFile(f, html);
   n++;
 }

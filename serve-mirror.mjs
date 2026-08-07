@@ -2,9 +2,11 @@
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { join, extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const DIR = process.argv[2] || 'mirror';
-const ROOT = new URL(`./${DIR}/`, import.meta.url).pathname;
+// fileURLToPath, not .pathname — see build.mjs.
+const ROOT = fileURLToPath(new URL(`./${DIR}/`, import.meta.url));
 const PORT = Number(process.argv[3] || 8799);
 const TYPES = {
   '.html': 'text/html; charset=utf-8',

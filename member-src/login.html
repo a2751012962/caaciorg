@@ -148,7 +148,11 @@
             </h2>
             <form id="caaci-login-form" novalidate>
               <div class="mb-3">
-                <label class="form-label" data-en="Email address" data-zh="邮箱地址"
+                <label
+                  class="form-label"
+                  for="caaci-li-email"
+                  data-en="Email address"
+                  data-zh="邮箱地址"
                   >Email address</label
                 >
                 <input
@@ -156,25 +160,32 @@
                   id="caaci-li-email"
                   class="form-control"
                   autocomplete="username"
+                  required
                   data-ph-en="you@example.com"
                   data-ph-zh="you@example.com"
                   placeholder="you@example.com"
                 />
               </div>
               <div class="mb-2">
-                <label class="form-label">
-                  <span data-en="Password" data-zh="密码">Password</span>
+                <!-- The "Forgot password?" link is a sibling of the label, not a
+                     child: inside it, clicking the link would also focus the
+                     password field. -->
+                <div class="d-flex justify-content-between align-items-baseline">
+                  <label class="form-label" for="caaci-li-pwd" data-en="Password" data-zh="密码"
+                    >Password</label
+                  >
                   <span class="form-label-description">
                     <a href="#" id="caaci-forgot" data-en="Forgot password?" data-zh="忘记密码？"
                       >Forgot password?</a
                     >
                   </span>
-                </label>
+                </div>
                 <input
                   type="password"
                   id="caaci-li-pwd"
                   class="form-control"
                   autocomplete="current-password"
+                  required
                 />
               </div>
               <div class="form-footer">
@@ -192,7 +203,7 @@
               or continue with
             </div>
             <div class="row g-2" id="caaci-oauth-host"></div>
-            <p class="alert mt-3 mb-0" id="caaci-login-notice" hidden></p>
+            <p class="alert mt-3 mb-0" id="caaci-login-notice" role="alert" hidden></p>
           </div>
         </div>
 
@@ -210,11 +221,23 @@
             </h2>
             <form id="caaci-signup-form" novalidate>
               <div class="mb-3">
-                <label class="form-label" data-en="Full name" data-zh="姓名">Full name</label>
-                <input type="text" id="caaci-su-name" class="form-control" autocomplete="name" />
+                <label class="form-label" for="caaci-su-name" data-en="Full name" data-zh="姓名"
+                  >Full name</label
+                >
+                <input
+                  type="text"
+                  id="caaci-su-name"
+                  class="form-control"
+                  autocomplete="name"
+                  required
+                />
               </div>
               <div class="mb-3">
-                <label class="form-label" data-en="Email address" data-zh="邮箱地址"
+                <label
+                  class="form-label"
+                  for="caaci-su-email"
+                  data-en="Email address"
+                  data-zh="邮箱地址"
                   >Email address</label
                 >
                 <input
@@ -222,10 +245,15 @@
                   id="caaci-su-email"
                   class="form-control"
                   autocomplete="username"
+                  required
                 />
               </div>
               <div class="mb-3">
-                <label class="form-label" data-en="Phone (optional)" data-zh="电话（可选）"
+                <label
+                  class="form-label"
+                  for="caaci-su-phone"
+                  data-en="Phone (optional)"
+                  data-zh="电话（可选）"
                   >Phone (optional)</label
                 >
                 <input type="tel" id="caaci-su-phone" class="form-control" autocomplete="tel" />
@@ -233,6 +261,7 @@
               <div class="mb-3">
                 <label
                   class="form-label"
+                  for="caaci-su-pwd"
                   data-en="Password (at least 8 characters)"
                   data-zh="密码（至少 8 位）"
                   >Password (at least 8 characters)</label
@@ -243,10 +272,15 @@
                   class="form-control"
                   minlength="8"
                   autocomplete="new-password"
+                  required
                 />
               </div>
               <div class="mb-3">
-                <label class="form-label" data-en="Confirm password" data-zh="确认密码"
+                <label
+                  class="form-label"
+                  for="caaci-su-pwd2"
+                  data-en="Confirm password"
+                  data-zh="确认密码"
                   >Confirm password</label
                 >
                 <input
@@ -254,6 +288,7 @@
                   id="caaci-su-pwd2"
                   class="form-control"
                   autocomplete="new-password"
+                  required
                 />
               </div>
               <div class="form-footer">
@@ -268,7 +303,7 @@
                 </button>
               </div>
             </form>
-            <p class="alert mt-3 mb-0" id="caaci-signup-notice" hidden></p>
+            <p class="alert mt-3 mb-0" id="caaci-signup-notice" role="alert" hidden></p>
             <p class="text-secondary text-center mt-3 mb-0">
               <span
                 data-en="Ready to join? Pick a plan after signing up on the"

@@ -1144,6 +1144,45 @@ export function wireContact() {
   });
 }
 
+// ---------- Accessibility repairs on the mirrored markup ----------
+// Divi builds "clickable modules" (the hero call-to-action tiles, the floating
+// language switcher) as bare <div class="et_clickable"> wired up with jQuery.
+// They are not focusable and expose no role, so keyboard and screen-reader
+// users cannot reach them at all. Promote them to real buttons and make Enter
+// and Space fire the same click Divi already listens for.
+export function wireClickableModules() {
+  for (const el of document.querySelectorAll('.et_clickable')) {
+    if (el.closest('a, button') || el.hasAttribute('role')) continue;
+    const label = (el.textContent || '').trim().replace(/\s+/g, ' ');
+    if (!label) continue;
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', label);
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+      e.preventDefault(); // Space would otherwise scroll the page
+      el.click();
+    });
+  }
+}
+
+// The mirror ships no skip link, so keyboard users tab through the whole
+// header on every page before reaching content. Add one as the first focusable
+// element, pointing at Divi's main content wrapper.
+export function wireSkipLink() {
+  if (document.querySelector('.caaci-skip-link')) return;
+  const main = document.querySelector('#main-content, #et-main-area, main');
+  if (!main) return;
+  if (!main.id) main.id = 'caaci-main';
+  const a = document.createElement('a');
+  a.className = 'caaci-skip-link';
+  a.href = `#${main.id}`;
+  a.textContent = document.documentElement.lang?.startsWith('zh')
+    ? '跳到主要内容'
+    : 'Skip to main content';
+  document.body.prepend(a);
+}
+
 // ---------- Bootstrap ----------
 // Creates the Supabase client from the self-hosted UMD bundle, then runs every
 // wiring fn. Each is feature-detected + isolated so a missing form just no-ops.
@@ -1165,6 +1204,8 @@ export async function init() {
     }
   }
   for (const fn of [
+    wireSkipLink,
+    wireClickableModules,
     wireFloatingLabels,
     wireLogin,
     wireAccount,
