@@ -45,6 +45,11 @@ function renderGate() {
   if (!gateState) return; // still checking — leave the HTML default
   const h2 = $('#caaci-admin-gate h2');
   const msg = $('#caaci-gate-msg');
+  // Nothing to sign out of when there's no session (or no backend at all) —
+  // offering the button there just looks broken. 'forbidden' keeps it: that
+  // visitor IS signed in, just not as an admin, and needs a way out.
+  const signout = $('#caaci-admin-signout');
+  if (signout) signout.hidden = gateState === 'anon' || gateState === 'misconfig';
   h2.removeAttribute('data-en');
   h2.removeAttribute('data-zh');
   if (gateState === 'misconfig') {
@@ -233,24 +238,28 @@ function toggleEditor(tr, m) {
   row.setAttribute('data-edit-row', '');
   row.innerHTML = `<td colspan="6" class="bg-surface-secondary">
     <div class="row g-2 align-items-end">
-      <div class="col-sm-6 col-lg">
-        <label class="form-label">${t('Status', '状态')}</label>
-        <select class="form-select" data-f="status">
+      ${field(
+        t('Status', '状态'),
+        `<select class="form-select" data-f="status">
           ${['active', 'pending', 'past_due', 'expired', 'cancelled'].map((s) => opt(s, m.status)).join('')}
-        </select>
-      </div>
-      <div class="col-sm-6 col-lg">
-        <label class="form-label">${t('Tier', '类型')}</label>
-        <select class="form-select" data-f="tier_id">${tierOpts}</select>
-      </div>
-      <div class="col-sm-6 col-lg">
-        <label class="form-label">${t('Expires', '到期')}</label>
-        <input type="date" class="form-control" data-f="expires_at" value="${exp}">
-      </div>
-      <div class="col-sm-6 col-lg">
-        <label class="form-label">${t('Family', '家庭')}</label>
-        <select class="form-select" data-f="household_id">${householdOptionsHtml(m.household_id)}</select>
-      </div>
+        </select>`,
+        'col-sm-6 col-lg',
+      )}
+      ${field(
+        t('Tier', '类型'),
+        `<select class="form-select" data-f="tier_id">${tierOpts}</select>`,
+        'col-sm-6 col-lg',
+      )}
+      ${field(
+        t('Expires', '到期'),
+        `<input type="date" class="form-control" data-f="expires_at" value="${exp}">`,
+        'col-sm-6 col-lg',
+      )}
+      ${field(
+        t('Family', '家庭'),
+        `<select class="form-select" data-f="household_id">${householdOptionsHtml(m.household_id)}</select>`,
+        'col-sm-6 col-lg',
+      )}
       <div class="col-auto btn-list">
         <button type="button" class="btn btn-primary" data-act="save">${t('Save', '保存')}</button>
         <button type="button" class="btn btn-outline-danger" data-act="delete">${t('Delete', '删除')}</button>
@@ -768,8 +777,17 @@ function wireNews() {
 // ---------- shared form helpers ----------
 // `wrap` is the wrapper class: 'col' inside a form row grid (default), 'mb-3'
 // for a standalone full-width field.
-const field = (label, inputHtml, wrap = 'col') =>
-  `<div class="${wrap}"><label class="form-label">${label}</label>${inputHtml}</div>`;
+// Controls here are addressed by `data-f`, not by id, so nothing gave the
+// labels anything to point at and every field came out unlabelled to a screen
+// reader. Mint an id per field and wire `for`/`id` together.
+let fieldSeq = 0;
+const field = (label, inputHtml, wrap = 'col') => {
+  const id = `caaci-f${++fieldSeq}`;
+  // Inject the id into the first control tag of the supplied markup.
+  const withId = inputHtml.replace(/<(input|select|textarea)\b/, `<$1 id="${id}"`);
+  const forAttr = withId === inputHtml ? '' : ` for="${id}"`;
+  return `<div class="${wrap}"><label class="form-label"${forAttr}>${label}</label>${withId}</div>`;
+};
 const dateInput = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
 
 function tierOptionsHtml(selected) {

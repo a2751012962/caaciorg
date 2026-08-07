@@ -73,6 +73,22 @@ const withTimeout = (promise, ms, fallback) => {
   return Promise.race([promise, timer]).finally(() => clearTimeout(tm));
 };
 
+// Put a submit button into a busy state for the duration of a request and
+// return the undo. Disabling blocks the double-submit; the label change is what
+// tells the user something is actually happening.
+function busy(btn, label) {
+  if (!btn) return () => {};
+  const prev = btn.textContent;
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  if (label) btn.textContent = label;
+  return () => {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.textContent = prev;
+  };
+}
+
 // Feedback line — a Tabler alert, green for success, red for errors.
 function notice(el, msg, good = true) {
   el.hidden = false;
@@ -186,8 +202,15 @@ export async function wireAuthPage() {
     const password = $('#caaci-li-pwd').value;
     if (!email || !password)
       return notice(notb, t('Enter your email and password.', '请输入邮箱和密码。'), false);
+    // Sign-in is a network round trip with no other visible feedback; without a
+    // busy state the button looks inert and users submit again.
+    const btn = e.currentTarget.querySelector('button[type=submit]');
+    const done = busy(btn, t('Signing in…', '登录中…'));
     const { data, error } = await supa.auth.signInWithPassword({ email, password });
-    if (error) return notice(notb, error.message, false);
+    if (error) {
+      done();
+      return notice(notb, error.message, false);
+    }
     // Admins land in the back-office; everyone else on their account page.
     let dest = '/account/';
     const uid = data?.user?.id;
@@ -199,6 +222,7 @@ export async function wireAuthPage() {
         .maybeSingle();
       if (me?.is_admin) dest = '/admin/';
     }
+    // Leave the button busy — the navigation below replaces the page.
     location.href = dest;
   });
 
@@ -220,11 +244,20 @@ export async function wireAuthPage() {
 
   oauthButtons($('#caaci-oauth-host'), location.origin + '/account/');
 
-  $('#caaci-show-signup').addEventListener('click', (e) => {
+  const suToggle = $('#caaci-show-signup');
+  suToggle.setAttribute('aria-controls', 'caaci-signup-card');
+  suToggle.setAttribute('aria-expanded', 'false');
+  suToggle.addEventListener('click', (e) => {
     e.preventDefault();
     const card = $('#caaci-signup-card');
     card.hidden = !card.hidden;
-    if (!card.hidden) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    suToggle.setAttribute('aria-expanded', String(!card.hidden));
+    if (!card.hidden) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      // Move focus into the revealed form; otherwise a keyboard user is left
+      // on the toggle and has to tab past the whole sign-in card to reach it.
+      $('#caaci-su-name').focus({ preventScroll: true });
+    }
   });
 
   const suNote = $('#caaci-signup-notice');
@@ -318,6 +351,7 @@ export async function wireMembershipPage() {
 
   // Pricing cards
   const row = $('#caaci-plans-row');
+  row.removeAttribute('aria-busy'); // clears the placeholder cards' busy state
   row.innerHTML = tiers
     .map((tier) => {
       const isCurrent = tier.id === currentTier;
@@ -443,15 +477,15 @@ export function openCheckout({ tier, user, member, discount, notb }) {
   } else {
     main.innerHTML = `
       <div class="mb-3" id="caaci-co-namewrap">
-        <label class="form-label">${t('Full name', '姓名')}</label>
+        <label class="form-label" for="caaci-name">${t('Full name', '姓名')}</label>
         <input type="text" id="caaci-name" class="form-control" autocomplete="name">
       </div>
       <div class="mb-3">
-        <label class="form-label">${t('Email address', '邮箱地址')}</label>
+        <label class="form-label" for="caaci-email">${t('Email address', '邮箱地址')}</label>
         <input type="email" id="caaci-email" class="form-control" autocomplete="username">
       </div>
       <div class="mb-2">
-        <label class="form-label">${t('Password (at least 8 characters)', '密码（至少 8 位）')}</label>
+        <label class="form-label" for="caaci-pwd">${t('Password (at least 8 characters)', '密码（至少 8 位）')}</label>
         <input type="password" id="caaci-pwd" class="form-control" minlength="8" autocomplete="new-password">
       </div>
       <p class="text-secondary mb-2">
@@ -617,11 +651,11 @@ function recoveryCard(host) {
       <div class="card-body">
         <h3 class="card-title">${t('Set a new password', '设置新密码')}</h3>
         <div class="mb-3">
-          <label class="form-label">${t('New password (at least 8 characters)', '新密码（至少 8 位）')}</label>
+          <label class="form-label" for="caaci-np">${t('New password (at least 8 characters)', '新密码（至少 8 位）')}</label>
           <input type="password" id="caaci-np" class="form-control" minlength="8" autocomplete="new-password">
         </div>
         <div class="mb-3">
-          <label class="form-label">${t('Confirm password', '确认密码')}</label>
+          <label class="form-label" for="caaci-np2">${t('Confirm password', '确认密码')}</label>
           <input type="password" id="caaci-np2" class="form-control" autocomplete="new-password">
         </div>
         <button type="button" class="btn btn-primary" id="caaci-np-save">${t('Save password', '保存密码')}</button>
