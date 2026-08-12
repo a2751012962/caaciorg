@@ -1324,6 +1324,122 @@ a.caaci-skip-link:focus {
 }
 
 /* ---- Shared member-page navigation (member-src/_nav.html) ---- */
+/* These values are measured off the Divi header on the mirrored pages so the
+   bar does not visibly change as you move between the two page types:
+   74px tall, logo 53px, menu flush right, 14px/600 links in solid black with
+   22px between items, and the scheme red on the current page. Tabler's own
+   navbar defaults (lighter text, Open Sans, button-shaped actions, 0 gap)
+   are what made the two bars read as different sites. */
+.caaci-sitenav {
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+  min-height: 74px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.caaci-sitenav .navbar-brand {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.caaci-sitenav .nav-link,
+.caaci-sitenav .caaci-nav-plain {
+  /* Same stack the mirror's menu resolves to. */
+  font-family: 'cwTeXFangSong', 'Open Sans', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #000;
+  padding: 0;
+  background: none;
+  border: 0;
+  /* Tabler nav links are flex children that will happily wrap a two-word
+     label ("About Us", "Business Services") onto a second line. */
+  white-space: nowrap;
+  transition: opacity 0.4s ease-in-out;
+}
+.caaci-sitenav .nav-link:hover,
+.caaci-sitenav .caaci-nav-plain:hover {
+  color: #000;
+  opacity: 0.7;
+}
+.caaci-sitenav .nav-link.active {
+  color: var(--caaci-red);
+  box-shadow: none;
+}
+.caaci-sitenav .caaci-nav-plain {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Below the navbar-expand-md breakpoint the menu is a stacked drawer, so the
+   horizontal spacing rules below must not apply — they were what pushed the
+   collapsed items into a ragged, half-centred column. */
+@media (max-width: 767.98px) {
+  .caaci-sitenav {
+    min-height: 0;
+  }
+  .caaci-sitenav .navbar-nav > .nav-item {
+    padding-right: 0;
+  }
+  .caaci-sitenav .nav-link,
+  .caaci-sitenav .caaci-nav-plain {
+    display: block;
+    text-align: left;
+    padding: 10px 0;
+  }
+  /* Label and caret share one row. Flex rather than absolute positioning:
+     Tabler's own .nav-link rules are more specific and win a position fight,
+     but they do not fight a flex parent. */
+  .caaci-sitenav .nav-item.dropdown {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .caaci-sitenav .nav-item.dropdown > .nav-link {
+    flex: 1 1 auto;
+  }
+  .caaci-sitenav .caaci-nav-caret {
+    flex: 0 0 44px;
+    width: 44px;
+    text-align: right;
+    margin: 0;
+  }
+  /* The submenu is stacked inline under its parent, so it must not be pulled
+     out of flow by the flex row above. */
+  .caaci-sitenav .nav-item.dropdown {
+    flex-wrap: wrap;
+  }
+  .caaci-sitenav .nav-item.dropdown > .dropdown-menu {
+    flex: 1 0 100%;
+  }
+  .caaci-sitenav .dropdown-menu {
+    border: 0;
+    box-shadow: none;
+    padding-left: 16px;
+  }
+  .caaci-nav-actions {
+    gap: 22px;
+    padding: 8px 0 4px;
+  }
+}
+
+@media (min-width: 768px) {
+  /* Divi spaces items with 22px of padding after each one. */
+  .caaci-sitenav .navbar-nav > .nav-item {
+    padding-right: 22px;
+  }
+  .caaci-sitenav .navbar-nav > .nav-item:last-child {
+    padding-right: 0;
+  }
+  /* The language toggle and the sign-in / sign-out link sit after the menu as
+     plain links, matching the mirror's text "Log In" item — not Tabler
+     buttons. */
+  .caaci-nav-actions {
+    gap: 22px;
+    padding-left: 22px;
+  }
+}
+
 /* Divi opens its submenus on hover and shows a small caret next to the parent
    label. Bootstrap needs a real toggle, so the parent is split: the label is
    still a link to the section, and this button is the caret. Sized to sit
@@ -1337,29 +1453,32 @@ a.caaci-skip-link:focus {
 .caaci-sitenav .caaci-nav-caret::after {
   vertical-align: 0.15em;
 }
-/* Tabler stacks .nav-item children in a column (its nav links put an icon above
-   the label), which drops the caret onto a second line under its parent. */
-.caaci-sitenav .nav-item.dropdown {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-}
-.caaci-sitenav .nav-item.dropdown > .nav-link {
-  width: auto;
-}
-/* Match the mirror: submenus are opaque white panels, not see-through.
-   Tabler ships a negative `inset` on .dropdown-menu for its own card-style
-   menus and relies on Popper to correct it. The hover path below never runs
-   Popper, so the menu would sit on top of the navbar — pin it under the item
-   explicitly. */
+/* Submenus are opaque white panels, matching the mirrored menu. */
 .caaci-sitenav .dropdown-menu {
   background-color: #fff;
-  border-top: 3px solid var(--caaci-rust-deep);
-  inset: auto auto auto 0;
-  top: 100%;
-  margin-top: 0;
 }
+
 @media (min-width: 768px) {
+  /* Tabler stacks .nav-item children in a column (its nav links put an icon
+     above the label), which drops the caret onto a second line. */
+  .caaci-sitenav .nav-item.dropdown {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+  }
+  .caaci-sitenav .nav-item.dropdown > .nav-link {
+    width: auto;
+  }
+  /* Tabler ships a negative `inset` on .dropdown-menu for its own card-style
+     menus and relies on Popper to correct it. The hover path below never runs
+     Popper, so the menu would sit on top of the navbar — pin it under the
+     item explicitly. */
+  .caaci-sitenav .dropdown-menu {
+    border-top: 3px solid var(--caaci-rust-deep);
+    inset: auto auto auto 0;
+    top: 100%;
+    margin-top: 0;
+  }
   /* Divi reveals the submenu on hover; keep that muscle memory on desktop
      while the caret button still works for keyboard and touch. */
   .caaci-sitenav .nav-item.dropdown:hover > .dropdown-menu {
