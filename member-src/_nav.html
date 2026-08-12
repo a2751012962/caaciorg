@@ -1,0 +1,162 @@
+<!-- Shared site navigation for the standalone Tabler member pages. build.mjs
+     substitutes this file for the CAACI_NAV placeholder comment in each page,
+     so login/membership/account cannot drift apart the way three
+     hand-maintained copies did. (Do not write that placeholder token in full
+     here: its trailing marker would close this comment early and dump the rest
+     of the text onto the page.)
+
+     The item set, order and submenus mirror the Divi menu on the WordPress
+     pages exactly (Welcome / About Us > Volunteer, Donate / Events /
+     Membership > Account / Resources > Community Calendar / Business
+     Services), so moving between a mirrored page and a member page does not
+     change the navigation. Divi opens its submenus on hover; Bootstrap needs a
+     toggle, so each parent is a split control: the label still links to the
+     section, and the caret opens the submenu. caaci-member.js hides the
+     right-hand auth button on the login page and marks the current section. -->
+<header class="navbar navbar-expand-md d-print-none caaci-sitenav sticky-top">
+  <div class="container-xl">
+    <button
+      class="navbar-toggler"
+      type="button"
+      data-bs-toggle="collapse"
+      data-bs-target="#caaci-nav-menu"
+      aria-controls="caaci-nav-menu"
+      aria-expanded="false"
+      aria-label="Toggle navigation"
+    >
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <a href="/" class="navbar-brand pe-2" data-zh-href="/zh/">
+      <img
+        src="/wp-content/uploads/2025/01/CAACI-logo-1-e1737551037290.png"
+        alt="Chinese American Association of Central Illinois"
+        style="height: 48px; width: auto"
+      />
+    </a>
+    <div class="collapse navbar-collapse" id="caaci-nav-menu">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" href="/" data-zh-href="/zh/" data-en="Welcome" data-zh="首页"
+            >Welcome</a
+          >
+        </li>
+        <li class="nav-item dropdown">
+          <a
+            class="nav-link"
+            href="/about/"
+            data-zh-href="/zh/about/"
+            data-en="About Us"
+            data-zh="关于我们"
+            >About Us</a
+          >
+          <button
+            type="button"
+            class="nav-link dropdown-toggle caaci-nav-caret"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+            aria-label="About Us submenu"
+          ></button>
+          <ul class="dropdown-menu">
+            <li>
+              <a
+                class="dropdown-item"
+                href="/volunteer/"
+                data-zh-href="/zh/volunteer/"
+                data-en="Volunteer"
+                data-zh="志愿者"
+                >Volunteer</a
+              >
+            </li>
+            <li>
+              <a
+                class="dropdown-item"
+                href="/donate/"
+                data-zh-href="/zh/donate/"
+                data-en="Donate"
+                data-zh="捐赠"
+                >Donate</a
+              >
+            </li>
+          </ul>
+        </li>
+        <li class="nav-item">
+          <a
+            class="nav-link"
+            href="/events/"
+            data-zh-href="/zh/events/"
+            data-en="Events"
+            data-zh="活动"
+            >Events</a
+          >
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link" href="/membership/" data-en="Membership" data-zh="会员">Membership</a>
+          <button
+            type="button"
+            class="nav-link dropdown-toggle caaci-nav-caret"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+            aria-label="Membership submenu"
+          ></button>
+          <ul class="dropdown-menu">
+            <li>
+              <a class="dropdown-item" href="/account/" data-en="Account" data-zh="我的账户"
+                >Account</a
+              >
+            </li>
+          </ul>
+        </li>
+        <li class="nav-item dropdown">
+          <a
+            class="nav-link"
+            href="/resources/"
+            data-zh-href="/zh/resources/"
+            data-en="Resources"
+            data-zh="资源"
+            >Resources</a
+          >
+          <button
+            type="button"
+            class="nav-link dropdown-toggle caaci-nav-caret"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+            aria-label="Resources submenu"
+          ></button>
+          <ul class="dropdown-menu">
+            <li>
+              <a
+                class="dropdown-item"
+                href="/community-calendar/"
+                data-zh-href="/zh/community-calendar/"
+                data-en="Community Calendar"
+                data-zh="社区日历"
+                >Community Calendar</a
+              >
+            </li>
+          </ul>
+        </li>
+        <li class="nav-item">
+          <a
+            class="nav-link"
+            href="/business-services/"
+            data-zh-href="/zh/business-services/"
+            data-en="Business Services"
+            data-zh="商家服务"
+            >Business Services</a
+          >
+        </li>
+      </ul>
+      <div class="ms-auto d-flex align-items-center gap-2 mt-2 mt-md-0">
+        <button type="button" class="btn btn-sm" id="caaci-lang">中文</button>
+        <a
+          href="/login-3/"
+          class="btn btn-sm btn-primary"
+          id="caaci-nav-auth"
+          data-en="Log In"
+          data-zh="登录"
+          >Log In</a
+        >
+      </div>
+    </div>
+  </div>
+</header>

@@ -166,10 +166,30 @@ export function oauthButtons(host, redirectTo) {
     b.addEventListener('click', () => oauth(b.dataset.p, redirectTo));
 }
 
-// ---------- shared navbar (membership + account) ----------
+// ---------- shared navbar (member-src/_nav.html, all member pages) ----------
 async function wireNav() {
   const auth = $('#caaci-nav-auth');
-  if (!auth || !supa) return;
+  if (!auth) return;
+  // The nav partial is shared, so the login page also gets the "Log In"
+  // button — pointing at the page you are already on. Drop it there.
+  if (document.body.dataset.page === 'login') {
+    auth.hidden = true;
+    return;
+  }
+  // Mark the current section the way Divi does, so the active page is obvious.
+  // Submenu items count too: on /account/ it is the "Account" entry under
+  // Membership that matches, and its parent is highlighted alongside it.
+  const here = location.pathname.replace(/^\/zh/, '').replace(/\/+$/, '') || '/';
+  for (const link of document.querySelectorAll(
+    '.caaci-sitenav .nav-link[href], .caaci-sitenav .dropdown-item[href]',
+  )) {
+    const href = link.getAttribute('href').replace(/\/+$/, '') || '/';
+    if (href !== here) continue;
+    link.classList.add('active');
+    const parent = link.closest('.nav-item.dropdown')?.querySelector(':scope > a.nav-link');
+    if (parent) parent.classList.add('active');
+  }
+  if (!supa) return;
   try {
     const { data: { session } = { session: null } } = (await supa.auth.getSession?.()) || {};
     if (session) {
@@ -996,14 +1016,12 @@ export async function boot() {
     });
   const page = document.body.dataset.page;
   try {
+    // Every member page now shares one nav partial, so wire it on all of them
+    // — including login, where wireNav hides the redundant "Log In" button.
+    await wireNav();
     if (page === 'login') await wireAuthPage();
-    else if (page === 'membership') {
-      await wireNav();
-      await wireMembershipPage();
-    } else if (page === 'account') {
-      await wireNav();
-      await wireAccountPage();
-    }
+    else if (page === 'membership') await wireMembershipPage();
+    else if (page === 'account') await wireAccountPage();
   } catch (e) {
     console.warn('caaci-member:', e);
   }
