@@ -1322,3 +1322,47 @@ a.caaci-skip-link:focus {
 .caaci-tile-link:hover {
   text-decoration: underline;
 }
+
+/* ---- Shared member-page navigation (member-src/_nav.html) ---- */
+/* Divi opens its submenus on hover and shows a small caret next to the parent
+   label. Bootstrap needs a real toggle, so the parent is split: the label is
+   still a link to the section, and this button is the caret. Sized to sit
+   tight against the label rather than read as a separate menu item. */
+.caaci-sitenav .caaci-nav-caret {
+  background: none;
+  border: 0;
+  padding: 0 0.35rem 0 0.1rem;
+  margin-left: -0.35rem;
+}
+.caaci-sitenav .caaci-nav-caret::after {
+  vertical-align: 0.15em;
+}
+/* Tabler stacks .nav-item children in a column (its nav links put an icon above
+   the label), which drops the caret onto a second line under its parent. */
+.caaci-sitenav .nav-item.dropdown {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+.caaci-sitenav .nav-item.dropdown > .nav-link {
+  width: auto;
+}
+/* Match the mirror: submenus are opaque white panels, not see-through.
+   Tabler ships a negative `inset` on .dropdown-menu for its own card-style
+   menus and relies on Popper to correct it. The hover path below never runs
+   Popper, so the menu would sit on top of the navbar — pin it under the item
+   explicitly. */
+.caaci-sitenav .dropdown-menu {
+  background-color: #fff;
+  border-top: 3px solid var(--caaci-rust-deep);
+  inset: auto auto auto 0;
+  top: 100%;
+  margin-top: 0;
+}
+@media (min-width: 768px) {
+  /* Divi reveals the submenu on hover; keep that muscle memory on desktop
+     while the caret button still works for keyboard and touch. */
+  .caaci-sitenav .nav-item.dropdown:hover > .dropdown-menu {
+    display: block;
+  }
+}

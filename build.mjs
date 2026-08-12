@@ -89,13 +89,22 @@ for (const f of ['tabler.min.css', 'tabler.min.js']) {
 // enhancement-injection loop below; they load their own assets.
 await copyFile(join(ROOT, 'src', 'caaci-shared.js'), join(DIST, 'assets', 'caaci-shared.js'));
 await copyFile(join(ROOT, 'src', 'caaci-member.js'), join(DIST, 'assets', 'caaci-member.js'));
+// One shared nav partial, substituted for the <!--CAACI_NAV--> placeholder.
+// The three pages previously each carried their own copy of the markup and had
+// already drifted from the Divi menu on the mirrored pages (different items,
+// no submenus), so the navigation changed as you moved through the site.
+const navPartial = await readFile(join(ROOT, 'member-src', '_nav.html'), 'utf8');
 for (const [src, route] of [
   ['login.html', 'login-3'],
   ['membership.html', 'membership'],
   ['account.html', 'account'],
 ]) {
   await mkdir(join(DIST, route), { recursive: true });
-  await copyFile(join(ROOT, 'member-src', src), join(DIST, route, 'index.html'));
+  let page = await readFile(join(ROOT, 'member-src', src), 'utf8');
+  if (!page.includes('<!--CAACI_NAV-->'))
+    throw new Error(`${src}: missing <!--CAACI_NAV--> marker`);
+  page = page.replace('<!--CAACI_NAV-->', navPartial);
+  await writeFile(join(DIST, route, 'index.html'), page);
 }
 
 const inject =
