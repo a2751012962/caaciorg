@@ -1211,27 +1211,51 @@
   outline-offset: 2px;
 }
 
-/* The three hero call-to-action tiles are Divi text modules with the theme's
-   default #666 body colour sitting on saturated brand fills — 1.9:1 to 3.1:1,
-   all well under the 4.5:1 AA threshold. Re-colour the text per fill instead
-   of changing the fills, which are part of the mirrored design.
-   .et_pb_text_1 = green "Make A Donation", _2 = tan "Check Out Events",
-   _3 = navy "Become A Member". Only the navy tile is dark enough for white
-   text; the green and the tan both need near-black to clear 4.5:1. */
-.et_pb_text_3.et_clickable,
-.et_pb_text_3.et_clickable p {
+/* The call-to-action tiles are Divi text modules with the theme's default #666
+   body colour sitting on saturated brand fills — 1.9:1 to 3.1:1, well under
+   the 4.5:1 AA threshold. The fills are part of the mirrored design, so the
+   text colour is what changes.
+
+   This is applied by caaci-app.js, NOT by a rule keyed on .et_pb_text_N:
+   those indices are per-page (the green tile is _1 on the home page but _2 on
+   /volunteer/), so index-based selectors silently hit the wrong tiles. The
+   script measures each tile's actual background luminance instead, which is
+   correct on every page and survives a palette change. */
+.et_clickable[data-caaci-contrast='light'],
+.et_clickable[data-caaci-contrast='light'] p {
   color: #fff;
 }
-.et_pb_text_1.et_clickable,
-.et_pb_text_1.et_clickable p,
-.et_pb_text_2.et_clickable,
-.et_pb_text_2.et_clickable p {
+.et_clickable[data-caaci-contrast='dark'],
+.et_clickable[data-caaci-contrast='dark'] p {
   color: #1a1a1a;
 }
 /* They are plain <div>s made clickable by Divi's JS. caaci-app.js promotes
    them to real buttons; give the resulting focus ring room to breathe. */
 .et_clickable[role='button'] {
   cursor: pointer;
+}
+
+/* Divi lays the three CTA tiles out as floated 1/3 columns in a zero-gutter
+   row. On /volunteer/ the float maths puts the first tile on its own line at
+   the far right while the other two wrap below it — 3 x 359.98px against a
+   1080px row is close enough to the limit that sub-pixel rounding breaks the
+   line. Flex keeps them in DOM order on one row at any width. The class is
+   added by caaci-app.js to rows that actually contain tiles. */
+.caaci-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+.caaci-cta-row > .et_pb_column {
+  float: none;
+  flex: 1 1 0;
+  min-width: 0;
+  margin-right: 0;
+}
+@media (max-width: 767px) {
+  .caaci-cta-row > .et_pb_column {
+    flex-basis: 100%;
+  }
 }
 
 /* The hero H1 is a single long token ("…Illinois(CAACI)") at 41px inside a
@@ -1267,4 +1291,34 @@ a.caaci-skip-link:active {
 a.caaci-skip-link:focus {
   left: 8px;
   top: 8px;
+}
+
+/* The mirrored Divi theme options set the header bar to rgba(255,255,255,.99)
+   but then knock the dropdown panels down to 40% white:
+
+     #main-header .nav li ul { background-color: rgba(255,255,255,0.4) }
+
+   Over the hero photo that leaves the submenu links floating on whatever is
+   behind them — barely readable, and the contrast changes as the page scrolls.
+   Make the panels opaque and give them the same hairline the header carries.
+   Specificity matches the mirror's rule; caaci-ui.css is injected later, so
+   source order decides. */
+#main-header .nav li ul,
+#main-header .nav li ul.sub-menu,
+#main-header .et_mobile_menu {
+  background-color: #fff;
+}
+
+/* Heading text promoted to a link by wireBusinessServiceTiles — inherit the
+   tile's own colour rather than Divi's scheme red, so only the behaviour
+   changes and the section looks exactly as designed. */
+.caaci-tile-link,
+.caaci-tile-link:link,
+.caaci-tile-link:visited,
+.caaci-tile-link:hover {
+  color: inherit;
+  text-decoration: none;
+}
+.caaci-tile-link:hover {
+  text-decoration: underline;
 }
