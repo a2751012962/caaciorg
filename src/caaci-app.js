@@ -1150,8 +1150,38 @@ export function wireContact() {
 // They are not focusable and expose no role, so keyboard and screen-reader
 // users cannot reach them at all. Promote them to real buttons and make Enter
 // and Space fire the same click Divi already listens for.
+// WCAG relative luminance of an `rgb()` / `rgba()` string.
+function relLuminance(color) {
+  const n = String(color).match(/[\d.]+/g);
+  if (!n || n.length < 3) return null;
+  const chan = (v) => {
+    const c = Number(v) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * chan(n[0]) + 0.7152 * chan(n[1]) + 0.0722 * chan(n[2]);
+}
+
 export function wireClickableModules() {
+  const rows = new Set();
   for (const el of document.querySelectorAll('.et_clickable')) {
+    // Pick white or near-black per tile from its own background luminance.
+    // Divi's .et_pb_text_N indices are per-page, so a rule keyed on them lands
+    // on different tiles from one page to the next; measuring is page-agnostic.
+    // Compare both candidates' contrast ratios rather than testing luminance
+    // against a threshold — mid-tone fills like the 0.85-alpha green sit right
+    // where a single cutoff picks the worse of the two.
+    const bg = getComputedStyle(el).backgroundColor;
+    const L = relLuminance(bg);
+    const opaque = !/rgba/.test(bg) || Number(bg.match(/[\d.]+/g)[3]) > 0.5;
+    if (L !== null && opaque) {
+      const vsWhite = 1.05 / (L + 0.05);
+      const vsDark = (L + 0.05) / (relLuminance('rgb(26,26,26)') + 0.05);
+      el.dataset.caaciContrast = vsDark > vsWhite ? 'dark' : 'light';
+    }
+
+    const row = el.closest('.et_pb_row');
+    if (row) rows.add(row);
+
     if (el.closest('a, button') || el.hasAttribute('role')) continue;
     const label = (el.textContent || '').trim().replace(/\s+/g, ' ');
     if (!label) continue;
@@ -1163,6 +1193,48 @@ export function wireClickableModules() {
       e.preventDefault(); // Space would otherwise scroll the page
       el.click();
     });
+  }
+  // Only flex rows that hold more than one tile — a lone tile is fine as a
+  // float and reflowing it could shift an unrelated layout.
+  for (const row of rows) {
+    if (row.querySelectorAll('.et_clickable').length > 1) row.classList.add('caaci-cta-row');
+  }
+}
+
+// The /business-services/ section is headed "Click on the Tabs to Access
+// Details", but its four tiles are text modules containing no link at all —
+// Divi's clickable-module script finds no href, so nothing happens. (They are
+// dead on the original WordPress site too, not just the mirror.) Wire up the
+// two whose destination is unambiguous and already exists on this site; the
+// Microloan and Mentorship tiles have no known target, so they are left alone
+// rather than pointed somewhere invented.
+const DEAD_TILE_TARGETS = [
+  [/^Business Directory$/i, '/business-services/business-directory/'],
+  [/^Membership Application$/i, '/membership/'],
+];
+
+export function wireBusinessServiceTiles() {
+  if (!/\/business-services\/?$/.test(location.pathname.replace(/\/zh/, ''))) return;
+  // Runs twice — once now and once on window load. Divi rebuilds the inner
+  // HTML of its "video on hover" module (the Business Directory tile) during
+  // its own ready handler, which throws away an anchor inserted before that.
+  // Module-level attributes survive, so wireClickableModules needs no rerun.
+  // Guarding on an existing anchor in the heading keeps the second pass a
+  // no-op for tiles that were already wired.
+  for (const mod of document.querySelectorAll('.et_pb_text')) {
+    const h = mod.querySelector('h2');
+    if (!h || h.querySelector('a')) continue;
+    const label = h.textContent.trim().replace(/\s+/g, ' ');
+    const hit = DEAD_TILE_TARGETS.find(([re]) => re.test(label));
+    if (!hit) continue;
+    // Wrap the heading text in a real anchor so it is clickable, focusable and
+    // announced as a link, instead of faking it with a click handler.
+    const a = document.createElement('a');
+    a.href = hit[1];
+    a.className = 'caaci-tile-link';
+    while (h.firstChild) a.appendChild(h.firstChild);
+    h.appendChild(a);
+    mod.style.cursor = 'pointer';
   }
 }
 
@@ -1206,6 +1278,7 @@ export async function init() {
   for (const fn of [
     wireSkipLink,
     wireClickableModules,
+    wireBusinessServiceTiles,
     wireFloatingLabels,
     wireLogin,
     wireAccount,
@@ -1221,6 +1294,18 @@ export async function init() {
     } catch (err) {
       console.warn('caaci-app:', err);
     }
+  }
+
+  // Second pass after Divi's own ready handlers have finished rebuilding
+  // modules — see wireBusinessServiceTiles. Idempotent.
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('load', () => {
+      try {
+        wireBusinessServiceTiles();
+      } catch (err) {
+        console.warn('caaci-app:', err);
+      }
+    });
   }
 }
 
