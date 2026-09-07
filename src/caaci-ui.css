@@ -2,8 +2,13 @@
  *
  * The public site is a byte-for-byte mirror of caaciorg.com (WordPress + Divi),
  * so its look is fixed. This file does NOT restyle the mirror; it gives the
- * custom UI we *add* on top (account box, notices, future admin/member pages,
- * modals) one consistent vocabulary that matches the mirror's brand.
+ * custom UI we *add* on top (form notices, the donation checkout, the
+ * accessibility repairs) one consistent vocabulary that matches the mirror's
+ * brand. Membership, login and account UI lives on the Tabler pages and is
+ * styled by caaci-theme.css, not here.
+ *
+ * The Tabler pages (/admin/ and member-src) load this file for the tokens only;
+ * their look comes from caaci-theme.css, which maps --tblr-* onto --caaci-*.
  *
  * Tokens below are lifted from the live site's compiled CSS — see UI_GUIDELINE.md
  * for where each value comes from. Change a value here, not in inline styles.
@@ -15,6 +20,10 @@
   --caaci-brick-dark: #561100; /* primary action, hover/pressed                */
   --caaci-maroon: #300200; /* display headings (Playfair)                  */
   --caaci-red: #cd5c5c; /* links, active nav, the Divi "red" scheme key */
+  /* RGB triplets of the tokens Tabler needs as `r, g, b` (for rgba() tints,
+     focus rings, -lt backgrounds). Keep in step with the hex above. */
+  --caaci-brick-rgb: 142, 46, 17;
+  --caaci-red-rgb: 205, 92, 92;
   --caaci-rust: #ce4327; /* fixed-header active nav, warm accent         */
   --caaci-rust-deep: #aa4e20; /* dropdown borders, secondary warm accent      */
   --caaci-clay: #b27c77; /* dusty-rose section backgrounds               */
@@ -27,11 +36,14 @@
   --caaci-line: #dfdfe3; /* input + hairline borders                     */
   --caaci-fill: #f3f3f3; /* subtle panel fill                            */
   --caaci-surface: #ffffff; /* cards / page surface                         */
+  --caaci-surface-rgb: 255, 255, 255;
   --caaci-plum: #3d2d33; /* dark inverted panels                         */
 
   /* ---- Status ---- */
   --caaci-success: #1a7f37;
+  --caaci-success-rgb: 26, 127, 55;
   --caaci-error: #b3261e;
+  --caaci-error-rgb: 179, 38, 30;
 
   /* ---- Typography ---- */
   /* NOTE: the live site overrides everything to cwTeXFangSong for the bilingual
@@ -57,6 +69,7 @@
   /* ---- Shape / spacing / motion ---- */
   --caaci-radius: 3px; /* the mirror's standard radius */
   --caaci-radius-0: 0; /* squared, like the contact-form submit */
+  --caaci-radius-card: 12px; /* the digital membership card only — a physical-card silhouette */
   --caaci-border: 2px solid;
   --caaci-shadow: 0 15px 80px -6px rgba(0, 0, 0, 0.2); /* the mirror's card shadow */
   --caaci-gap: 24px;
@@ -76,29 +89,6 @@
 }
 .caaci-notice[data-state='error'] {
   color: var(--caaci-error);
-}
-
-/* --- Card / boxed panel (account, member areas) --- */
-.caaci-card {
-  max-width: 620px;
-  margin: 40px auto;
-  padding: 32px var(--caaci-gap);
-  background: var(--caaci-surface);
-  border-radius: var(--caaci-radius);
-  box-shadow: var(--caaci-shadow);
-  font-family: var(--caaci-font-body);
-  color: var(--caaci-body);
-  line-height: var(--caaci-lh-body);
-}
-.caaci-card h1,
-.caaci-card h2 {
-  font-family: var(--caaci-font-display);
-  color: var(--caaci-maroon);
-  letter-spacing: 1px;
-  margin: 0 0 16px;
-}
-.caaci-card a {
-  color: var(--caaci-red);
 }
 
 /* --- Eyebrow (small uppercase label above a heading) --- */
@@ -136,527 +126,14 @@
 .caaci-btn:hover {
   background: var(--caaci-brick-dark);
 }
-.caaci-btn--secondary {
-  background: transparent;
-  color: var(--caaci-brick) !important;
-  border: var(--caaci-border);
-  border-color: var(--caaci-brick);
-}
-.caaci-btn--secondary:hover {
-  background: rgba(142, 46, 17, 0.06);
-}
 .caaci-btn[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* --- OAuth / SSO buttons (Google, Microsoft) --- */
-.caaci-oauth {
-  max-width: 360px;
-  margin: 18px auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  font-family: var(--caaci-font-body);
-}
-.caaci-oauth-sep {
-  text-align: center;
-  color: var(--caaci-muted);
-  font-size: var(--caaci-fs-eyebrow);
-  margin: 6px 0;
-}
-.caaci-oauth-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 11px 14px;
-  border: 1px solid var(--caaci-line);
-  border-radius: 6px;
-  background: var(--caaci-surface);
-  cursor: pointer;
-  font-family: inherit;
-  font-size: var(--caaci-fs-sm);
-  font-weight: 600;
-  color: var(--caaci-plum);
-  transition: background var(--caaci-transition);
-}
-.caaci-oauth-btn:hover {
-  background: var(--caaci-fill);
-}
-
-/* ============================================================ Admin panel === */
-/* Back-office (/admin) UI. Tokens only — see UI_GUIDELINE.md. */
-
-.caaci-admin-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--caaci-gap);
-  padding: 16px clamp(16px, 4vw, 48px);
-  background: var(--caaci-plum);
-  font-family: var(--caaci-font-body);
-}
-.caaci-admin-brand {
-  font-family: var(--caaci-font-display);
-  color: var(--caaci-surface);
-  font-size: var(--caaci-fs-h3);
-  letter-spacing: 1px;
-}
-.caaci-admin-bar-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.caaci-lang-toggle {
-  background: transparent;
-  border: 1px solid var(--caaci-surface);
-  color: var(--caaci-surface);
-  border-radius: var(--caaci-radius);
-  padding: 0.35em 0.8em;
-  font-family: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--caaci-transition);
-}
-.caaci-lang-toggle:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-/* Tabs */
-.caaci-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  max-width: var(--caaci-content-max);
-  margin: 28px auto 0;
-  padding: 0 16px;
-  border-bottom: 2px solid var(--caaci-line);
-  font-family: var(--caaci-font-body);
-}
-.caaci-tab {
-  background: transparent;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-  padding: 12px 18px;
-  font-family: inherit;
-  font-size: var(--caaci-fs-sm);
-  font-weight: 600;
-  color: var(--caaci-muted);
-  cursor: pointer;
-  transition:
-    color var(--caaci-transition),
-    border-color var(--caaci-transition);
-}
-.caaci-tab:hover {
-  color: var(--caaci-brick);
-}
-.caaci-tab[aria-selected='true'] {
-  color: var(--caaci-brick);
-  border-bottom-color: var(--caaci-brick);
-}
-
-/* Wider cards for tables */
-.caaci-panel {
-  max-width: var(--caaci-content-max);
-}
-
-/* Form controls shared by filters / fields / inline editor */
-.caaci-input {
-  font-family: var(--caaci-font-body);
-  font-size: var(--caaci-fs-sm);
-  color: var(--caaci-body);
-  background: var(--caaci-surface);
-  border: 1px solid var(--caaci-line);
-  border-radius: var(--caaci-radius);
-  padding: 9px 12px;
-}
-.caaci-input:focus {
-  outline: 2px solid var(--caaci-gold);
-  outline-offset: 0;
-}
-
-.caaci-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: var(--caaci-gap);
-}
-.caaci-filters .caaci-input {
-  flex: 1 1 180px;
-}
-
-.caaci-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-.caaci-field > label {
-  font-weight: 600;
-  font-size: var(--caaci-fs-sm);
-}
-.caaci-field .caaci-input {
-  width: 100%;
-  box-sizing: border-box;
-}
-.caaci-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-/* Table */
-.caaci-table-wrap {
-  overflow-x: auto;
-}
-.caaci-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: var(--caaci-font-body);
-  font-size: var(--caaci-fs-sm);
-}
-.caaci-table th,
-.caaci-table td {
-  text-align: left;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--caaci-line);
-  vertical-align: middle;
-}
-.caaci-table th {
-  font-weight: 700;
-  color: var(--caaci-maroon);
-  text-transform: uppercase;
-  font-size: var(--caaci-fs-eyebrow);
-  letter-spacing: 1px;
-}
-.caaci-table tbody tr:hover {
-  background: var(--caaci-fill);
-}
-.caaci-link-btn {
-  background: transparent;
-  border: 0;
-  color: var(--caaci-red);
-  font-family: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-}
-.caaci-link-btn:hover {
-  text-decoration: underline;
-}
-
-/* Status badge — color carries state; fill stays neutral */
-.caaci-badge {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--caaci-fill);
-  font-size: var(--caaci-fs-eyebrow);
-  font-weight: 700;
-  letter-spacing: 0.3px;
-  border: 1px solid var(--caaci-line);
-  color: var(--caaci-muted);
-}
-.caaci-badge[data-state='active'] {
-  color: var(--caaci-success);
-  border-color: var(--caaci-success);
-}
-.caaci-badge[data-state='pending'] {
-  color: var(--caaci-rust-deep);
-  border-color: var(--caaci-gold);
-}
-.caaci-badge[data-state='past_due'] {
-  color: var(--caaci-rust);
-  border-color: var(--caaci-rust);
-}
-.caaci-badge[data-state='expired'] {
-  color: var(--caaci-muted);
-  border-color: var(--caaci-muted);
-}
-.caaci-badge[data-state='cancelled'] {
-  color: var(--caaci-error);
-  border-color: var(--caaci-error);
-}
-
-/* Inline editor row */
-.caaci-edit-row > td {
-  background: var(--caaci-fill);
-}
-.caaci-edit {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
-  padding: 6px 0;
-}
-.caaci-edit label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: var(--caaci-fs-eyebrow);
-  font-weight: 600;
-}
-.caaci-edit-msg {
-  margin: 0 0 0 8px;
-}
-
-/* Pager */
-.caaci-pager {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: var(--caaci-gap);
-}
-.caaci-muted-text {
-  color: var(--caaci-muted);
-  font-size: var(--caaci-fs-sm);
-}
-
-/* Panel header with a right-aligned action (Families) */
-.caaci-panel-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--caaci-gap);
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-.caaci-panel-head h2 {
-  margin: 4px 0 0;
-}
-
-/* Inline create/edit form (add member, new family, add person) */
-.caaci-card-inset {
-  background: var(--caaci-fill);
-  border: 1px solid var(--caaci-line);
-  border-radius: var(--caaci-radius);
-  padding: 16px;
-  margin: 12px 0 18px;
-}
-.caaci-form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-}
-.caaci-form-grid .caaci-field {
-  margin-bottom: 0;
-}
-
-/* Destructive action (delete) — red link/button */
-.caaci-danger {
-  color: var(--caaci-error) !important;
-  border-color: var(--caaci-error);
-}
-.caaci-link-btn.caaci-danger {
-  margin-left: 10px;
-}
-
-/* Family cards */
-.caaci-family {
-  max-width: var(--caaci-content-max);
-  margin: 16px 0;
-}
-.caaci-family-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--caaci-gap);
-  flex-wrap: wrap;
-}
-.caaci-family-head h3 {
-  font-family: var(--caaci-font-display);
-  color: var(--caaci-maroon);
-  margin: 0 0 4px;
-}
-.caaci-family-actions {
-  display: flex;
-  gap: 6px;
-  white-space: nowrap;
-}
-.caaci-family-sub {
-  margin-top: 18px;
-}
-.caaci-family-subhead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.caaci-family-accts {
-  margin: 8px 0 0;
-  padding-left: 18px;
-  font-size: var(--caaci-fs-sm);
-}
-.caaci-family-accts li {
-  margin: 3px 0;
-}
-
-/* ============================================================ Plan view === */
-/* Membership pricing grid, rendered login-aware on /membership/. */
-.caaci-plans {
-  max-width: var(--caaci-content-max);
-  margin: 40px auto;
-  padding: 0 20px;
-  font-family: var(--caaci-font-body);
-  color: var(--caaci-body);
-}
-.caaci-plans-head {
-  text-align: center;
-  margin-bottom: 28px;
-}
-.caaci-plans-head h2 {
-  font-family: var(--caaci-font-display);
-  color: var(--caaci-maroon);
-  font-size: var(--caaci-fs-h2);
-  letter-spacing: 1px;
-  margin: 6px 0 8px;
-}
-.caaci-plans-head p {
-  margin: 0;
-  color: var(--caaci-muted);
-}
-.caaci-plans-you {
-  max-width: 620px;
-  margin: 0 auto 26px;
-  padding: 12px 18px;
-  background: var(--caaci-fill);
-  border-radius: var(--caaci-radius);
-  text-align: center;
-  font-size: var(--caaci-fs-sm);
-}
-.caaci-plans-you a {
-  color: var(--caaci-red);
-}
-.caaci-plans-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-}
-@media (max-width: 980px) {
-  .caaci-plans-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 540px) {
-  .caaci-plans-grid {
-    grid-template-columns: 1fr;
-  }
-}
-.caaci-plan {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  background: var(--caaci-surface);
-  border: 1px solid var(--caaci-line);
-  border-radius: var(--caaci-radius);
-  padding: 26px 22px;
-  transition:
-    box-shadow var(--caaci-transition),
-    transform var(--caaci-transition),
-    border-color var(--caaci-transition);
-}
-.caaci-plan:hover {
-  box-shadow: var(--caaci-shadow);
-  transform: translateY(-3px);
-}
-.caaci-plan[data-featured] {
-  border-color: var(--caaci-brick);
-}
-.caaci-plan[data-current] {
-  border-color: var(--caaci-brick);
-  box-shadow: 0 0 0 1px var(--caaci-brick) inset;
-}
-.caaci-plan-name {
-  font-family: var(--caaci-font-display);
-  color: var(--caaci-maroon);
-  font-size: var(--caaci-fs-h3);
-  margin: 0 0 6px;
-}
-.caaci-plan-price {
-  font-size: 34px;
-  font-weight: 700;
-  color: var(--caaci-ink);
-  line-height: 1.1;
-}
-.caaci-plan-price small {
-  font-size: var(--caaci-fs-sm);
-  font-weight: 500;
-  color: var(--caaci-muted);
-}
-.caaci-plan-fee {
-  font-size: var(--caaci-fs-eyebrow);
-  color: var(--caaci-muted);
-  margin-top: 4px;
-}
-.caaci-plan-desc {
-  margin: 14px 0 18px;
-  font-size: var(--caaci-fs-sm);
-}
-.caaci-plan .caaci-btn,
-.caaci-plan .caaci-btn--secondary {
-  margin-top: auto;
-  text-align: center;
-  width: 100%;
-  box-sizing: border-box;
-}
-/* Scoped to .caaci-plan: the bare .caaci-badge is the status pill used in the
-   admin tables and the account card — an unscoped absolute position here used
-   to yank those pills out of their table cells. */
-.caaci-plan .caaci-badge {
-  position: absolute;
-  top: -11px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 4px 14px;
-  border-radius: var(--caaci-radius-0);
-  font-family: var(--caaci-font-button);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  white-space: nowrap;
-  background: var(--caaci-brick);
-  color: var(--caaci-surface);
-}
-.caaci-plan .caaci-badge--current {
-  background: var(--caaci-gold);
-  color: var(--caaci-maroon);
-}
-.caaci-plan-status {
-  margin: 0 0 14px;
-  font-size: var(--caaci-fs-eyebrow);
-  color: var(--caaci-success);
-  font-weight: 600;
-}
-.caaci-plan-status[data-state='expired'],
-.caaci-plan-status[data-state='cancelled'] {
-  color: var(--caaci-error);
-}
-.caaci-plan-status[data-state='past_due'] {
-  color: var(--caaci-rust);
-}
-.caaci-plan-status[data-state='pending'] {
-  color: var(--caaci-rust-deep);
-}
-
-/* Discount banner on the plan grid (?code= from a scanned QR) */
-.caaci-plans-discount {
-  border: 1px solid var(--caaci-success);
-  color: var(--caaci-success);
-  background: rgba(26, 127, 55, 0.06);
-}
-.caaci-plans-discount[data-state='error'] {
-  border-color: var(--caaci-error);
-  color: var(--caaci-error);
-  background: rgba(179, 38, 30, 0.05);
-}
-
-/* =========================================================== Checkout === */
-/* Modal review/account step; card entry itself happens on Stripe. */
+/* ================================================== Donation checkout === */
+/* Modal opened from /donate/ (caaci-app.js openDonation); card entry itself
+   happens on Stripe. */
 .caaci-modal {
   position: fixed;
   inset: 0;
@@ -713,6 +190,9 @@
   margin: 4px 0 18px;
 }
 .caaci-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-bottom: 16px;
 }
 .caaci-field label {
@@ -737,34 +217,6 @@
 .caaci-field input:focus {
   outline: none;
   border-color: var(--caaci-brick);
-}
-.caaci-auth-switch {
-  margin: -4px 0 4px;
-  font-size: var(--caaci-fs-sm);
-  color: var(--caaci-muted);
-}
-.caaci-auth-switch a {
-  color: var(--caaci-red);
-  font-weight: 600;
-}
-.caaci-switch-from {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 4px 0 14px;
-  font-weight: 600;
-}
-.caaci-switch-from span[aria-hidden] {
-  color: var(--caaci-brick);
-  font-weight: 700;
-}
-.caaci-switch-from span:last-child {
-  color: var(--caaci-maroon);
-}
-.caaci-note {
-  margin: 10px 0 0;
-  font-size: 13px;
-  color: var(--caaci-muted);
 }
 .caaci-chips {
   display: flex;
@@ -869,316 +321,6 @@
   flex: none;
 }
 
-/* Discount code entry in the checkout summary */
-.caaci-discount {
-  margin-top: 18px;
-}
-.caaci-discount label {
-  display: block;
-  font-size: var(--caaci-fs-eyebrow);
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  margin-bottom: 6px;
-  color: var(--caaci-plum);
-}
-.caaci-discount-row {
-  display: flex;
-  gap: 8px;
-}
-.caaci-discount-row input {
-  flex: 1;
-  min-width: 0;
-  padding: 9px 12px;
-  font-family: inherit;
-  font-size: var(--caaci-fs-sm);
-  border: 1px solid var(--caaci-line);
-  border-radius: var(--caaci-radius);
-  text-transform: uppercase;
-}
-.caaci-discount-row input:focus {
-  outline: none;
-  border-color: var(--caaci-brick);
-}
-.caaci-discount-apply {
-  flex: none;
-  padding: 0 14px;
-  border: 1px solid var(--caaci-brick);
-  border-radius: var(--caaci-radius);
-  background: transparent;
-  color: var(--caaci-brick);
-  font-family: inherit;
-  font-weight: 600;
-  font-size: var(--caaci-fs-eyebrow);
-  cursor: pointer;
-  transition: background var(--caaci-transition);
-}
-.caaci-discount-apply:hover {
-  background: rgba(142, 46, 17, 0.06);
-}
-.caaci-discount-msg {
-  margin: 8px 0 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--caaci-success);
-}
-.caaci-discount-msg[data-state='error'] {
-  color: var(--caaci-error);
-}
-.caaci-line--discount {
-  color: var(--caaci-success);
-  font-weight: 600;
-}
-
-/* ======================================================== Account page === */
-/* Subscription summary rows on /account/. */
-.caaci-subscription {
-  margin: 18px 0;
-  border: 1px solid var(--caaci-line);
-  border-radius: var(--caaci-radius);
-  padding: 6px 16px;
-  background: var(--caaci-fill);
-}
-.caaci-sub-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  font-size: var(--caaci-fs-sm);
-}
-.caaci-sub-row + .caaci-sub-row {
-  border-top: 1px solid var(--caaci-line);
-}
-.caaci-sub-row > span:first-child {
-  color: var(--caaci-muted);
-}
-.caaci-sub-row small {
-  color: var(--caaci-muted);
-}
-.caaci-account-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 18px 0 6px;
-}
-
-/* Digital membership card (account page — show at partner businesses) */
-.caaci-mcard {
-  margin: 18px 0 8px;
-  border: 1px solid var(--caaci-line);
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: var(--caaci-shadow);
-  background: var(--caaci-surface);
-}
-.caaci-mcard-head {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  padding: 14px 20px;
-  background: var(--caaci-brick);
-  border-bottom: 4px solid var(--caaci-gold);
-  color: var(--caaci-surface);
-}
-.caaci-mcard-head b {
-  font-family: var(--caaci-font-display);
-  font-size: 22px;
-  letter-spacing: 1px;
-}
-.caaci-mcard-head span {
-  font-size: 12px;
-  opacity: 0.9;
-}
-.caaci-mcard-body {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--caaci-gap);
-  padding: 20px;
-}
-.caaci-mcard-name {
-  font-family: var(--caaci-font-display);
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--caaci-maroon);
-  margin: 0 0 4px;
-}
-.caaci-mcard-tier {
-  font-size: var(--caaci-fs-sm);
-  color: var(--caaci-body);
-  margin: 0 0 4px;
-}
-.caaci-mcard-until {
-  font-size: 13px;
-  color: var(--caaci-muted);
-  margin: 0;
-}
-.caaci-mcard-qr img {
-  display: block;
-  width: 120px;
-  height: 120px;
-  image-rendering: pixelated;
-}
-
-/* "Add to Apple Wallet" — Apple's badge style: black pill, white text */
-.caaci-wallet-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0.5em 1.3em;
-  background: #000;
-  color: #fff;
-  border: 1px solid #000;
-  border-radius: 6px;
-  font-family: var(--caaci-font-body);
-  font-size: var(--caaci-fs-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity var(--caaci-transition);
-}
-.caaci-wallet-btn:hover {
-  opacity: 0.8;
-}
-.caaci-wallet-btn[disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Auth helper links (forgot password / create account) under the login form */
-.caaci-auth-links {
-  margin: 14px 0;
-  font-family: var(--caaci-font-body);
-  font-size: var(--caaci-fs-sm);
-  text-align: center;
-}
-.caaci-auth-links a {
-  color: var(--caaci-red);
-  font-weight: 600;
-}
-
-/* ============================================ Admin: payment stat tiles === */
-.caaci-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin: 0 0 var(--caaci-gap);
-}
-.caaci-stat {
-  padding: 16px;
-  background: var(--caaci-fill);
-  border: 1px solid var(--caaci-line);
-  border-radius: var(--caaci-radius);
-  text-align: center;
-}
-.caaci-stat-value {
-  display: block;
-  font-size: 30px;
-  font-weight: 700;
-  color: var(--caaci-ink);
-  font-variant-numeric: tabular-nums;
-}
-.caaci-stat[data-state='active'] .caaci-stat-value {
-  color: var(--caaci-success);
-}
-.caaci-stat[data-state='past_due'] .caaci-stat-value {
-  color: var(--caaci-rust);
-}
-.caaci-stat[data-state='expired'] .caaci-stat-value {
-  color: var(--caaci-muted);
-}
-.caaci-stat-label {
-  display: block;
-  margin-top: 4px;
-  font-size: var(--caaci-fs-eyebrow);
-  font-weight: 600;
-  color: var(--caaci-muted);
-}
-
-/* ================================================= Admin: discount QRs === */
-.caaci-qr {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--caaci-gap);
-  margin: 12px 0 18px;
-  padding: 16px;
-  background: var(--caaci-fill);
-  border: 1px solid var(--caaci-line);
-  border-radius: var(--caaci-radius);
-}
-.caaci-qr img {
-  width: 220px;
-  height: 220px;
-  image-rendering: pixelated;
-  background: var(--caaci-surface);
-  border: 1px solid var(--caaci-line);
-}
-.caaci-qr-meta {
-  flex: 1 1 260px;
-  font-size: var(--caaci-fs-sm);
-  overflow-wrap: anywhere;
-}
-.caaci-qr-meta code {
-  display: inline-block;
-  padding: 2px 6px;
-  background: var(--caaci-surface);
-  border: 1px solid var(--caaci-line);
-  border-radius: var(--caaci-radius);
-}
-
-/* ================================================== Admin: media library === */
-/* The upload control itself is FilePond (vendored, MIT) — these styles only
-   cover the library grid below it and small brand-color nudges. */
-.caaci-media-drop {
-  margin: 0 0 var(--caaci-gap);
-}
-.caaci-media-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
-  margin: 0 0 var(--caaci-gap);
-}
-.caaci-media-item {
-  margin: 0;
-  background: var(--caaci-fill);
-  border: 1px solid var(--caaci-line);
-  border-radius: var(--caaci-radius);
-  overflow: hidden;
-}
-.caaci-media-thumb {
-  display: block;
-  width: 100%;
-  height: 110px;
-  object-fit: cover;
-  background: var(--caaci-surface);
-}
-.caaci-media-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px 0;
-  font-size: var(--caaci-fs-sm);
-}
-.caaci-media-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.caaci-media-actions {
-  display: flex;
-  gap: 10px;
-  padding: 6px 10px 10px;
-}
-/* Tiny thumbnail shown next to a title in the events / directory tables */
-.caaci-row-thumb {
-  width: 28px;
-  height: 28px;
-  object-fit: cover;
-  border-radius: var(--caaci-radius);
-  border: 1px solid var(--caaci-line);
-  vertical-align: middle;
-  margin-left: 6px;
-}
 /* FilePond, in CAACI colors */
 .filepond--panel-root {
   background: var(--caaci-fill);
@@ -1223,11 +365,11 @@
    correct on every page and survives a palette change. */
 .et_clickable[data-caaci-contrast='light'],
 .et_clickable[data-caaci-contrast='light'] p {
-  color: #fff;
+  color: var(--caaci-surface);
 }
 .et_clickable[data-caaci-contrast='dark'],
 .et_clickable[data-caaci-contrast='dark'] p {
-  color: #1a1a1a;
+  color: var(--caaci-ink);
 }
 /* They are plain <div>s made clickable by Divi's JS. caaci-app.js promotes
    them to real buttons; give the resulting focus ring room to breathe. */
@@ -1284,7 +426,7 @@ a.caaci-skip-link:active {
   z-index: 100000;
   padding: 12px 20px;
   background: var(--caaci-brick);
-  color: #fff;
+  color: var(--caaci-surface);
   font-family: var(--caaci-font-body);
   text-decoration: none;
 }
@@ -1306,7 +448,7 @@ a.caaci-skip-link:focus {
 #main-header .nav li ul,
 #main-header .nav li ul.sub-menu,
 #main-header .et_mobile_menu {
-  background-color: #fff;
+  background-color: var(--caaci-surface);
 }
 
 /* Heading text promoted to a link by wireBusinessServiceTiles — inherit the
@@ -1321,48 +463,4 @@ a.caaci-skip-link:focus {
 }
 .caaci-tile-link:hover {
   text-decoration: underline;
-}
-
-/* ---- Shared member-page navigation (member-src/_nav.html) ---- */
-/* Divi opens its submenus on hover and shows a small caret next to the parent
-   label. Bootstrap needs a real toggle, so the parent is split: the label is
-   still a link to the section, and this button is the caret. Sized to sit
-   tight against the label rather than read as a separate menu item. */
-.caaci-sitenav .caaci-nav-caret {
-  background: none;
-  border: 0;
-  padding: 0 0.35rem 0 0.1rem;
-  margin-left: -0.35rem;
-}
-.caaci-sitenav .caaci-nav-caret::after {
-  vertical-align: 0.15em;
-}
-/* Tabler stacks .nav-item children in a column (its nav links put an icon above
-   the label), which drops the caret onto a second line under its parent. */
-.caaci-sitenav .nav-item.dropdown {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-}
-.caaci-sitenav .nav-item.dropdown > .nav-link {
-  width: auto;
-}
-/* Match the mirror: submenus are opaque white panels, not see-through.
-   Tabler ships a negative `inset` on .dropdown-menu for its own card-style
-   menus and relies on Popper to correct it. The hover path below never runs
-   Popper, so the menu would sit on top of the navbar — pin it under the item
-   explicitly. */
-.caaci-sitenav .dropdown-menu {
-  background-color: #fff;
-  border-top: 3px solid var(--caaci-rust-deep);
-  inset: auto auto auto 0;
-  top: 100%;
-  margin-top: 0;
-}
-@media (min-width: 768px) {
-  /* Divi reveals the submenu on hover; keep that muscle memory on desktop
-     while the caret button still works for keyboard and touch. */
-  .caaci-sitenav .nav-item.dropdown:hover > .dropdown-menu {
-    display: block;
-  }
 }

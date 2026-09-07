@@ -1,0 +1,275 @@
+/* caaci-theme.css — the CAACI skin for the Tabler pages
+ * (/admin/, /login-3/, /membership/, /account/, /privacy/).
+ *
+ * Those pages are built on Tabler (Bootstrap 5). Tabler paints every button,
+ * link, tab, badge, focus ring and corner from its own --tblr-* custom
+ * properties, so re-pointing those at the --caaci-* tokens in caaci-ui.css
+ * gives the whole kit the brand look without touching page markup and without
+ * any .caaci-* visual classes competing with Tabler's.
+ *
+ * Load order on every Tabler page:
+ *   tabler.min.css  →  caaci-ui.css (tokens)  →  caaci-theme.css (this file)
+ *
+ * Rules (enforced by test/ui-consistency.test.js):
+ *   - tokens only: no hex literals in this file, use var(--caaci-*)
+ *   - page files carry no <style> blocks and no style="" attributes; anything
+ *     a page needs lives in a named section below
+ *   - --tblr-* variables are overridden here and nowhere else
+ */
+
+/* The mirror loads Playfair Display (headings) and Saira Extra Condensed
+   (buttons) from Google Fonts on every WordPress page, so the Tabler pages
+   must load them too or the token stacks silently fall back to Georgia and
+   Helvetica. Poppins is deliberately NOT loaded: Divi overrides all body and
+   navigation text to cwTeXFangSong, which is never served, so the mirror's
+   body copy actually renders in the system sans-serif — the same face the
+   `--caaci-font-body` stack falls back to when Poppins is absent. Loading
+   Poppins would make our body text differ from the mirror's. */
+@import url('https://fonts.googleapis.com/css?family=Playfair+Display:400,500,700|Saira+Extra+Condensed:600&display=swap');
+
+/* ======================================================= Tabler → tokens === */
+:root,
+[data-bs-theme='light'] {
+  /* Primary action: Tabler blue → CAACI brick. btn-primary, form-check,
+     nav-tabs, progress, badge bg-primary(-lt), focus rings all follow. */
+  --tblr-primary: var(--caaci-brick);
+  --tblr-primary-rgb: var(--caaci-brick-rgb);
+  --tblr-primary-fg: var(--caaci-surface);
+  --tblr-primary-darken: var(--caaci-brick-dark);
+  --tblr-primary-lt: rgba(var(--caaci-brick-rgb), 0.1);
+  --tblr-primary-text-emphasis: var(--caaci-brick-dark);
+  --tblr-primary-bg-subtle: rgba(var(--caaci-brick-rgb), 0.1);
+  --tblr-primary-border-subtle: rgba(var(--caaci-brick-rgb), 0.3);
+
+  /* Links: the Divi "red" scheme colour, darkening to brick on hover. */
+  --tblr-link-color: var(--caaci-red);
+  --tblr-link-color-rgb: var(--caaci-red-rgb);
+  --tblr-link-hover-color: var(--caaci-brick);
+  --tblr-link-hover-color-rgb: var(--caaci-brick-rgb);
+
+  /* Status colours shared with the mirror-page notices. */
+  --tblr-success: var(--caaci-success);
+  --tblr-success-rgb: var(--caaci-success-rgb);
+  --tblr-danger: var(--caaci-error);
+  --tblr-danger-rgb: var(--caaci-error-rgb);
+
+  /* Type: one body stack for the whole site (Tabler ships Inter). */
+  --tblr-font-sans-serif: var(--caaci-font-body);
+
+  /* Shape: the mirror's 3px corners everywhere (Tabler ships 4/6/8px). */
+  --tblr-border-radius: var(--caaci-radius);
+  --tblr-border-radius-sm: var(--caaci-radius);
+  --tblr-border-radius-lg: var(--caaci-radius);
+}
+
+/* Tabler hard-codes a blue focus border on inputs (only the ring reads the
+   primary variable). Bring the border in line with the brick ring. */
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+  border-color: rgba(var(--caaci-brick-rgb), 0.5);
+}
+
+/* Headings: the mirror sets every h1–h3 in Playfair Display, maroon, with a
+   little tracking (UI_GUIDELINE §2). Tabler's are bold Inter in body colour. */
+h1,
+h2,
+h3,
+.h1,
+.h2,
+.h3 {
+  font-family: var(--caaci-font-display);
+  color: var(--caaci-maroon);
+  letter-spacing: 1px;
+}
+
+/* Primary action: the same square, uppercase, condensed CTA as the mirror's
+   Divi button and the overlay's .caaci-btn — one button across the site. */
+.btn-primary {
+  font-family: var(--caaci-font-button);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: var(--caaci-radius-0);
+}
+
+/* ================================================================ Layout === */
+/* Boxed content column, the same as the Divi .container on the mirror:
+   80% of the viewport, capped at 1080px. */
+.container-xl {
+  max-width: var(--caaci-content-max);
+}
+@media (min-width: 768px) {
+  .container-xl {
+    width: 80%;
+  }
+}
+
+/* ============================================ Site navigation (all pages) === */
+/* The Divi header, measured on the mirror's home page: 69px white bar, no
+   shadow at rest, 40px logo, menu right-aligned to the container edge, 14px/600
+   links in black with ~22px between items, the current page in the red scheme
+   colour. Shared by the member pages (member-src/_nav.html) and the admin
+   panel so moving between them does not change the chrome. */
+.caaci-sitenav {
+  background: var(--caaci-surface);
+  box-shadow: none; /* Tabler draws an inset hairline; the mirror has none */
+  min-height: 69px;
+}
+.caaci-sitenav .navbar-brand {
+  padding: 0;
+}
+.caaci-sitenav .navbar-brand img {
+  height: 40px;
+  width: auto;
+}
+.caaci-sitenav .navbar-nav {
+  margin-left: auto;
+}
+.caaci-sitenav .nav-link {
+  font-family: var(--caaci-font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--caaci-ink);
+  padding: 8px 11px;
+  transition: opacity 0.4s ease-in-out;
+}
+/* Language toggle and Log In / Sign out are plain menu items on the mirror,
+   not buttons. */
+.caaci-sitenav button.nav-link {
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.caaci-sitenav .nav-link:hover {
+  color: var(--caaci-ink);
+  opacity: 0.7;
+}
+.caaci-sitenav .nav-link.active {
+  color: var(--caaci-red);
+  box-shadow: none;
+}
+/* Divi opens its submenus on hover and shows a small caret next to the parent
+   label. Bootstrap needs a real toggle, so the parent is split: the label is
+   still a link to the section, and this button is the caret. Pulled in under
+   the label's right padding so it sits 4px after the text, as Divi's does. */
+.caaci-sitenav .caaci-nav-caret {
+  background: none;
+  border: 0;
+  padding: 0 11px 0 0;
+  margin-left: -7px;
+}
+.caaci-sitenav .caaci-nav-caret::after {
+  margin-left: 0;
+  vertical-align: 0.15em;
+}
+/* Tabler stacks .nav-item children in a column (its nav links put an icon above
+   the label), which drops the caret onto a second line under its parent. */
+.caaci-sitenav .nav-item.dropdown {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+.caaci-sitenav .nav-item.dropdown > .nav-link {
+  width: auto;
+}
+/* Match the mirror: submenus are opaque white panels, not see-through.
+   Tabler ships a negative `inset` on .dropdown-menu for its own card-style
+   menus and relies on Popper to correct it. The hover path below never runs
+   Popper, so the menu would sit on top of the navbar — pin it under the item
+   explicitly. */
+.caaci-sitenav .dropdown-menu {
+  background-color: var(--caaci-surface);
+  border-top: 3px solid var(--caaci-rust-deep);
+  inset: auto auto auto 0;
+  top: 100%;
+  margin-top: 0;
+}
+@media (min-width: 768px) {
+  /* Divi reveals the submenu on hover; keep that muscle memory on desktop
+     while the caret button still works for keyboard and touch. */
+  .caaci-sitenav .nav-item.dropdown:hover > .dropdown-menu {
+    display: block;
+  }
+}
+
+/* ============================================== Hero band (member pages) === */
+/* Matches the mirror's Divi hero: brick gradient under a gold rule. */
+.caaci-hero {
+  background: linear-gradient(135deg, var(--caaci-brick), var(--caaci-brick-dark));
+  border-bottom: 5px solid var(--caaci-gold);
+  color: var(--caaci-surface);
+}
+.caaci-hero h1,
+.caaci-hero h2 {
+  color: var(--caaci-surface);
+}
+.caaci-hero .caaci-hero-eyebrow {
+  color: var(--caaci-gold);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.caaci-hero p {
+  color: rgba(var(--caaci-surface-rgb), 0.85);
+}
+
+/* ========================================= Digital membership card (/account/) === */
+/* Rendered by caaci-member.js; shown at partner businesses, so it keeps a
+   physical-card silhouette (larger radius) while using the brand palette. */
+.caaci-mcard2 {
+  max-width: 460px;
+  border-radius: var(--caaci-radius-card);
+  overflow: hidden;
+  border: 1px solid var(--tblr-border-color);
+  box-shadow: var(--tblr-shadow-card);
+  background: var(--caaci-surface);
+}
+.caaci-mcard2-head {
+  background: var(--caaci-brick);
+  border-bottom: 5px solid var(--caaci-gold);
+  color: var(--caaci-surface);
+  padding: 12px 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.caaci-mcard2-head b {
+  font-family: var(--caaci-font-display);
+  font-size: 26px;
+  letter-spacing: 1px;
+}
+.caaci-mcard2-head span {
+  font-size: 11px;
+  opacity: 0.9;
+}
+.caaci-mcard2-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 18px;
+}
+.caaci-mcard2-qr img {
+  width: 108px;
+  height: 108px;
+  image-rendering: pixelated;
+}
+
+/* ================================================ Long-form legal copy (/privacy/) === */
+.caaci-legal h2 {
+  font-size: 1.25rem;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+.caaci-legal h2:first-of-type {
+  margin-top: 0;
+}
+.caaci-legal p,
+.caaci-legal li {
+  line-height: 1.7;
+}
+.caaci-legal ul {
+  margin-bottom: 1rem;
+}

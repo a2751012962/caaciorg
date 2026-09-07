@@ -30,7 +30,6 @@
       <img
         src="/wp-content/uploads/2025/01/CAACI-logo-1-e1737551037290.png"
         alt="Chinese American Association of Central Illinois"
-        style="height: 48px; width: auto"
       />
     </a>
     <div class="collapse navbar-collapse" id="caaci-nav-menu">
@@ -146,14 +145,11 @@
           >
         </li>
       </ul>
-      <div class="ms-auto d-flex align-items-center gap-2 mt-2 mt-md-0">
-        <button type="button" class="btn btn-sm" id="caaci-lang">中文</button>
-        <a
-          href="/login-3/"
-          class="btn btn-sm btn-primary"
-          id="caaci-nav-auth"
-          data-en="Log In"
-          data-zh="登录"
+      <!-- Trailing menu items: on the mirror "Log In" is a plain menu entry, so
+           these are styled as nav links, not buttons. -->
+      <div class="d-flex align-items-center">
+        <button type="button" class="nav-link" id="caaci-lang">中文</button>
+        <a href="/login-3/" class="nav-link" id="caaci-nav-auth" data-en="Log In" data-zh="登录"
           >Log In</a
         >
       </div>

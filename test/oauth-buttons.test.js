@@ -1,4 +1,4 @@
-// Pins the OAuth sign-in contract for both client layers: which provider each
+// Pins the OAuth sign-in contract on the member login page: which provider each
 // button asks for, which scopes ride along, and where the visitor is sent back
 // to afterwards.
 //
@@ -15,9 +15,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
-globalThis.window = { __CAACI_TEST__: true }; // block auto-boot in both modules
+globalThis.window = { __CAACI_TEST__: true }; // block auto-boot at import
 const member = await import('../src/caaci-member.js');
-const app = await import('../src/caaci-app.js');
 
 const LOGIN_HTML = await readFile(new URL('../member-src/login.html', import.meta.url), 'utf8');
 const tick = () => new Promise((r) => setTimeout(r, 15));
@@ -137,44 +136,4 @@ test('login page: forgot-password returns to the recovery form, not the bare acc
     'https://caaci.example/account/?recovery=1',
     '?recovery=1 is what makes /account/ render the set-new-password form',
   );
-});
-
-test('mirror layer: same provider contract, and redirectTo is passed through verbatim', async () => {
-  // The checkout overlay renders these buttons with the CURRENT page as the
-  // return target (oauthButtons(location.href)) rather than /account/, so a
-  // visitor can carry straight on with checkout after authenticating. Losing
-  // that would silently drop people out of a half-finished purchase.
-  const here = 'https://caaci.example/membership/?tier=family';
-  mountDom('<!DOCTYPE html><body></body>', { href: here, pathname: '/membership/' });
-  const spy = spyClient();
-  app.__setSupa(spy.client);
-
-  const wrap = app.oauthButtons(location.href);
-  document.body.appendChild(wrap);
-  assert.equal(wrap.querySelectorAll('button').length, 2);
-
-  btn(wrap, 'azure').dispatchEvent(new Event('click'));
-  await tick();
-  assert.equal(spy.oauth[0].provider, 'azure');
-  assert.equal(spy.oauth[0].options.scopes, 'openid email profile');
-  assert.equal(spy.oauth[0].options.redirectTo, here);
-
-  btn(wrap, 'google').dispatchEvent(new Event('click'));
-  await tick();
-  assert.equal(spy.oauth[1].provider, 'google');
-  assert.equal(spy.oauth[1].options.redirectTo, here);
-  assert.ok(!('scopes' in spy.oauth[1].options));
-});
-
-test('mirror layer: with no redirectTo the visitor lands on /account/', async () => {
-  mountDom('<!DOCTYPE html><body></body>', { href: 'https://caaci.example/', pathname: '/' });
-  const spy = spyClient();
-  app.__setSupa(spy.client);
-
-  const wrap = app.oauthButtons();
-  document.body.appendChild(wrap);
-  btn(wrap, 'google').dispatchEvent(new Event('click'));
-  await tick();
-
-  assert.equal(spy.oauth[0].options.redirectTo, 'https://caaci.example/account/');
 });
