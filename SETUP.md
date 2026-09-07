@@ -1,8 +1,16 @@
 # CAACI site — Cloudflare Pages + Supabase
 
-> **LIVE:** https://caaci.pages.dev — deployed & verified (Supabase project
-> `gczslluaxccbnftvfayn`, Cloudflare account `ab3df09b…`, Stripe **test** mode).
+> **LIVE:** https://caaci.pages.dev — deployed & verified (Cloudflare account
+> `ab3df09b…`, Stripe **test** mode).
 > See "Post-deploy checklist" at the bottom for the remaining go-live steps.
+
+> **Supabase project moved.** The backend is now `wslzeqhipvibeflmxznh`
+> (org `dduletwxytbduspygnxh`, us-east-1); the old project was
+> `gczslluaxccbnftvfayn`. Schema (migrations `0001`–`0010` + seed), the `media`
+> storage bucket, both auth users and every table row were copied across and
+> verified row-for-row. **The deployed site still points at the old project
+> until the Pages secrets are updated and it is redeployed** — see
+> "Post-deploy checklist".
 
 A rebuild of **caaciorg.com** on a modern stack. The frontend is a byte-for-byte
 mirror of the live site (so the UI is identical); the WordPress backend
@@ -19,6 +27,8 @@ dist/                   deployable output (generated; git-ignored)
 functions/api/*.js      Cloudflare Pages Functions (checkout, webhook, contact, …)
 supabase/migrations/    schema + RLS
 supabase/seed.sql       membership tiers (real prices) + annual events
+stripe-connect.mjs      one-shot Stripe wiring (webhook + billing portal) for acct_1PfYMi…
+stripe-audit.mjs        read-only inventory of a Stripe mode (what the cutover must not break)
 wrangler.toml           Cloudflare Pages config (output dir = dist)
 .env.example            all required environment variables
 ```
@@ -49,14 +59,46 @@ wrangler.toml           Cloudflare Pages config (output dir = dist)
 
 ### 2. Stripe
 
-1. Create products are not needed — checkout uses inline `price_data`.
-2. Get the **secret key** (test first: `sk_test_…`).
-3. Add a webhook endpoint → `https://<your-domain>/api/stripe-webhook`; subscribe
-   these events, then copy the **signing secret** (`whsec_…`):
+Payments run through account **`acct_1PfYMiJ3oYxWrRWD`**
+([dashboard](https://dashboard.stripe.com/acct_1PfYMiJ3oYxWrRWD/dashboard)). No
+products or prices need creating — checkout uses inline `price_data`, so the only
+things to wire up are a key, a webhook endpoint, and the Billing Portal.
+
+1. Copy the **secret key** for the mode you want (Developers → API keys):
+   `sk_test_…` while testing, `sk_live_…` at go-live.
+2. Run the connector. It reads the key from the environment (never prints it),
+   refuses to touch any account other than the one above, and reports before it
+   changes anything:
+
+   ```
+   # PowerShell
+   $env:STRIPE_SECRET_KEY='sk_…'; npm run stripe:connect              # report only
+   $env:STRIPE_SECRET_KEY='sk_…'; npm run stripe:connect -- --apply   # create/repair
+
+   # bash
+   STRIPE_SECRET_KEY=sk_… npm run stripe:connect -- --apply
+   ```
+
+   With `--apply` it creates the webhook endpoint on
+   `https://caaci.pages.dev/api/stripe-webhook` (override with
+   `-- --site-url=https://…`), subscribed to exactly the events the handler
+   branches on, and writes the new signing secret to `.env`:
    - `checkout.session.completed` — activates a membership / marks a donation paid
    - `invoice.paid` — renewal: extends the membership another year
    - `invoice.payment_failed` — flags the member `past_due`
    - `customer.subscription.deleted` — flags the member `cancelled`
+
+   It also creates a Billing Portal configuration if the account has none —
+   `/api/portal` mints portal sessions without naming one, so Stripe needs an
+   account default or "Manage billing" fails on the account page.
+
+   Re-running is safe: a healthy account produces no writes. An endpoint that is
+   missing events or was auto-disabled gets repaired in place, which keeps its
+   existing signing secret (so the deployed `STRIPE_WEBHOOK_SECRET` stays valid).
+
+3. Put the same two values on Cloudflare Pages (step 4) and redeploy — **test and
+   live keys are different, and so are their webhook signing secrets**, so a
+   test→live switch means updating both secrets together.
 
 ### 3. Email (Resend)
 
@@ -119,20 +161,70 @@ Then add the custom domain in the Pages project and point DNS. Set redirects in
   `/login/`, `/login-2/`, `/login-4/`, `/login-5/`, `/account-5/`, plus their
   `/zh/` copies — now redirect to these two canonical pages.)
 
+## Migrating the live members off WordPress
+
+The WordPress site (MemberPress) and this site bill through the **same** Stripe
+account, so **nothing moves inside Stripe**. Customers, saved cards, subscriptions
+and payment history stay exactly where they are; members are never asked to
+re-enter a card. What has to happen is that Supabase learns about them.
+
+Take inventory first — read-only, safe against live mode, prints no PII:
+
+```
+$env:STRIPE_SECRET_KEY='sk_live_…'; npm run stripe:audit
+$env:STRIPE_SECRET_KEY='sk_live_…'; npm run stripe:audit -- --csv=subscribers.csv
+```
+
+The CSV carries the two columns the cutover hinges on — `stripe_customer_id` and
+`stripe_subscription_id`. For each still-billing subscriber, create a Supabase
+`auth.users` row and a `members` row with those ids, `tier_id` mapped from the
+MemberPress price, `status='active'` and `expires_at = current_period_end`. From
+then on the renewal invoice lands on `/api/stripe-webhook`, which looks members up
+by exactly those two ids (`findMember` in `functions/api/stripe-webhook.js`) and
+extends the year automatically.
+
+Three things to know before starting:
+
+- **Existing subscribers keep their old price.** Their subscription still points at
+  the MemberPress Price object; this site only uses inline `price_data` for *new*
+  joins. They re-price only when they change plan. Keep those Price and Product
+  objects — deleting them breaks live subscriptions.
+- **Both webhooks fire during the overlap.** The MemberPress endpoint
+  (`caaciorg.com/mepr/notify/…`) keeps updating WordPress while the new endpoint
+  updates Supabase. That is fine, and it is the safe order: stand the new one up
+  first, retire the old one only after DNS moves.
+- **Logins do not carry over.** `members.id` references `auth.users(id)`, so each
+  migrated member needs an auth user; invite them by magic link rather than
+  inventing passwords.
+
 ## Post-deploy checklist (remaining go-live steps)
 
 - [ ] **Custom domain**: Cloudflare Pages → project `caaci` → Custom domains →
       add `caaciorg.com` / `www`, then point DNS. (Will replace the live WordPress.)
 - [ ] **Make yourself admin**: in Supabase SQL editor,
       `update members set is_admin = true where email = 'you@example.com';`
-- [ ] **Stripe go-live**: swap the `STRIPE_SECRET_KEY` secret for a live key, create
-      a live webhook → `/api/stripe-webhook` (event `checkout.session.completed`),
-      set the new `whsec_…`, and redeploy.
+- [ ] **Stripe go-live**: run `npm run stripe:connect -- --apply` with the **live**
+      key of `acct_1PfYMiJ3oYxWrRWD` (see step 2) — it creates the live webhook and
+      Billing Portal config and writes the new `whsec_…` to `.env`. Then set both
+      `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` as Pages secrets and redeploy.
+      Live mode has its own webhook endpoint and signing secret: update both, or the
+      webhook 400s on every event and nothing activates after payment.
 - [ ] **Email**: set `RESEND_API_KEY` / `NOTIFY_FROM` / `NOTIFY_TO` secrets so the
       contact + business-listing forms send notifications (they already save to the DB).
+- [ ] **Point the deployment at the new Supabase project** (`wslzeqhipvibeflmxznh`).
+      `wrangler.toml` and `build.mjs` already carry the new URL + anon key, but the
+      **`SUPABASE_SERVICE_ROLE_KEY` Pages secret still holds the OLD project's key**,
+      so every `/api/*` Function would talk to the old database. Set the new one and
+      redeploy — both, together:
+      ```
+      npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci
+      npm run deploy
+      ```
 - [ ] **Security**: revoke the temporary Supabase Personal Access Token
       (dashboard → Account → Access Tokens) now that provisioning is done; rotate the
-      Stripe test key and the Supabase `service_role` key since they passed through chat.
+      Stripe test key and **both** projects' `service_role` keys since they passed
+      through chat. Rotating `service_role` means re-running the `wrangler pages secret
+      put` above and redeploying, or the Functions 401 on every request.
 - [ ] Any time you change a secret, **redeploy** (`npm run deploy`) — Pages binds env at deploy time.
 
 ## Member pages (`/login-3/`, `/membership/`, `/account/`)
