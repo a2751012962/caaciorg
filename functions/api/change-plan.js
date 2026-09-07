@@ -22,6 +22,7 @@ export async function onRequestPost({ request, env }) {
   try {
     const tier = await DB.selectOne('membership_tiers', { id: body.tier_id });
     if (!tier) return bad('Unknown membership tier.');
+    if (tier.invite_only) return bad('This membership is by invitation only.');
     const member = await DB.selectOne('members', { id: body.member_id });
     if (!member) return bad('Member not found.');
     if (member.tier_id === tier.id) return bad('You are already on this plan.');

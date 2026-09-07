@@ -58,6 +58,15 @@ export const TIERS_FALLBACK = [
     description: 'Includes a listing in the business directory.',
     highlight: 'For businesses',
   },
+  {
+    id: 'honorary',
+    name: 'Honorable Membership',
+    name_zh: '荣誉会员',
+    price_cents: 0,
+    description: 'Free membership for major contributions to the community.',
+    highlight: 'Invitation only',
+    invite_only: true, // granted by the Board from the admin panel; never sold
+  },
 ];
 
 export const usd = (cents) => `$${(cents / 100).toFixed(2)}`;
@@ -83,9 +92,14 @@ export function mergeTiers(rows) {
           name: row.name || t.name,
           price_cents: row.price_cents ?? t.price_cents,
           description: row.description || t.description,
+          invite_only: row.invite_only ?? t.invite_only ?? false,
         });
       else base.push({ ...row, highlight: '' });
     }
   }
-  return base.sort((a, b) => a.price_cents - b.price_cents);
+  // Paid tiers cheapest first; invitation-only tiers after them, so the free
+  // Honorable tier doesn't lead the page as if it were the entry plan.
+  return base.sort(
+    (a, b) => Number(!!a.invite_only) - Number(!!b.invite_only) || a.price_cents - b.price_cents,
+  );
 }

@@ -54,6 +54,8 @@ export async function onRequestPost({ request, env }) {
     // membership checkout
     const tier = await DB.selectOne('membership_tiers', { id: body.tier_id });
     if (!tier) return bad('Unknown membership tier.');
+    // Honorable membership is granted by the Board from the admin panel, never sold.
+    if (tier.invite_only) return bad('This membership is by invitation only.');
     // The webhook activates the membership by member_id; a session without one
     // would be paid but never activate anyone. Refuse up front instead.
     if (!body.member_id) return bad('Please log in or create an account first.');

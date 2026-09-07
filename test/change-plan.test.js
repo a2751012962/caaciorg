@@ -56,6 +56,29 @@ test('change-plan: switching to the plan you already have -> 400', async () => {
   }
 });
 
+test('change-plan: an invitation-only tier cannot be switched to', async () => {
+  const fetch = mockFetch(
+    route({
+      tier: { id: 'honorary', price_cents: 0, invite_only: true },
+      member: { id: 'u1', tier_id: 'family', stripe_subscription_id: 'sub_1' },
+    }),
+  );
+  try {
+    const r = await onRequestPost({
+      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'honorary' } }),
+      env: fakeEnv(),
+    });
+    assert.equal(r.status, 400);
+    assert.match((await r.json()).error, /invitation only/);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('api.stripe.com')),
+      false,
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('change-plan: a member with no live subscription falls back to a Checkout Session', async () => {
   const fetch = mockFetch(
     route({

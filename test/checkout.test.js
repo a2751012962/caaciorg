@@ -100,6 +100,26 @@ test('checkout: membership applies the 3.5% card surcharge to unit_amount', asyn
   }
 });
 
+test('checkout: an invitation-only tier cannot be bought', async () => {
+  const fetch = mockFetch(
+    route({ id: 'honorary', name: 'Honorable', price_cents: 0, invite_only: true }),
+  );
+  try {
+    const r = await onRequestPost({
+      request: fakeRequest({ body: { tier_id: 'honorary', member_id: 'u1' } }),
+      env: fakeEnv(),
+    });
+    assert.equal(r.status, 400);
+    assert.match((await r.json()).error, /invitation only/);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('checkout/sessions')),
+      false,
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
 // The webhook activates memberships by metadata.member_id — a session created
 // without one would be paid yet never activate anyone.
 test('checkout: membership without a member_id is refused', async () => {

@@ -1,14 +1,21 @@
 -- Seed data for CAACI. Prices are base annual (USD cents) from the live site.
 -- A ~3.5% card surcharge is added at checkout for credit-card payments.
 
-insert into public.membership_tiers (id, name, price_cents, description, sort_order) values
-  ('student',    'Student Membership',    1000,  '$10 per year for college students.',                    1),
-  ('individual', 'Individual Membership', 3000,  '$30 per year for an individual.',                       2),
-  ('family',     'Family Membership',     6000,  '$60 per year for a household/family.',                  3),
-  ('business',   'Business Membership',   10000, '$100 per year, includes business directory listing.',  4)
+-- Paid tiers all carry the same benefits (annual member meeting with lunch, and
+-- member perks at the Dragon Boat, Mid-Autumn and Spring Festival events);
+-- the Honorable tier is free, Board-invited only, and never sold at checkout.
+insert into public.membership_tiers (id, name, price_cents, description, sort_order, invite_only) values
+  ('student',    'Student Membership',    1000,  '$10 per year for college students 18 and above.',       1, false),
+  ('individual', 'Individual Membership', 3000,  '$30 per year for an individual.',                       2, false),
+  ('family',     'Family Membership',     6000,  '$60 per year for a household/family.',                  3, false),
+  ('business',   'Business Membership',   10000, '$100 per year, includes business directory listing.',  4, false),
+  ('honorary',   'Honorable Membership',  0,
+   'Free membership for major contributions to the community. By invitation of the CAACI Board.',
+   5, true)
 on conflict (id) do update
   set name = excluded.name, price_cents = excluded.price_cents,
-      description = excluded.description, sort_order = excluded.sort_order;
+      description = excluded.description, sort_order = excluded.sort_order,
+      invite_only = excluded.invite_only;
 
 -- Signature annual festivals (the public Events Calendar loads the live list via
 -- the WP REST API, which isn't in the static mirror; seed the recurring ones).

@@ -388,19 +388,27 @@ export async function wireMembershipPage() {
           : tier.highlight
             ? `<span class="badge bg-secondary-lt">${esc(tier.highlight)}</span>`
             : '';
+      // Invitation-only tiers (Honorable) are granted by the Board, not bought:
+      // no Join button, and the price line says "Free" instead of $0 + 3.5%.
       const cta = isCurrent
         ? `<a href="/account/" class="btn w-100">${t('Manage', '管理')}</a>`
-        : `<button type="button" class="btn ${tier.featured ? 'btn-primary' : ''} w-100" data-tier="${tier.id}">${
-            currentTier ? t('Switch to this', '切换到此方案') : t('Join', '加入')
-          }</button>`;
+        : tier.invite_only
+          ? `<div class="text-secondary small">${t('By invitation of the CAACI Board', '由 CAACI 理事会邀请授予')}</div>`
+          : `<button type="button" class="btn ${tier.featured ? 'btn-primary' : ''} w-100" data-tier="${tier.id}">${
+              currentTier ? t('Switch to this', '切换到此方案') : t('Join', '加入')
+            }</button>`;
+      const priceLine = tier.invite_only
+        ? `<div class="display-6 fw-bold my-2">${t('Free', '免费')}</div>
+            <div class="text-secondary small mb-2">${t('Invitation only', '仅限邀请')}</div>`
+        : `<div class="display-6 fw-bold my-2">${usd(withFee(tier.price_cents))}</div>
+            <div class="text-secondary small mb-2">/ ${t('year', '年')} · ${t('base', '基础价')} ${usd(tier.price_cents)} + 3.5%</div>`;
       return `
       <div class="col-sm-6 col-lg-3">
         <div class="card${tier.featured && !isCurrent ? ' card-active' : ''}${isCurrent ? ' border-success' : ''}">
           <div class="card-body text-center">
             <div class="mb-2">${badge}</div>
             <h3 class="card-title mb-1">${esc(name)}</h3>
-            <div class="display-6 fw-bold my-2">${usd(withFee(tier.price_cents))}</div>
-            <div class="text-secondary small mb-2">/ ${t('year', '年')} · ${t('base', '基础价')} ${usd(tier.price_cents)} + 3.5%</div>
+            ${priceLine}
             <p class="text-secondary">${esc(tier.description || '')}</p>
             ${cta}
           </div>
@@ -411,7 +419,7 @@ export async function wireMembershipPage() {
 
   const openFor = (tierId) => {
     const tier = tiers.find((x) => x.id === tierId);
-    if (!tier) return;
+    if (!tier || tier.invite_only) return; // ?tier=honorary must not open checkout
     openCheckout({
       tier,
       user,
