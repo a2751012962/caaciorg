@@ -10,8 +10,8 @@ pages_build_output_dir = "dist"
 # to every browser, so it is safe to commit. (build.mjs also hardcodes these same
 # values as defaults for the browser bundle dist/assets/caaci-config.js.)
 [vars]
-SUPABASE_URL = "https://gczslluaxccbnftvfayn.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjenNsbHVheGNjYm5mdHZmYXluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMTE3NDUsImV4cCI6MjA5NjU4Nzc0NX0.g3O_oBuAEI8Z9aut8I-u9zgkUfe-COhg9uoLdyRTgs8"
+SUPABASE_URL = "https://wslzeqhipvibeflmxznh.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbHplcWhpcHZpYmVmbG14em5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NTA2NDAsImV4cCI6MjEwNDMyNjY0MH0.kQ0LZ-O2jVxnPaW-S9cAIeYFFTgrbb_ddXDJSzfrkXc"
 
 # Secrets are NOT stored here — set them with wrangler (targets production by default):
 #   npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci

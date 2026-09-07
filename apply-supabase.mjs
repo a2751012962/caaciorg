@@ -4,7 +4,8 @@
 // Never prints the token or the keys.
 import { readFile, writeFile, readdir } from 'node:fs/promises';
 
-const REF = 'gczslluaxccbnftvfayn';
+// Target project ref. Override for a different project with SB_REF=<ref>.
+const REF = process.env.SB_REF || 'wslzeqhipvibeflmxznh';
 const TOKEN = process.env.SBP;
 if (!TOKEN) {
   console.error('Missing SBP env (personal access token).');

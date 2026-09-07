@@ -36,9 +36,9 @@ await cp(MIRROR, DIST, { recursive: true });
 // step — so build-time env vars are unavailable there. process.env still overrides
 // when set (local/manual builds, other environments). The SERVICE ROLE key is NOT
 // here and never belongs in the build — it stays a Pages Function secret.
-const SUPABASE_URL_DEFAULT = 'https://gczslluaxccbnftvfayn.supabase.co';
+const SUPABASE_URL_DEFAULT = 'https://wslzeqhipvibeflmxznh.supabase.co';
 const SUPABASE_ANON_KEY_DEFAULT =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjenNsbHVheGNjYm5mdHZmYXluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMTE3NDUsImV4cCI6MjA5NjU4Nzc0NX0.g3O_oBuAEI8Z9aut8I-u9zgkUfe-COhg9uoLdyRTgs8';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbHplcWhpcHZpYmVmbG14em5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NTA2NDAsImV4cCI6MjEwNDMyNjY0MH0.kQ0LZ-O2jVxnPaW-S9cAIeYFFTgrbb_ddXDJSzfrkXc';
 await mkdir(join(DIST, 'assets'), { recursive: true });
 const config = `window.CAACI_CONFIG = ${JSON.stringify(
   {
