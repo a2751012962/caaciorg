@@ -211,19 +211,15 @@ Three things to know before starting:
       webhook 400s on every event and nothing activates after payment.
 - [ ] **Email**: set `RESEND_API_KEY` / `NOTIFY_FROM` / `NOTIFY_TO` secrets so the
       contact + business-listing forms send notifications (they already save to the DB).
-- [ ] **Point the deployment at the new Supabase project** (`wslzeqhipvibeflmxznh`).
-      `wrangler.toml` and `build.mjs` already carry the new URL + anon key, but the
-      **`SUPABASE_SERVICE_ROLE_KEY` Pages secret still holds the OLD project's key**,
-      so every `/api/*` Function would talk to the old database. Set the new one and
-      redeploy — both, together:
-      `     npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci
-    npm run deploy
-    `
+- [x] **Point the deployment at the new Supabase project** (`wslzeqhipvibeflmxznh`) —
+      done on the `caaci-8s2` Pages project: `SUPABASE_SERVICE_ROLE_KEY` is the new
+      project's key and the site is redeployed. If the key is ever rotated, set it
+      again with `npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci`
+      and redeploy, or every `/api/*` Function 401s.
 - [ ] **Security**: revoke the temporary Supabase Personal Access Token
       (dashboard → Account → Access Tokens) now that provisioning is done; rotate the
       Stripe test key and **both** projects' `service_role` keys since they passed
-      through chat. Rotating `service_role` means re-running the `wrangler pages secret
-    put` above and redeploying, or the Functions 401 on every request.
+      through chat (then re-set the Pages secret as above and redeploy).
 - [ ] Any time you change a secret, **redeploy** (`npm run deploy`) — Pages binds env at deploy time.
 
 ## Member pages (`/login-3/`, `/membership/`, `/account/`)
