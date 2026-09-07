@@ -129,6 +129,89 @@ test('login page: signup blocks duplicates and short passwords', async () => {
   assert.equal(location.href, ''); // never redirected
 });
 
+test('membership page: Honorable tier sends a visitor to log in first, then back here', async () => {
+  setup('membership');
+  member.__setSupa(supaStub()); // logged out
+  const fetch = mockFetch(() => ({ body: {} }));
+  try {
+    await member.wireMembershipPage();
+    const card = [...document.querySelectorAll('#caaci-plans-row .card')].find((c) =>
+      /Honorable/.test(c.textContent),
+    );
+    assert.ok(card, 'honorary card renders');
+    assert.match(card.textContent, /Free/);
+    assert.equal(card.querySelector('[data-tier]'), null, 'no checkout button');
+
+    card.querySelector('[data-invite="honorary"]').click();
+    await tick();
+    assert.equal(location.href, '/login-3/?next=%2Fmembership%2F%3Ftier%3Dhonorary');
+    assert.equal(
+      document.querySelector('#caaci-inv-name'),
+      null,
+      'no request form while logged out',
+    );
+    assert.equal(fetch.calls.length, 0, 'nothing posted');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('membership page: a signed-in visitor requests Honorable Membership via /api/contact, never checkout', async () => {
+  // Arriving with ?tier=honorary (the login page sends people back here) opens
+  // the request form directly, prefilled from the account.
+  setup('membership', { search: '?tier=honorary' });
+  const user = { id: 'u1', email: 'ada@example.com' };
+  member.__setSupa(
+    supaStub({ user, memberRow: { id: 'u1', full_name: 'Ada', status: 'pending' } }),
+  );
+  const fetch = mockFetch((u) =>
+    u.includes('/api/contact') ? { body: { ok: true } } : { body: {} },
+  );
+  try {
+    await member.wireMembershipPage();
+    await tick();
+    assert.equal(document.querySelector('#caaci-inv-name').value, 'Ada');
+    assert.equal(document.querySelector('#caaci-inv-email').value, 'ada@example.com');
+    document.querySelector('#caaci-inv-msg').value = 'Ran the festival kitchen for a decade.';
+    document.querySelector('[data-act="send"]').click();
+    await tick();
+
+    const call = fetch.calls.find((c) => c.url.includes('/api/contact'));
+    const body = JSON.parse(call.options.body);
+    assert.equal(body.email, 'ada@example.com');
+    assert.match(body.message, /^\[Honorable Membership request\]/);
+    assert.match(document.querySelector('#caaci-inv-notice').textContent, /Request sent/);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('/api/checkout')),
+      false,
+    );
+    assert.equal(location.href, '', 'no redirect once signed in');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('login page: ?next= sends a non-admin back to that same-site path after sign-in', async () => {
+  setup('login', { search: '?next=%2Fmembership%2F%3Ftier%3Dhonorary' });
+  member.__setSupa(supaStub({ memberRow: { is_admin: false } }));
+  await member.wireAuthPage();
+  document.querySelector('#caaci-li-email').value = 'mei@x.com';
+  document.querySelector('#caaci-li-pwd').value = 'password123';
+  document.querySelector('#caaci-login-form').dispatchEvent(new Event('submit'));
+  await tick();
+  assert.equal(location.href, '/membership/?tier=honorary');
+
+  // An off-site ?next= is ignored — the login page must not be an open redirect.
+  setup('login', { search: '?next=https%3A%2F%2Fevil.example%2F' });
+  member.__setSupa(supaStub({ memberRow: { is_admin: false } }));
+  await member.wireAuthPage();
+  document.querySelector('#caaci-li-email').value = 'mei@x.com';
+  document.querySelector('#caaci-li-pwd').value = 'password123';
+  document.querySelector('#caaci-login-form').dispatchEvent(new Event('submit'));
+  await tick();
+  assert.equal(location.href, '/account/');
+});
+
 test('membership page: plans render with fee-inclusive prices; checkout posts the right body', async () => {
   setup('membership', { search: '?code=spring20' });
   member.__setSupa(supaStub()); // logged out
