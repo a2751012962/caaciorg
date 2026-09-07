@@ -98,6 +98,7 @@ for (const [src, route] of [
   ['login.html', 'login-3'],
   ['membership.html', 'membership'],
   ['account.html', 'account'],
+  ['privacy.html', 'privacy'],
 ]) {
   await mkdir(join(DIST, route), { recursive: true });
   let page = await readFile(join(ROOT, 'member-src', src), 'utf8');
