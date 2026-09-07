@@ -213,6 +213,15 @@ async function wireNav() {
   }
 }
 
+// Where to send someone after they sign in. /login-3/?next=/membership/?tier=…
+// brings a visitor back to what they were doing (e.g. requesting Honorable
+// Membership). Only same-site paths are honoured — anything else would turn
+// the login page into an open redirect.
+function nextPath() {
+  const n = new URLSearchParams(location.search || '').get('next') || '';
+  return n.startsWith('/') && !n.startsWith('//') ? n : null;
+}
+
 // ---------- /login-3/ ----------
 export async function wireAuthPage() {
   const notb = $('#caaci-login-notice');
@@ -220,6 +229,7 @@ export async function wireAuthPage() {
     notice(notb, 'Supabase is not configured.', false);
     return;
   }
+  const next = nextPath();
 
   $('#caaci-login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -236,8 +246,9 @@ export async function wireAuthPage() {
       done();
       return notice(notb, error.message, false);
     }
-    // Admins land in the back-office; everyone else on their account page.
-    let dest = '/account/';
+    // Admins land in the back-office; everyone else where they came from, or
+    // on their account page.
+    let dest = next || '/account/';
     const uid = data?.user?.id;
     if (uid) {
       const { data: me } = await supa
@@ -267,7 +278,7 @@ export async function wireAuthPage() {
     );
   });
 
-  oauthButtons($('#caaci-oauth-host'), location.origin + '/account/');
+  oauthButtons($('#caaci-oauth-host'), location.origin + (next || '/account/'));
 
   const suToggle = $('#caaci-show-signup');
   suToggle.setAttribute('aria-controls', 'caaci-signup-card');
@@ -306,7 +317,7 @@ export async function wireAuthPage() {
           full_name: $('#caaci-su-name').value.trim(),
           phone: $('#caaci-su-phone').value.trim(),
         },
-        emailRedirectTo: location.origin + '/account/',
+        emailRedirectTo: location.origin + (next || '/account/'),
       },
     });
     btn.disabled = false;
@@ -321,7 +332,7 @@ export async function wireAuthPage() {
         false,
       );
     if (data?.session) {
-      location.href = '/account/';
+      location.href = next || '/account/';
       return;
     }
     notice(
@@ -398,11 +409,15 @@ export async function wireMembershipPage() {
             ? `<span class="badge bg-secondary-lt">${esc(tier.highlight)}</span>`
             : '';
       // Invitation-only tiers (Honorable) are granted by the Board, not bought:
-      // no Join button, and the price line says "Free" instead of $0 + 3.5%.
+      // the button asks for an invitation instead of opening checkout, and the
+      // price line says "Free" instead of $0 + 3.5%.
       const cta = isCurrent
         ? `<a href="/account/" class="btn w-100">${t('Manage', '管理')}</a>`
         : tier.invite_only
-          ? `<div class="text-secondary small">${t('By invitation of the CAACI Board', '由 CAACI 理事会邀请授予')}</div>`
+          ? `<div class="text-secondary small mb-2">${t('By invitation of the CAACI Board', '由 CAACI 理事会邀请授予')}</div>
+             <button type="button" class="btn w-100" data-invite="${tier.id}">${
+               user ? t('Request an invitation', '申请邀请') : t('Log in to request', '登录后申请')
+             }</button>`
           : free && onPaidPlan
             ? `<a href="/account/" class="btn w-100">${t('Cancel your paid plan first', '请先取消付费方案')}</a>`
             : `<button type="button" class="btn ${tier.featured ? 'btn-primary' : ''} w-100" data-tier="${tier.id}">${
@@ -435,9 +450,20 @@ export async function wireMembershipPage() {
     })
     .join('');
 
+  // Honorable Membership is granted to an account by the Board, so a visitor
+  // has to have one first: send them through login/signup and come straight
+  // back here (?tier=honorary), where the request form opens for them.
+  const requestInvite = (tier) => {
+    if (!user) {
+      location.href = `/login-3/?next=${encodeURIComponent(`/membership/?tier=${tier.id}`)}`;
+      return;
+    }
+    openInviteRequest({ tier, user, member });
+  };
   const openFor = (tierId) => {
     const tier = tiers.find((x) => x.id === tierId);
-    if (!tier || tier.invite_only) return; // ?tier=honorary must not open checkout
+    if (!tier) return;
+    if (tier.invite_only) return requestInvite(tier); // never the checkout modal
     openCheckout({
       tier,
       user,
@@ -447,12 +473,101 @@ export async function wireMembershipPage() {
       notb,
     });
   };
-  for (const b of row.querySelectorAll('[data-tier]'))
-    b.addEventListener('click', () => openFor(b.dataset.tier));
+  for (const b of row.querySelectorAll('[data-tier], [data-invite]'))
+    b.addEventListener('click', () => openFor(b.dataset.tier || b.dataset.invite));
 
   // /register/<tier>/ redirect stubs land here with ?tier=<id> — open directly.
   const preTier = new URLSearchParams(location.search || '').get('tier');
   if (preTier && preTier !== currentTier) openFor(preTier);
+}
+
+// ---------- invitation request (Honorable Membership) ----------
+// Nothing is bought or activated here. The request goes through /api/contact,
+// so it lands in form_submissions and emails the Board like any other message;
+// staff then grant the tier from the admin panel.
+export function openInviteRequest({ tier, user, member }) {
+  const host = $('#caaci-checkout-host');
+  const name = lang === 'zh' ? tier.name_zh || tier.name : tier.name;
+  host.innerHTML = `
+    <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" style="background: rgba(24, 36, 51, 0.45)">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">${t('Request an invitation', '申请邀请')} · ${esc(name)}</h5>
+            <button type="button" class="btn-close" data-act="close" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-secondary">${t(
+              'Honorable Membership is granted by the CAACI Board for major contributions to the community. Tell us a little about yourself and the Board will follow up.',
+              '荣誉会员由 CAACI 理事会授予对社区有重大贡献的人士。请简单介绍一下您自己，理事会会与您联系。',
+            )}</p>
+            <div class="mb-3">
+              <label class="form-label" for="caaci-inv-name">${t('Full name', '姓名')}</label>
+              <input type="text" id="caaci-inv-name" class="form-control" autocomplete="name">
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="caaci-inv-email">${t('Email address', '邮箱地址')}</label>
+              <input type="email" id="caaci-inv-email" class="form-control" autocomplete="email">
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="caaci-inv-msg">${t('Your contributions to the community', '您对社区的贡献')}</label>
+              <textarea id="caaci-inv-msg" class="form-control" rows="4"></textarea>
+            </div>
+            <button type="button" class="btn btn-primary w-100" data-act="send">${t('Send request', '发送申请')}</button>
+            <p class="alert mt-3 mb-0" id="caaci-inv-notice" hidden></p>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  const modal = host.firstElementChild;
+  const nameEl = $('#caaci-inv-name', host);
+  const emailEl = $('#caaci-inv-email', host);
+  const msgEl = $('#caaci-inv-msg', host);
+  const note = $('#caaci-inv-notice', host);
+  const send = modal.querySelector('[data-act="send"]');
+  if (member?.full_name) nameEl.value = member.full_name;
+  if (user?.email) emailEl.value = user.email;
+
+  const close = () => {
+    host.innerHTML = '';
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') close();
+  };
+  document.addEventListener('keydown', onKey);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) close();
+  });
+  modal.querySelector('[data-act="close"]').addEventListener('click', close);
+
+  send.addEventListener('click', async () => {
+    const fullName = nameEl.value.trim();
+    const email = emailEl.value.trim();
+    const why = msgEl.value.trim();
+    if (!fullName || !email || !why)
+      return notice(note, t('Please fill in all three fields.', '请填写全部三项。'), false);
+    send.disabled = true;
+    const { ok, data } = await api('/api/contact', {
+      name: fullName,
+      email,
+      message: `[Honorable Membership request]\n\n${why}`,
+    });
+    send.disabled = false;
+    if (!ok)
+      return notice(
+        note,
+        data.error || t('Could not send. Please try again.', '发送失败，请重试。'),
+        false,
+      );
+    send.hidden = true;
+    notice(
+      note,
+      t('Request sent — the Board will be in touch.', '申请已发送——理事会会与您联系。'),
+      true,
+    );
+  });
 }
 
 // ---------- checkout modal (Tabler) ----------
