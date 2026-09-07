@@ -1,0 +1,37 @@
+# Line endings
+# ------------
+# The repository already stores every text file with LF — `git ls-files --eol`
+# reports i/lf for all 238 of them — but core.autocrlf=true on Windows checks
+# them out as CRLF. Prettier's endOfLine default is "lf", so `npm run
+# format:check` flags essentially every file on a Windows clone while the same
+# command passes in CI on Linux. Pinning eol=lf makes the working tree match the
+# index on every platform, so the local and CI results agree.
+#
+# This does not rewrite history or produce a normalisation diff: the index is
+# already LF, so only the working tree changes on the next checkout.
+* text=auto eol=lf
+
+# Binary assets — never normalised, never diffed as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.pdf binary
+*.zip binary
+*.mp4 binary
+
+# mirror/ is a byte-for-byte capture of the live caaciorg.com and must never be
+# rewritten — the whole point of that tree is that the served bytes match the
+# original site. mirror/zh/events/index.html genuinely contains mixed line
+# endings, and normalising it would change bytes the mirror exists to preserve.
+#
+# Last matching pattern wins in gitattributes, so this block stays at the bottom
+# to override the `* text=auto eol=lf` rule above for everything under mirror/.
+mirror/** -text
