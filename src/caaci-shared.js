@@ -26,6 +26,15 @@ export const CARD_SURCHARGE = 0.035;
 // checkout summary always render. Keep ids/prices in sync with the seed.
 export const TIERS_FALLBACK = [
   {
+    id: 'free',
+    name: 'Free Membership',
+    name_zh: '免费会员',
+    price_cents: 0,
+    description:
+      'Community updates and event announcements — no payment needed. Upgrade any time for festival perks.',
+    highlight: 'Free',
+  },
+  {
     id: 'student',
     name: 'Student Membership',
     name_zh: '学生会员',
@@ -69,6 +78,11 @@ export const TIERS_FALLBACK = [
   },
 ];
 
+// The self-serve $0 tier: anyone can join it, nothing goes through Stripe, and
+// it never expires. (Honorable is also $0 but invite_only — that one is granted
+// by the Board, so it is deliberately NOT a "free tier" here.)
+export const isFreeTier = (tier) => !!tier && !tier.invite_only && !(tier.price_cents > 0);
+
 export const usd = (cents) => `$${(cents / 100).toFixed(2)}`;
 export const withFee = (cents) => Math.round(cents * (1 + CARD_SURCHARGE)); // total charged on card
 
@@ -97,8 +111,9 @@ export function mergeTiers(rows) {
       else base.push({ ...row, highlight: '' });
     }
   }
-  // Paid tiers cheapest first; invitation-only tiers after them, so the free
-  // Honorable tier doesn't lead the page as if it were the entry plan.
+  // Cheapest first (so the self-serve free tier leads as the entry plan), with
+  // invitation-only tiers after everything else, so the free Honorable tier
+  // doesn't read as a plan you can pick.
   return base.sort(
     (a, b) => Number(!!a.invite_only) - Number(!!b.invite_only) || a.price_cents - b.price_cents,
   );

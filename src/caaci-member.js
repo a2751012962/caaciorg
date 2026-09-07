@@ -6,7 +6,7 @@
 // routes; the behavioral contracts are identical — same API bodies, the same
 // 3.5% fee math, the same duplicate-email guard — only the markup is Tabler.
 // The Supabase client comes from the self-hosted UMD bundle (assets/supabase.js).
-import { esc, usd, withFee, STATUS_LABEL, mergeTiers } from './caaci-shared.js';
+import { esc, usd, withFee, STATUS_LABEL, mergeTiers, isFreeTier } from './caaci-shared.js';
 
 const cfg = window.CAACI_CONFIG || {};
 const sbLib = window.supabase;
@@ -374,12 +374,21 @@ export async function wireMembershipPage() {
       : `<div class="alert alert-success"><b>${esc(discount.code)}</b> — ${discount.percent_off}% ${t('off your first year', '首年折扣')}</div>`;
   }
 
+  // A paid member with a live plan can't self-downgrade to the free tier from
+  // here (Stripe would keep billing them) — they cancel in the billing portal
+  // first, so the free card points them there instead of offering a switch.
+  const onPaidPlan =
+    !!currentTier &&
+    member?.status === 'active' &&
+    !isFreeTier(tiers.find((x) => x.id === currentTier));
+
   // Pricing cards
   const row = $('#caaci-plans-row');
   row.removeAttribute('aria-busy'); // clears the placeholder cards' busy state
   row.innerHTML = tiers
     .map((tier) => {
       const isCurrent = tier.id === currentTier;
+      const free = isFreeTier(tier);
       const name = lang === 'zh' ? tier.name_zh || tier.name : tier.name;
       const badge = isCurrent
         ? `<span class="badge bg-success-lt">${t('Current plan', '当前方案')}</span>`
@@ -394,16 +403,25 @@ export async function wireMembershipPage() {
         ? `<a href="/account/" class="btn w-100">${t('Manage', '管理')}</a>`
         : tier.invite_only
           ? `<div class="text-secondary small">${t('By invitation of the CAACI Board', '由 CAACI 理事会邀请授予')}</div>`
-          : `<button type="button" class="btn ${tier.featured ? 'btn-primary' : ''} w-100" data-tier="${tier.id}">${
-              currentTier ? t('Switch to this', '切换到此方案') : t('Join', '加入')
-            }</button>`;
+          : free && onPaidPlan
+            ? `<a href="/account/" class="btn w-100">${t('Cancel your paid plan first', '请先取消付费方案')}</a>`
+            : `<button type="button" class="btn ${tier.featured ? 'btn-primary' : ''} w-100" data-tier="${tier.id}">${
+                free
+                  ? t('Join for free', '免费加入')
+                  : currentTier
+                    ? t('Switch to this', '切换到此方案')
+                    : t('Join', '加入')
+              }</button>`;
       const priceLine = tier.invite_only
         ? `<div class="display-6 fw-bold my-2">${t('Free', '免费')}</div>
             <div class="text-secondary small mb-2">${t('Invitation only', '仅限邀请')}</div>`
-        : `<div class="display-6 fw-bold my-2">${usd(withFee(tier.price_cents))}</div>
+        : free
+          ? `<div class="display-6 fw-bold my-2">${t('Free', '免费')}</div>
+            <div class="text-secondary small mb-2">${t('No card needed · no festival perks', '无需付款 · 不含节日福利')}</div>`
+          : `<div class="display-6 fw-bold my-2">${usd(withFee(tier.price_cents))}</div>
             <div class="text-secondary small mb-2">/ ${t('year', '年')} · ${t('base', '基础价')} ${usd(tier.price_cents)} + 3.5%</div>`;
       return `
-      <div class="col-sm-6 col-lg-3">
+      <div class="col-sm-6 col-lg-4">
         <div class="card${tier.featured && !isCurrent ? ' card-active' : ''}${isCurrent ? ' border-success' : ''}">
           <div class="card-body text-center">
             <div class="mb-2">${badge}</div>
@@ -440,14 +458,23 @@ export async function wireMembershipPage() {
 // ---------- checkout modal (Tabler) ----------
 // Same contract as the old overlay: nothing is charged here — card entry
 // happens on Stripe. POSTs /api/checkout or /api/change-plan.
-export function openCheckout({ tier, user, member, discount, notb }) {
+export function openCheckout({ tier, user, member, discount, notb, allTiers = [] }) {
   const host = $('#caaci-checkout-host');
+  const free = isFreeTier(tier);
+  // Free → paid is a first purchase (there is no subscription to re-price), so
+  // it takes the fresh-checkout path even though the member is "active".
   const isSwitch = !!(
     user &&
     member?.status === 'active' &&
     member.tier_id &&
-    member.tier_id !== tier.id
+    member.tier_id !== tier.id &&
+    !isFreeTier(allTiers.find((x) => x.id === member.tier_id))
   );
+  const payLabel = free
+    ? t('Join for free', '免费加入')
+    : isSwitch
+      ? t('Confirm change', '确认更改')
+      : t('Continue to payment', '前往支付');
   const loggedIn = !!user;
   let authMode = 'signup';
   let applied = discount || null;
@@ -548,6 +575,20 @@ export function openCheckout({ tier, user, member, discount, notb }) {
 
   // Order summary + pay button (+ discount entry on fresh checkouts)
   function renderSummary() {
+    if (free) {
+      $('#caaci-co-summary', host).innerHTML = `
+        <h4 class="mb-3">${esc(name)}</h4>
+        <div class="d-flex justify-content-between text-secondary mb-1"><span>${t('Annual membership', '年度会费')}</span><span>${t('Free', '免费')}</span></div>
+        <hr class="my-2">
+        <div class="d-flex justify-content-between"><b>${t('Total today', '今日合计')}</b><b>${t('Free', '免费')}</b></div>
+        <div class="text-secondary small mt-2">${t(
+          'No payment needed and nothing expires. Upgrade to a paid plan any time for the annual meeting and festival perks.',
+          '无需付款，永不过期。可随时升级为付费会员，享受会员大会和节日福利。',
+        )}</div>
+        <button type="button" class="btn btn-primary w-100 mt-3" id="caaci-pay">${payLabel}</button>`;
+      $('#caaci-pay', host).addEventListener('click', pay);
+      return;
+    }
     const total = withFee(tier.price_cents);
     const fee = total - tier.price_cents;
     // Discounts apply to the fee-inclusive subtotal — that's what Stripe discounts.
@@ -578,9 +619,7 @@ export function openCheckout({ tier, user, member, discount, notb }) {
             <div class="small mt-1" id="caaci-code-msg"></div>`
           : ''
       }
-      <button type="button" class="btn btn-primary w-100 mt-3" id="caaci-pay">
-        ${isSwitch ? t('Confirm change', '确认更改') : t('Continue to payment', '前往支付')}
-      </button>
+      <button type="button" class="btn btn-primary w-100 mt-3" id="caaci-pay">${payLabel}</button>
       <div class="text-secondary small text-center mt-2">${t('Secure payment via Stripe', '通过 Stripe 安全支付')}</div>`;
 
     if (!isSwitch) {
@@ -611,9 +650,7 @@ export function openCheckout({ tier, user, member, discount, notb }) {
     btn.textContent = t('Redirecting…', '跳转中…');
     const fail = (m) => {
       btn.disabled = false;
-      btn.textContent = isSwitch
-        ? t('Confirm change', '确认更改')
-        : t('Continue to payment', '前往支付');
+      btn.textContent = payLabel;
       notice(msg, m, false);
     };
 
@@ -668,6 +705,11 @@ export function openCheckout({ tier, user, member, discount, notb }) {
     const { ok, data } = await api('/api/checkout', body);
     if (ok && data.url) {
       location.href = data.url;
+      return;
+    }
+    // Free tier: activated server-side with no Stripe hop — straight to the account.
+    if (ok && data.activated) {
+      location.href = '/account/';
       return;
     }
     fail(data.error || t('Checkout failed — please try again.', '结账失败，请重试。'));
@@ -902,10 +944,23 @@ export async function wireAccountPage() {
         <div class="datagrid-item"><div class="datagrid-title">${t('Plan', '方案')}</div><div class="datagrid-content">${esc(tierName)}</div></div>
         <div class="datagrid-item"><div class="datagrid-title">${t('Status', '状态')}</div>
           <div class="datagrid-content"><span class="badge ${stBadge[member.status] || 'bg-secondary-lt'}">${esc(STATUS_LABEL[member.status] || member.status || '—')}</span></div></div>
-        <div class="datagrid-item"><div class="datagrid-title">${t('Price', '价格')}</div><div class="datagrid-content">${usd(withFee(tier.price_cents))}/${t('yr', '年')} <span class="text-secondary">(${t('incl. 3.5% card fee', '含 3.5% 手续费')})</span></div></div>
-        <div class="datagrid-item"><div class="datagrid-title">${member.status === 'active' ? t('Renews', '续费日期') : t('Expires', '到期日期')}</div>
-          <div class="datagrid-content">${member.expires_at ? new Date(member.expires_at).toLocaleDateString() : '—'}</div></div>
+        <div class="datagrid-item"><div class="datagrid-title">${t('Price', '价格')}</div><div class="datagrid-content">${
+          isFreeTier(tier)
+            ? t('Free', '免费')
+            : `${usd(withFee(tier.price_cents))}/${t('yr', '年')} <span class="text-secondary">(${t('incl. 3.5% card fee', '含 3.5% 手续费')})</span>`
+        }</div></div>
+        ${
+          isFreeTier(tier)
+            ? ''
+            : `<div class="datagrid-item"><div class="datagrid-title">${member.status === 'active' ? t('Renews', '续费日期') : t('Expires', '到期日期')}</div>
+          <div class="datagrid-content">${member.expires_at ? new Date(member.expires_at).toLocaleDateString() : '—'}</div></div>`
+        }
       </div>
+      ${
+        isFreeTier(tier)
+          ? `<div class="text-secondary small mt-3">${t('Free membership never expires. Upgrade any time for the annual meeting and festival perks.', '免费会员永不过期。可随时升级，享受会员大会和节日福利。')}</div>`
+          : ''
+      }
       ${
         member.status === 'past_due'
           ? `<div class="alert alert-danger mt-3 mb-0">${t('Your last payment failed — update your card in Manage billing or your membership will expire.', '上次扣款失败——请在“管理账单”中更新银行卡，否则会员将过期。')}</div>`
@@ -933,8 +988,14 @@ export async function wireAccountPage() {
             ${
               tier
                 ? `<div class="card-actions btn-list">
-                    <a href="/membership/" class="btn btn-sm">${t('Change plan', '更改方案')}</a>
-                    <button type="button" class="btn btn-sm btn-primary" id="caaci-billing">${t('Manage billing', '管理账单')}</button>
+                    <a href="/membership/" class="btn btn-sm${isFreeTier(tier) ? ' btn-primary' : ''}">${isFreeTier(tier) ? t('Upgrade', '升级') : t('Change plan', '更改方案')}</a>
+                    ${
+                      // The Stripe portal needs a customer — a free member who
+                      // has never paid has nothing to manage there.
+                      member.stripe_customer_id
+                        ? `<button type="button" class="btn btn-sm btn-primary" id="caaci-billing">${t('Manage billing', '管理账单')}</button>`
+                        : ''
+                    }
                   </div>`
                 : ''
             }

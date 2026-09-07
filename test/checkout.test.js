@@ -120,6 +120,64 @@ test('checkout: an invitation-only tier cannot be bought', async () => {
   }
 });
 
+const FREE = { id: 'free', name: 'Free Membership', price_cents: 0, invite_only: false };
+
+test('checkout: the free tier is activated directly — no Stripe session, no expiry', async () => {
+  const fetch = mockFetch(route(FREE));
+  try {
+    const r = await onRequestPost({
+      request: fakeRequest({ body: { tier_id: 'free', member_id: 'u1', email: 'm@x.com' } }),
+      env: fakeEnv(),
+    });
+    const data = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(data));
+    assert.deepEqual(data, { ok: true, activated: true, tier_id: 'free' });
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('api.stripe.com')),
+      false,
+      'Stripe never called',
+    );
+    const patch = fetch.calls.find(
+      (c) => c.url.includes('/rest/v1/members') && c.options.method === 'PATCH',
+    );
+    assert.match(patch.url, /id=eq\.u1/);
+    const row = JSON.parse(patch.options.body);
+    assert.equal(row.tier_id, 'free');
+    assert.equal(row.status, 'active');
+    assert.equal(row.expires_at, null);
+    assert.equal(row.stripe_subscription_id, null);
+    assert.ok(row.member_since);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('checkout: the free tier is refused while a paid subscription is live', async () => {
+  const fetch = mockFetch((url, options = {}) => {
+    if (url.includes('membership_tiers')) return { body: [FREE] };
+    if (url.includes('/rest/v1/members') && options.method !== 'PATCH')
+      return {
+        body: [{ id: 'u1', tier_id: 'family', status: 'active', stripe_subscription_id: 'sub_1' }],
+      };
+    return { body: [] };
+  });
+  try {
+    const r = await onRequestPost({
+      request: fakeRequest({ body: { tier_id: 'free', member_id: 'u1' } }),
+      env: fakeEnv(),
+    });
+    assert.equal(r.status, 409);
+    assert.match((await r.json()).error, /cancel it from Manage billing/);
+    assert.equal(
+      fetch.calls.some((c) => c.options.method === 'PATCH'),
+      false,
+      'member row untouched',
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
 // The webhook activates memberships by metadata.member_id — a session created
 // without one would be paid yet never activate anyone.
 test('checkout: membership without a member_id is refused', async () => {

@@ -4,7 +4,12 @@
 -- Paid tiers all carry the same benefits (annual member meeting with lunch, and
 -- member perks at the Dragon Boat, Mid-Autumn and Spring Festival events);
 -- the Honorable tier is free, Board-invited only, and never sold at checkout.
+-- The Free tier is self-serve: /api/checkout activates it directly (no Stripe,
+-- no expiry) and it carries none of the festival perks.
 insert into public.membership_tiers (id, name, price_cents, description, sort_order, invite_only) values
+  ('free',       'Free Membership',       0,
+   'Community updates and event announcements — no payment needed. Upgrade any time for festival perks.',
+   0, false),
   ('student',    'Student Membership',    1000,  '$10 per year for college students 18 and above.',       1, false),
   ('individual', 'Individual Membership', 3000,  '$30 per year for an individual.',                       2, false),
   ('family',     'Family Membership',     6000,  '$60 per year for a household/family.',                  3, false),

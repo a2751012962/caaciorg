@@ -1,7 +1,7 @@
 // POST /api/checkout
 // Creates a Stripe Checkout Session for either a membership or a donation,
 // and returns { url } for the client to redirect to.
-import { json, bad, sb, stripe, tierPrice } from './_lib.js';
+import { json, bad, sb, stripe, tierPrice, isFreeTier, activateFreeTier } from './_lib.js';
 import { lookupDiscount } from './discount.js';
 
 export async function onRequestPost({ request, env }) {
@@ -59,6 +59,15 @@ export async function onRequestPost({ request, env }) {
     // The webhook activates the membership by member_id; a session without one
     // would be paid but never activate anyone. Refuse up front instead.
     if (!body.member_id) return bad('Please log in or create an account first.');
+
+    // The self-serve free tier has nothing to charge, so it is activated right
+    // here instead of round-tripping through Stripe. The client redirects to
+    // /account/ on { activated: true }.
+    if (isFreeTier(tier)) {
+      const r = await activateFreeTier(DB, body.member_id, tier);
+      if (r.error) return bad(r.error, 409);
+      return json({ ok: true, activated: true, tier_id: tier.id });
+    }
 
     // Optional discount code — re-validated here (not just in the UI) so an
     // expired/exhausted code can't slip through between "apply" and "pay".

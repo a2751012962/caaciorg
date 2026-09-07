@@ -129,6 +129,110 @@ test('login page: signup blocks duplicates and short passwords', async () => {
   assert.equal(location.href, ''); // never redirected
 });
 
+test('membership page: the free tier joins without Stripe and lands on /account/', async () => {
+  setup('membership');
+  member.__setSupa(supaStub()); // logged out
+  const fetch = mockFetch((u) =>
+    u.includes('/api/checkout') ? { body: { ok: true, activated: true, tier_id: 'free' } } : {},
+  );
+  try {
+    await member.wireMembershipPage();
+    const card = document.querySelector('[data-tier="free"]').closest('.card');
+    assert.match(card.textContent, /Free/);
+    assert.doesNotMatch(card.textContent, /3\.5%/, 'no fee line on the free card');
+    assert.match(card.querySelector('[data-tier="free"]').textContent, /Join for free/);
+
+    card.querySelector('[data-tier="free"]').click();
+    await tick();
+    const summary = document.querySelector('#caaci-co-summary').textContent;
+    assert.match(summary, /Free/);
+    assert.doesNotMatch(summary, /\$/, 'no dollar amounts');
+    assert.equal(document.querySelector('#caaci-code'), null, 'no discount-code box');
+
+    document.querySelector('#caaci-email').value = 'new@x.com';
+    document.querySelector('#caaci-pwd').value = 'longenough1';
+    document.querySelector('#caaci-pay').click();
+    await tick();
+    const call = fetch.calls.find((c) => c.url.includes('/api/checkout'));
+    assert.deepEqual(JSON.parse(call.options.body), {
+      type: 'membership',
+      tier_id: 'free',
+      email: 'new@x.com',
+      member_id: 'u-new',
+    });
+    assert.equal(location.href, '/account/'); // no Stripe redirect
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('membership page: a live paid member is sent to billing instead of switching to free; a free member upgrades via fresh checkout', async () => {
+  // Paid + active → the free card has no switch button, just a link to /account/.
+  setup('membership');
+  const user = { id: 'u1', email: 'mei@x.com' };
+  member.__setSupa(
+    supaStub({ user, memberRow: { id: 'u1', tier_id: 'family', status: 'active' } }),
+  );
+  await member.wireMembershipPage();
+  assert.equal(document.querySelector('[data-tier="free"]'), null);
+  const freeCard = [...document.querySelectorAll('#caaci-plans-row .card')].find((c) =>
+    /Free Membership/.test(c.textContent),
+  );
+  assert.ok(freeCard.querySelector('a[href="/account/"]'));
+  assert.match(freeCard.textContent, /Cancel your paid plan first/);
+
+  // Free + active → picking a paid tier is a first purchase (/api/checkout), not a plan change.
+  setup('membership');
+  member.__setSupa(supaStub({ user, memberRow: { id: 'u1', tier_id: 'free', status: 'active' } }));
+  const fetch = mockFetch((u) =>
+    u.includes('/api/checkout') ? { body: { url: 'https://stripe.test/session' } } : {},
+  );
+  try {
+    await member.wireMembershipPage();
+    document.querySelector('[data-tier="individual"]').click();
+    await tick();
+    assert.match(document.querySelector('#caaci-co-title').textContent, /confirm your membership/i);
+    document.querySelector('#caaci-pay').click();
+    await tick();
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('/api/change-plan')),
+      false,
+    );
+    const call = fetch.calls.find((c) => c.url.includes('/api/checkout'));
+    assert.equal(JSON.parse(call.options.body).tier_id, 'individual');
+    assert.equal(location.href, 'https://stripe.test/session');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('account page: a free member sees Free, an Upgrade link, and no billing portal button', async () => {
+  setup('account');
+  const user = { id: 'u1', email: 'mei@x.com' };
+  member.__setSupa(
+    supaStub({
+      user,
+      memberRow: { id: 'u1', full_name: 'Mei Lin', tier_id: 'free', status: 'active' },
+    }),
+  );
+  globalThis.window.qrcode = () => ({
+    addData() {},
+    make() {},
+    createDataURL: () => 'data:image/gif;base64,R0lGOD',
+  });
+  const fetch = mockFetch(() => ({ status: 503, body: {} }));
+  try {
+    await member.wireAccountPage();
+    const host = document.querySelector('#caaci-account-host');
+    assert.match(host.textContent, /Free Membership/);
+    assert.doesNotMatch(host.textContent, /3\.5% card fee/);
+    assert.equal(document.querySelector('#caaci-billing'), null, 'no Stripe portal button');
+    assert.match(host.querySelector('a[href="/membership/"]').textContent, /Upgrade/);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('membership page: plans render with fee-inclusive prices; checkout posts the right body', async () => {
   setup('membership', { search: '?code=spring20' });
   member.__setSupa(supaStub()); // logged out

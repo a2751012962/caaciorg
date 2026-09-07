@@ -278,6 +278,33 @@ export async function tierPrice(S, tier) {
   };
 }
 
+// The self-serve $0 tier — mirrors isFreeTier in src/caaci-shared.js. Honorable
+// is also $0 but invite_only, and is refused by checkout/change-plan before this.
+export const isFreeTier = (tier) => !!tier && !tier.invite_only && !(tier.price_cents > 0);
+
+// Put a member on the free tier without Stripe: active, no expiry, no
+// subscription. Refused while a paid subscription is still live — Stripe would
+// keep billing someone the site shows as free — so those cancel in the billing
+// portal first (the webhook then marks them cancelled and they can join free).
+// `member` may be passed in when the caller already has the row.
+export async function activateFreeTier(DB, memberId, tier, member = null) {
+  const m = member || (await DB.selectOne('members', { id: memberId }));
+  if (m?.stripe_subscription_id && ['active', 'past_due'].includes(m.status))
+    return { error: 'You already have a paid membership — cancel it from Manage billing first.' };
+  await DB.update(
+    'members',
+    { id: memberId },
+    {
+      tier_id: tier.id,
+      status: 'active',
+      member_since: m?.member_since || new Date().toISOString(),
+      expires_at: null,
+      stripe_subscription_id: null,
+    },
+  );
+  return { ok: true };
+}
+
 // Send a notification email (Resend by default; falls back to no-op if unset).
 export async function sendEmail(env, { subject, html, replyTo }) {
   if (!env.RESEND_API_KEY || !env.NOTIFY_FROM || !env.NOTIFY_TO) return; // not configured

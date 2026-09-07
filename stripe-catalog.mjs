@@ -153,9 +153,7 @@ export async function main(argv = process.argv.slice(2), rawEnv = process.env) {
       recurring: { interval: 'year' },
       lookup_key: key,
       transfer_lookup_key: true,
-      nickname: plan.want
-        ? `${tier.name} (incl. 3.5% card fee)`
-        : `${tier.name} (free, by invitation)`,
+      nickname: plan.want ? `${tier.name} (incl. 3.5% card fee)` : `${tier.name} (free)`,
       metadata: { tier_id: tier.id, base_cents: tier.price_cents },
     });
     if (existing) await S.post(`prices/${existing.id}`, { active: false });

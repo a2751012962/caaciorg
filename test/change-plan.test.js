@@ -79,6 +79,69 @@ test('change-plan: an invitation-only tier cannot be switched to', async () => {
   }
 });
 
+const FREE = { id: 'free', name: 'Free Membership', price_cents: 0, invite_only: false };
+
+test('change-plan: a live paid subscription cannot self-downgrade to free', async () => {
+  const fetch = mockFetch(
+    route({
+      tier: FREE,
+      member: { id: 'u1', tier_id: 'family', status: 'active', stripe_subscription_id: 'sub_1' },
+    }),
+  );
+  try {
+    const r = await onRequestPost({
+      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'free' } }),
+      env: fakeEnv(),
+    });
+    assert.equal(r.status, 409);
+    assert.match((await r.json()).error, /cancel your paid plan/);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('api.stripe.com') || c.options.method === 'PATCH'),
+      false,
+      'neither Stripe nor the member row is touched',
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('change-plan: an expired paid member moves to free without Stripe', async () => {
+  const fetch = mockFetch(
+    route({
+      tier: FREE,
+      member: {
+        id: 'u1',
+        tier_id: 'family',
+        status: 'expired',
+        stripe_subscription_id: 'sub_old',
+        member_since: '2024-01-01T00:00:00.000Z',
+      },
+    }),
+  );
+  try {
+    const r = await onRequestPost({
+      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'free' } }),
+      env: fakeEnv(),
+    });
+    const data = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(data));
+    assert.deepEqual(data, { ok: true, tier_id: 'free' });
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('api.stripe.com')),
+      false,
+    );
+    const patch = fetch.calls.find((c) => c.options.method === 'PATCH');
+    const row = JSON.parse(patch.options.body);
+    assert.equal(row.tier_id, 'free');
+    assert.equal(row.status, 'active');
+    assert.equal(row.expires_at, null);
+    assert.equal(row.stripe_subscription_id, null);
+    assert.equal(row.member_since, '2024-01-01T00:00:00.000Z'); // original join date kept
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('change-plan: a member with no live subscription falls back to a Checkout Session', async () => {
   const fetch = mockFetch(
     route({

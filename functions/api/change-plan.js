@@ -4,7 +4,7 @@
 // members row. If the member has no live subscription yet, it falls back to a
 // normal Checkout Session and returns { url } — so the client handles both the
 // same way.
-import { json, bad, sb, stripe, tierPrice } from './_lib.js';
+import { json, bad, sb, stripe, tierPrice, isFreeTier, activateFreeTier } from './_lib.js';
 
 export async function onRequestPost({ request, env }) {
   let body;
@@ -26,6 +26,20 @@ export async function onRequestPost({ request, env }) {
     const member = await DB.selectOne('members', { id: body.member_id });
     if (!member) return bad('Member not found.');
     if (member.tier_id === tier.id) return bad('You are already on this plan.');
+
+    // Moving to the free tier is not a Stripe price swap. A member whose paid
+    // subscription is still live must cancel it in the billing portal first
+    // (the webhook then marks them cancelled and they can join free); anyone
+    // else — expired, cancelled, or never paid — is simply activated on it.
+    if (isFreeTier(tier)) {
+      const r = await activateFreeTier(DB, member.id, tier, member);
+      if (r.error)
+        return bad(
+          'To move to the free membership, cancel your paid plan from Manage billing first.',
+          409,
+        );
+      return json({ ok: true, tier_id: tier.id });
+    }
 
     // No live subscription → behave like a first purchase (fresh Checkout Session).
     if (!member.stripe_subscription_id) {

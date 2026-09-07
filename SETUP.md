@@ -250,7 +250,11 @@ return URL keeps working:
 - **`/membership/`** — the plan grid (live `membership_tiers` merged over the
   built-in fallback), `?code=` discount validation, and the checkout dialog:
   fresh joins POST `/api/checkout` (Stripe Checkout), active members switching
-  plans POST `/api/change-plan` (in-place proration). `/register/<tier>/` pages
+  plans POST `/api/change-plan` (in-place proration). The self-serve **Free**
+  tier (`free`, $0, no festival perks) skips Stripe entirely: `/api/checkout`
+  activates it directly (`{ activated: true }`, no expiry) and the page lands on
+  `/account/`; a member with a live paid subscription must cancel it in the
+  billing portal before moving to free. `/register/<tier>/` pages
   and the `/zh/` copies now redirect here (`?tier=` pre-opens the dialog,
   `?lang=zh` preselects Chinese).
 - **`/account/`** — profile, subscription status, Stripe billing portal
