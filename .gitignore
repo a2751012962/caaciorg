@@ -5,3 +5,8 @@ node_modules/
 .wrangler/
 *.log
 .DS_Store
+
+# Supabase CLI scratch — the linked project ref and pooler settings it caches
+# after `supabase link`. Machine-local, and it names whichever project that
+# machine happens to be pointed at, so it must never be committed.
+supabase/.temp/
