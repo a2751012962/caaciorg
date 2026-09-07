@@ -1,7 +1,7 @@
 // build.mjs — assemble the Cloudflare Pages deploy directory (./dist)
 //   1. copy the pristine mirror/  ->  dist/
-//   2. add the enhancement client (caaci-app.js) + public runtime config
-//   3. inject both scripts before </body> on every HTML page
+//   2. add the enhancement client (caaci-app.js) + its stylesheet
+//   3. inject them before </body> on every mirrored HTML page
 // Frontend stays byte-identical to the live site; only behaviour is layered on.
 import {
   cp,
@@ -76,14 +76,18 @@ const config = `window.CAACI_CONFIG = ${JSON.stringify(
 await writeFile(join(DIST, 'assets', 'caaci-config.js'), config);
 await copyFile(join(ROOT, 'src', 'caaci-app.js'), join(DIST, 'assets', 'caaci-app.js'));
 await copyFile(join(ROOT, 'src', 'caaci-ui.css'), join(DIST, 'assets', 'caaci-ui.css'));
+// Tabler skin: re-points --tblr-* at the --caaci-* tokens. Loaded only by the
+// Tabler pages (admin + member-src), after tabler.min.css and caaci-ui.css.
+await copyFile(join(ROOT, 'src', 'caaci-theme.css'), join(DIST, 'assets', 'caaci-theme.css'));
 // Self-hosted Supabase client (UMD) — served from our own origin so the site has
 // NO third-party CDN dependency at runtime. esm.sh and similar CDNs are blocked or
 // unreliable on some networks (e.g. mainland China), which previously left the
 // Supabase client unloaded and made login/account/checkout silently do nothing.
 await copyFile(join(ROOT, 'src', 'supabase.js'), join(DIST, 'assets', 'supabase.js'));
 
-// Admin back-office page (hand-authored; mirror/ stays pristine). The HTML loads
-// /assets/caaci-admin.js itself; the inject loop below still adds config + CSS.
+// Admin back-office page (hand-authored; mirror/ stays pristine). Like the member
+// pages it loads every asset itself and carries the literal "caaci-app.js" in a
+// comment, which opts it out of the mirror-enhancement injection below.
 await cp(join(ROOT, 'admin-src'), join(DIST, 'admin'), { recursive: true });
 await copyFile(join(ROOT, 'src', 'caaci-admin.js'), join(DIST, 'assets', 'caaci-admin.js'));
 // Self-hosted QR generator (MIT, kazuhikoarase/qrcode-generator) — used by the
@@ -133,10 +137,12 @@ for (const [src, route] of [
   await writeFile(join(DIST, route, 'index.html'), page);
 }
 
+// The mirror layer needs no Supabase client or runtime config any more: it wires
+// the contact form, the donation checkout and accessibility fixes, all of which
+// talk to /api/* directly. supabase.js + caaci-config.js are loaded only by the
+// Tabler pages that authenticate (admin + member-src).
 const inject =
   `\n<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +
-  `<script src="/assets/supabase.js"></script>\n` +
-  `<script src="/assets/caaci-config.js"></script>\n` +
   `<script type="module" src="/assets/caaci-app.js"></script>\n`;
 
 // Native-POST guard, injected at the TOP of <head> so it runs before the login

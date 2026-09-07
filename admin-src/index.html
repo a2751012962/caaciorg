@@ -6,26 +6,38 @@
     <meta name="robots" content="noindex,nofollow" />
     <title>CAACI Admin / 管理后台</title>
     <!-- Tabler (MIT, tabler/tabler) — the panel's design system; self-hosted, no CDN.
+         caaci-ui.css supplies the --caaci-* tokens and caaci-theme.css re-points
+         Tabler's --tblr-* variables at them (brand colours, type, 3px corners).
          FilePond CSS comes after so the uploader keeps its component styling. -->
     <link rel="stylesheet" href="/assets/tabler.min.css" />
+    <link rel="stylesheet" href="/assets/caaci-ui.css" />
+    <link rel="stylesheet" href="/assets/caaci-theme.css" />
     <link rel="stylesheet" href="/assets/filepond.css" />
     <link rel="stylesheet" href="/assets/filepond-plugin-image-preview.css" />
   </head>
   <body class="layout-fluid">
-    <!-- The build injects /assets/caaci-config.js + /assets/caaci-ui.css before the closing body
-         tag; caaci-ui.css is .caaci-*-namespaced and inert here (this page uses Tabler classes). -->
+    <!-- Standalone Tabler page (like member-src). The literal token caaci-app.js in this
+         comment opts the page out of build.mjs's mirror-enhancement injection; every asset
+         is loaded explicitly below. Tabler classes only — the .caaci-* component classes in
+         caaci-ui.css are for the mirror pages and stay inert here. -->
     <div class="page">
-      <header class="navbar navbar-expand-md d-print-none" data-bs-theme="dark">
+      <!-- Same chrome as the member pages' shared nav (.caaci-sitenav, caaci-theme.css)
+           so the back office reads as part of the site rather than a separate app. -->
+      <header class="navbar navbar-expand-md d-print-none caaci-sitenav sticky-top">
         <div class="container-xl">
-          <span class="navbar-brand" data-en="CAACI Admin" data-zh="CAACI 管理后台"
-            >CAACI Admin</span
-          >
-          <div class="navbar-nav flex-row ms-auto align-items-center gap-2">
-            <button type="button" class="btn btn-sm btn-outline-light" id="caaci-lang">中文</button>
+          <a href="/" class="navbar-brand pe-2">
+            <img
+              src="/wp-content/uploads/2025/01/CAACI-logo-1-e1737551037290.png"
+              alt="Chinese American Association of Central Illinois"
+            />
+          </a>
+          <span class="navbar-text fw-semibold" data-en="Admin" data-zh="管理后台">Admin</span>
+          <div class="navbar-nav flex-row align-items-center">
+            <button type="button" class="nav-link" id="caaci-lang">中文</button>
             <a
               href="#"
               id="caaci-admin-signout"
-              class="btn btn-sm btn-outline-light"
+              class="nav-link"
               data-en="Sign out"
               data-zh="退出登录"
               >Sign out</a
@@ -750,6 +762,9 @@
     <script src="/assets/filepond-plugin-image-preview.js"></script>
     <!-- Tabler behaviors (optional — tabs/panels are driven by caaci-admin.js). -->
     <script src="/assets/tabler.min.js" defer></script>
+    <!-- Self-hosted Supabase client + public runtime config, then the admin module. -->
+    <script src="/assets/supabase.js"></script>
+    <script src="/assets/caaci-config.js"></script>
     <script type="module" src="/assets/caaci-admin.js"></script>
   </body>
 </html>
