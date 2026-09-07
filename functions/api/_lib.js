@@ -249,6 +249,35 @@ export function stripe(env) {
   return { call, get };
 }
 
+// ~3.5% card fee on top of the tier's base price, matching the live site.
+export const CARD_SURCHARGE = 0.035;
+export const tierLookupKey = (tierId) => `caaci_${tierId}_year`;
+
+// Line-item pricing for a membership tier. Prefer the catalogue Price that
+// stripe-catalog.mjs created (resolved by lookup_key, so the same code works in
+// test and live mode and the Dashboard shows one product per tier). Fall back
+// to an inline price_data when the catalogue hasn't been created in this mode,
+// so checkout keeps working either way. Returns a partial line item.
+export async function tierPrice(S, tier) {
+  try {
+    const found = await S.get(
+      `prices?active=true&lookup_keys[]=${encodeURIComponent(tierLookupKey(tier.id))}`,
+    );
+    const id = found?.data?.[0]?.id;
+    if (id) return { price: id };
+  } catch {
+    // lookup failed — fall through to inline pricing
+  }
+  return {
+    price_data: {
+      currency: 'usd',
+      unit_amount: Math.round(tier.price_cents * (1 + CARD_SURCHARGE)),
+      product_data: { name: tier.name },
+      recurring: { interval: 'year' },
+    },
+  };
+}
+
 // Send a notification email (Resend by default; falls back to no-op if unset).
 export async function sendEmail(env, { subject, html, replyTo }) {
   if (!env.RESEND_API_KEY || !env.NOTIFY_FROM || !env.NOTIFY_TO) return; // not configured

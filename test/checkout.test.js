@@ -88,7 +88,7 @@ test('checkout: membership applies the 3.5% card surcharge to unit_amount', asyn
       env: fakeEnv(),
     });
     assert.equal(r.status, 200);
-    const stripeCall = fetch.calls.find((c) => c.url.includes('api.stripe.com'));
+    const stripeCall = fetch.calls.find((c) => c.url.includes('checkout/sessions'));
     const body = new URLSearchParams(stripeCall.options.body);
     // round(10000 * 1.035) = 10350
     assert.equal(body.get('line_items[0][price_data][unit_amount]'), '10350');

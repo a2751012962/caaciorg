@@ -1,10 +1,8 @@
 // POST /api/checkout
 // Creates a Stripe Checkout Session for either a membership or a donation,
 // and returns { url } for the client to redirect to.
-import { json, bad, sb, stripe } from './_lib.js';
+import { json, bad, sb, stripe, tierPrice } from './_lib.js';
 import { lookupDiscount } from './discount.js';
-
-const CARD_SURCHARGE = 0.035; // ~3.5% card fee, matching the live site's pricing
 
 export async function onRequestPost({ request, env }) {
   let body;
@@ -59,7 +57,6 @@ export async function onRequestPost({ request, env }) {
     // The webhook activates the membership by member_id; a session without one
     // would be paid but never activate anyone. Refuse up front instead.
     if (!body.member_id) return bad('Please log in or create an account first.');
-    const amount = Math.round(tier.price_cents * (1 + CARD_SURCHARGE));
 
     // Optional discount code — re-validated here (not just in the UI) so an
     // expired/exhausted code can't slip through between "apply" and "pay".
@@ -82,17 +79,7 @@ export async function onRequestPost({ request, env }) {
       success_url: `${origin}/thank-you/?m={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/membership/`,
       customer_email: body.email || undefined,
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: 'usd',
-            unit_amount: amount,
-            product_data: { name: tier.name },
-            recurring: { interval: 'year' },
-          },
-        },
-      ],
+      line_items: [{ quantity: 1, ...(await tierPrice(S, tier)) }],
       ...(discount ? { discounts: [{ coupon: discount.coupon }] } : {}),
       metadata: {
         kind: 'membership',

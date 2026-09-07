@@ -3,9 +3,34 @@
 //   2. add the enhancement client (caaci-app.js) + public runtime config
 //   3. inject both scripts before </body> on every HTML page
 // Frontend stays byte-identical to the live site; only behaviour is layered on.
-import { cp, rm, mkdir, readFile, writeFile, readdir, stat, copyFile } from 'node:fs/promises';
+import {
+  cp,
+  rm,
+  mkdir,
+  readFile,
+  writeFile as writeFileRaw,
+  readdir,
+  stat,
+  copyFile,
+} from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setTimeout as sleep } from 'node:timers/promises';
+
+// On Windows, a file copied into dist/ moments ago can still be held open by
+// Defender / the search indexer when we reopen it to rewrite it, and the open
+// fails with EBUSY. That is a transient lock, not a real error — back off and
+// retry instead of aborting the whole build.
+async function writeFile(path, data) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await writeFileRaw(path, data);
+    } catch (err) {
+      if (!['EBUSY', 'EPERM'].includes(err.code) || attempt >= 10) throw err;
+      await sleep(100 * (attempt + 1));
+    }
+  }
+}
 
 // fileURLToPath, not .pathname — the latter percent-encodes non-ASCII path
 // segments, which breaks checkouts under a directory with CJK characters.

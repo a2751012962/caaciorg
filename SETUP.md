@@ -60,9 +60,24 @@ wrangler.toml           Cloudflare Pages config (output dir = dist)
 ### 2. Stripe
 
 Payments run through account **`acct_1PfYMiJ3oYxWrRWD`**
-([dashboard](https://dashboard.stripe.com/acct_1PfYMiJ3oYxWrRWD/dashboard)). No
-products or prices need creating — checkout uses inline `price_data`, so the only
-things to wire up are a key, a webhook endpoint, and the Billing Portal.
+([dashboard](https://dashboard.stripe.com/acct_1PfYMiJ3oYxWrRWD/dashboard)). Three
+things to wire up per mode: a key, a webhook endpoint + Billing Portal
+(`stripe:connect`), and the tier catalogue (`stripe:catalog`).
+
+**Catalogue.** Each tier in `membership_tiers` gets one Stripe Product and one
+yearly Price (base price + 3.5% card fee) tagged `lookup_key = caaci_<tier>_year`.
+Checkout and change-plan resolve the Price by that key at request time, so no
+Stripe IDs live in the database and the same code serves test and live mode.
+If the catalogue is missing in a mode, checkout falls back to inline `price_data`
+— it still works, but every payment then mints its own ad-hoc product and the
+Dashboard's per-product MRR becomes noise. Run once per mode, and again after
+changing a price in Supabase (it re-prices and archives the old Price; existing
+subscribers stay on what they signed up for):
+
+```
+npm run stripe:catalog              # report only
+npm run stripe:catalog -- --apply   # create / re-price
+```
 
 1. Copy the **secret key** for the mode you want (Developers → API keys):
    `sk_test_…` while testing, `sk_live_…` at go-live.
@@ -186,7 +201,7 @@ extends the year automatically.
 Three things to know before starting:
 
 - **Existing subscribers keep their old price.** Their subscription still points at
-  the MemberPress Price object; this site only uses inline `price_data` for _new_
+  the MemberPress Price object; this site's catalogue Prices apply only to _new_
   joins. They re-price only when they change plan. Keep those Price and Product
   objects — deleting them breaks live subscriptions.
 - **Both webhooks fire during the overlap.** The MemberPress endpoint

@@ -4,9 +4,7 @@
 // members row. If the member has no live subscription yet, it falls back to a
 // normal Checkout Session and returns { url } — so the client handles both the
 // same way.
-import { json, bad, sb, stripe } from './_lib.js';
-
-const CARD_SURCHARGE = 0.035; // keep in sync with checkout.js + the UI summary
+import { json, bad, sb, stripe, tierPrice } from './_lib.js';
 
 export async function onRequestPost({ request, env }) {
   let body;
@@ -28,8 +26,6 @@ export async function onRequestPost({ request, env }) {
     if (!member) return bad('Member not found.');
     if (member.tier_id === tier.id) return bad('You are already on this plan.');
 
-    const amount = Math.round(tier.price_cents * (1 + CARD_SURCHARGE));
-
     // No live subscription → behave like a first purchase (fresh Checkout Session).
     if (!member.stripe_subscription_id) {
       const session = await S.call('checkout/sessions', {
@@ -38,17 +34,7 @@ export async function onRequestPost({ request, env }) {
         cancel_url: `${origin}/membership/`,
         customer: member.stripe_customer_id || undefined,
         customer_email: member.stripe_customer_id ? undefined : member.email || undefined,
-        line_items: [
-          {
-            quantity: 1,
-            price_data: {
-              currency: 'usd',
-              unit_amount: amount,
-              product_data: { name: tier.name },
-              recurring: { interval: 'year' },
-            },
-          },
-        ],
+        line_items: [{ quantity: 1, ...(await tierPrice(S, tier)) }],
         metadata: { kind: 'membership', tier_id: tier.id, member_id: member.id },
       });
       return json({ url: session.url });
@@ -62,19 +48,15 @@ export async function onRequestPost({ request, env }) {
     const item = sub.items?.data?.[0];
     if (!item?.id) return bad('Could not read your subscription.', 500);
 
-    // A subscription item can only point at an existing Price, so mint a new
-    // Price (inline product) for the target tier, then move the item onto it.
-    const price = await S.call('prices', {
-      currency: 'usd',
-      unit_amount: amount,
-      recurring: { interval: 'year' },
-      product_data: { name: tier.name },
-    });
+    // A subscription item can only point at an existing Price: use the tier's
+    // catalogue Price when there is one, else mint one from the inline pricing.
+    const pricing = await tierPrice(S, tier);
+    const priceId = pricing.price || (await S.call('prices', pricing.price_data)).id;
 
     await S.call(`subscriptions/${member.stripe_subscription_id}`, {
       proration_behavior: 'create_prorations',
       payment_behavior: 'allow_incomplete',
-      items: [{ id: item.id, price: price.id }],
+      items: [{ id: item.id, price: priceId }],
     });
 
     // Reflect the change immediately; renewal date (expires_at) is unchanged.
