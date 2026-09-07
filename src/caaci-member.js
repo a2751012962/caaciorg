@@ -145,7 +145,12 @@ async function oauth(provider, redirectTo) {
   if (!supa) return;
   const { error } = await supa.auth.signInWithOAuth({
     provider, // 'google' | 'azure' (Microsoft)
-    options: { redirectTo: redirectTo || location.origin + '/account/' },
+    options: {
+      redirectTo: redirectTo || location.origin + '/account/',
+      // See the same note in caaci-app.js: Microsoft's bare `openid` scope does
+      // not guarantee the email/name claims GoTrue and handle_new_user need.
+      ...(provider === 'azure' ? { scopes: 'openid email profile' } : {}),
+    },
   });
   if (error) alert(error.message);
 }

@@ -470,7 +470,15 @@ export async function oauth(provider, redirectTo) {
   if (!supa) return;
   const { error } = await supa.auth.signInWithOAuth({
     provider, // 'google' | 'azure' (Microsoft)
-    options: { redirectTo: redirectTo || location.origin + '/account/' },
+    options: {
+      redirectTo: redirectTo || location.origin + '/account/',
+      // Supabase asks Microsoft for the bare `openid` scope, which does not
+      // guarantee the `email` and `name` claims — without an email GoTrue
+      // rejects the sign-in outright, and without a name the members row is
+      // created with a null full_name. Ask for the standard OIDC trio.
+      // Google already returns both on its default scopes.
+      ...(provider === 'azure' ? { scopes: 'openid email profile' } : {}),
+    },
   });
   if (error) alert(error.message);
 }
