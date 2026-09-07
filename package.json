@@ -10,6 +10,8 @@
     "test": "node --test",
     "dev": "npm run build && wrangler pages dev dist",
     "deploy": "npm run build && wrangler pages deploy dist",
+    "stripe:connect": "node stripe-connect.mjs",
+    "stripe:audit": "node stripe-audit.mjs",
     "db:push": "supabase db push",
     "db:seed": "supabase db execute --file supabase/seed.sql",
     "lint": "eslint .",
