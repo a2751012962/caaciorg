@@ -1,4 +1,8 @@
-name = "caaci"
+# Pages project name — this is the deploy target, so it decides which
+# *.pages.dev host `npm run deploy` publishes to. The project on the new
+# Supabase backend is caaci-8s2; the older `caaci` project is still up and still
+# points at the old database, kept only as a rollback.
+name = "caaci-8s2"
 compatibility_date = "2024-11-01"
 pages_build_output_dir = "dist"
 
@@ -14,10 +18,10 @@ SUPABASE_URL = "https://wslzeqhipvibeflmxznh.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbHplcWhpcHZpYmVmbG14em5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NTA2NDAsImV4cCI6MjEwNDMyNjY0MH0.kQ0LZ-O2jVxnPaW-S9cAIeYFFTgrbb_ddXDJSzfrkXc"
 
 # Secrets are NOT stored here — set them with wrangler (targets production by default):
-#   npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci
-#   npx wrangler pages secret put STRIPE_SECRET_KEY         --project-name=caaci
-#   npx wrangler pages secret put STRIPE_WEBHOOK_SECRET     --project-name=caaci
-#   npx wrangler pages secret put RESEND_API_KEY            --project-name=caaci
+#   npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci-8s2
+#   npx wrangler pages secret put STRIPE_SECRET_KEY         --project-name=caaci-8s2
+#   npx wrangler pages secret put STRIPE_WEBHOOK_SECRET     --project-name=caaci-8s2
+#   npx wrangler pages secret put RESEND_API_KEY            --project-name=caaci-8s2
 # NOTE: SUPABASE_URL / SUPABASE_ANON_KEY must NOT also exist as secrets — a secret
 # shadows the [vars] value of the same name. They were removed as secrets so the
 # plaintext vars above are authoritative.
