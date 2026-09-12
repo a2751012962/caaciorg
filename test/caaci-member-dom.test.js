@@ -336,6 +336,27 @@ test('login page: ?next= sends a non-admin back to that same-site path after sig
   assert.equal(location.href, '/account/');
 });
 
+test('login page: a visitor who is already signed in is sent on instead of shown the form', async () => {
+  const user = { id: 'u1', email: 'mei@x.com' };
+  setup('login', { search: '?next=%2Fmembership%2F%3Ftier%3Dhonorary' });
+  member.__setSupa(supaStub({ user, memberRow: { is_admin: false } }));
+  await member.wireAuthPage();
+  assert.equal(location.href, '/membership/?tier=honorary');
+
+  setup('login');
+  member.__setSupa(supaStub({ user, isAdmin: true }));
+  await member.wireAuthPage();
+  assert.equal(location.href, '/admin/');
+
+  // A stored session Supabase rejects must leave the form usable, not bounce.
+  setup('login');
+  const stale = supaStub({ user });
+  stale.auth.getUser = async () => ({ data: { user: null }, error: { message: 'invalid JWT' } });
+  member.__setSupa(stale);
+  await member.wireAuthPage();
+  assert.equal(location.href, '');
+});
+
 test('membership page: plans render with fee-inclusive prices; checkout posts the right body', async () => {
   setup('membership', { search: '?code=spring20' });
   member.__setSupa(supaStub()); // logged out

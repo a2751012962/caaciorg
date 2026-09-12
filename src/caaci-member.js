@@ -227,6 +227,16 @@ function nextPath() {
   return n.startsWith('/') && !n.startsWith('//') ? n : null;
 }
 
+// Admins land in the back-office; everyone else where they came from, or on
+// their account page.
+async function destinationAfterSignIn(uid, next) {
+  if (uid) {
+    const { data: me } = await supa.from('members').select('is_admin').eq('id', uid).maybeSingle();
+    if (me?.is_admin) return '/admin/';
+  }
+  return next || '/account/';
+}
+
 // ---------- /login-3/ ----------
 export async function wireAuthPage() {
   const notb = $('#caaci-login-notice');
@@ -251,20 +261,8 @@ export async function wireAuthPage() {
       done();
       return notice(notb, error.message, false);
     }
-    // Admins land in the back-office; everyone else where they came from, or
-    // on their account page.
-    let dest = next || '/account/';
-    const uid = data?.user?.id;
-    if (uid) {
-      const { data: me } = await supa
-        .from('members')
-        .select('is_admin')
-        .eq('id', uid)
-        .maybeSingle();
-      if (me?.is_admin) dest = '/admin/';
-    }
     // Leave the button busy — the navigation below replaces the page.
-    location.href = dest;
+    location.href = await destinationAfterSignIn(data?.user?.id, next);
   });
 
   $('#caaci-forgot').addEventListener('click', async (e) => {
@@ -349,6 +347,16 @@ export async function wireAuthPage() {
       true,
     );
   });
+
+  // Already signed in (a bookmark, the back button, a "Log In" link on a page
+  // that could not tell): skip the form. This runs only after every handler
+  // above is attached, so a slow check never leaves the form without them. It
+  // asks Supabase (getUser) instead of trusting the stored session — a revoked
+  // one must leave the form usable, not bounce to /account/ and back.
+  const { data: { user } = { user: null } } = await withTimeout(supa.auth.getUser(), 3500, {
+    data: { user: null },
+  });
+  if (user) location.href = await destinationAfterSignIn(user.id, next);
 }
 
 // ---------- /membership/ ----------
