@@ -17,7 +17,7 @@ for (const p of ['login', 'membership', 'account'])
 
 const tick = () => new Promise((r) => setTimeout(r, 15));
 
-function setup(page, { search = '' } = {}) {
+function setup(page, { search = '', hash = '' } = {}) {
   const dom = new JSDOM(PAGES[page], { url: 'https://caaci.example/x/' });
   globalThis.document = dom.window.document;
   globalThis.Event = dom.window.Event;
@@ -27,7 +27,7 @@ function setup(page, { search = '' } = {}) {
     pathname: `/${page}/`,
     origin: 'https://caaci.example',
     search,
-    hash: '',
+    hash,
     href: '',
     reload: () => {},
   };
@@ -42,23 +42,46 @@ const TIER_ROWS = [
   { id: 'individual', name: 'Individual Membership', price_cents: 3000, active: true },
 ];
 
-function supaStub({ user = null, memberRow = null, payments = [], isAdmin = false } = {}) {
+// `auth` overrides individual auth methods (e.g. an updateUser that fails);
+// every auth call is recorded in `stub.calls` as { name, args }.
+function supaStub({
+  user = null,
+  memberRow = null,
+  payments = [],
+  isAdmin = false,
+  auth = {},
+} = {}) {
+  const calls = [];
+  const methods = {
+    getUser: async () => ({ data: { user } }),
+    getSession: async () =>
+      user ? { data: { session: { access_token: 'tok', user } } } : { data: { session: null } },
+    signInWithPassword: async ({ email }) => ({
+      data: { user: { id: 'u-login', email } },
+      error: null,
+    }),
+    signUp: async ({ email }) =>
+      email === 'taken@x.com'
+        ? { data: { user: { id: 'dup', identities: [] } }, error: null } // duplicate account
+        : { data: { user: { id: 'u-new', identities: [{}] }, session: null }, error: null },
+    signOut: async () => {},
+    updateUser: async () => ({ data: { user }, error: null }),
+    resetPasswordForEmail: async () => ({ data: {}, error: null }),
+    resend: async () => ({ data: {}, error: null }),
+    reauthenticate: async () => ({ data: {}, error: null }),
+    ...auth,
+  };
   return {
-    auth: {
-      getUser: async () => ({ data: { user } }),
-      getSession: async () =>
-        user ? { data: { session: { access_token: 'tok', user } } } : { data: { session: null } },
-      signInWithPassword: async ({ email }) => ({
-        data: { user: { id: 'u-login', email } },
-        error: null,
-      }),
-      signUp: async ({ email }) =>
-        email === 'taken@x.com'
-          ? { data: { user: { id: 'dup', identities: [] } }, error: null } // duplicate account
-          : { data: { user: { id: 'u-new', identities: [{}] }, session: null }, error: null },
-      signOut: async () => {},
-      updateUser: async () => ({ error: null }),
-    },
+    calls,
+    auth: Object.fromEntries(
+      Object.entries(methods).map(([name, fn]) => [
+        name,
+        (...args) => {
+          calls.push({ name, args });
+          return fn(...args);
+        },
+      ]),
+    ),
     from: (table) => ({
       select: () => ({
         eq: (col) => {
@@ -515,4 +538,116 @@ test('account page: signed-out prompt', async () => {
   await member.wireAccountPage();
   assert.match(document.querySelector('#caaci-account-host').textContent, /not signed in/i);
   assert.ok(document.querySelector('#caaci-account-host a[href="/login-3/"]'));
+});
+
+// ---------- email sending: reset links, confirmations, cooldowns ----------
+// Countdown tests mock setInterval + Date (t.mock resets them when the test
+// ends), while tick() keeps using the real setTimeout to flush promises.
+const q = (s) => document.querySelector(s);
+const callsTo = (stub, name) => stub.calls.filter((c) => c.name === name).map((c) => c.args);
+const mockClock = (t) => t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+const RESET_REDIRECT = { redirectTo: 'https://caaci.example/account/?recovery=1' };
+
+test('login page: forgot password opens its own form, sends to the typed email, then cools down', async (t) => {
+  mockClock(t);
+  setup('login');
+  const stub = supaStub();
+  member.__setSupa(stub);
+  await member.wireAuthPage();
+
+  assert.equal(q('#caaci-reset-panel').hidden, true);
+  q('#caaci-li-email').value = 'mei@x.com';
+  q('#caaci-forgot').dispatchEvent(new Event('click'));
+  assert.equal(q('#caaci-reset-panel').hidden, false);
+  assert.equal(q('#caaci-reset-email').value, 'mei@x.com', 'prefilled from the sign-in email');
+  assert.equal(callsTo(stub, 'resetPasswordForEmail').length, 0, 'opening the form sends nothing');
+
+  q('#caaci-reset-email').value = 'not-an-email';
+  q('#caaci-reset-form').dispatchEvent(new Event('submit'));
+  await tick();
+  assert.match(q('#caaci-reset-notice').textContent, /valid email/i);
+  assert.equal(callsTo(stub, 'resetPasswordForEmail').length, 0);
+
+  q('#caaci-reset-email').value = 'other@x.com';
+  q('#caaci-reset-form').dispatchEvent(new Event('submit'));
+  await tick();
+  assert.deepEqual(callsTo(stub, 'resetPasswordForEmail'), [['other@x.com', RESET_REDIRECT]]);
+  assert.match(q('#caaci-reset-notice').textContent, /check your inbox/i);
+
+  const send = q('#caaci-reset-send');
+  assert.equal(send.disabled, true);
+  assert.equal(send.textContent, 'Resend in 60s');
+  t.mock.timers.tick(1000);
+  assert.equal(send.textContent, 'Resend in 59s');
+  t.mock.timers.tick(59000);
+  assert.equal(send.disabled, false);
+  assert.equal(send.textContent, 'Resend');
+});
+
+test('login page: a rate-limited reset shows busy, then counts down from the seconds Supabase gave', async (t) => {
+  mockClock(t);
+  setup('login');
+  let release;
+  const stub = supaStub({
+    auth: {
+      resetPasswordForEmail: () =>
+        new Promise((r) => {
+          release = () =>
+            r({
+              data: null,
+              error: {
+                code: 'over_email_send_rate_limit',
+                status: 429,
+                message: 'For security purposes, you can only request this after 42 seconds.',
+              },
+            });
+        }),
+    },
+  });
+  member.__setSupa(stub);
+  await member.wireAuthPage();
+  q('#caaci-forgot').dispatchEvent(new Event('click'));
+  q('#caaci-reset-email').value = 'mei@x.com';
+  q('#caaci-reset-form').dispatchEvent(new Event('submit'));
+  await tick();
+  const send = q('#caaci-reset-send');
+  assert.equal(send.disabled, true);
+  assert.match(send.textContent, /Sending/);
+
+  release();
+  await tick();
+  assert.match(q('#caaci-reset-notice').textContent, /42 seconds/);
+  assert.equal(send.disabled, true);
+  assert.equal(send.textContent, 'Resend in 42s');
+});
+
+test('login page: a reload keeps the reset cooldown for that address, but not for another one', async (t) => {
+  mockClock(t);
+  setup('login');
+  member.__setSupa(supaStub());
+  await member.wireAuthPage();
+  q('#caaci-forgot').dispatchEvent(new Event('click'));
+  q('#caaci-reset-email').value = 'mei@x.com';
+  q('#caaci-reset-form').dispatchEvent(new Event('submit'));
+  await tick();
+  t.mock.timers.tick(20000);
+
+  // "Reload": a fresh page that inherits this origin's localStorage.
+  const saved = [];
+  for (let i = 0; i < localStorage.length; i++)
+    saved.push([localStorage.key(i), localStorage.getItem(localStorage.key(i))]);
+  setup('login');
+  for (const [k, v] of saved) localStorage.setItem(k, v);
+  member.__setSupa(supaStub());
+  await member.wireAuthPage();
+  q('#caaci-li-email').value = 'MEI@x.com';
+  q('#caaci-forgot').dispatchEvent(new Event('click'));
+  const send = q('#caaci-reset-send');
+  assert.equal(send.disabled, true);
+  assert.equal(send.textContent, 'Resend in 40s');
+
+  q('#caaci-reset-email').value = 'someone@else.com';
+  q('#caaci-reset-email').dispatchEvent(new Event('input'));
+  assert.equal(send.disabled, false);
+  assert.equal(send.textContent, 'Send reset link');
 });

@@ -102,6 +102,101 @@ function notice(el, msg, good = true) {
   el.classList.add('alert', good ? 'alert-success' : 'alert-danger');
 }
 
+// ---------- "send email" buttons: one shared cooldown ----------
+// Supabase refuses another auth email to the same address inside the project's
+// resend interval (60 s). Every button that sends one counts down instead of
+// letting the member click into that error, and the end time is kept per
+// action + address in localStorage so a reload does not reset the clock.
+const EMAIL_COOLDOWN_S = 60;
+const cooldownKey = (action, email) =>
+  `caaci-cooldown:${action}:${String(email || '')
+    .trim()
+    .toLowerCase()}`;
+const cooldownTimers = new WeakMap();
+
+function storedCooldownEnd(action, email) {
+  try {
+    const end = Number(localStorage.getItem(cooldownKey(action, email)));
+    return end > Date.now() ? end : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// Count `btn` down from `seconds`, or — with no seconds — resume a countdown a
+// previous page left for this action + address. `label` is what the button
+// says once it is usable again. Returns whether the button is cooling down.
+function cooldown(btn, { action, email, seconds, label }) {
+  const key = cooldownKey(action, email);
+  let end = storedCooldownEnd(action, email);
+  if (seconds > 0) {
+    end = Date.now() + seconds * 1000;
+    try {
+      localStorage.setItem(key, String(end));
+    } catch {
+      /* storage blocked — the countdown still runs for this page */
+    }
+  }
+  clearInterval(cooldownTimers.get(btn));
+  cooldownTimers.delete(btn);
+  if (!end) {
+    btn.disabled = false;
+    return false;
+  }
+  const render = () => {
+    const left = Math.ceil((end - Date.now()) / 1000);
+    if (left > 0) {
+      btn.disabled = true;
+      btn.textContent = t(`Resend in ${left}s`, `${left} 秒后可重新发送`);
+      return;
+    }
+    clearInterval(cooldownTimers.get(btn));
+    cooldownTimers.delete(btn);
+    btn.disabled = false;
+    btn.textContent = label;
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* storage blocked */
+    }
+  };
+  cooldownTimers.set(btn, setInterval(render, 1000));
+  render();
+  return true;
+}
+
+// How long Supabase wants us to wait before another email, or 0 when the error
+// is not a rate limit. GoTrue's message usually reads "…after N seconds"; that
+// wording is not a contract, so a bare rate-limit error falls back to 60 s.
+function emailRetryAfter(error) {
+  if (!error) return 0;
+  const m = /after (\d+) seconds?/i.exec(error.message || '');
+  if (m) return Number(m[1]);
+  return error.code === 'over_email_send_rate_limit' || error.status === 429 ? EMAIL_COOLDOWN_S : 0;
+}
+
+// One "send email" request on `btn`: busy while in flight, a notice with the
+// outcome, then the cooldown (Supabase's own wait when it rate-limited us).
+async function sendEmail(btn, note, { action, email, send, sent, label }) {
+  const done = busy(btn, t('Sending…', '发送中…'));
+  let error;
+  try {
+    ({ error } = await send());
+  } catch (e) {
+    error = { message: e?.message || t('Network error — please try again.', '网络错误，请重试。') };
+  }
+  done();
+  if (error) {
+    notice(note, error.message, false);
+    const wait = emailRetryAfter(error);
+    if (wait) cooldown(btn, { action, email, seconds: wait, label });
+    return false;
+  }
+  notice(note, sent, true);
+  cooldown(btn, { action, email, seconds: EMAIL_COOLDOWN_S, label });
+  return true;
+}
+
 export async function loadTiers() {
   if (!supa) return mergeTiers(null);
   try {
@@ -275,20 +370,42 @@ export async function wireAuthPage() {
     location.href = await destinationAfterSignIn(data?.user?.id, next);
   });
 
-  $('#caaci-forgot').addEventListener('click', async (e) => {
+  // Forgot password: an inline form with its own email field. The button keeps
+  // any countdown a reset for that address already started (even before a reload).
+  const resetEmail = $('#caaci-reset-email');
+  const resetSend = $('#caaci-reset-send');
+  const resetNote = $('#caaci-reset-notice');
+  const resendLabel = t('Resend', '重新发送');
+  const resumeReset = () => {
+    if (resetSend.getAttribute('aria-busy')) return;
+    if (!cooldown(resetSend, { action: 'recovery', email: resetEmail.value, label: resendLabel }))
+      resetSend.textContent = t('Send reset link', '发送重置链接');
+  };
+  $('#caaci-forgot').addEventListener('click', (e) => {
     e.preventDefault();
-    const email = $('#caaci-li-email').value.trim();
-    if (!email)
-      return notice(notb, t('Enter your email above first.', '请先在上方填写邮箱。'), false);
-    const { error } = await supa.auth.resetPasswordForEmail(email, {
-      redirectTo: location.origin + '/account/?recovery=1',
+    $('#caaci-reset-panel').hidden = false;
+    const typed = $('#caaci-li-email').value.trim();
+    if (typed) resetEmail.value = typed;
+    resumeReset();
+    resetEmail.focus({ preventScroll: true });
+  });
+  resetEmail.addEventListener('input', resumeReset);
+  $('#caaci-reset-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (resetSend.disabled) return; // Enter pressed mid-request or mid-countdown
+    const email = resetEmail.value.trim();
+    if (!EMAIL_RE.test(email))
+      return notice(resetNote, t('Enter a valid email address.', '请填写有效邮箱。'), false);
+    await sendEmail(resetSend, resetNote, {
+      action: 'recovery',
+      email,
+      label: resendLabel,
+      send: () =>
+        supa.auth.resetPasswordForEmail(email, {
+          redirectTo: location.origin + '/account/?recovery=1',
+        }),
+      sent: t('Password reset email sent — check your inbox.', '重置密码邮件已发送，请查收。'),
     });
-    if (error) return notice(notb, error.message, false);
-    notice(
-      notb,
-      t('Password reset email sent — check your inbox.', '重置密码邮件已发送，请查收。'),
-      true,
-    );
   });
 
   oauthButtons($('#caaci-oauth-host'), location.origin + (next || '/account/'));

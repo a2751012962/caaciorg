@@ -81,11 +81,63 @@
                 </button>
               </div>
             </form>
+            <!-- Revealed by "Forgot password?". Its own form and email field, so
+                 asking for a reset link never depends on the sign-in form. -->
+            <div class="mt-4" id="caaci-reset-panel" hidden>
+              <form id="caaci-reset-form" novalidate>
+                <h3 class="h4 mb-2" data-en="Reset your password" data-zh="重置密码">
+                  Reset your password
+                </h3>
+                <p
+                  class="text-secondary mb-3"
+                  data-en="Enter your account email and we will send you a link to set a new password."
+                  data-zh="请输入账户邮箱，我们会发送设置新密码的链接。"
+                >
+                  Enter your account email and we will send you a link to set a new password.
+                </p>
+                <div class="mb-3">
+                  <label
+                    class="form-label"
+                    for="caaci-reset-email"
+                    data-en="Email address"
+                    data-zh="邮箱地址"
+                    >Email address</label
+                  >
+                  <input
+                    type="email"
+                    id="caaci-reset-email"
+                    class="form-control"
+                    autocomplete="email"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  id="caaci-reset-send"
+                  class="btn w-100"
+                  data-en="Send reset link"
+                  data-zh="发送重置链接"
+                >
+                  Send reset link
+                </button>
+              </form>
+              <p class="alert mt-3 mb-0" id="caaci-reset-notice" role="alert" hidden></p>
+            </div>
             <div class="hr-text" data-en="or continue with" data-zh="或使用以下方式登录">
               or continue with
             </div>
             <div class="row g-2" id="caaci-oauth-host"></div>
             <p class="alert mt-3 mb-0" id="caaci-login-notice" role="alert" hidden></p>
+            <button
+              type="button"
+              id="caaci-li-resend"
+              class="btn w-100 mt-2"
+              hidden
+              data-en="Resend confirmation email"
+              data-zh="重新发送确认邮件"
+            >
+              Resend confirmation email
+            </button>
           </div>
         </div>
 
@@ -186,6 +238,16 @@
               </div>
             </form>
             <p class="alert mt-3 mb-0" id="caaci-signup-notice" role="alert" hidden></p>
+            <button
+              type="button"
+              id="caaci-su-resend"
+              class="btn w-100 mt-2"
+              hidden
+              data-en="Resend confirmation email"
+              data-zh="重新发送确认邮件"
+            >
+              Resend confirmation email
+            </button>
             <p class="text-secondary text-center mt-3 mb-0">
               <span
                 data-en="Ready to join? Pick a plan after signing up on the"
