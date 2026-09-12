@@ -193,6 +193,13 @@ for (const f of await walk(DIST)) {
       return open + cleaned + close;
     },
   );
+  // On the /zh/ copies every Divi menu item is Chinese except the two custom
+  // entries WordPress added by hand. caaci-app.js finds the login entry by its
+  // href, not this text, so translating it does not break the signed-in swap.
+  if (/^[\\/]zh[\\/]/.test(f.slice(DIST.length)))
+    html = html
+      .replace('<a href="/zh/account/">Account</a>', '<a href="/zh/account/">我的账户</a>')
+      .replace('<a href="/zh/login-3/">Log In</a>', '<a href="/zh/login-3/">登录</a>');
   await writeFile(f, html);
   n++;
 }

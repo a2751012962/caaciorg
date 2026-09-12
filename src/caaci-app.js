@@ -9,7 +9,8 @@
 // here: build.mjs replaces /membership/, /account/ and /login-3/ with the
 // standalone Tabler pages (member-src/ + caaci-member.js) and turns every other
 // login / register / account route into a redirect stub, so no mirrored page can
-// reach that flow any more. Nothing in this module needs Supabase.
+// reach that flow any more. Nothing in this module needs the Supabase client;
+// wireAuthNav only reads the session supabase-js already stored.
 import { usd } from './caaci-shared.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -307,12 +308,54 @@ export function wireSkipLink() {
   document.body.prepend(a);
 }
 
+// ---------- Signed-in state in the Divi menu ----------
+// The mirrored menu ends in a hard-coded "Log In" -> /login-3/, and this layer
+// loads no Supabase client, so a signed-in member saw "Log In" on every
+// mirrored page and took it to mean they had been signed out. supabase-js keeps
+// the session in this origin's localStorage under sb-<project-ref>-auth-token;
+// that entry is enough to relabel the link. It only picks a label — /account/
+// still has Supabase verify the session before showing anything.
+export function hasStoredSession(storage) {
+  try {
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (!/^sb-.+-auth-token$/.test(key)) continue;
+      if (JSON.parse(storage.getItem(key))?.refresh_token) return true;
+    }
+  } catch {
+    // Storage blocked (private mode, sandboxed frame) or an unreadable entry.
+  }
+  return false;
+}
+
+export function wireAuthNav() {
+  let storage;
+  try {
+    storage = window.localStorage;
+  } catch {
+    return;
+  }
+  if (!storage || !hasStoredSession(storage)) return;
+  const zh = /^\/zh(\/|$)/.test(location.pathname);
+  // Match the href, not the text: build.mjs translates the label on /zh/ pages.
+  for (const a of document.querySelectorAll('.menu-item > a[href]')) {
+    if (!/^\/(zh\/)?login-3\/?$/.test(a.getAttribute('href'))) continue;
+    // The /zh/ pages run TranslatePress's DOM-change translator, which blanks
+    // any text it sees change and restores it from wp-admin AJAX — a 404 on
+    // this static host, so the mobile-menu copy was left with no label.
+    a.setAttribute('data-no-dynamic-translation', '');
+    a.setAttribute('href', zh ? '/zh/account/' : '/account/');
+    a.textContent = zh ? '我的账户' : 'Account';
+  }
+}
+
 // ---------- Bootstrap ----------
 // Runs every wiring fn. Each is feature-detected + isolated so a missing form
 // just no-ops and one failing page never blocks the others.
 export function init() {
   for (const fn of [
     wireSkipLink,
+    wireAuthNav,
     wireClickableModules,
     wireBusinessServiceTiles,
     wireDonate,
@@ -326,13 +369,16 @@ export function init() {
   }
 
   // Second pass after Divi's own ready handlers have finished rebuilding
-  // modules — see wireBusinessServiceTiles. Idempotent.
+  // modules — see wireBusinessServiceTiles — and cloning #top-menu into the
+  // mobile menu, which wireAuthNav must relabel too. Both are idempotent.
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('load', () => {
-      try {
-        wireBusinessServiceTiles();
-      } catch (err) {
-        console.warn('caaci-app:', err);
+      for (const fn of [wireBusinessServiceTiles, wireAuthNav]) {
+        try {
+          fn();
+        } catch (err) {
+          console.warn('caaci-app:', err);
+        }
       }
     });
   }

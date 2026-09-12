@@ -6,7 +6,14 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { mockFetch } from './helpers.js';
-import { notice, wireContact, wireDonate, openDonation } from '../src/caaci-app.js';
+import {
+  notice,
+  wireContact,
+  wireDonate,
+  openDonation,
+  wireAuthNav,
+  hasStoredSession,
+} from '../src/caaci-app.js';
 
 let dom;
 const tick = () => new Promise((r) => setTimeout(r, 10));
@@ -156,4 +163,63 @@ test('openDonation refuses amounts under $1 without calling the API', async () =
   } finally {
     fetch.restore();
   }
+});
+
+// The Divi menu as mirrored, on a real origin — jsdom has no localStorage on
+// about:blank. `stored` is written under the key supabase-js uses.
+function mirrorMenu(pathname, stored) {
+  const zh = pathname.startsWith('/zh/') ? '/zh' : '';
+  dom = new JSDOM(
+    `<!DOCTYPE html><body><ul id="top-menu" class="nav">
+      <li class="menu-item menu-item-3675"><a href="${zh}/account/">Account</a></li>
+      <li class="menu-item menu-item-3679"><a href="${zh}/login-3/">Log In</a></li>
+    </ul></body>`,
+    { url: `https://caaci.example${pathname}` },
+  );
+  if (stored !== undefined)
+    dom.window.localStorage.setItem('sb-wslzeqhipvibeflmxznh-auth-token', stored);
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  globalThis.location = { pathname, origin: 'https://caaci.example', href: '', reload: () => {} };
+  return () => document.querySelector('.menu-item-3679 a');
+}
+
+const SESSION = JSON.stringify({ access_token: 'a', refresh_token: 'r', expires_at: 1 });
+
+test('wireAuthNav: a stored session turns the menu "Log In" into the account link', () => {
+  let link = mirrorMenu('/events/', SESSION);
+  wireAuthNav();
+  assert.equal(link().getAttribute('href'), '/account/');
+  assert.equal(link().textContent, 'Account');
+  wireAuthNav(); // the load-time second pass is a no-op
+  assert.equal(link().getAttribute('href'), '/account/');
+
+  link = mirrorMenu('/zh/events/', SESSION);
+  wireAuthNav();
+  assert.equal(link().getAttribute('href'), '/zh/account/');
+  assert.equal(link().textContent, '我的账户');
+  assert.ok(link().hasAttribute('data-no-dynamic-translation'), 'TranslatePress must skip it');
+});
+
+test('wireAuthNav: no session, or an entry that is not one, leaves "Log In" alone', () => {
+  for (const stored of [undefined, 'not json', JSON.stringify({ access_token: 'a' })]) {
+    const link = mirrorMenu('/events/', stored);
+    wireAuthNav();
+    assert.equal(link().getAttribute('href'), '/login-3/', String(stored));
+    assert.equal(link().textContent, 'Log In');
+  }
+});
+
+test('hasStoredSession ignores other sb-* keys such as the PKCE code verifier', () => {
+  const store = new Map([['sb-x-auth-token-code-verifier', '"v"']]);
+  const storage = {
+    get length() {
+      return store.size;
+    },
+    key: (i) => [...store.keys()][i],
+    getItem: (k) => store.get(k) ?? null,
+  };
+  assert.equal(hasStoredSession(storage), false);
+  store.set('sb-x-auth-token', SESSION);
+  assert.equal(hasStoredSession(storage), true);
 });
