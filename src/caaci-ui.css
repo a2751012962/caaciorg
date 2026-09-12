@@ -461,16 +461,18 @@ a.caaci-skip-link:focus {
    Browser zoom puts ordinary laptop windows in that band.
 
    In the band, widen the container and tighten the item spacing so the menu
-   stays on one row. Everywhere on desktop, cap the logo at its one-row height,
-   so a wrap caused by a wider font or a longer label cannot push the logo into
-   the menu. The cap skips .et-fixed-header, which shrinks the logo on scroll
-   through Divi's own rule. */
+   stays on one row. The spacing leaves room for the signed-in "Account" label:
+   at 14px that label pushed the search icon under the menu at 981px.
+   Everywhere on desktop, cap the logo at its one-row height, so a wrap caused
+   by a wider font or a longer label cannot push the logo into the menu. The
+   cap skips .et-fixed-header, which shrinks the logo on scroll through Divi's
+   own rule. */
 @media (min-width: 981px) and (max-width: 1199px) {
   .et_header_style_left #main-header .et_menu_container {
     width: 92%;
   }
   .et_header_style_left #top-menu > li {
-    padding-right: 14px;
+    padding-right: 12px;
   }
 }
 @media (min-width: 981px) {
