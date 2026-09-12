@@ -357,6 +357,46 @@ test('login page: a visitor who is already signed in is sent on instead of shown
   assert.equal(location.href, '');
 });
 
+// URL parsing drops tabs and reads "\" as "/", so the first two start with a
+// single slash yet resolve to https://evil.example/.
+const OFFSITE_NEXT = [
+  '/\t/evil.example',
+  '/\\evil.example',
+  '//evil.example',
+  'https://evil.example',
+];
+
+test('login page: an off-site ?next= never leaves the site, by form sign-in or auto-redirect', async () => {
+  const user = { id: 'u1', email: 'mei@x.com' };
+  for (const next of OFFSITE_NEXT) {
+    const search = `?next=${encodeURIComponent(next)}`;
+    setup('login', { search });
+    member.__setSupa(supaStub({ memberRow: { is_admin: false } }));
+    await member.wireAuthPage();
+    document.querySelector('#caaci-li-email').value = 'mei@x.com';
+    document.querySelector('#caaci-li-pwd').value = 'password123';
+    document.querySelector('#caaci-login-form').dispatchEvent(new Event('submit'));
+    await tick();
+    assert.equal(location.href, '/account/', `form sign-in, next=${JSON.stringify(next)}`);
+
+    setup('login', { search });
+    member.__setSupa(supaStub({ user, memberRow: { is_admin: false } }));
+    await member.wireAuthPage();
+    assert.equal(location.href, '/account/', `already signed in, next=${JSON.stringify(next)}`);
+  }
+
+  // Same-site paths survive intact, and admins still land in the back-office.
+  setup('login', { search: `?next=${encodeURIComponent('/membership/?tier=family')}` });
+  member.__setSupa(supaStub({ user, memberRow: { is_admin: false } }));
+  await member.wireAuthPage();
+  assert.equal(location.href, '/membership/?tier=family');
+
+  setup('login', { search: `?next=${encodeURIComponent('/\t/evil.example')}` });
+  member.__setSupa(supaStub({ user, isAdmin: true }));
+  await member.wireAuthPage();
+  assert.equal(location.href, '/admin/');
+});
+
 test('membership page: plans render with fee-inclusive prices; checkout posts the right body', async () => {
   setup('membership', { search: '?code=spring20' });
   member.__setSupa(supaStub()); // logged out

@@ -221,10 +221,20 @@ async function wireNav() {
 // Where to send someone after they sign in. /login-3/?next=/membership/?tier=…
 // brings a visitor back to what they were doing (e.g. requesting Honorable
 // Membership). Only same-site paths are honoured — anything else would turn
-// the login page into an open redirect.
+// the login page into an open redirect, and since a signed-in visitor is sent
+// on without clicking anything, a link alone would do it. Compare the resolved
+// origin rather than string prefixes: URL parsing drops tabs and reads "\" as
+// "/", so "/\t/evil.example" and "/\evil.example" both start with a single
+// slash yet resolve to https://evil.example/.
 function nextPath() {
-  const n = new URLSearchParams(location.search || '').get('next') || '';
-  return n.startsWith('/') && !n.startsWith('//') ? n : null;
+  const n = new URLSearchParams(location.search || '').get('next');
+  if (!n) return null;
+  try {
+    const u = new URL(n, location.origin);
+    return u.origin === location.origin ? u.pathname + u.search + u.hash : null;
+  } catch {
+    return null;
+  }
 }
 
 // Admins land in the back-office; everyone else where they came from, or on
