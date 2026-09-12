@@ -3,7 +3,15 @@
 // remaining consumer for money math, so they are tested at the source.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { esc, usd, withFee, mergeTiers, isFreeTier, TIERS_FALLBACK } from '../src/caaci-shared.js';
+import {
+  esc,
+  usd,
+  withFee,
+  mergeTiers,
+  isFreeTier,
+  statusLabel,
+  TIERS_FALLBACK,
+} from '../src/caaci-shared.js';
 
 test('isFreeTier: the self-serve $0 tier, but not the invitation-only Honorable tier', () => {
   assert.equal(isFreeTier({ id: 'free', price_cents: 0 }), true);
@@ -20,6 +28,24 @@ test('mergeTiers: free leads, paid tiers by price, Honorable last', () => {
   assert.equal(live[0].name, 'Free');
   assert.equal(isFreeTier(live[0]), true);
   assert.equal(TIERS_FALLBACK.filter(isFreeTier).length, 1);
+});
+
+test('tiers carry Chinese text that survives a live (English-only) row override', () => {
+  for (const tier of TIERS_FALLBACK)
+    for (const key of ['name', 'description', 'highlight'])
+      assert.ok(tier[`${key}_zh`], `${tier.id}.${key}_zh`);
+  const [student] = mergeTiers([
+    { id: 'student', name: 'Student', price_cents: 1000, description: '$10 per year.' },
+  ]).filter((t) => t.id === 'student');
+  assert.equal(student.description, '$10 per year.');
+  assert.equal(student.description_zh, TIERS_FALLBACK[1].description_zh);
+});
+
+test('statusLabel: one language at a time, raw status when unknown', () => {
+  assert.equal(statusLabel('active', 'en'), 'Active');
+  assert.equal(statusLabel('active', 'zh'), '有效');
+  assert.equal(statusLabel('weird', 'zh'), 'weird');
+  assert.equal(statusLabel(undefined, 'zh'), undefined);
 });
 
 test('usd / withFee format prices and apply the 3.5% card surcharge', () => {

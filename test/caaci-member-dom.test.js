@@ -268,6 +268,26 @@ test('membership page: a signed-in visitor requests Honorable Membership via /ap
   }
 });
 
+test('membership page in 中文: banner status, badges, and descriptions have no English left', async () => {
+  setup('membership');
+  const user = { id: 'u1', email: 'mei@x.com' };
+  member.__setSupa(supaStub({ user, memberRow: { id: 'u1', tier_id: 'free', status: 'active' } }));
+  member.__setLang('zh');
+  try {
+    await member.wireMembershipPage();
+    const banner = document.querySelector('#caaci-plans-you').textContent;
+    assert.match(banner, /免费会员 · 有效/);
+    assert.doesNotMatch(banner, /Active/);
+    const cards = document.querySelector('#caaci-plans-row').textContent;
+    assert.match(cards, /最受欢迎/);
+    assert.match(cards, /面向年满 18 岁的在校大学生/);
+    // Only prices, "3.5%", and the CAACI name may be Latin script.
+    assert.doesNotMatch(cards.replace(/CAACI/g, ''), /[A-Za-z]{2,}/);
+  } finally {
+    member.__setLang('en');
+  }
+});
+
 test('account page: a free member sees Free, an Upgrade link, and no billing portal button', async () => {
   setup('account');
   const user = { id: 'u1', email: 'mei@x.com' };

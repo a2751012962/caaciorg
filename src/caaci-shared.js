@@ -32,7 +32,9 @@ export const TIERS_FALLBACK = [
     price_cents: 0,
     description:
       'Community updates and event announcements — no payment needed. Upgrade any time for festival perks.',
+    description_zh: '社区动态与活动通知——无需付款。随时可升级以享受节日福利。',
     highlight: 'Free',
+    highlight_zh: '免费',
   },
   {
     id: 'student',
@@ -40,7 +42,9 @@ export const TIERS_FALLBACK = [
     name_zh: '学生会员',
     price_cents: 1000,
     description: 'For currently enrolled college students.',
+    description_zh: '面向年满 18 岁的在校大学生。',
     highlight: 'Best for students',
+    highlight_zh: '学生首选',
   },
   {
     id: 'individual',
@@ -48,7 +52,9 @@ export const TIERS_FALLBACK = [
     name_zh: '个人会员',
     price_cents: 3000,
     description: 'Full membership for one person.',
+    description_zh: '适用于个人的完整会员资格。',
     highlight: 'Most popular',
+    highlight_zh: '最受欢迎',
     featured: true,
   },
   {
@@ -57,7 +63,9 @@ export const TIERS_FALLBACK = [
     name_zh: '家庭会员',
     price_cents: 6000,
     description: 'Covers your whole household.',
+    description_zh: '适用于一个家庭，全家共享。',
     highlight: 'Best value',
+    highlight_zh: '最超值',
   },
   {
     id: 'business',
@@ -65,7 +73,9 @@ export const TIERS_FALLBACK = [
     name_zh: '商业会员',
     price_cents: 10000,
     description: 'Includes a listing in the business directory.',
+    description_zh: '包含商家名录收录。',
     highlight: 'For businesses',
+    highlight_zh: '商家之选',
   },
   {
     id: 'honorary',
@@ -73,10 +83,14 @@ export const TIERS_FALLBACK = [
     name_zh: '荣誉会员',
     price_cents: 0,
     description: 'Free membership for major contributions to the community.',
+    description_zh: '授予为社区做出重大贡献者的免费会员资格。',
     highlight: 'Invitation only',
+    highlight_zh: '仅限邀请',
     invite_only: true, // granted by the Board from the admin panel; never sold
   },
 ];
+// membership_tiers has no Chinese columns, so a live row only overrides the
+// English name/description; the *_zh text always comes from this catalogue.
 
 // The self-serve $0 tier: anyone can join it, nothing goes through Stripe, and
 // it never expires. (Honorable is also $0 but invite_only — that one is granted
@@ -86,14 +100,16 @@ export const isFreeTier = (tier) => !!tier && !tier.invite_only && !(tier.price_
 export const usd = (cents) => `$${(cents / 100).toFixed(2)}`;
 export const withFee = (cents) => Math.round(cents * (1 + CARD_SURCHARGE)); // total charged on card
 
-// Member status → bilingual label. Shared by the plan view and account page.
+// Member status → [English, 中文] label. Shared by the plan view and account page.
 export const STATUS_LABEL = {
-  active: 'Active · 有效',
-  pending: 'Pending payment · 待付款',
-  past_due: 'Payment past due · 付款逾期',
-  expired: 'Expired · 已过期',
-  cancelled: 'Cancelled · 已取消',
+  active: ['Active', '有效'],
+  pending: ['Pending payment', '待付款'],
+  past_due: ['Payment past due', '付款逾期'],
+  expired: ['Expired', '已过期'],
+  cancelled: ['Cancelled', '已取消'],
 };
+export const statusLabel = (status, lang) =>
+  STATUS_LABEL[status]?.[lang === 'zh' ? 1 : 0] || status;
 
 // Merge live membership_tiers rows (from any Supabase client) over the fallback.
 export function mergeTiers(rows) {

@@ -6,7 +6,7 @@
 // routes; the behavioral contracts are identical — same API bodies, the same
 // 3.5% fee math, the same duplicate-email guard — only the markup is Tabler.
 // The Supabase client comes from the self-hosted UMD bundle (assets/supabase.js).
-import { esc, usd, withFee, STATUS_LABEL, mergeTiers, isFreeTier } from './caaci-shared.js';
+import { esc, usd, withFee, statusLabel, mergeTiers, isFreeTier } from './caaci-shared.js';
 
 const cfg = window.CAACI_CONFIG || {};
 const sbLib = window.supabase;
@@ -30,6 +30,9 @@ function initLang() {
   if (urlLang === 'zh' || urlLang === 'en') localStorage.setItem('caaci-lang', urlLang);
   lang = localStorage.getItem('caaci-lang') || 'en';
 }
+export function __setLang(l) {
+  lang = l;
+}
 
 export function applyLang() {
   document.documentElement.lang = lang === 'zh' ? 'zh' : 'en';
@@ -50,6 +53,8 @@ export function applyLang() {
   if (tgl) tgl.textContent = lang === 'en' ? '中文' : 'EN';
 }
 const t = (en, zh) => (lang === 'zh' ? zh : en);
+// A tier's name/description/highlight in the current language (English fallback).
+const tierText = (tier, key) => (lang === 'zh' && tier[`${key}_zh`]) || tier[key] || '';
 
 // ---------- helpers ----------
 // POST helper: a rejected fetch resolves to a normal error result.
@@ -364,7 +369,7 @@ export async function wireMembershipPage() {
       <div class="alert alert-info d-flex flex-wrap align-items-center gap-2">
         <span>${t('Signed in as', '当前登录')} <b>${esc(user.email)}</b>${
           tierName
-            ? ` — ${esc(lang === 'zh' ? tierName.name_zh || tierName.name : tierName.name)} · ${esc(STATUS_LABEL[member.status] || member.status)}`
+            ? ` — ${esc(tierText(tierName, 'name'))} · ${esc(statusLabel(member.status, lang))}`
             : ''
         }</span>
         <a class="ms-auto" href="/account/">${t('Go to my account', '前往我的账户')} →</a>
@@ -400,13 +405,14 @@ export async function wireMembershipPage() {
     .map((tier) => {
       const isCurrent = tier.id === currentTier;
       const free = isFreeTier(tier);
-      const name = lang === 'zh' ? tier.name_zh || tier.name : tier.name;
+      const name = tierText(tier, 'name');
+      const highlight = tierText(tier, 'highlight');
       const badge = isCurrent
         ? `<span class="badge bg-success-lt">${t('Current plan', '当前方案')}</span>`
         : tier.featured
-          ? `<span class="badge bg-primary-lt">${esc(tier.highlight || '')}</span>`
-          : tier.highlight
-            ? `<span class="badge bg-secondary-lt">${esc(tier.highlight)}</span>`
+          ? `<span class="badge bg-primary-lt">${esc(highlight)}</span>`
+          : highlight
+            ? `<span class="badge bg-secondary-lt">${esc(highlight)}</span>`
             : '';
       // Invitation-only tiers (Honorable) are granted by the Board, not bought:
       // the button asks for an invitation instead of opening checkout, and the
@@ -442,7 +448,7 @@ export async function wireMembershipPage() {
             <div class="mb-2">${badge}</div>
             <h3 class="card-title mb-1">${esc(name)}</h3>
             ${priceLine}
-            <p class="text-secondary">${esc(tier.description || '')}</p>
+            <p class="text-secondary">${esc(tierText(tier, 'description'))}</p>
             ${cta}
           </div>
         </div>
@@ -487,7 +493,7 @@ export async function wireMembershipPage() {
 // staff then grant the tier from the admin panel.
 export function openInviteRequest({ tier, user, member }) {
   const host = $('#caaci-checkout-host');
-  const name = lang === 'zh' ? tier.name_zh || tier.name : tier.name;
+  const name = tierText(tier, 'name');
   host.innerHTML = `
     <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true" style="background: rgba(24, 36, 51, 0.45)">
       <div class="modal-dialog modal-dialog-centered" role="document">
@@ -594,7 +600,7 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
   let authMode = 'signup';
   let applied = discount || null;
 
-  const name = lang === 'zh' ? tier.name_zh || tier.name : tier.name;
+  const name = tierText(tier, 'name');
   const title = isSwitch
     ? t('Change your plan', '更改方案')
     : loggedIn
@@ -1044,7 +1050,7 @@ export async function wireAccountPage() {
   ]);
   const member = m || {};
   const tier = tiers.find((x) => x.id === member.tier_id);
-  const tierName = tier ? (lang === 'zh' ? tier.name_zh || tier.name : tier.name) : '';
+  const tierName = tier ? tierText(tier, 'name') : '';
   const stBadge = {
     active: 'bg-success-lt',
     pending: 'bg-warning-lt',
@@ -1058,7 +1064,7 @@ export async function wireAccountPage() {
       <div class="datagrid">
         <div class="datagrid-item"><div class="datagrid-title">${t('Plan', '方案')}</div><div class="datagrid-content">${esc(tierName)}</div></div>
         <div class="datagrid-item"><div class="datagrid-title">${t('Status', '状态')}</div>
-          <div class="datagrid-content"><span class="badge ${stBadge[member.status] || 'bg-secondary-lt'}">${esc(STATUS_LABEL[member.status] || member.status || '—')}</span></div></div>
+          <div class="datagrid-content"><span class="badge ${stBadge[member.status] || 'bg-secondary-lt'}">${esc(statusLabel(member.status, lang) || '—')}</span></div></div>
         <div class="datagrid-item"><div class="datagrid-title">${t('Price', '价格')}</div><div class="datagrid-content">${
           isFreeTier(tier)
             ? t('Free', '免费')
