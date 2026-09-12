@@ -197,6 +197,20 @@ async function sendEmail(btn, note, { action, email, send, sent, label }) {
   return true;
 }
 
+// The password-reset email. Its link lands on /account/?recovery=1, which is
+// what makes the account page render the set-new-password form.
+const sendResetLink = (btn, note, email, label) =>
+  sendEmail(btn, note, {
+    action: 'recovery',
+    email,
+    label,
+    send: () =>
+      supa.auth.resetPasswordForEmail(email, {
+        redirectTo: location.origin + '/account/?recovery=1',
+      }),
+    sent: t('Password reset email sent — check your inbox.', '重置密码邮件已发送，请查收。'),
+  });
+
 export async function loadTiers() {
   if (!supa) return mergeTiers(null);
   try {
@@ -351,6 +365,39 @@ export async function wireAuthPage() {
   }
   const next = nextPath();
 
+  // "Resend confirmation email": the signup card offers it once an account is
+  // created, the sign-in card when an unconfirmed account tries to sign in.
+  // Both count down on one shared cooldown per address.
+  const confirmLabel = t('Resend confirmation email', '重新发送确认邮件');
+  const confirmResend = (btn, note) => {
+    let email = '';
+    btn.addEventListener('click', () =>
+      sendEmail(btn, note, {
+        action: 'signup',
+        email,
+        label: confirmLabel,
+        send: () =>
+          supa.auth.resend({
+            type: 'signup',
+            email,
+            options: { emailRedirectTo: location.origin + (next || '/account/') },
+          }),
+        sent: t('Confirmation email sent — check your inbox.', '确认邮件已发送，请查收。'),
+      }),
+    );
+    // Show the button for `address`; `justSent` starts a fresh countdown.
+    return (address, justSent = false) => {
+      email = address;
+      btn.hidden = false;
+      const seconds = justSent ? EMAIL_COOLDOWN_S : 0;
+      if (!cooldown(btn, { action: 'signup', email, seconds, label: confirmLabel }))
+        btn.textContent = confirmLabel;
+    };
+  };
+  const loginResend = $('#caaci-li-resend');
+  const offerLoginResend = confirmResend(loginResend, notb);
+  const offerSignupResend = confirmResend($('#caaci-su-resend'), $('#caaci-signup-notice'));
+
   $('#caaci-login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = $('#caaci-li-email').value.trim();
@@ -364,6 +411,20 @@ export async function wireAuthPage() {
     const { data, error } = await supa.auth.signInWithPassword({ email, password });
     if (error) {
       done();
+      // An account whose confirmation link was never opened cannot sign in; say
+      // so plainly and offer the email again instead of a bare error string.
+      if (error.code === 'email_not_confirmed' || /not confirmed/i.test(error.message || '')) {
+        notice(
+          notb,
+          t(
+            'Your email address is not confirmed yet. Open the link in the confirmation email we sent you, or send a new one below.',
+            '您的邮箱尚未确认。请点击确认邮件中的链接，或在下方重新发送。',
+          ),
+          false,
+        );
+        return offerLoginResend(email);
+      }
+      loginResend.hidden = true;
       return notice(notb, error.message, false);
     }
     // Leave the button busy — the navigation below replaces the page.
@@ -396,16 +457,7 @@ export async function wireAuthPage() {
     const email = resetEmail.value.trim();
     if (!EMAIL_RE.test(email))
       return notice(resetNote, t('Enter a valid email address.', '请填写有效邮箱。'), false);
-    await sendEmail(resetSend, resetNote, {
-      action: 'recovery',
-      email,
-      label: resendLabel,
-      send: () =>
-        supa.auth.resetPasswordForEmail(email, {
-          redirectTo: location.origin + '/account/?recovery=1',
-        }),
-      sent: t('Password reset email sent — check your inbox.', '重置密码邮件已发送，请查收。'),
-    });
+    await sendResetLink(resetSend, resetNote, email, resendLabel);
   });
 
   oauthButtons($('#caaci-oauth-host'), location.origin + (next || '/account/'));
@@ -473,6 +525,7 @@ export async function wireAuthPage() {
       ),
       true,
     );
+    offerSignupResend(email, true);
   });
 
   // Already signed in (a bookmark, the back button, a "Log In" link on a page
@@ -804,6 +857,9 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
         <label class="form-label" for="caaci-pwd">${t('Password (at least 8 characters)', '密码（至少 8 位）')}</label>
         <input type="password" id="caaci-pwd" class="form-control" minlength="8" autocomplete="new-password">
       </div>
+      <div class="mb-2" id="caaci-co-forgotwrap" hidden>
+        <button type="button" class="btn btn-link px-0" id="caaci-co-forgot">${t('Forgot password?', '忘记密码？')}</button>
+      </div>
       <p class="text-secondary mb-2">
         <span id="caaci-auth-prompt">${t('Already have an account?', '已有账户？')}</span>
         <a href="#" id="caaci-auth-toggle">${t('Log in instead', '直接登录')}</a>
@@ -811,6 +867,17 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
       <div class="hr-text">${t('or continue with', '或使用以下方式')}</div>
       <div class="row g-2 mb-2" id="caaci-co-oauth"></div>`;
     oauthButtons($('#caaci-co-oauth', host), location.href);
+    const forgot = $('#caaci-co-forgot', host);
+    forgot.addEventListener('click', () => {
+      const email = $('#caaci-email', host).value.trim();
+      if (!EMAIL_RE.test(email))
+        return notice(
+          msg,
+          t('Enter a valid email address above first.', '请先在上方填写有效邮箱。'),
+          false,
+        );
+      return sendResetLink(forgot, msg, email, t('Resend reset email', '重新发送重置邮件'));
+    });
     $('#caaci-auth-toggle', host).addEventListener('click', (e) => {
       e.preventDefault();
       authMode = authMode === 'signup' ? 'login' : 'signup';
@@ -819,6 +886,7 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
         ? t('Create your account', '创建您的账户')
         : t('Log in', '登录');
       $('#caaci-co-namewrap', host).style.display = signup ? '' : 'none';
+      $('#caaci-co-forgotwrap', host).hidden = signup;
       $('#caaci-pwd', host).autocomplete = signup ? 'new-password' : 'current-password';
       $('#caaci-auth-prompt', host).textContent = signup
         ? t('Already have an account?', '已有账户？')

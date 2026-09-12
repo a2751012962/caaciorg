@@ -651,3 +651,99 @@ test('login page: a reload keeps the reset cooldown for that address, but not fo
   assert.equal(send.disabled, false);
   assert.equal(send.textContent, 'Send reset link');
 });
+
+const CONFIRM_RESEND = (email) => ({
+  type: 'signup',
+  email,
+  options: { emailRedirectTo: 'https://caaci.example/account/' },
+});
+
+test('login page: signup without a session offers a confirmation resend that starts cooling down', async (t) => {
+  mockClock(t);
+  setup('login');
+  const stub = supaStub();
+  member.__setSupa(stub);
+  await member.wireAuthPage();
+  const resend = q('#caaci-su-resend');
+  assert.equal(resend.hidden, true);
+
+  q('#caaci-su-email').value = 'new@x.com';
+  q('#caaci-su-pwd').value = 'longenough1';
+  q('#caaci-su-pwd2').value = 'longenough1';
+  q('#caaci-signup-form').dispatchEvent(new Event('submit'));
+  await tick();
+  assert.match(q('#caaci-signup-notice').textContent, /Check your email/);
+  assert.equal(resend.hidden, false);
+  assert.equal(resend.disabled, true, 'the signup itself just sent one');
+  assert.equal(resend.textContent, 'Resend in 60s');
+
+  t.mock.timers.tick(60000);
+  assert.equal(resend.disabled, false);
+  assert.equal(resend.textContent, 'Resend confirmation email');
+  resend.click();
+  await tick();
+  assert.deepEqual(callsTo(stub, 'resend'), [[CONFIRM_RESEND('new@x.com')]]);
+  assert.match(q('#caaci-signup-notice').textContent, /sent/i);
+  assert.equal(resend.textContent, 'Resend in 60s');
+});
+
+test('login page: signing in before confirming explains why and offers the confirmation email again', async (t) => {
+  mockClock(t);
+  for (const error of [
+    { code: 'email_not_confirmed', message: 'Email not confirmed' },
+    { message: 'Email not confirmed' }, // no code → message fallback
+  ]) {
+    setup('login');
+    const stub = supaStub({
+      auth: { signInWithPassword: async () => ({ data: { user: null, session: null }, error }) },
+    });
+    member.__setSupa(stub);
+    await member.wireAuthPage();
+    q('#caaci-li-email').value = 'mei@x.com';
+    q('#caaci-li-pwd').value = 'password123';
+    q('#caaci-login-form').dispatchEvent(new Event('submit'));
+    await tick();
+    assert.match(q('#caaci-login-notice').textContent, /not confirmed yet/i);
+    assert.equal(location.href, '');
+
+    const resend = q('#caaci-li-resend');
+    assert.equal(resend.hidden, false);
+    assert.equal(resend.disabled, false, 'nothing was sent yet');
+    resend.click();
+    await tick();
+    assert.deepEqual(callsTo(stub, 'resend'), [[CONFIRM_RESEND('mei@x.com')]]);
+    assert.equal(resend.disabled, true);
+  }
+});
+
+test('membership checkout: log-in mode has a forgot-password link that emails the typed address', async (t) => {
+  mockClock(t);
+  setup('membership');
+  const stub = supaStub(); // logged out
+  member.__setSupa(stub);
+  await member.wireMembershipPage();
+  q('[data-tier="individual"]').click();
+  await tick();
+
+  const wrap = q('#caaci-co-forgotwrap');
+  assert.equal(wrap.hidden, true, 'not offered while creating an account');
+  q('#caaci-auth-toggle').click();
+  assert.equal(wrap.hidden, false);
+
+  const forgot = q('#caaci-co-forgot');
+  forgot.click();
+  await tick();
+  assert.match(q('#caaci-co-notice').textContent, /valid email/i);
+  assert.equal(callsTo(stub, 'resetPasswordForEmail').length, 0);
+
+  q('#caaci-email').value = 'mei@x.com';
+  forgot.click();
+  await tick();
+  assert.deepEqual(callsTo(stub, 'resetPasswordForEmail'), [['mei@x.com', RESET_REDIRECT]]);
+  assert.match(q('#caaci-co-notice').textContent, /check your inbox/i);
+  assert.equal(forgot.disabled, true);
+  assert.equal(forgot.textContent, 'Resend in 60s');
+
+  q('#caaci-auth-toggle').click();
+  assert.equal(wrap.hidden, true, 'hidden again back in signup mode');
+});
