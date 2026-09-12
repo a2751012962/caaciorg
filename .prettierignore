@@ -4,3 +4,5 @@ node_modules/
 package-lock.json
 src/supabase.js
 src/vendor/
+# Supabase Auth email templates are pushed verbatim ({{ .Var }} placeholders, inline styles)
+supabase/templates/
