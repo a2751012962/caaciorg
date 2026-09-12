@@ -154,10 +154,18 @@ const inject =
 // mainland China) can submit before it attaches and hit the 405. This
 // dependency-free inline guard cancels the native submit of the auth forms
 // immediately; the real handler, added later, still performs the login.
+// The same guard holds back the donate page's amount buttons. Their hrefs are
+// hand-made Stripe Payment Links that no longer match their labels (both "$250"
+// buttons open "$100 Monthly"); caaci-app.js opens the real checkout for them,
+// and until it has loaded a click must do nothing rather than charge the wrong
+// amount.
 const guard =
   `<script>(function(){document.addEventListener('submit',function(e){` +
   `var f=e.target;` +
   `if(f&&f.tagName==='FORM'&&(f.id==='mepr_loginform'||/mepro?-form/.test(f.className||'')))e.preventDefault();` +
+  `},true);` +
+  `document.addEventListener('click',function(e){` +
+  `if(e.target.closest&&e.target.closest('a[href*="buy.stripe.com"]'))e.preventDefault();` +
   `},true);})();</script>\n`;
 
 let n = 0;

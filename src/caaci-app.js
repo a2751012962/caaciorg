@@ -43,7 +43,9 @@ export function notice(el, msg, good = true) {
 }
 
 // ---------- Donation checkout (amount + frequency; card entry is on Stripe) ----------
-export function openDonation() {
+// `cents` / `freq` pre-select the amount and frequency (an amount button on the
+// donate page passes its own); the donor still sees and confirms them.
+export function openDonation({ cents = 5000, freq = 'once' } = {}) {
   document.querySelector('.caaci-modal')?.remove();
 
   const overlay = document.createElement('div');
@@ -58,20 +60,20 @@ export function openDonation() {
       <div class="caaci-checkout-main">
         <h2>Make a donation <span lang="zh">· 捐款</span></h2>
         <div class="caaci-toggle" role="group" aria-label="Frequency">
-          <button type="button" data-freq="once" aria-pressed="true">One-time · 一次</button>
-          <button type="button" data-freq="month" aria-pressed="false">Monthly · 每月</button>
+          <button type="button" data-freq="once" aria-pressed="${freq === 'once'}">One-time · 一次</button>
+          <button type="button" data-freq="month" aria-pressed="${freq === 'month'}">Monthly · 每月</button>
         </div>
         <div class="caaci-chips">
           ${[2500, 5000, 10000, 25000]
             .map(
-              (c, i) =>
-                `<button type="button" class="caaci-chip" data-amt="${c}" aria-pressed="${i === 1}">${usd(c)}</button>`,
+              (c) =>
+                `<button type="button" class="caaci-chip" data-amt="${c}" aria-pressed="${c === cents}">${usd(c)}</button>`,
             )
             .join('')}
         </div>
         <div class="caaci-field">
           <label for="caaci-amt">Amount (USD) · 金额</label>
-          <input id="caaci-amt" type="number" min="1" step="1" value="50" inputmode="decimal">
+          <input id="caaci-amt" type="number" min="1" step="1" value="${cents / 100}" inputmode="decimal">
         </div>
         <div class="caaci-field"><label for="caaci-name">Name · 姓名 <small>(optional)</small></label><input id="caaci-name" type="text" autocomplete="name"></div>
         <div class="caaci-field"><label for="caaci-email">Email · 邮箱 <small>(optional)</small></label><input id="caaci-email" type="email" autocomplete="email"></div>
@@ -104,7 +106,6 @@ export function openDonation() {
   const mainEl = overlay.querySelector('.caaci-checkout-main');
   const amtInput = overlay.querySelector('#caaci-amt');
 
-  let freq = 'once';
   const refresh = () => {
     const cents = Math.round(parseFloat(amtInput.value || '0') * 100);
     titleEl.textContent =
@@ -162,17 +163,36 @@ export function openDonation() {
   return overlay;
 }
 
+// The donate page's amount buttons ("$250 Dollars" · Support Once / Support
+// Monthly) were each a hand-made Stripe Payment Link, and the links drifted:
+// both $250 buttons opened "$100 Monthly". Read the amount from the column's
+// own heading and the frequency from the button label instead, so the checkout
+// charges what the donor clicked. Returns null when no amount can be read.
+const STRIPE_LINK = 'a[href*="buy.stripe.com"]';
+export function donationPreset(button) {
+  const heading = button.closest('.et_pb_column')?.querySelector('h1, h2, h3');
+  const m = heading?.textContent.match(/\$\s*(\d[\d,]*(?:\.\d{1,2})?)/);
+  const cents = m ? Math.round(parseFloat(m[1].replace(/,/g, '')) * 100) : 0;
+  if (!cents) return null;
+  return { cents, freq: /monthly|每月/i.test(button.textContent) ? 'month' : 'once' };
+}
+
 // ---------- Donate page -> open the donation overlay ----------
 export function wireDonate() {
   if (!/donate/.test(location.pathname)) return;
-  const btn = [...document.querySelectorAll('a,button')].find((b) =>
-    /donat|give/i.test(b.textContent),
+  const btn = [...document.querySelectorAll('a,button')].find(
+    (b) => !b.matches(STRIPE_LINK) && /donat|give/i.test(b.textContent),
   );
-  if (!btn) return;
-  btn.addEventListener('click', (e) => {
+  btn?.addEventListener('click', (e) => {
     e.preventDefault();
     openDonation();
   });
+  for (const a of document.querySelectorAll(STRIPE_LINK)) {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      openDonation(donationPreset(a) ?? undefined);
+    });
+  }
 }
 
 // ---------- Divi contact form -> /api/contact ----------

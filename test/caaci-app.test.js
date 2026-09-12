@@ -4,13 +4,15 @@
 // routes are standalone Tabler pages, not mirrored ones.
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { JSDOM } from 'jsdom';
+import { readFileSync } from 'node:fs';
+import { JSDOM, VirtualConsole } from 'jsdom';
 import { mockFetch } from './helpers.js';
 import {
   notice,
   wireContact,
   wireDonate,
   openDonation,
+  donationPreset,
   wireAuthNav,
   hasStoredSession,
 } from '../src/caaci-app.js';
@@ -109,6 +111,61 @@ test('wireDonate opens a checkout overlay that posts a donation to /api/checkout
       email: '',
     });
     assert.equal(location.href, 'https://pay/cs_1');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('donationPreset reads every mirrored donate button as its column amount and frequency', () => {
+  // Both pages list $25 … $1,000, each with a one-time and a monthly button. The
+  // Payment Links behind them had drifted (both $250 buttons opened "$100
+  // Monthly"), so the checkout takes amount and frequency from the page itself.
+  const expected = [2500, 5000, 10000, 25000, 50000, 100000].flatMap((cents) => [
+    { cents, freq: 'once' },
+    { cents, freq: 'month' },
+  ]);
+  for (const page of ['donate', 'zh/donate']) {
+    const html = readFileSync(new URL(`../mirror/${page}/index.html`, import.meta.url), 'utf8');
+    const doc = new JSDOM(html, { virtualConsole: new VirtualConsole() }).window.document;
+    const buttons = [...doc.querySelectorAll('a[href*="buy.stripe.com"]')];
+    assert.deepEqual(
+      buttons.map((b) => donationPreset(b)),
+      expected,
+      page,
+    );
+  }
+});
+
+test('wireDonate: an amount button opens the checkout pre-set to it instead of its Payment Link', async () => {
+  const fetch = mockFetch(() => ({ ok: true, body: { url: 'https://pay/cs_3' } }));
+  try {
+    setup(
+      `<a href="/donate/">Donate</a>
+      <div class="et_pb_column"><h2>$250 Dollars</h2>
+        <a class="et_pb_button" href="https://buy.stripe.com/a">Support Once</a>
+        <a class="et_pb_button" href="https://buy.stripe.com/b">Support Monthly</a></div>`,
+      '/donate/',
+    );
+    wireDonate();
+    const monthly = document.querySelectorAll('.et_pb_button')[1];
+    const click = new window.MouseEvent('click', { bubbles: true, cancelable: true });
+    assert.equal(monthly.dispatchEvent(click), false, 'the Payment Link is not followed');
+
+    assert.equal(document.querySelectorAll('.caaci-modal').length, 1);
+    const overlay = document.querySelector('.caaci-modal');
+    const total = overlay.querySelector('.caaci-line--total span:last-child').textContent;
+    assert.equal(total, '$250.00/mo');
+    assert.equal(overlay.querySelector('[data-freq="month"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(
+      overlay.querySelector('.caaci-chip[data-amt="25000"]').getAttribute('aria-pressed'),
+      'true',
+    );
+
+    overlay.querySelector('.caaci-pay').click();
+    await tick();
+    const sent = JSON.parse(fetch.calls.find((c) => c.url === '/api/checkout').options.body);
+    assert.equal(sent.amount_cents, 25000);
+    assert.equal(sent.recurring, true);
   } finally {
     fetch.restore();
   }
