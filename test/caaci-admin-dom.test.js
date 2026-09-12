@@ -32,7 +32,14 @@ const supaStub = {
 };
 
 // The admin APIs the panel calls on boot and on tab clicks.
-function apiRoutes(u) {
+function apiRoutes(u, options = {}) {
+  // Auth emails: a reset succeeds, an invite hits GoTrue's per-user rate limit.
+  if (u.includes('/api/admin/member-email')) {
+    const { action } = JSON.parse(options.body || '{}');
+    return action === 'invite'
+      ? { status: 429, body: { error: 'Please wait a minute and try again.' } }
+      : { body: { ok: true, action } };
+  }
   if (u.includes('/api/admin/members'))
     return {
       body: {
@@ -102,6 +109,50 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.ok(badge, 'member status badge rendered');
     assert.ok(badge.classList.contains('bg-success-lt'), 'active → bg-success-lt');
     assert.match(document.querySelector('#caaci-page-info').textContent, /1–1 of 1/);
+
+    // Member editor: auth-email buttons confirm, POST member_id + action, cool down.
+    const editBtn = () => document.querySelector('#caaci-members-body tr button');
+    editBtn().click();
+    const editRow = document.querySelector('tr[data-edit-row]');
+    const resetBtn = editRow.querySelector('[data-act="send-reset"]');
+    const inviteBtn = editRow.querySelector('[data-act="send-invite"]');
+    assert.ok(resetBtn && inviteBtn, 'reset + invite buttons rendered');
+    assert.match(resetBtn.textContent, /Send password reset/);
+    assert.match(inviteBtn.textContent, /Send invitation/);
+    const emailPosts = () => fetch.calls.filter((c) => c.url.includes('/api/admin/member-email'));
+
+    dom.window.confirm = () => false; // declining sends nothing
+    resetBtn.click();
+    await tick();
+    assert.equal(emailPosts().length, 0);
+
+    let asked = 0;
+    dom.window.confirm = () => ++asked > 0;
+    resetBtn.click();
+    await tick();
+    assert.equal(asked, 1, 'asks before sending');
+    assert.equal(emailPosts().length, 1);
+    assert.equal(emailPosts()[0].options.method, 'POST');
+    assert.deepEqual(JSON.parse(emailPosts()[0].options.body), {
+      member_id: 'm1',
+      action: 'reset',
+    });
+    const editMsg = editRow.querySelector('[data-msg]');
+    assert.ok(editMsg.classList.contains('alert-success'), 'success shown inline');
+    assert.equal(resetBtn.disabled, true, 'reset cools down after a send');
+    assert.match(resetBtn.textContent, /60s/);
+
+    inviteBtn.click();
+    await tick();
+    assert.deepEqual(JSON.parse(emailPosts()[1].options.body), {
+      member_id: 'm1',
+      action: 'invite',
+    });
+    assert.ok(editMsg.classList.contains('alert-danger'), '429 shown as an error');
+    assert.equal(inviteBtn.disabled, true, 'a 429 also starts the cooldown');
+    assert.match(inviteBtn.textContent, /60s/);
+    editBtn().click(); // closing the editor stops the countdown timers
+    assert.equal(document.querySelector('tr[data-edit-row]'), null);
 
     // Tab switching: click Events → active class moves, panels toggle, rows load.
     const evTab = document.querySelector('[data-tab="events"]');

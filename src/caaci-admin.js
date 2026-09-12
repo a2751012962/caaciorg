@@ -216,6 +216,88 @@ function renderRows(rows) {
   }
 }
 
+// ---------- auth emails (password reset / invitation) ----------
+// Supabase allows one auth email per user per 60s, so the button counts that
+// down after a send (or a 429) instead of letting the admin hammer it. The
+// timer stops early once the editor row is closed and the button is detached.
+const AUTH_EMAIL_COOLDOWN_S = 60;
+function cooldown(btn, label) {
+  let left = AUTH_EMAIL_COOLDOWN_S;
+  btn.disabled = true;
+  btn.textContent = `${label} (${left}s)`;
+  const timer = setInterval(() => {
+    left -= 1;
+    if (left > 0 && btn.isConnected) {
+      btn.textContent = `${label} (${left}s)`;
+      return;
+    }
+    clearInterval(timer);
+    btn.disabled = false;
+    btn.textContent = label;
+  }, 1000);
+}
+
+function wireAuthEmails(row, m) {
+  const msg = row.querySelector('[data-msg]');
+  const who = m.full_name || m.email;
+  const kinds = {
+    reset: {
+      label: t('Send password reset', '发送重置密码邮件'),
+      ask: t(`Email ${who} a link to set a new password?`, `向 ${who} 发送设置新密码的链接？`),
+      done: t(`Password reset email sent to ${who}.`, `已向 ${who} 发送重置密码邮件。`),
+    },
+    invite: {
+      label: t('Send invitation', '发送邀请邮件'),
+      ask: t(
+        `Email ${who} an invitation to set up their login?`,
+        `向 ${who} 发送设置登录账户的邀请？`,
+      ),
+      done: t(`Invitation sent to ${who}.`, `已向 ${who} 发送邀请邮件。`),
+    },
+  };
+  for (const [action, k] of Object.entries(kinds)) {
+    const btn = row.querySelector(`[data-act="send-${action}"]`);
+    btn.addEventListener('click', async () => {
+      if (!window.confirm(k.ask)) return;
+      btn.disabled = true;
+      const { ok, status, data } = await api('/api/admin/member-email', {
+        method: 'POST',
+        body: { member_id: m.id, action },
+      });
+      if (ok) {
+        notice(msg, k.done, true);
+        cooldown(btn, k.label);
+        return;
+      }
+      if (status === 429) {
+        notice(
+          msg,
+          t(
+            'An email was sent to this member very recently. Please wait a minute and try again.',
+            '刚刚已向该会员发送过邮件，请等一分钟后再试。',
+          ),
+          false,
+        );
+        cooldown(btn, k.label);
+        return;
+      }
+      btn.disabled = false;
+      if (status === 409) {
+        notice(
+          msg,
+          t(
+            'This member already has a login. Use "Send password reset" instead.',
+            '该会员已有登录账户，请改用“发送重置密码邮件”。',
+          ),
+          false,
+        );
+        return;
+      }
+      notice(msg, data.error || t('Could not send the email.', '邮件发送失败。'), false);
+    });
+  }
+}
+
 function toggleEditor(tr, m) {
   const next = tr.nextElementSibling;
   if (next?.hasAttribute('data-edit-row')) {
@@ -265,8 +347,14 @@ function toggleEditor(tr, m) {
         <button type="button" class="btn btn-outline-danger" data-act="delete">${t('Delete', '删除')}</button>
       </div>
     </div>
+    <div class="btn-list align-items-center mt-2">
+      <button type="button" class="btn btn-sm" data-act="send-reset">${t('Send password reset', '发送重置密码邮件')}</button>
+      <button type="button" class="btn btn-sm" data-act="send-invite">${t('Send invitation', '发送邀请邮件')}</button>
+      <span class="text-secondary small">${t('Invitations are only for members who have never signed in.', '邀请仅适用于从未登录过的会员。')}</span>
+    </div>
     <div class="alert mb-0 mt-2" data-msg hidden></div></td>`;
   tr.after(row);
+  wireAuthEmails(row, m);
 
   row.querySelector('[data-act="save"]').addEventListener('click', async () => {
     const get = (f) => row.querySelector(`[data-f="${f}"]`).value;
