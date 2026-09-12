@@ -105,7 +105,32 @@ export function authAdmin(env) {
     authorization: `Bearer ${key}`,
     'content-type': 'application/json',
   };
+  // GoTrue's own email sends (/recover, /invite). They resolve to
+  // { ok, status, code, message } instead of throwing, so a caller can turn a
+  // rate limit or an already-registered refusal into a readable answer. GoTrue
+  // reads redirect_to from the query string; `code` covers both error shapes
+  // ({ error_code, msg } and the newer { code: '<string>', message }).
+  const sendAuthEmail = async (path, email, redirectTo) => {
+    const r = await fetch(`${base}/auth/v1/${path}?redirect_to=${encodeURIComponent(redirectTo)}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ email }),
+    });
+    if (r.ok) return { ok: true, status: r.status, code: '', message: '' };
+    const data = await r.json().catch(() => ({}));
+    const code = data.error_code || (typeof data.code === 'string' ? data.code : '');
+    return { ok: false, status: r.status, code, message: data.msg || data.message || '' };
+  };
   return {
+    // The auth user behind a member row, or null if there is none.
+    async getUser(id) {
+      const r = await fetch(`${base}/auth/v1/admin/users/${encodeURIComponent(id)}`, { headers });
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error(`get user: ${r.status}`);
+      return r.json();
+    },
+    sendRecovery: (email, redirectTo) => sendAuthEmail('recover', email, redirectTo),
+    sendInvite: (email, redirectTo) => sendAuthEmail('invite', email, redirectTo),
     async createUser(attrs) {
       const r = await fetch(`${base}/auth/v1/admin/users`, {
         method: 'POST',
