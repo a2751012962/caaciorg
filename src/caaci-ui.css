@@ -451,6 +451,34 @@ a.caaci-skip-link:focus {
   background-color: var(--caaci-surface);
 }
 
+/* Divi's header script pads #et-top-navigation by the logo's width + 30px, sized
+   while the header is one row tall. Between Divi's 981px desktop breakpoint and
+   roughly 1155px the 80%-wide container cannot hold that padding plus the menu,
+   so the menu wraps to a second row. The header grows to fit, the logo
+   (max-height 72% of the header) grows with it, and it runs under "Welcome"
+   because the padding was sized for the smaller logo. Measured on beta at
+   1050px with transitions disabled: logo 143px -> 234px wide, 65px of overlap.
+   Browser zoom puts ordinary laptop windows in that band.
+
+   In the band, widen the container and tighten the item spacing so the menu
+   stays on one row. Everywhere on desktop, cap the logo at its one-row height,
+   so a wrap caused by a wider font or a longer label cannot push the logo into
+   the menu. The cap skips .et-fixed-header, which shrinks the logo on scroll
+   through Divi's own rule. */
+@media (min-width: 981px) and (max-width: 1199px) {
+  .et_header_style_left #main-header .et_menu_container {
+    width: 92%;
+  }
+  .et_header_style_left #top-menu > li {
+    padding-right: 14px;
+  }
+}
+@media (min-width: 981px) {
+  #main-header:not(.et-fixed-header) #logo {
+    max-height: 53px;
+  }
+}
+
 /* Heading text promoted to a link by wireBusinessServiceTiles — inherit the
    tile's own colour rather than Divi's scheme red, so only the behaviour
    changes and the section looks exactly as designed. */
