@@ -396,9 +396,16 @@ wired by `wireEventFormPage` in `src/caaci-member.js`) serves every event.
   (Chinese title, questions and gift names on `events`, `answers` on
   registrations; it backfills the Mid-Autumn questions and that event's existing
   registrations). Paste 0018 into the Supabase SQL editor (never `supabase db
-  push`) **before** deploying this code — the API and the admin events list read
-  the new columns. 0018 only adds, so the previously deployed code keeps working
-  once it is applied.
+  push`) **immediately before** deploying this code — the API and the admin
+  events list read the new columns. 0018 only adds, so the previously deployed
+  code keeps working once it is applied, and a temporary trigger keeps `answers`
+  in step with the legacy columns that code still writes, until a later cleanup
+  migration drops the trigger and those columns.
+- **Testing on a preview deployment:** preview uses the live Supabase database and
+  sends real email. Test registrations there against a separate, temporary
+  published event — never the Mid-Autumn event, whose rows the production admin
+  reads — then delete that event (its registrations cascade). Confirmation emails
+  sent from a preview link back to the preview host.
 
 ## Family invitations (`/api/family`)
 
