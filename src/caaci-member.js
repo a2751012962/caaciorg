@@ -1993,7 +1993,8 @@ export async function wireEventFormPage() {
   const info = await loadEventRegistration(slug, session);
   if (!info?.event) return;
   const ev = info.event;
-  if (ev.title) setText($('#caaci-ev-title'), ev.title);
+  // The heading stays the page's own bilingual title: event titles in the
+  // database are English only, and a Chinese visitor would lose theirs.
   const when = eventWhen(ev);
   if (when) setText($('#caaci-ev-when'), when);
   if (ev.location) setText($('#caaci-ev-where'), ev.location);

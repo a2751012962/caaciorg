@@ -110,7 +110,11 @@ test('event form: an anonymous visitor registers, then is sent to signup with th
     const [get] = fetch.calls;
     assert.equal(get.url, '/api/event-register?event=mid-autumn-festival');
     assert.equal(get.options.headers?.authorization, undefined);
-    assert.equal(q('#caaci-ev-title').textContent, 'Mid-Autumn Festival 2099');
+    // The database title is English only, so the bilingual heading stays.
+    const title = q('#caaci-ev-title');
+    assert.equal(title.textContent.trim(), 'Mid-Autumn Festival 中秋节');
+    assert.equal(title.getAttribute('data-en'), 'Mid-Autumn Festival 中秋节');
+    assert.equal(title.getAttribute('data-zh'), '中秋节 Mid-Autumn Festival');
     assert.match(
       q('#caaci-ev-when').textContent,
       /^Sunday, September 27, 2099 · 2:00\sPM – 6:00\sPM$/,
