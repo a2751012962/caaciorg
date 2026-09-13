@@ -173,3 +173,35 @@ test('admin refunds: no Stripe reference on the row -> 422', async () => {
     fetch.restore();
   }
 });
+
+test('admin refunds: a subscription-mode first year (session has no payment_intent) resolves through its invoice', async () => {
+  const row = {
+    id: 'p1',
+    member_id: 'm1',
+    amount_cents: 1035,
+    refunded_cents: 0,
+    stripe_session_id: 'cs_sub',
+  };
+  const base = route(row);
+  const fetch = mockFetch((url, options = {}) => {
+    if (url.includes('api.stripe.com/v1/checkout/sessions/cs_sub'))
+      return {
+        body: { id: 'cs_sub', mode: 'subscription', payment_intent: null, invoice: 'in_first' },
+      };
+    if (url.includes('api.stripe.com/v1/invoices/in_first'))
+      return { body: { id: 'in_first', payment_intent: 'pi_first' } };
+    return base(url, options);
+  });
+  try {
+    const r = await onRequestPost({ request: adminReq({ payment_id: 'p1' }), env: fakeEnv() });
+    assert.equal(r.status, 200, await r.clone?.().text?.());
+    const refundCall = fetch.calls.find(
+      (c) => c.url.includes('api.stripe.com/v1/refunds') && c.options.method === 'POST',
+    );
+    const body = new URLSearchParams(refundCall.options.body);
+    assert.equal(body.get('payment_intent'), 'pi_first');
+    assert.equal(body.get('amount'), '1035');
+  } finally {
+    fetch.restore();
+  }
+});
