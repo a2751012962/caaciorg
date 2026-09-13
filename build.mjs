@@ -13,9 +13,10 @@ import {
   stat,
   copyFile,
 } from 'node:fs/promises';
-import { join, extname } from 'node:path';
+import { join, extname, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { mirrorLangScript } from './src/caaci-shared.js';
 
 // On Windows, a file copied into dist/ moments ago can still be held open by
 // Defender / the search indexer when we reopen it to rewrite it, and the open
@@ -171,8 +172,19 @@ const guard =
   `if(e.target.closest&&e.target.closest('a[href*="buy.stripe.com"]'))e.preventDefault();` +
   `},true);})();</script>\n`;
 
+// Every mirrored page has an English and a /zh/ copy. The head of each carries
+// mirrorLangScript with the other copy's URL, so a visitor lands on the language
+// they chose before, or on their browser's language the first time.
+const distFiles = await walk(DIST);
+const distPaths = new Set(distFiles.map((f) => relative(DIST, f).split(sep).join('/')));
+const otherLangUrl = (f) => {
+  const rel = relative(DIST, f).split(sep).join('/');
+  const other = rel.startsWith('zh/') ? rel.slice(3) : `zh/${rel}`;
+  return distPaths.has(other) ? '/' + other.replace(/(^|\/)index\.html$/, '$1') : null;
+};
+
 let n = 0;
-for (const f of await walk(DIST)) {
+for (const f of distFiles) {
   if (extname(f) !== '.html') continue;
   let html = await readFile(f, 'utf8');
   if (html.includes('caaci-app.js')) continue;
@@ -182,7 +194,9 @@ for (const f of await walk(DIST)) {
   // finds the real closing tag.
   const close = html.lastIndexOf('</body>');
   html = close === -1 ? html + inject : html.slice(0, close) + inject + html.slice(close);
-  if (html.includes('<head>')) html = html.replace('<head>', '<head>\n' + guard);
+  const alt = otherLangUrl(f);
+  if (html.includes('<head>'))
+    html = html.replace('<head>', '<head>\n' + (alt ? mirrorLangScript(alt) : '') + guard);
   // The mirror carries the TrustedSite badge loader on all 62 pages. Its config
   // endpoint now answers 403 (the WordPress account behind it is gone), so every
   // page makes two failing third-party requests and logs two console errors for
