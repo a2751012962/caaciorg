@@ -11,17 +11,32 @@
 --     means the event's start).
 --   * event_registrations.answers — { questionId: answer }; see _event-form.js.
 --     attending / attendee_names / heard_from / wants_meal become legacy: the
---     new code never writes them, so attending loses its not-null. They stay
---     until a later migration drops them, after this release is live, because
---     the code live when this is pasted still writes and reads them.
+--     new code never writes them, so attending loses its not-null.
 -- The Mid-Autumn event gets its four questions and its mooncake, and its
 -- existing registrations get their answers built from the legacy columns.
 -- Both backfills are guarded (questions still null / answers still '{}' on a
 -- legacy row), so nothing an admin or a registrant changed is overwritten.
--- No functions and no grants: event_registrations stays server-only (0015),
--- and events keep their policies (the new columns are event details, as public
--- as the title).
--- Idempotent (if not exists / guarded updates), so pasting it twice is safe.
+--
+-- The code live when this is pasted keeps writing ONLY the legacy columns,
+-- with upserts that merge them into an existing row, until this release is
+-- deployed. So that its writes are not left with '{}' or stale answers:
+--   * public.event_registration_legacy_answers(...) — the one legacy → answers
+--     mapping, used by the backfill below and by the trigger.
+--   * trigger event_registrations_sync_answers (BEFORE INSERT OR UPDATE) — an
+--     insert carrying legacy values and no answers gets them mapped; an update
+--     that changes a legacy column without changing answers (an old-code
+--     resubmission) gets them mapped again. Rows the new code writes (legacy
+--     columns null, answers set) are left exactly as written.
+-- Both functions are plain security-invoker functions: the trigger runs as the
+-- writer and only rewrites NEW. EXECUTE is revoked from public, anon and
+-- authenticated so neither is callable through PostgREST, and granted to
+-- service_role, the role /api writes as, which the trigger calls the mapping
+-- as. event_registrations stays server-only (0015); events keep their policies
+-- (the new columns are event details, as public as the title).
+-- A later cleanup migration, once this release is live, drops the trigger,
+-- both functions and the legacy columns.
+-- Idempotent (if not exists / create or replace / drop trigger if exists /
+-- guarded updates), so pasting it twice is safe.
 -- Run via: paste into the Supabase SQL editor (never supabase db push on this project; see SETUP.md)
 
 alter table public.events add column if not exists title_zh text;
@@ -31,6 +46,71 @@ alter table public.events add column if not exists perk_item_en text;
 
 alter table public.event_registrations add column if not exists answers jsonb not null default '{}'::jsonb;
 alter table public.event_registrations alter column attending drop not null;
+
+-- Legacy columns -> answers, keyed by the Mid-Autumn question ids below.
+-- heard_from held the fixed English label or, for Other, whatever was typed
+-- ('Other' when nothing was); a blank name list or an unanswered question is
+-- left out, as the new code would.
+create or replace function public.event_registration_legacy_answers(
+  attending boolean,
+  attendee_names text,
+  heard_from text,
+  wants_meal boolean
+) returns jsonb
+language sql
+immutable
+set search_path = ''
+as $fn$
+  select jsonb_strip_nulls(jsonb_build_object(
+    'attending', case
+      when attending is null then null
+      else jsonb_build_object('option', case when attending then 'yes' else 'no' end)
+    end,
+    'names', nullif(btrim(attendee_names), ''),
+    'heard_from', case
+      when heard_from is null or btrim(heard_from) = '' then null
+      when heard_from = 'Website' then jsonb_build_object('option', 'website')
+      when heard_from = 'Friend' then jsonb_build_object('option', 'friend')
+      when heard_from = 'Newsletter' then jsonb_build_object('option', 'newsletter')
+      when heard_from = 'Social Media' then jsonb_build_object('option', 'social')
+      else jsonb_build_object('other', heard_from)
+    end,
+    'meal', case
+      when wants_meal is null then null
+      else jsonb_build_object('option', case when wants_meal then 'yes' else 'no' end)
+    end
+  ))
+$fn$;
+
+-- Keeps answers in step with an old-code write; see the header. A write with
+-- no attending value is not an old-code write and is never touched.
+create or replace function public.event_registrations_sync_answers()
+returns trigger
+language plpgsql
+set search_path = ''
+as $fn$
+begin
+  if new.attending is null then
+    return new;
+  end if;
+  if tg_op = 'INSERT' then
+    if new.answers = '{}'::jsonb then
+      new.answers := public.event_registration_legacy_answers(
+        new.attending, new.attendee_names, new.heard_from, new.wants_meal);
+    end if;
+  elsif (new.attending, new.attendee_names, new.heard_from, new.wants_meal)
+          is distinct from (old.attending, old.attendee_names, old.heard_from, old.wants_meal)
+        and new.answers is not distinct from old.answers then
+    new.answers := public.event_registration_legacy_answers(
+      new.attending, new.attendee_names, new.heard_from, new.wants_meal);
+  end if;
+  return new;
+end;
+$fn$;
+
+revoke all on function public.event_registration_legacy_answers(boolean, text, text, boolean) from public, anon, authenticated;
+revoke all on function public.event_registrations_sync_answers() from public, anon, authenticated;
+grant execute on function public.event_registration_legacy_answers(boolean, text, text, boolean) to service_role;
 
 -- The Mid-Autumn questions, worded as on /mid_autumn_festival_form/. Ids are
 -- stable: the answers below and every later registration refer to them.
@@ -65,29 +145,18 @@ set title_zh = coalesce(title_zh, '中秋节'),
 where slug = 'mid-autumn-festival'
   and registration_questions is null;
 
--- Legacy columns -> answers, for rows the old code wrote (attending is never
--- null there) that have no answers yet. heard_from held the fixed English
--- label or, for Other, whatever was typed ('Other' when nothing was); a blank
--- name list or an unanswered meal question is left out, as the new code would.
+-- Existing Mid-Autumn rows the old code wrote (attending is never null there)
+-- that have no answers yet.
 update public.event_registrations r
-set answers = jsonb_strip_nulls(jsonb_build_object(
-      'attending', jsonb_build_object('option', case when r.attending then 'yes' else 'no' end),
-      'names', nullif(btrim(r.attendee_names), ''),
-      'heard_from', case
-        when r.heard_from is null or btrim(r.heard_from) = '' then null
-        when r.heard_from = 'Website' then jsonb_build_object('option', 'website')
-        when r.heard_from = 'Friend' then jsonb_build_object('option', 'friend')
-        when r.heard_from = 'Newsletter' then jsonb_build_object('option', 'newsletter')
-        when r.heard_from = 'Social Media' then jsonb_build_object('option', 'social')
-        else jsonb_build_object('other', r.heard_from)
-      end,
-      'meal', case
-        when r.wants_meal is null then null
-        else jsonb_build_object('option', case when r.wants_meal then 'yes' else 'no' end)
-      end
-    ))
+set answers = public.event_registration_legacy_answers(
+      r.attending, r.attendee_names, r.heard_from, r.wants_meal)
 from public.events e
 where e.id = r.event_id
   and e.slug = 'mid-autumn-festival'
   and r.answers = '{}'::jsonb
   and r.attending is not null;
+
+drop trigger if exists event_registrations_sync_answers on public.event_registrations;
+create trigger event_registrations_sync_answers
+  before insert or update on public.event_registrations
+  for each row execute function public.event_registrations_sync_answers();
