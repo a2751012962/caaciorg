@@ -10,6 +10,9 @@
 
   <h2 style="margin:0 0 8px;color:#300200;font-size:20px;">You've been invited</h2>
   <p style="margin:0 0 24px;">The Chinese American Association of Central Illinois (CAACI) has invited you to create a member account. Click the button below to accept and set up your account.</p>
+{{ if .Data.family_invite_from }}
+  <p style="margin:0 0 24px;"><strong>{{ .Data.family_invite_from }}</strong> 邀请你加入 TA 在 CAACI 的家庭会员。开通账号后即可接受邀请。<br><strong>{{ .Data.family_invite_from }}</strong> invited you to join their CAACI family membership. Set up your account to accept.</p>
+{{ end }}
 
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;"><tr>
     <td bgcolor="#8e2e11" style="border-radius:4px;">
