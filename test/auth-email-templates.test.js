@@ -108,7 +108,8 @@ test('the PATCH body has every subject and template, the exact SMTP settings, an
     {
       smtp_admin_email: 'no-reply@caaciorg.com',
       smtp_host: 'smtp.resend.com',
-      smtp_port: 465,
+      // A string: UpdateAuthConfigBody in the Management API's OpenAPI spec types it so.
+      smtp_port: '465',
       smtp_user: 'resend',
       smtp_sender_name: 'CAACI',
       smtp_max_frequency: 60,
@@ -127,10 +128,10 @@ test('diff: a live config that already matches has nothing to change', async () 
     [],
   );
 
-  // Line endings, trailing whitespace and a port read back as text are not drift.
+  // Line endings, trailing whitespace and a port read back as a number are not drift.
   const noisy = {
     ...desired,
-    smtp_port: '465',
+    smtp_port: 465,
     mailer_templates_invite_content:
       desired.mailer_templates_invite_content.replace(/\n/g, '  \r\n') + '\n\n',
   };
@@ -205,7 +206,13 @@ test('SBP and SB_REF work as they do for apply-supabase.mjs', async (t) => {
 test('--apply PATCHes only the drifted keys, then re-reads and confirms', async (t) => {
   const out = capture(t);
   const desired = buildAuthPatch(await loadTemplates());
-  let live = { ...desired, mailer_templates_recovery_content: 'stale', smtp_sender_name: 'Old' };
+  // The live config reads smtp_pass back; it must never be written back.
+  let live = {
+    ...desired,
+    smtp_pass: 'REDACTED',
+    mailer_templates_recovery_content: 'stale',
+    smtp_sender_name: 'Old',
+  };
   const stub = mockFetch((url, options) => {
     if (options.method === 'PATCH') live = { ...live, ...JSON.parse(options.body) };
     return { body: live };
@@ -223,6 +230,7 @@ test('--apply PATCHes only the drifted keys, then re-reads and confirms', async 
     'smtp_sender_name',
   ]);
   assert.equal(sent.smtp_sender_name, 'CAACI');
+  assert.equal('smtp_pass' in sent, false, 'smtp_pass was sent');
   assert.match(out.join('\n'), /smtp_pass/, 'should say loudly that the password is not sent');
   assert.equal(out.join('\n').includes(TOKEN), false, 'the token was printed');
 });
@@ -243,15 +251,49 @@ test('--apply exits non-zero when the re-read config still differs', async (t) =
 });
 
 test('--apply will not switch on SMTP it cannot give a password to', async (t) => {
-  capture(t);
+  const out = capture(t);
   const desired = buildAuthPatch(await loadTemplates());
-  const stub = mockFetch(() => ({ body: { ...desired, smtp_host: null, smtp_user: null } }));
+  // Only the host is missing, so a guard keyed on any other SMTP field lets this through.
+  const stub = mockFetch(() => ({ body: { ...desired, smtp_host: null } }));
   try {
     assert.equal(await main(['--apply'], { SUPABASE_ACCESS_TOKEN: TOKEN }), 1);
   } finally {
     stub.restore();
   }
-  assert.deepEqual(methods(stub), ['GET']);
+  assert.deepEqual(methods(stub), ['GET'], 'only SMTP differed, so nothing should be written');
+  const text = out.join('\n');
+  assert.match(text, /smtp\.resend\.com/);
+  assert.equal(text.includes(TOKEN), false, 'the token was printed');
+});
+
+test('--apply will not repoint another SMTP provider at Resend, but still applies templates', async (t) => {
+  const out = capture(t);
+  const desired = buildAuthPatch(await loadTemplates());
+  // That provider's password stays in place, so Resend's host and user would break every email.
+  let live = {
+    ...desired,
+    smtp_host: 'smtp.sendgrid.net',
+    smtp_port: '587',
+    smtp_user: 'apikey',
+    smtp_pass: 'REDACTED',
+    mailer_subjects_invite: 'old subject',
+  };
+  const stub = mockFetch((url, options) => {
+    if (options.method === 'PATCH') live = { ...live, ...JSON.parse(options.body) };
+    return { body: live };
+  });
+  try {
+    // Still non-zero: the SMTP settings the repo asks for are not in place.
+    assert.equal(await main(['--apply'], { SUPABASE_ACCESS_TOKEN: TOKEN }), 1);
+  } finally {
+    stub.restore();
+  }
+  assert.deepEqual(methods(stub), ['GET', 'PATCH', 'GET']);
+  assert.deepEqual(Object.keys(JSON.parse(stub.calls[1].options.body)), ['mailer_subjects_invite']);
+  assert.equal(live.smtp_host, 'smtp.sendgrid.net');
+  const text = out.join('\n');
+  assert.match(text, /smtp\.sendgrid\.net/);
+  assert.equal(text.includes(TOKEN), false, 'the token was printed');
 });
 
 test('an HTTP error exits non-zero, writes nothing and does not echo the token', async (t) => {

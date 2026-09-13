@@ -16,9 +16,11 @@
 //
 // The SMTP password (a Resend API key) is a secret. It is not in this repo, is
 // never sent, and stays whatever is set in the dashboard. That relies on PATCH
-// leaving omitted fields alone, which is how Supabase's own documented examples
-// use it (each sends only a handful of fields), though the API reference does
-// not state it outright — hence the loud note before every PATCH.
+// leaving omitted fields alone: the Management API's OpenAPI spec makes every
+// field of the PATCH body (UpdateAuthConfigBody) optional, and Supabase's
+// documented examples send only a few fields, but neither says outright that
+// omitted fields are kept — hence the loud note before every PATCH. For the
+// same reason SMTP settings are only written to a project already on Resend.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
@@ -32,12 +34,13 @@ export const TEMPLATE_TYPES = [
 ];
 
 // Everything custom SMTP needs except the password, as set under
-// Authentication → SMTP. smtp_port is a number in Supabase's documented example;
-// smtp_max_frequency is the minimum interval per user, in seconds.
+// Authentication → SMTP. Types follow UpdateAuthConfigBody in the OpenAPI spec
+// (https://api.supabase.com/api/v1-json): smtp_port is a string there, and
+// smtp_max_frequency an integer — the dashboard's minimum interval per user.
 export const SMTP_SETTINGS = Object.freeze({
   smtp_admin_email: 'no-reply@caaciorg.com',
   smtp_host: 'smtp.resend.com',
-  smtp_port: 465,
+  smtp_port: '465',
   smtp_user: 'resend',
   smtp_sender_name: 'CAACI',
   smtp_max_frequency: 60,
@@ -71,8 +74,8 @@ export function buildAuthPatch({ subjects, contents }) {
 }
 
 // Line endings and trailing whitespace are not drift: git on Windows and the
-// dashboard editor both rewrite them. Values compare as text because the API
-// docs do not say whether smtp_port reads back as a number or a string.
+// dashboard editor both rewrite them. Values compare as text, so a port that
+// ever reads back as a number still matches.
 export function normalizeValue(value) {
   if (value === null || value === undefined) return '';
   return String(value)
@@ -152,19 +155,29 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
     return 0;
   }
 
-  // Filling in host/user on a project with no custom SMTP would switch it on
-  // with no password, and every auth email would fail to send.
-  if (drift.some((d) => d.key.startsWith('smtp_')) && !normalizeValue(live.smtp_host)) {
+  // The password is never sent, so SMTP settings are only safe to write onto a
+  // project that already sends through Resend. Anywhere else — no custom SMTP,
+  // or another provider — Resend's host and user would be paired with a
+  // password that is not a Resend key, and every auth email would fail.
+  let send = drift;
+  const liveHost = normalizeValue(live.smtp_host);
+  const smtpRefused =
+    drift.some((d) => d.key.startsWith('smtp_')) && liveHost !== SMTP_SETTINGS.smtp_host;
+  if (smtpRefused) {
     console.error(
-      '\n✗ Custom SMTP is not configured on this project, and this script never sends the ' +
-        'password. Set it up under Authentication → SMTP in the dashboard first, then rerun.',
+      `\n✗ Not writing SMTP settings: this project's SMTP host is ` +
+        `${liveHost ? JSON.stringify(liveHost) : 'not set'}, not ${SMTP_SETTINGS.smtp_host}, ` +
+        'and this script never sends a password. Switch SMTP to Resend (with the Resend API ' +
+        'key) under Authentication → SMTP in the dashboard, then rerun.',
     );
-    return 1;
+    send = drift.filter((d) => !d.key.startsWith('smtp_'));
+    if (!send.length) return 1;
+    console.error('Applying the template and subject changes only.');
   }
 
-  const patch = Object.fromEntries(drift.map((d) => [d.key, desired[d.key]]));
+  const patch = Object.fromEntries(send.map((d) => [d.key, desired[d.key]]));
   console.log(
-    `\n⚠ PATCHing ${drift.length} setting(s). smtp_pass is NOT sent — the SMTP password stays ` +
+    `\n⚠ PATCHing ${send.length} setting(s). smtp_pass is NOT sent — the SMTP password stays ` +
       'as set in the dashboard. If auth emails stop arriving afterwards, re-enter it there.',
   );
   const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
@@ -175,10 +188,16 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
 
   const after = await readConfig();
   if (!after) return 1;
-  const remaining = diffAuthConfig(desired, after);
+  const remaining = diffAuthConfig(desired, after).filter(
+    (d) => !(smtpRefused && d.key.startsWith('smtp_')),
+  );
   if (remaining.length) {
     console.error(`✗ PATCH accepted, but ${remaining.length} setting(s) still differ:`);
     for (const d of remaining) console.error(`  ${d.key}: ${d.summary}`);
+    return 1;
+  }
+  if (smtpRefused) {
+    console.error('✗ Templates and subjects applied; SMTP settings left unchanged (see above).');
     return 1;
   }
   console.log(`✓ Applied. All ${owned} owned settings now match the repo.`);
