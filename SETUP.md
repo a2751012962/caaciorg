@@ -285,6 +285,38 @@ Source: `member-src/*.html` + `src/caaci-member.js` (+ `src/caaci-shared.js`,
 pure helpers shared with the mirror layer `caaci-app.js`). The rest of the site
 remains the untouched mirror; `caaci-app.js` still powers its forms.
 
+## Event registration form (`/mid_autumn_festival_form/`)
+
+Replaces the Google Form the Mid-Autumn Festival used to link from its QR code.
+Like the member pages it is a standalone bilingual Tabler page
+(`member-src/mid-autumn-form.html`, wired by `wireEventFormPage` in
+`src/caaci-member.js`), and **no account is needed** to register.
+
+- **Event details** come from the published `events` row named by the page's
+  `data-event` slug (`GET /api/event-register?event=mid-autumn-festival`); the
+  markup carries the Google Form's date, place and contact as a fallback. Fix the
+  date and location in **Admin → Events**, not in the page.
+- **Submitting** POSTs `/api/event-register`, which writes `event_registrations`
+  with the service-role key (the table has RLS on and no browser privileges).
+  One row per email per event: resubmitting updates the answers but keeps the
+  first `created_at`, which is the registration time used for the mooncake cutoff.
+  The first submission emails the registrant a copy (Resend: `RESEND_API_KEY` +
+  `NOTIFY_FROM`; skipped when unset).
+- **Free mooncake**: a registration qualifies when it was submitted **and** the
+  registrant has a CAACI account (same email, or submitted while signed in with
+  that email), both by the event's free-gift deadline — `events.perk_deadline`, or
+  the event start when empty. The success screen offers "Create a free account"
+  (`/login-3/?signup=1`; the email is handed over in `sessionStorage`, never in
+  the URL).
+- **Admin → Events** has a "Free-gift deadline" field per event and a
+  **Registrations** view: counts, the list in registration order (Chicago time),
+  an eligible-only filter, and a CSV export for the mooncake table.
+- Requires migration `0015_event_registrations.sql`. Paste it into the Supabase
+  SQL editor **before** deploying this code — the endpoint and the admin events
+  list read the new table and column and fail with a 500 until it exists.
+- Another event: copy the page, change `data-event` and the fallback text, and
+  add its route to the member-page loop in `build.mjs`.
+
 ## Admin / back-office panel (`/admin/`)
 
 A staff panel lives at **`/admin/`**. Its UI is built on **Tabler** (`@tabler/core`

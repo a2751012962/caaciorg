@@ -135,6 +135,69 @@ test('admin events: publish toggle patches published', async () => {
   }
 });
 
+test('admin events: lists and re-reads perk_deadline', async () => {
+  const fetch = mockFetch(route());
+  try {
+    await onRequestGet({ request: authed(), env: fakeEnv() });
+    await onRequestPost({ request: authed({ body: { id: 'e1', title: 'Gala' } }), env: fakeEnv() });
+    const selects = fetch.calls.filter(
+      (c) => c.url.includes('/rest/v1/events') && c.url.includes('select='),
+    );
+    assert.equal(selects.length, 2);
+    for (const c of selects) assert.match(c.url, /select=[^&]*perk_deadline/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: perk_deadline is normalised to ISO, cleared to null, or refused', async () => {
+  const fetch = mockFetch(route());
+  const patchBody = () =>
+    JSON.parse(fetch.calls.filter((c) => c.options.method === 'PATCH').at(-1).options.body);
+  try {
+    const set = await onRequestPost({
+      request: authed({ body: { id: 'e1', perk_deadline: '2026-09-20T23:59:00-05:00' } }),
+      env: fakeEnv(),
+    });
+    assert.equal(set.status, 200);
+    assert.deepEqual(patchBody(), { perk_deadline: '2026-09-21T04:59:00.000Z' });
+
+    for (const empty of ['', null]) {
+      const cleared = await onRequestPost({
+        request: authed({ body: { id: 'e1', perk_deadline: empty } }),
+        env: fakeEnv(),
+      });
+      assert.equal(cleared.status, 200);
+      assert.deepEqual(patchBody(), { perk_deadline: null });
+    }
+
+    const patches = fetch.calls.filter((c) => c.options.method === 'PATCH').length;
+    const invalid = await onRequestPost({
+      request: authed({ body: { id: 'e1', perk_deadline: 'next friday' } }),
+      env: fakeEnv(),
+    });
+    assert.equal(invalid.status, 400);
+    assert.equal((await invalid.json()).error, 'Invalid free-gift deadline.');
+    assert.equal(fetch.calls.filter((c) => c.options.method === 'PATCH').length, patches);
+
+    // Create accepts it too.
+    const created = await onRequestPut({
+      request: authed({
+        body: {
+          title: 'Mid-Autumn Festival',
+          starts_at: '2026-09-27T19:00:00Z',
+          perk_deadline: '2026-09-21T04:59:00Z',
+        },
+      }),
+      env: fakeEnv(),
+    });
+    assert.equal(created.status, 200);
+    assert.equal((await created.json()).event.perk_deadline, '2026-09-21T04:59:00.000Z');
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('admin events: delete needs an id', async () => {
   const fetch = mockFetch(route());
   try {

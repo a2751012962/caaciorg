@@ -128,6 +128,9 @@ for (const [src, route] of [
   ['membership.html', 'membership'],
   ['account.html', 'account'],
   ['privacy.html', 'privacy'],
+  // Public event registration (replaced a Google Form); the underscored route
+  // is the URL already printed on the festival's QR codes.
+  ['mid-autumn-form.html', 'mid_autumn_festival_form'],
 ]) {
   await mkdir(join(DIST, route), { recursive: true });
   let page = await readFile(join(ROOT, 'member-src', src), 'utf8');

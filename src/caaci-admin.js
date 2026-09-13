@@ -1447,6 +1447,12 @@ const dtInput = (d) => {
   x.setMinutes(x.getMinutes() - x.getTimezoneOffset());
   return x.toISOString().slice(0, 16);
 };
+// …and back: a datetime-local value parses as local time. Anything unparseable
+// is passed through for the server to refuse.
+const localToIso = (v) => {
+  const d = new Date(v);
+  return v && !isNaN(d.getTime()) ? d.toISOString() : v;
+};
 const fmtWhen = (e) => {
   const s = new Date(e.starts_at);
   const txt = s.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -1487,11 +1493,15 @@ async function loadEvents() {
       <td>${badgeHtml(st.key, st.label)}</td>
       <td><div class="btn-list flex-nowrap">
         <button type="button" class="btn btn-sm" data-act="edit">${t('Edit', '编辑')}</button>
+        <button type="button" class="btn btn-sm" data-act="registrations">${t('Registrations', '报名')}</button>
         <button type="button" class="btn btn-sm" data-act="toggle">${e.published ? t('Unpublish', '取消发布') : t('Publish', '发布')}</button>
         <button type="button" class="btn btn-sm btn-ghost-danger" data-act="delete">${t('Delete', '删除')}</button>
       </div></td>`;
     tr.querySelector('[data-act="edit"]').addEventListener('click', () =>
       eventForm($('#caaci-event-form-host'), e),
+    );
+    tr.querySelector('[data-act="registrations"]').addEventListener('click', () =>
+      openRegistrations(e),
     );
     tr.querySelector('[data-act="toggle"]').addEventListener('click', async () => {
       const { ok: ok2, data: d2 } = await api('/api/admin/events', {
@@ -1505,8 +1515,8 @@ async function loadEvents() {
       if (
         !window.confirm(
           t(
-            `Delete "${e.title}"? Its RSVPs are removed too.`,
-            `删除“${e.title}”？其报名记录也将被删除。`,
+            `Delete "${e.title}"? Its RSVPs and registrations are removed too.`,
+            `删除“${e.title}”？其 RSVP 与报名记录也将被删除。`,
           ),
         )
       )
@@ -1544,6 +1554,7 @@ function eventForm(host, ev) {
         ${field(t('Location', '地点'), `<input type="text" class="form-control" data-f="location" value="${edit ? esc(ev.location || '') : ''}">`)}
         ${field(`${t('Starts', '开始')} *`, `<input type="datetime-local" class="form-control" data-f="starts_at" value="${edit ? dtInput(ev.starts_at) : ''}">`)}
         ${field(t('Ends (optional)', '结束（可选）'), `<input type="datetime-local" class="form-control" data-f="ends_at" value="${edit ? dtInput(ev.ends_at) : ''}">`)}
+        ${field(t('Free-gift deadline', '福利截止时间'), `<input type="datetime-local" class="form-control" data-f="perk_deadline" value="${edit ? dtInput(ev.perk_deadline) : ''}"><small class="form-hint">${t('Register and create an account by this time to get the free gift. Empty = event start.', '在此时间前报名并注册账户可领取福利。留空 = 活动开始时间。')}</small>`)}
         ${imageFieldHtml(edit ? ev.image_url : '')}
       </div>
       ${field(t('Description', '描述'), `<textarea class="form-control" data-f="description" rows="3">${edit ? esc(ev.description || '') : ''}</textarea>`, 'mb-3')}
@@ -1567,8 +1578,12 @@ function eventForm(host, ev) {
     const body = {
       title: val('title').value.trim(),
       location: val('location').value.trim(),
-      starts_at: val('starts_at').value,
-      ends_at: val('ends_at').value,
+      // The admin's wall-clock times as real instants. A bare datetime-local value
+      // would be read as UTC by the Worker, shifting the event by the admin's
+      // offset on every save. '' clears an end (→ null) or a deadline (→ start).
+      starts_at: localToIso(val('starts_at').value),
+      ends_at: localToIso(val('ends_at').value),
+      perk_deadline: localToIso(val('perk_deadline').value),
       description: val('description').value.trim(),
       image_url: val('image_url').value.trim(),
       published: val('published').checked,
@@ -1588,8 +1603,194 @@ function eventForm(host, ev) {
   });
 }
 
+// ---------- event registrations (who signed up; who gets the free gift) ----------
+// The event is in Champaign and registration times are recorded to the second,
+// so times here are Chicago wall-clock "YYYY-MM-DD HH:mm:ss" whatever the
+// admin's own zone — the same text on screen and in the CSV.
+const chicagoParts = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Chicago',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+const chicagoTime = (d) => {
+  const x = d ? new Date(d) : null;
+  if (!x || isNaN(x.getTime())) return '';
+  const p = Object.fromEntries(chicagoParts.formatToParts(x).map((q) => [q.type, q.value]));
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+};
+
+const CSV_COLUMNS = [
+  '#',
+  'registered_at (Chicago)',
+  'email',
+  'attending',
+  'names',
+  'heard_from',
+  'wants_meal',
+  'has_account',
+  'account_confirmed',
+  'account_created_at (Chicago)',
+  'mooncake_eligible',
+];
+const yesNo = (v) => (v === true ? 'yes' : v === false ? 'no' : '');
+// RFC 4180: quote a cell holding a comma, quote or line break, doubling quotes.
+// Registrant text that starts like a spreadsheet formula gets a leading ' so
+// Excel shows it instead of evaluating it.
+const csvCell = (v) => {
+  let s = String(v ?? '');
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+// The registrations CSV (pure — no DOM). `#` is the position in registration
+// order, so it stays the same when only eligible rows are exported. Starts with
+// a UTF-8 BOM so Excel reads Chinese names correctly; CRLF line ends.
+export function registrationsCsv(rows, { eligibleOnly = false } = {}) {
+  const lines = [CSV_COLUMNS];
+  rows.forEach((r, i) => {
+    if (eligibleOnly && !r.perk_eligible) return;
+    lines.push([
+      i + 1,
+      chicagoTime(r.created_at),
+      r.email,
+      yesNo(r.attending),
+      r.attendee_names,
+      r.heard_from,
+      yesNo(r.wants_meal),
+      yesNo(!!r.account),
+      r.account ? yesNo(!!r.account.confirmed) : '',
+      chicagoTime(r.account?.created_at),
+      yesNo(!!r.perk_eligible),
+    ]);
+  });
+  return `\uFEFF${lines.map((l) => l.map(csvCell).join(',')).join('\r\n')}\r\n`;
+}
+
+let regData = null; // the /api/admin/event-registrations answer the panel shows
+let regSeq = 0; // a slow answer for an event the admin has since left is dropped
+
+async function openRegistrations(ev) {
+  const panel = $('#caaci-reg-panel');
+  const notb = $('#caaci-reg-notice');
+  const seq = ++regSeq;
+  regData = null;
+  panel.hidden = false;
+  notb.hidden = true;
+  $('#caaci-reg-eligible').checked = false;
+  $('#caaci-reg-csv').disabled = true;
+  $('#caaci-reg-title').textContent = ev.title;
+  $('#caaci-reg-deadline').textContent = '';
+  $('#caaci-reg-stats').innerHTML = '';
+  $('#caaci-reg-body').innerHTML =
+    `<tr><td colspan="9" class="text-secondary">${t('Loading…', '加载中…')}</td></tr>`;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  const { ok, data } = await api(
+    `/api/admin/event-registrations?event_id=${encodeURIComponent(ev.id)}`,
+  );
+  if (seq !== regSeq) return;
+  if (!ok) {
+    $('#caaci-reg-body').innerHTML = '';
+    return notice(notb, data.error || t('Could not load registrations.', '无法加载报名。'), false);
+  }
+  regData = data;
+  const { event, summary } = data;
+  const when = chicagoTime(event.deadline);
+  $('#caaci-reg-title').textContent = event.title;
+  $('#caaci-reg-deadline').textContent = event.perk_deadline
+    ? t(`Free-gift deadline: ${when} (Chicago)`, `福利截止时间：${when}（芝加哥时间）`)
+    : t(
+        `Free-gift deadline: ${when} (Chicago) — the event start`,
+        `福利截止时间：${when}（芝加哥时间）——即活动开始时间`,
+      );
+  const stat = (label, n, cls = '') => `
+    <div class="col-6 col-sm-4 col-lg-2">
+      <div class="card card-sm"><div class="card-body">
+        <div class="subheader">${label}</div>
+        <div class="h1 mb-0${cls}">${Number(n) || 0}</div>
+      </div></div>
+    </div>`;
+  $('#caaci-reg-stats').innerHTML = [
+    stat(t('Total', '总数'), summary.total),
+    stat(t('Attending', '参加'), summary.attending),
+    stat(t('Not attending', '不参加'), summary.not_attending),
+    stat(t('Want a meal', '订餐'), summary.meal),
+    stat(t('Confirmed account', '已验证账户'), summary.with_account),
+    stat(t('Mooncake eligible', '可领月饼'), summary.perk_eligible, ' text-success'),
+  ].join('');
+  $('#caaci-reg-csv').disabled = false;
+  renderRegistrations();
+}
+
+function renderRegistrations() {
+  if (!regData) return;
+  const eligibleOnly = $('#caaci-reg-eligible').checked;
+  const mark = (yes) =>
+    yes ? '<span class="text-success">✓</span>' : '<span class="text-secondary">—</span>';
+  const meal = (v) => (v === true ? t('Yes', '要') : v === false ? t('No', '不要') : '—');
+  // A signup that never confirmed its email doesn't count, but staff should see it.
+  const account = (a) => {
+    if (!a) return mark(false);
+    return a.confirmed ? mark(true) : badgeHtml('pending', t('Unconfirmed', '未验证'));
+  };
+  const html = [];
+  regData.rows.forEach((r, i) => {
+    if (eligibleOnly && !r.perk_eligible) return;
+    // Everything a registrant typed goes through esc().
+    html.push(`<tr>
+      <td class="text-secondary">${i + 1}</td>
+      <td class="text-nowrap">${chicagoTime(r.created_at)}</td>
+      <td>${esc(r.email)}</td>
+      <td>${r.attending ? badgeHtml('active', t('Yes', '参加')) : badgeHtml('expired', t('No', '不参加'))}</td>
+      <td class="text-wrap">${esc(r.attendee_names || '—')}</td>
+      <td>${esc(r.heard_from || '—')}</td>
+      <td>${meal(r.wants_meal)}</td>
+      <td>${account(r.account)}</td>
+      <td>${mark(r.perk_eligible)}</td>
+    </tr>`);
+  });
+  $('#caaci-reg-body').innerHTML =
+    html.join('') ||
+    `<tr><td colspan="9" class="text-secondary">${
+      eligibleOnly
+        ? t('No eligible registrations.', '暂无可领月饼的报名。')
+        : t('No registrations yet.', '暂无报名。')
+    }</td></tr>`;
+}
+
+function downloadRegistrationsCsv() {
+  if (!regData) return;
+  const eligibleOnly = $('#caaci-reg-eligible').checked;
+  const csv = registrationsCsv(regData.rows, { eligibleOnly });
+  const name =
+    String(regData.event.title || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'event';
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name}-registrations${eligibleOnly ? '-eligible' : ''}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function wireEvents() {
   $('#caaci-event-add-btn').addEventListener('click', () => eventForm($('#caaci-event-form-host')));
+  $('#caaci-reg-eligible').addEventListener('change', renderRegistrations);
+  $('#caaci-reg-csv').addEventListener('click', downloadRegistrationsCsv);
+  $('#caaci-reg-close').addEventListener('click', () => {
+    regSeq++;
+    regData = null;
+    $('#caaci-reg-panel').hidden = true;
+  });
   let timer;
   $('#caaci-ev-q').addEventListener('input', () => {
     clearTimeout(timer);

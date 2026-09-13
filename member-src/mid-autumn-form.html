@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>
+      Mid-Autumn Festival Registration | Chinese American Association of Central Illinois
+    </title>
+    <!-- Standalone Tabler page (like /admin/). The literal token caaci-app.js in this
+         comment opts the page out of build.mjs's mirror-enhancement injection — this
+         page loads its own assets below and never runs the mirror layer. -->
+    <link rel="stylesheet" href="/assets/tabler.min.css" />
+    <link rel="stylesheet" href="/assets/caaci-ui.css" />
+    <link rel="stylesheet" href="/assets/caaci-theme.css" />
+  </head>
+  <body data-page="event-form" data-event="mid-autumn-festival">
+    <!-- Public registration at /mid_autumn_festival_form/, replacing the festival's
+         Google Form: no account needed. Most visitors scan a QR code on a phone, so
+         it is one narrow column. The details below are the flyer's and show at
+         once; caaci-member.js then replaces the time and place from
+         /api/event-register (the bilingual title stays), so a slow or failing
+         API never leaves the page blank or the form unusable. -->
+    <div class="page">
+      <!--CAACI_NAV-->
+
+      <div class="caaci-hero">
+        <div class="container container-tight py-4">
+          <div
+            class="caaci-hero-eyebrow mb-1"
+            data-en="CAACI · Event registration"
+            data-zh="CAACI · 活动报名"
+          >
+            CAACI · Event registration
+          </div>
+          <h1
+            class="mb-2"
+            id="caaci-ev-title"
+            data-en="Mid-Autumn Festival 中秋节"
+            data-zh="中秋节 Mid-Autumn Festival"
+          >
+            Mid-Autumn Festival 中秋节
+          </h1>
+          <p class="mb-2" id="caaci-ev-desc" hidden></p>
+          <ul class="list-unstyled mb-0">
+            <li class="mb-1">
+              <span class="fw-bold" data-en="When:" data-zh="时间：">When:</span>
+              <span
+                id="caaci-ev-when"
+                data-en="Sunday, September 27, 2026 · 2:00 PM – 6:00 PM"
+                data-zh="2026年9月27日星期日 · 下午2:00 – 下午6:00"
+                >Sunday, September 27, 2026 · 2:00 PM – 6:00 PM</span
+              >
+            </li>
+            <li class="mb-1">
+              <span class="fw-bold" data-en="Where:" data-zh="地点：">Where:</span>
+              <span
+                id="caaci-ev-where"
+                data-en="Siebel Center for Design, 1208 S Fourth St, Champaign, IL"
+                data-zh="Siebel Center for Design（1208 S Fourth St, Champaign, IL）"
+                >Siebel Center for Design, 1208 S Fourth St, Champaign, IL</span
+              >
+            </li>
+            <li>
+              <span class="fw-bold" data-en="Contact us at" data-zh="联系电话："
+                >Contact us at</span
+              >
+              <a class="text-reset text-decoration-underline" href="tel:+14054376283"
+                >(405) 437-6283</a
+              >
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="container container-tight py-4">
+        <!-- The free-mooncake perk: register AND hold a free account by the deadline.
+             caaci-member.js fills in the deadline, or switches this to the
+             "closed" wording once it has passed. -->
+        <div class="alert alert-warning" id="caaci-ev-perk">
+          <h2 class="h3 mb-1" id="caaci-ev-perk-title" data-en="Free mooncake" data-zh="免费月饼">
+            Free mooncake
+          </h2>
+          <p
+            class="mb-0"
+            id="caaci-ev-perk-text"
+            data-en="Register below and create a free CAACI website account before the festival starts, and a free mooncake is waiting for you at the festival. The account is optional — anyone can register."
+            data-zh="在下方报名，并在活动开始前免费注册 CAACI 网站账户，即可在活动现场领取免费月饼。注册账户并非必需——任何人都可以报名。"
+          >
+            Register below and create a free CAACI website account before the festival starts, and a
+            free mooncake is waiting for you at the festival. The account is optional — anyone can
+            register.
+          </p>
+        </div>
+
+        <div class="card card-md" id="caaci-ev-form-card">
+          <div class="card-body">
+            <h2 class="h3 mb-1" data-en="Register" data-zh="报名">Register</h2>
+            <p
+              class="text-secondary mb-4"
+              data-en="Fields marked * are required."
+              data-zh="带 * 的为必填项。"
+            >
+              Fields marked * are required.
+            </p>
+            <form id="caaci-ev-form" novalidate>
+              <div class="mb-4">
+                <label
+                  class="form-label required"
+                  for="caaci-ev-email"
+                  data-en="Email"
+                  data-zh="邮箱"
+                  >Email</label
+                >
+                <input
+                  type="email"
+                  id="caaci-ev-email"
+                  class="form-control"
+                  autocomplete="email"
+                  inputmode="email"
+                  maxlength="254"
+                  required
+                  data-ph-en="you@example.com"
+                  data-ph-zh="you@example.com"
+                  placeholder="you@example.com"
+                />
+              </div>
+
+              <fieldset class="mb-4">
+                <legend
+                  class="form-label required"
+                  data-en="Can you attend?"
+                  data-zh="您能参加吗？"
+                >
+                  Can you attend?
+                </legend>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="attending"
+                    id="caaci-ev-attending-yes"
+                    value="yes"
+                    required
+                  />
+                  <label
+                    class="form-check-label"
+                    for="caaci-ev-attending-yes"
+                    data-en="Yes, I'll be there"
+                    data-zh="能，我会参加"
+                    >Yes, I'll be there</label
+                  >
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="attending"
+                    id="caaci-ev-attending-no"
+                    value="no"
+                    required
+                  />
+                  <label
+                    class="form-check-label"
+                    for="caaci-ev-attending-no"
+                    data-en="Sorry, can't make it"
+                    data-zh="抱歉，无法参加"
+                    >Sorry, can't make it</label
+                  >
+                </div>
+              </fieldset>
+
+              <div class="mb-4">
+                <label
+                  class="form-label required"
+                  for="caaci-ev-names"
+                  data-en="What are the names of people attending?"
+                  data-zh="参加者的姓名是？"
+                  >What are the names of people attending?</label
+                >
+                <textarea
+                  id="caaci-ev-names"
+                  class="form-control"
+                  rows="3"
+                  maxlength="1000"
+                  autocomplete="off"
+                  required
+                  aria-describedby="caaci-ev-names-hint"
+                ></textarea>
+                <div
+                  class="form-hint"
+                  id="caaci-ev-names-hint"
+                  data-en="Everyone coming with you, including yourself."
+                  data-zh="请填写所有同行者，包括您本人。"
+                >
+                  Everyone coming with you, including yourself.
+                </div>
+              </div>
+
+              <fieldset class="mb-4">
+                <legend
+                  class="form-label"
+                  data-en="How did you hear about this event?"
+                  data-zh="您是从哪里得知本次活动的？"
+                >
+                  How did you hear about this event?
+                </legend>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="heard_from"
+                    id="caaci-ev-heard-website"
+                    value="website"
+                  />
+                  <label
+                    class="form-check-label"
+                    for="caaci-ev-heard-website"
+                    data-en="Website"
+                    data-zh="网站"
+                    >Website</label
+                  >
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="heard_from"
+                    id="caaci-ev-heard-friend"
+                    value="friend"
+                  />
+                  <label
+                    class="form-check-label"
+                    for="caaci-ev-heard-friend"
+                    data-en="Friend"
+                    data-zh="朋友"
+                    >Friend</label
+                  >
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="heard_from"
+                    id="caaci-ev-heard-newsletter"
+                    value="newsletter"
+                  />
+                  <label
+                    class="form-check-label"
+                    for="caaci-ev-heard-newsletter"
+                    data-en="Newsletter"
+                    data-zh="简报"
+                    >Newsletter</label
+                  >
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="heard_from"
+                    id="caaci-ev-heard-social"
+                    value="social"
+                  />
+                  <label
+                    class="form-check-label"
+                    for="caaci-ev-heard-social"
+                    data-en="Social Media"
+                    data-zh="社交媒体"
+                    >Social Media</label
+                  >
+                </div>
+                <div class="form-check mb-1">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="heard_from"
+                    id="caaci-ev-heard-other"
+                    value="other"
+                  />
+                  <label
+                    class="form-check-label"
+                    for="caaci-ev-heard-other"
+                    data-en="Other:"
+                    data-zh="其他："
+                    >Other:</label
+                  >
+                </div>
+                <label
+                  class="visually-hidden"
+                  for="caaci-ev-heard-other-text"
+                  data-en="Other — where you heard about the event"
+                  data-zh="其他——您从哪里得知本次活动"
+                  >Other — where you heard about the event</label
+                >
+                <input
+                  type="text"
+                  id="caaci-ev-heard-other-text"
+                  class="form-control"
+                  maxlength="200"
+                  data-ph-en="Tell us where"
+                  data-ph-zh="请注明"
+                  placeholder="Tell us where"
+                />
+              </fieldset>
+
+              <fieldset class="mb-4">
+                <legend
+                  class="form-label"
+                  data-en="Would you like to purchase a meal?"
+                  data-zh="您想购买餐食吗？"
+                >
+                  Would you like to purchase a meal?
+                </legend>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="wants_meal"
+                    id="caaci-ev-meal-yes"
+                    value="yes"
+                  />
+                  <label class="form-check-label" for="caaci-ev-meal-yes" data-en="Yes" data-zh="是"
+                    >Yes</label
+                  >
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="wants_meal"
+                    id="caaci-ev-meal-no"
+                    value="no"
+                  />
+                  <label class="form-check-label" for="caaci-ev-meal-no" data-en="No" data-zh="否"
+                    >No</label
+                  >
+                </div>
+              </fieldset>
+
+              <!-- Honeypot: invisible to people and skipped by the keyboard, so only a
+                   bot fills it; the API then answers ok without saving anything. Its
+                   name means nothing to browser autofill or a password manager (a
+                   "website" field would get a real visitor's URL filled in). -->
+              <input
+                type="text"
+                id="caaci_hp_field"
+                name="caaci_hp_field"
+                class="visually-hidden"
+                tabindex="-1"
+                autocomplete="off"
+                aria-hidden="true"
+              />
+
+              <p
+                class="form-hint mb-3"
+                data-en="A copy of your responses will be emailed to you."
+                data-zh="您的回答副本将发送到您的邮箱。"
+              >
+                A copy of your responses will be emailed to you.
+              </p>
+              <p class="alert mb-3" id="caaci-ev-notice" role="alert" hidden></p>
+              <div class="form-footer">
+                <button
+                  type="submit"
+                  id="caaci-ev-submit"
+                  class="btn btn-primary w-100"
+                  data-en="Submit"
+                  data-zh="提交"
+                >
+                  Submit
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Replaces the form once registered (or straight away for a signed-in
+             visitor who already is). The mooncake step shows one of: counted,
+             create-an-account, or closed. -->
+        <div class="card card-md" id="caaci-ev-done" hidden>
+          <div class="card-body text-center">
+            <h2
+              class="mb-2"
+              id="caaci-ev-done-title"
+              tabindex="-1"
+              data-en="You're registered"
+              data-zh="报名成功"
+            >
+              You're registered
+            </h2>
+            <p class="text-secondary" id="caaci-ev-done-time"></p>
+            <p
+              class="alert alert-info text-start"
+              id="caaci-ev-done-already"
+              hidden
+              data-en="We updated your answers; your original registration time is kept."
+              data-zh="我们已更新您的回答，最初的报名时间保持不变。"
+            >
+              We updated your answers; your original registration time is kept.
+            </p>
+            <p
+              class="alert alert-success"
+              id="caaci-ev-perk-counted"
+              hidden
+              data-en="✓ Counted for a free mooncake"
+              data-zh="✓ 已计入免费月饼名单"
+            >
+              ✓ Counted for a free mooncake
+            </p>
+            <div id="caaci-ev-perk-cta" hidden>
+              <p
+                id="caaci-ev-perk-cta-text"
+                data-en="One more step for a free mooncake: create a free CAACI account with the email you registered with before the festival starts."
+                data-zh="领取免费月饼还差一步：在活动开始前，用报名时填写的邮箱免费注册 CAACI 账户。"
+              >
+                One more step for a free mooncake: create a free CAACI account with the email you
+                registered with before the festival starts.
+              </p>
+              <button
+                type="button"
+                id="caaci-ev-signup"
+                class="btn btn-primary w-100"
+                data-en="Create a free account"
+                data-zh="免费注册账户"
+              >
+                Create a free account
+              </button>
+              <p class="mt-3 mb-0">
+                <a
+                  href="/login-3/"
+                  id="caaci-ev-login"
+                  data-en="Already have an account? Log in"
+                  data-zh="已有账户？登录"
+                  >Already have an account? Log in</a
+                >
+              </p>
+            </div>
+            <p
+              class="text-secondary"
+              id="caaci-ev-perk-closed"
+              hidden
+              data-en="Free mooncake sign-up has closed."
+              data-zh="免费月饼登记已截止。"
+            >
+              Free mooncake sign-up has closed.
+            </p>
+            <hr class="my-3" />
+            <button
+              type="button"
+              id="caaci-ev-edit"
+              class="btn btn-link"
+              data-en="Change my answers"
+              data-zh="修改我的回答"
+            >
+              Change my answers
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/assets/supabase.js"></script>
+    <script src="/assets/caaci-config.js"></script>
+    <script src="/assets/tabler.min.js" defer></script>
+    <script type="module" src="/assets/caaci-member.js"></script>
+  </body>
+</html>
