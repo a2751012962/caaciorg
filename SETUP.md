@@ -396,7 +396,7 @@ wired by `wireEventFormPage` in `src/caaci-member.js`) serves every event.
   (Chinese title, questions and gift names on `events`, `answers` on
   registrations; it backfills the Mid-Autumn questions and that event's existing
   registrations). Paste 0018 into the Supabase SQL editor (never `supabase db
-  push`) **immediately before** deploying this code — the API and the admin
+push`) **immediately before** deploying this code — the API and the admin
   events list read the new columns. 0018 only adds, so the previously deployed
   code keeps working once it is applied, and a temporary trigger keeps `answers`
   in step with the legacy columns that code still writes, until a later cleanup
