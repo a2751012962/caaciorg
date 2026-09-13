@@ -1327,3 +1327,101 @@ test('membership card: the card host has its bottom gap only while a card is sho
     api.restore();
   }
 });
+
+// ---------- coverage: English escaping, per-address cooldown, full form, own card ----------
+test('family founder: the pending-invite note escapes the email in English', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const evil = '<img src=x><x-evil></x-evil>';
+  const api = familyApi(founderFam({ invites: [{ ...INV_DAD, email: evil, person_id: 'p3' }] }));
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const note = q('[data-fam-row-pending]');
+    assert.equal(note.querySelector('img, x-evil'), null);
+    assert.equal(note.textContent, `Invitation pending to ${evil}`);
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: resending one invitation leaves the other address’s Resend usable', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(
+    founderFam({ invites: [INV_DAD, { ...INV_DAD, id: 'i7', email: 'mom@x.com' }] }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    qa('[data-fam-resend]')[0].click();
+    await settle();
+    assert.deepEqual(api.posts(), [{ action: 'resend_invite', invite_id: 'i1' }]);
+    assert.equal(api.gets().length, 2, 'reloaded');
+    const [dad, mom] = qa('[data-fam-resend]');
+    assert.equal(dad.disabled, true);
+    assert.equal(dad.textContent, 'Resend in 60s');
+    assert.equal(mom.disabled, false, 'a different address has its own cooldown');
+    assert.equal(mom.textContent, 'Resend');
+    mom.click();
+    await settle();
+    assert.deepEqual(api.posts()[1], { action: 'resend_invite', invite_id: 'i7' });
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: a full family’s invite-by-email form sends nothing, even with an address typed', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(
+    founderFam({ seats: { used: 3, limit: 3 }, people: [P_FOUNDER, P_SPOUSE, P_CHILD] }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.ok(q('[data-fam-full]'));
+    const inv = q('form[data-fam-invite]');
+    inv.querySelector('[name="email"]').value = 'extra@x.com';
+    submit(inv);
+    await settle();
+    assert.equal(api.posts().length, 0);
+    assert.equal(q('[data-fam-notice]').hidden, true);
+  } finally {
+    api.restore();
+  }
+});
+
+test('membership card: a founder with an active tier of their own sees that tier and expiry, not the family plan', async () => {
+  setup();
+  member.__setSupa(
+    supaStub({
+      memberRow: { ...FAMILY_ROW, tier_id: 'individual', expires_at: '2026-12-31T12:00:00Z' },
+      tierRows: [
+        { id: 'family', name: 'Household Plan', price_cents: 6000, active: true },
+        { id: 'individual', name: 'Solo Plan', price_cents: 3000, active: true },
+      ],
+    }),
+  );
+  const api = familyApi(founderFam());
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const cards = qa('.caaci-mcard2');
+    assert.equal(cards.length, 1);
+    const text = cards[0].textContent;
+    assert.match(text, /Solo Plan/);
+    assert.doesNotMatch(text, /Household Plan/);
+    assert.match(
+      text,
+      new RegExp(`Valid through ${escRe(new Date('2026-12-31T12:00:00Z').toLocaleDateString())}`),
+    );
+    assert.doesNotMatch(
+      text,
+      new RegExp(escRe(new Date('2027-03-01T00:00:00Z').toLocaleDateString())),
+    );
+  } finally {
+    api.restore();
+  }
+});
