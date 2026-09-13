@@ -442,7 +442,8 @@ function festivalSection(copy, href) {
   );
   const right = promoNode('div', 'et_pb_column et_pb_column_1_2 et-last-child');
   right.append(textModule(promoNode('p', '', copy.text), cta));
-  const row = promoNode('div', 'et_pb_row');
+  // The "Welcome" row's wider gutter, so the columns line up with it too.
+  const row = promoNode('div', 'et_pb_row et_pb_gutters4');
   row.append(left, right);
   const section = promoNode('div', 'caaci-promo et_pb_section et_section_regular');
   section.append(row);
