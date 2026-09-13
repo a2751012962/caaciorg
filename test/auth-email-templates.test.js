@@ -183,6 +183,20 @@ test('templates are sent with LF line endings whatever the checkout uses', async
   }
 });
 
+test('templates with lone CR line endings are sent with LF too', async () => {
+  const { contents } = await loadTemplates();
+  const cr = String.fromCharCode(13);
+  const lone = Object.fromEntries(
+    Object.entries(contents).map(([type, html]) => [type, html.replace(/\r?\n/g, cr)]),
+  );
+  const body = await patchWith({ contents: lone });
+  for (const type of TYPES) {
+    const sent = body[`mailer_templates_${type}_content`];
+    assert.equal(sent.includes(cr), false, `${type} kept a CR`);
+    assert.equal(sent, contents[type].replace(/\r\n/g, '\n'));
+  }
+});
+
 // ---------------------------------------------------------------- diff
 
 test('diff: a live config that already matches has nothing to change', async () => {
@@ -227,6 +241,8 @@ test('diff: whitespace inside a line is drift — only line ends are normalised'
   const edits = {
     'spacing inside a template variable': desired[key].replace('{{ .Email }}', '{{.Email}}'),
     'a space inside a style attribute': desired[key].replace('style="', 'style=" '),
+    // Only the run length changes, so a normaliser that collapses spaces would miss it.
+    'two spaces where there was one': desired[key].replace(' style="', '  style="'),
   };
   for (const [what, live] of Object.entries(edits)) {
     assert.notEqual(live, desired[key], `fixture did not change: ${what}`);

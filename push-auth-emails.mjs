@@ -67,7 +67,8 @@ export function buildAuthPatch({ subjects, contents }) {
   const body = {};
   for (const type of TEMPLATE_TYPES) {
     body[`mailer_subjects_${type}`] = checkText(subjects[type], `subject for ${type}`);
-    const html = checkText(contents[type], `${type}.html`).replace(/\r\n/g, '\n');
+    // CRLF and lone CR both become LF — the same line ends the diff ignores.
+    const html = checkText(contents[type], `${type}.html`).replace(/\r\n?/g, '\n');
     for (const name of REQUIRED_VARIABLES[type]) {
       if (!new RegExp(`\\{\\{\\s*\\.${name}\\s*\\}\\}`).test(html)) {
         throw new Error(`${type}.html has no {{ .${name} }}`);
