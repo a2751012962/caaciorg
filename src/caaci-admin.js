@@ -1553,8 +1553,9 @@ const fmtWhen = (e) => {
     : txt;
 };
 
-// Registration is open (the public page answers) for a published event that takes
-// registrations and has not ended — registrationOpen in functions/api/_event-form.js.
+// Registration is open for a published event that takes registrations (the public
+// API answers 404 otherwise) and has not ended; the end check is the API's own
+// registrationOpen rule, now <= (ends_at ?? starts_at).
 const registrationOpen = (e) =>
   !!e.published &&
   !!e.slug &&
