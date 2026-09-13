@@ -200,6 +200,7 @@ async function loadMembers() {
 
 function renderRows(rows) {
   const tb = $('#caaci-members-body');
+  clearEditorTimers(); // the open editor row is about to be wiped with the table
   tb.innerHTML = '';
   for (const m of rows) {
     const tr = document.createElement('tr');
@@ -217,24 +218,39 @@ function renderRows(rows) {
 }
 
 // ---------- auth emails (password reset / invitation) ----------
-// Supabase allows one auth email per user per 60s, so the button counts that
-// down after a send (or a 429) instead of letting the admin hammer it. The
-// timer stops early once the editor row is closed and the button is detached.
-const AUTH_EMAIL_COOLDOWN_S = 60;
-function cooldown(btn, label) {
-  let left = AUTH_EMAIL_COOLDOWN_S;
-  btn.disabled = true;
-  btn.textContent = `${label} (${left}s)`;
-  const timer = setInterval(() => {
-    left -= 1;
-    if (left > 0 && btn.isConnected) {
+// Supabase allows one auth email per user per 60s, so a button counts that down
+// after a send (or a 429). The expiry lives in a module-level map keyed by
+// member + action, so closing and reopening the editor, or the table
+// re-rendering after Save, resumes the countdown instead of resetting it. Only
+// one editor is open at a time; its intervals are cleared when it goes away.
+const AUTH_EMAIL_COOLDOWN_MS = 60_000;
+const authEmailCooldownUntil = new Map(); // `${member.id}:${action}` → epoch ms
+const editorTimers = new Set();
+function clearEditorTimers() {
+  for (const id of editorTimers) clearInterval(id);
+  editorTimers.clear();
+}
+// Paint a button from its stored expiry and keep ticking while it is cooling.
+function showCooldown(btn, label, key) {
+  const paint = () => {
+    const left = Math.ceil(((authEmailCooldownUntil.get(key) || 0) - Date.now()) / 1000);
+    if (left > 0) {
+      btn.disabled = true;
       btn.textContent = `${label} (${left}s)`;
-      return;
+      return true;
     }
-    clearInterval(timer);
+    authEmailCooldownUntil.delete(key);
     btn.disabled = false;
     btn.textContent = label;
+    return false;
+  };
+  if (!paint()) return;
+  const timer = setInterval(() => {
+    if (paint()) return;
+    clearInterval(timer);
+    editorTimers.delete(timer);
   }, 1000);
+  editorTimers.add(timer);
 }
 
 function wireAuthEmails(row, m) {
@@ -257,16 +273,31 @@ function wireAuthEmails(row, m) {
   };
   for (const [action, k] of Object.entries(kinds)) {
     const btn = row.querySelector(`[data-act="send-${action}"]`);
+    const key = `${m.id}:${action}`;
+    const startCooldown = () => {
+      authEmailCooldownUntil.set(key, Date.now() + AUTH_EMAIL_COOLDOWN_MS);
+      showCooldown(btn, k.label, key);
+    };
+    showCooldown(btn, k.label, key); // resume a countdown from an earlier editor
     btn.addEventListener('click', async () => {
       if (!window.confirm(k.ask)) return;
       btn.disabled = true;
-      const { ok, status, data } = await api('/api/admin/member-email', {
-        method: 'POST',
-        body: { member_id: m.id, action },
-      });
+      let res;
+      try {
+        res = await api('/api/admin/member-email', {
+          method: 'POST',
+          body: { member_id: m.id, action },
+        });
+      } catch {
+        // Network failure: never leave the button stuck disabled without a word.
+        btn.disabled = false;
+        notice(msg, t('Could not send the email.', '邮件发送失败。'), false);
+        return;
+      }
+      const { ok, status, data } = res;
       if (ok) {
         notice(msg, k.done, true);
-        cooldown(btn, k.label);
+        startCooldown();
         return;
       }
       if (status === 429) {
@@ -278,7 +309,7 @@ function wireAuthEmails(row, m) {
           ),
           false,
         );
-        cooldown(btn, k.label);
+        startCooldown();
         return;
       }
       btn.disabled = false;
@@ -286,8 +317,8 @@ function wireAuthEmails(row, m) {
         notice(
           msg,
           t(
-            'This member already has a login. Use "Send password reset" instead.',
-            '该会员已有登录账户，请改用“发送重置密码邮件”。',
+            'This login email is already confirmed, so it cannot be invited. Use "Send password reset" instead.',
+            '该登录邮箱已确认，无法发送邀请，请改用“发送重置密码邮件”。',
           ),
           false,
         );
@@ -299,6 +330,7 @@ function wireAuthEmails(row, m) {
 }
 
 function toggleEditor(tr, m) {
+  clearEditorTimers(); // closing or replacing the open editor ends its countdowns
   const next = tr.nextElementSibling;
   if (next?.hasAttribute('data-edit-row')) {
     next.remove();
@@ -350,7 +382,7 @@ function toggleEditor(tr, m) {
     <div class="btn-list align-items-center mt-2">
       <button type="button" class="btn btn-sm" data-act="send-reset">${t('Send password reset', '发送重置密码邮件')}</button>
       <button type="button" class="btn btn-sm" data-act="send-invite">${t('Send invitation', '发送邀请邮件')}</button>
-      <span class="text-secondary small">${t('Invitations are only for members who have never signed in.', '邀请仅适用于从未登录过的会员。')}</span>
+      <span class="text-secondary small">${t('Invitations only work for members whose email was never confirmed. Members created in this admin panel are already confirmed, so send them a password reset.', '邀请仅适用于邮箱从未确认过的会员。在本后台创建的会员邮箱已确认，请改为发送重置密码邮件。')}</span>
     </div>
     <div class="alert mb-0 mt-2" data-msg hidden></div></td>`;
   tr.after(row);
