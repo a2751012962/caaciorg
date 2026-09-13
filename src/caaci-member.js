@@ -1136,7 +1136,17 @@ function failedLinkCard(host, { recovery, signedIn }) {
       'The link has expired or has already been used — each link works once, for a limited time.',
       '该链接已过期或已被使用——每个链接只能使用一次，且有时效。',
     );
-    action = link('/login-3/', t('Request a new reset link', '重新申请重置链接'));
+    // /login-3/ sends a signed-in visitor straight back here, so point them at
+    // the password form on this page instead.
+    action = signedIn
+      ? link(
+          '#caaci-security',
+          t(
+            "You're signed in — change your password under Account security below",
+            '您已登录——请在下方“账户安全”中修改密码',
+          ),
+        )
+      : link('/login-3/', t('Request a new reset link', '重新申请重置链接'));
   } else if (signedIn) {
     body = t(
       'It may have expired or already been used. If it was for changing your email address, request the change again under Account security below.',

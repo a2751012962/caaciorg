@@ -1482,3 +1482,29 @@ test('membership checkout: a click event reaching the forgot button mid-countdow
   await tick();
   assert.equal(callsTo(stub, 'resetPasswordForEmail').length, 1);
 });
+
+test('account page: a dead reset link points a signed-in member to Account security, not the sign-in page', async () => {
+  setup('account', { search: `?recovery=1&${EXPIRED}` });
+  member.__setSupa(supaStub({ user: null }));
+  await member.wireAccountPage();
+  let rec = q('#caaci-recovery-host');
+  assert.match(rec.textContent, /password reset link no longer works/);
+  assert.match(rec.querySelector('a[href="/login-3/"]').textContent, /Request a new reset link/);
+  assert.equal(rec.querySelector('a[href="#caaci-security"]'), null);
+
+  setup('account', { search: `?recovery=1&${EXPIRED}` });
+  member.__setSupa(supaStub({ user: EMAIL_USER, memberRow: { id: 'u1' } }));
+  await member.wireAccountPage();
+  rec = q('#caaci-recovery-host');
+  assert.match(rec.textContent, /password reset link no longer works/);
+  assert.equal(
+    rec.querySelector('a[href="#caaci-security"]')?.textContent,
+    "You're signed in — change your password under Account security below",
+  );
+  assert.equal(
+    rec.querySelector('a[href="/login-3/"]'),
+    null,
+    'the sign-in page would only bounce them back here',
+  );
+  assert.ok(q('#caaci-security'), 'the account still renders below');
+});
