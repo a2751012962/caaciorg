@@ -432,6 +432,57 @@ test('family founder: name, plan, seats, badges, activity, and the not-linked hi
   }
 });
 
+test('family founder: member_removed events render the "removed a member" label, in both languages', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  let api = familyApi(
+    founderFam({
+      events: [
+        {
+          type: 'member_removed',
+          actor_email: 'f@x.com',
+          subject_email: 'm@x.com',
+          created_at: '2026-09-01T12:00:00Z',
+        },
+      ],
+    }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const events = qa('[data-fam-events] li');
+    assert.equal(events.length, 1);
+    assert.match(events[0].textContent, /f@x\.com removed a member · m@x\.com/);
+  } finally {
+    api.restore();
+  }
+
+  setup();
+  member.__setLang('zh');
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  api = familyApi(
+    founderFam({
+      events: [
+        {
+          type: 'member_removed',
+          actor_email: 'f@x.com',
+          subject_email: 'm@x.com',
+          created_at: '2026-09-01T12:00:00Z',
+        },
+      ],
+    }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const events = qa('[data-fam-events] li');
+    assert.match(events[0].textContent, /移除了成员/);
+  } finally {
+    api.restore();
+    member.__setLang('en');
+  }
+});
+
 test('family founder: a full family disables both forms; Remove confirms, posts, and reloads', async () => {
   const { confirms } = setup();
   member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));

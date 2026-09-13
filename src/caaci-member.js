@@ -1599,6 +1599,7 @@ const EVENT_LABEL = {
   joined: ['joined the family', '加入了家庭'],
   left: ['left the family', '退出了家庭'],
   removed: ['removed a member', '移除了成员'],
+  member_removed: ['removed a member', '移除了成员'],
   person_added: ['added a person without an account', '添加了未关联账号的成员'],
   person_removed: ['removed a person without an account', '移除了未关联账号的成员'],
   dissolved: ['dissolved the family', '解散了家庭'],
