@@ -1456,6 +1456,66 @@ const fmtWhen = (e) => {
     : txt;
 };
 
+// Registration is open (the public page answers) for a published event that takes
+// registrations and has not ended — registrationOpen in functions/api/_event-form.js.
+const registrationOpen = (e) =>
+  !!e.published &&
+  !!e.slug &&
+  Array.isArray(e.registration_questions) &&
+  Date.now() <= Date.parse(e.ends_at ?? e.starts_at);
+const registrationUrl = (e) => `${location.origin}/events/${encodeURIComponent(e.slug)}/register/`;
+
+async function copyRegistrationLink(e) {
+  const url = registrationUrl(e);
+  try {
+    await navigator.clipboard.writeText(url);
+    notice(
+      $('#caaci-events-notice'),
+      t(`Registration link copied: ${url}`, `报名链接已复制：${url}`),
+      true,
+    );
+  } catch {
+    window.prompt(t('Copy the registration link:', '请复制报名链接：'), url);
+  }
+}
+
+// A printable QR code for the registration page — the same generator as the
+// discount codes' QR (qrDataUrl, assets/qrcode.js).
+function showRegistrationQr(e) {
+  const host = $('#caaci-event-qr-host');
+  const url = registrationUrl(e);
+  let png;
+  try {
+    png = qrDataUrl(url);
+  } catch (err) {
+    notice($('#caaci-events-notice'), `QR: ${err.message}`, false);
+    return;
+  }
+  const title = e.title_zh ? `${e.title_zh} · ${e.title}` : e.title;
+  host.innerHTML = `
+    <div class="card card-body mb-3">
+      <div class="row g-3 align-items-center">
+        <div class="col-auto">
+          <img class="img-thumbnail" alt="${esc(t(`Registration QR code for ${e.title}`, `${title} 报名二维码`))}" src="${png}">
+        </div>
+        <div class="col">
+          <h3 class="mb-1">${esc(title)}</h3>
+          <p class="text-secondary">${t('Scanning opens the registration page', '扫码打开报名页面')} <code>${esc(url)}</code></p>
+          <div class="btn-list">
+            <a class="btn" download="caaci-${esc(e.slug)}-registration-qr.gif" href="${png}">${t('Download image', '下载图片')}</a>
+            <button type="button" class="btn" data-act="copy">${t('Copy link', '复制链接')}</button>
+            <button type="button" class="btn" data-act="close">${t('Close', '关闭')}</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  host.querySelector('[data-act="copy"]').addEventListener('click', () => copyRegistrationLink(e));
+  host.querySelector('[data-act="close"]').addEventListener('click', () => {
+    host.innerHTML = '';
+  });
+  host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 async function loadEvents() {
   const notb = $('#caaci-events-notice');
   const params = new URLSearchParams({ limit: String(EV_LIMIT), offset: String(evOffset) });
@@ -1482,7 +1542,14 @@ async function loadEvents() {
       : { key: 'pending', label: t('Draft', '草稿') };
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${esc(e.title)}${e.image_url ? ` <span class="avatar avatar-sm ms-1" style="background-image: url('${esc(e.image_url)}')"></span>` : ''}</td>
+      <td>${esc(e.title)}${e.image_url ? ` <span class="avatar avatar-sm ms-1" style="background-image: url('${esc(e.image_url)}')"></span>` : ''}${
+        registrationOpen(e)
+          ? `<div class="btn-list mt-1">
+          <button type="button" class="btn btn-sm btn-ghost-primary" data-act="reg-link">${t('Copy registration link', '复制报名链接')}</button>
+          <button type="button" class="btn btn-sm btn-ghost-primary" data-act="reg-qr">${t('Registration QR code', '报名二维码')}</button>
+        </div>`
+          : ''
+      }</td>
       <td>${fmtWhen(e)}</td>
       <td>${esc(e.location || '—')}</td>
       <td>${badgeHtml(st.key, st.label)}</td>
@@ -1498,6 +1565,10 @@ async function loadEvents() {
     tr.querySelector('[data-act="registrations"]').addEventListener('click', () =>
       openRegistrations(e),
     );
+    tr.querySelector('[data-act="reg-link"]')?.addEventListener('click', () =>
+      copyRegistrationLink(e),
+    );
+    tr.querySelector('[data-act="reg-qr"]')?.addEventListener('click', () => showRegistrationQr(e));
     tr.querySelector('[data-act="toggle"]').addEventListener('click', async () => {
       const { ok: ok2, data: d2 } = await api('/api/admin/events', {
         method: 'POST',

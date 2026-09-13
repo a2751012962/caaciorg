@@ -951,6 +951,107 @@ test('admin events: changing the questions of an event people registered for ask
   }
 });
 
+test('admin events: only events open for registration offer the registration link and its QR code', async () => {
+  const LONG = {
+    ...FAIR,
+    id: 'ev-long',
+    slug: 'long-fair',
+    title: 'Long Fair',
+    title_zh: null,
+    starts_at: '2020-01-01T15:00:00Z',
+    ends_at: '2099-01-01T15:00:00Z', // started long ago, still running
+  };
+  const DRAFT = {
+    ...FAIR,
+    id: 'ev-draft',
+    slug: 'draft-fair',
+    title: 'Draft Fair',
+    published: false,
+  };
+  const OVER = {
+    ...FAIR,
+    id: 'ev-over',
+    slug: 'old-fair',
+    title: 'Old Fair',
+    starts_at: '2020-04-01T15:00:00Z',
+  };
+  const fetch = mockFetch((u, o) =>
+    u.includes('/api/admin/events?')
+      ? { body: { rows: [MAF, PICNIC, FAIR, LONG, DRAFT, OVER], total: 6 } }
+      : eventRoutes(u, o),
+  );
+  // The real vendored generator, with what it is asked to encode recorded.
+  const src = await readFile(new URL('../src/vendor/qrcode.js', import.meta.url), 'utf8');
+  const qrcode = new Function(`${src}\nreturn qrcode;`)();
+  const encoded = [];
+  window.qrcode = (type, level) => {
+    const qr = qrcode(type, level);
+    const addData = qr.addData;
+    qr.addData = (text) => {
+      encoded.push(text);
+      addData(text);
+    };
+    return qr;
+  };
+  window.HTMLElement.prototype.scrollIntoView = () => {}; // jsdom does no layout
+  const prompts = [];
+  const realPrompt = window.prompt;
+  window.prompt = (message, value) => prompts.push(value) && null;
+  const url = 'https://caaci.example/events/spring-fair/register/';
+  try {
+    document.querySelector('[data-tab="events"]').click();
+    await tick();
+    const offers = (title) => [
+      !!eventRow(title).querySelector('[data-act="reg-link"]'),
+      !!eventRow(title).querySelector('[data-act="reg-qr"]'),
+    ];
+    assert.deepEqual(offers('Spring Fair'), [true, true]);
+    assert.deepEqual(offers('Long Fair'), [true, true], 'open until the event ends');
+    assert.deepEqual(offers('Picnic'), [false, false], 'takes no registrations');
+    assert.deepEqual(offers('Draft Fair'), [false, false], 'not published');
+    assert.deepEqual(offers('Old Fair'), [false, false], 'already over');
+
+    // Copy uses the clipboard…
+    const copied = [];
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (text) => copied.push(text) },
+    });
+    try {
+      eventRow('Spring Fair').querySelector('[data-act="reg-link"]').click();
+      await tick();
+    } finally {
+      delete navigator.clipboard;
+    }
+    assert.deepEqual(copied, [url]);
+    const notb = document.querySelector('#caaci-events-notice');
+    assert.equal(notb.textContent, `Registration link copied: ${url}`);
+    // …or, without one, offers the link to copy by hand.
+    eventRow('Long Fair').querySelector('[data-act="reg-link"]').click();
+    await tick();
+    assert.deepEqual(prompts, ['https://caaci.example/events/long-fair/register/']);
+
+    // The QR encodes the registration link and can be downloaded.
+    eventRow('Spring Fair').querySelector('[data-act="reg-qr"]').click();
+    const host = document.querySelector('#caaci-event-qr-host');
+    assert.deepEqual(encoded, [url]);
+    assert.match(host.querySelector('img').getAttribute('src'), /^data:image\/gif;base64,/);
+    assert.equal(host.querySelector('code').textContent, url);
+    assert.equal(host.querySelector('h3').textContent, '春季集市 · Spring Fair');
+    assert.equal(
+      host.querySelector('a[download]').getAttribute('download'),
+      'caaci-spring-fair-registration-qr.gif',
+    );
+    host.querySelector('[data-act="close"]').click();
+    assert.equal(host.innerHTML, '');
+  } finally {
+    window.prompt = realPrompt;
+    delete window.HTMLElement.prototype.scrollIntoView;
+    delete window.qrcode;
+    fetch.restore();
+  }
+});
+
 test('admin events: registrations panel shows the summary, escaped rows and an eligible-only filter', async () => {
   const fetch = mockFetch(eventRoutes);
   window.HTMLElement.prototype.scrollIntoView = () => {}; // jsdom does no layout
