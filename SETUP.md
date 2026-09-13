@@ -368,6 +368,21 @@ size/MIME limits, behind the **Media** tab), and `0010_refunds.sql` (adds the
   `/account/?recovery=1` — so every deploy origin must be on the Supabase redirect
   allow list. Invitations only work for logins whose email was never confirmed;
   members created in this panel are created confirmed, so send them a reset instead.
+- **Auth email delivery & templates**: Supabase Auth sends through custom SMTP on
+  Resend (`smtp.resend.com:465`, user `resend`, sender `CAACI <no-reply@caaciorg.com>`,
+  60 s minimum interval per user). The six bilingual templates and their subjects live
+  in `supabase/templates/` (named after the Management API keys
+  `mailer_templates_<type>_content` / `mailer_subjects_<type>`) — **edit them there, not
+  in the dashboard**. Preview and push with a Supabase personal access token:
+  `SUPABASE_ACCESS_TOKEN=sbp_… npm run auth:emails` (dry run: lists what differs) and
+  `npm run auth:emails -- --apply` (PATCHes only the differing keys, re-reads, exits 1 on
+  any mismatch). The SMTP **password** (a Resend API key) is entered only in the
+  dashboard (Authentication → Emails → SMTP Settings) and is never read from or written
+  by the script; SMTP keys are only written to a project already on `smtp.resend.com`.
+  Template images must be hosted on the project's Supabase Storage
+  (`media/email/caaci-logo.png`) — the dashboard preview blocks other image hosts. The
+  daily **Auth config** workflow compares the live templates, subjects and SMTP sender
+  with the repo, so a dashboard edit (or an un-pushed repo change) turns it red.
 - **Billing portal**: `/account/` shows the full subscription (plan, status, price,
   renewal date) and a "Manage billing" button — `/api/portal` mints a Stripe Billing
   Portal session for updating cards, viewing invoices, or cancelling. Enable the
