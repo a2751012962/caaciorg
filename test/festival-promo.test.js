@@ -1,7 +1,7 @@
 // The Mid-Autumn Festival promo src/caaci-app.js adds to the mirrored homepage
-// (a card) and events calendar (an upcoming-event row), run against the real
-// mirror pages: where it lands, its language and link, and that it is gone
-// once the festival is over.
+// (a Divi section) and events calendar (an upcoming-event row), run against
+// the real mirror pages: where it lands, how it is built, its language and
+// link, and that it is gone once the festival is over.
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -36,6 +36,18 @@ test('festival promo: on the homepage it sits right after the hero, in English, 
   assert.match(hero.querySelector('h1').textContent, /Chinese American Association/);
   assert.equal(hero.nextElementSibling, card, 'directly below the hero');
 
+  // A Divi section like the homepage's own, so Divi lays it out: a row of two
+  // half columns. Numbered classes (et_pb_row_1 …) carry one-off rules for
+  // those modules — the hero's row_1 has a -65px margin — so none are copied.
+  assert.ok(card.matches('.et_pb_section.et_section_regular'));
+  assert.equal(
+    card.querySelectorAll(':scope > .et_pb_row > .et_pb_column.et_pb_column_1_2').length,
+    2,
+  );
+  for (const node of [card, ...card.querySelectorAll('*')])
+    assert.ok(![...node.classList].some((c) => /^et_pb_[a-z_]+_\d+$/.test(c)), node.className);
+
+  assert.match(card.querySelector('.caaci-promo-eyebrow').textContent, /^Sun, Sept 27/);
   assert.equal(card.querySelector('h2').textContent, 'Mid-Autumn Festival registration is open');
   assert.match(card.querySelector('p').textContent, /by 2:00 PM Central Time on September 27/);
   const cta = card.querySelector('a.caaci-btn');

@@ -1,16 +1,11 @@
 # CAACI site — Cloudflare Pages + Supabase
 
-> **LIVE:** https://caaci.pages.dev — deployed & verified (Cloudflare account
-> `ab3df09b…`, Stripe **test** mode).
-> See "Post-deploy checklist" at the bottom for the remaining go-live steps.
-
-> **Supabase project moved.** The backend is now `wslzeqhipvibeflmxznh`
-> (org `dduletwxytbduspygnxh`, us-east-1); the old project was
-> `gczslluaxccbnftvfayn`. Schema (migrations `0001`–`0010` + seed), the `media`
-> storage bucket, both auth users and every table row were copied across and
-> verified row-for-row. **The deployed site still points at the old project
-> until the Pages secrets are updated and it is redeployed** — see
-> "Post-deploy checklist".
+> **LIVE since 2026-09-13:** https://caaciorg.com (and `www`) is this site — Cloudflare
+> Pages project `caaci` (account `60fc7d53…`, production branch `main`), Stripe **live**
+> mode, Supabase project `wslzeqhipvibeflmxznh`. WordPress is retired. The staff-only
+> preview is https://beta.caaciorg.com (branch `preview`, Stripe **test** mode). See
+> [Environments & access](#environments--access) and
+> [Go-live status](#go-live-status-2026-09-13).
 
 A rebuild of **caaciorg.com** on a modern stack. The frontend is a byte-for-byte
 mirror of the live site (so the UI is identical); the WordPress backend
@@ -104,8 +99,10 @@ npm run stripe:catalog -- --apply   # create / re-price
    ```
 
    With `--apply` it creates the webhook endpoint on
-   `https://caaci.pages.dev/api/stripe-webhook` (override with
-   `-- --site-url=https://…`), subscribed to exactly the events the handler
+   `https://caaci-8s2.pages.dev/api/stripe-webhook` (override with
+   `-- --site-url=https://…`). Keep the webhook on the `pages.dev` host: it is the same
+   production deployment as caaciorg.com but never depends on DNS, and it must stay
+   outside Cloudflare Access. It is subscribed to exactly the events the handler
    branches on, and writes the new signing secret to `.env`:
    - `checkout.session.completed` — activates a membership / marks a donation paid
    - `invoice.paid` — renewal: extends the membership another year
@@ -141,17 +138,20 @@ Create an API key, verify the sending domain, set `NOTIFY_FROM` / `NOTIFY_TO`.
    set them with wrangler, which targets the **production** environment by default:
 
    ```
-   npx wrangler pages secret put SUPABASE_URL              --project-name=caaci
-   npx wrangler pages secret put SUPABASE_ANON_KEY         --project-name=caaci
    npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci
    npx wrangler pages secret put STRIPE_SECRET_KEY         --project-name=caaci
    npx wrangler pages secret put STRIPE_WEBHOOK_SECRET     --project-name=caaci
-   # optional (emails): RESEND_API_KEY, NOTIFY_FROM, NOTIFY_TO
+   npx wrangler pages secret put RESEND_API_KEY            --project-name=caaci
+   # the same four for the preview branch: add  --env preview
    ```
 
-   Verify with `wrangler pages secret list --project-name=caaci`. **Currently set on
-   production:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
-   `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
+   `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `NOTIFY_FROM` and `NOTIFY_TO` are plaintext
+   `[vars]` in `wrangler.toml` and must **not** also exist as secrets (a secret shadows
+   the var). Verify with `wrangler pages secret list --project-name=caaci` (add
+   `--env preview` for the preview set). **Currently set:** production has
+   `RESEND_API_KEY`, `STRIPE_SECRET_KEY` (live), `STRIPE_WEBHOOK_SECRET` (live endpoint)
+   and `SUPABASE_SERVICE_ROLE_KEY`; preview has the same four names with the Stripe
+   **test** key.
 
    `SUPABASE_URL` / `SUPABASE_ANON_KEY` are public values; `build.mjs` also hardcodes
    them as defaults for the browser bundle (`dist/assets/caaci-config.js`), so the
@@ -192,12 +192,54 @@ Use Stripe **test mode** + test cards (4242 4242 4242 4242).
 
 ## Deploy
 
-```
-npm run deploy              # build + wrangler pages deploy dist
-```
+The Pages project is connected to GitHub: **a push to `main` builds and deploys
+production** (caaciorg.com), and a push to `preview` builds the preview deployment
+(beta.caaciorg.com). Secrets bind when a deployment is built, so after changing one,
+push again or use **Retry deployment** on the latest deployment in the dashboard.
+`npm run deploy` (build + `wrangler pages deploy dist`) still works for a manual upload.
+Set redirects in `dist/_redirects` if any old URL paths need mapping.
 
-Then add the custom domain in the Pages project and point DNS. Set redirects in
-`dist/_redirects` if any old URL paths need mapping.
+## Environments & access
+
+| Host                                               | Serves              | Stripe          | Who can open it                                        |
+| -------------------------------------------------- | ------------------- | --------------- | ------------------------------------------------------ |
+| `caaciorg.com`, `www.caaciorg.com`                 | production (`main`) | live            | everyone                                               |
+| `caaci-8s2.pages.dev`                              | production (`main`) | live            | everyone — the live webhook posts here, keep it public |
+| `beta.caaciorg.com`, `preview.caaci-8s2.pages.dev` | branch `preview`    | test            | staff only (Cloudflare Access)                         |
+| `<hash>.caaci-8s2.pages.dev`, other branch aliases | that deployment     | per environment | staff only (Cloudflare Access)                         |
+
+- **DNS** (zone `caaciorg.com`): the apex and `www` are Pages custom domains of project
+  `caaci`. `beta` is a **proxied** CNAME to `preview.caaci-8s2.pages.dev` — that is
+  what ties it to the `preview` branch (an unproxied record would fall back to
+  production). To send beta back to production, point the CNAME at
+  `caaci-8s2.pages.dev`. Mail records (Microsoft 365 MX, Amazon SES `send.`, Resend
+  and Brevo DKIM, SPF/DMARC) are unrelated to the site; leave them alone.
+- **Supabase Auth**: Site URL is `https://caaciorg.com`; the redirect allow list also
+  covers `www`, `beta`, `caaci-8s2.pages.dev`, `*.caaci-8s2.pages.dev` and
+  `localhost:8788`. Change the Site URL only to a host that serves the site, or the
+  daily Auth config check fails.
+- **Preview shares the live database.** Anything created on beta — sign-ups, event
+  registrations, donations, discount codes — lands in the production tables and can
+  send real emails. Clean test data up afterwards. There is deliberately **no**
+  test-mode webhook for preview, so a test-card checkout on beta never activates a
+  membership.
+- **Cloudflare Access** (Zero Trust → Access controls, team `caaci-8s2-pages`):
+  - App **caaci beta** protects `beta.caaciorg.com`; app **caaci - Cloudflare Pages**
+    (created by Pages → Settings → Enable access policy) protects
+    `*.caaci-8s2.pages.dev`. Neither may ever include the bare `caaci-8s2.pages.dev`,
+    `caaciorg.com` or `www`.
+  - Both apps use the same reusable policies, in order: **caaci office ip** (Bypass for
+    the office's public IP — update it if that IP changes), **caaci ai service token**
+    (Service Auth), **caaci staff** (Allow listed emails, One-time PIN login). Sessions
+    last 720 h.
+  - Scripts reach beta/preview by sending the service token as the
+    `CF-Access-Client-Id` / `CF-Access-Client-Secret` headers. The Client ID/Secret
+    live outside the repo (never commit them); rotate the token under Access controls
+    → Service credentials if it leaks.
+- **Stripe webhooks**: live endpoint on `https://caaci-8s2.pages.dev/api/stripe-webhook`
+  (5 events). The old MemberPress endpoints (`caaciorg.com/mepr/notify/…`, live and
+  test) and the old test endpoints (`caaci-8s2.pages.dev`, `caaci.pages.dev`, ngrok)
+  are **disabled**, not deleted.
 
 ## Verify end-to-end
 
@@ -276,38 +318,37 @@ What the import does, and does not do:
   anyone whose membership here already runs longer, and conflicting subscription
   ids are skipped with a reason for a human to handle. Family plans need no
   `households` row up front.
-- **Both webhooks fire during the overlap.** The MemberPress endpoint
-  (`caaciorg.com/mepr/notify/…`) keeps updating WordPress while the new endpoint
-  updates Supabase. That is fine, and it is the safe order: stand the new one up
-  first, retire the old one only after DNS moves.
+- **The MemberPress webhook is retired.** During the overlap both endpoints fired;
+  since DNS moved to Pages (2026-09-13) the MemberPress endpoint
+  (`caaciorg.com/mepr/notify/…`) can only fail, so it is disabled in Stripe. Only
+  `/api/stripe-webhook` updates members now.
 
 For an aggregate, PII-free inventory of the account first, `npm run stripe:audit`
 still works.
 
-## Post-deploy checklist (remaining go-live steps)
+## Go-live status (2026-09-13)
 
-- [ ] **Custom domain**: Cloudflare Pages → project `caaci` → Custom domains →
-      add `caaciorg.com` / `www`, then point DNS. (Will replace the live WordPress.)
-- [ ] **Make yourself admin**: in Supabase SQL editor,
+- [x] **Supabase** points at `wslzeqhipvibeflmxznh`. If the `service_role` key is
+      rotated, re-set `SUPABASE_SERVICE_ROLE_KEY` (production and `--env preview`) and
+      redeploy, or every `/api/*` Function 401s.
+- [x] **Stripe live**: live webhook + default Billing Portal created with
+      `stripe:connect`, live catalogue written with `stripe:catalog` (reusing the
+      MemberPress products), live `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` on
+      production. Verified: a checkout on caaciorg.com creates a `cs_live_` session and
+      a signed test event reaches the webhook.
+- [x] **Legacy members imported** from Stripe with `migrate-members.mjs` (see above).
+- [x] **Custom domains**: `caaciorg.com` and `www` on Pages; Supabase Site URL moved to
+      `https://caaciorg.com`.
+- [x] **Preview**: branch `preview` behind Cloudflare Access on `beta.caaciorg.com`,
+      Stripe test key verified (`cs_test_`).
+- [x] **Email**: `RESEND_API_KEY` is a production secret; `NOTIFY_FROM` / `NOTIFY_TO`
+      are `wrangler.toml` vars.
+- [x] **Retired webhooks** disabled in Stripe (MemberPress, old test endpoints).
+- [ ] **Security**: rotate the credentials that passed through chat during setup —
+      the Supabase personal access token, the `service_role` key, the Stripe test key —
+      and delete temporary Cloudflare API tokens once they are no longer needed.
+- [ ] **Make yourself admin** for each new staff member: in the Supabase SQL editor,
       `update members set is_admin = true where email = 'you@example.com';`
-- [ ] **Stripe go-live**: run `npm run stripe:connect -- --apply` with the **live**
-      key of `acct_1PfYMiJ3oYxWrRWD` (see step 2) — it creates the live webhook and
-      Billing Portal config and writes the new `whsec_…` to `.env`. Then set both
-      `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` as Pages secrets and redeploy.
-      Live mode has its own webhook endpoint and signing secret: update both, or the
-      webhook 400s on every event and nothing activates after payment.
-- [ ] **Email**: set `RESEND_API_KEY` / `NOTIFY_FROM` / `NOTIFY_TO` secrets so the
-      contact + business-listing forms send notifications (they already save to the DB).
-- [x] **Point the deployment at the new Supabase project** (`wslzeqhipvibeflmxznh`) —
-      done on the `caaci-8s2` Pages project: `SUPABASE_SERVICE_ROLE_KEY` is the new
-      project's key and the site is redeployed. If the key is ever rotated, set it
-      again with `npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci`
-      and redeploy, or every `/api/*` Function 401s.
-- [ ] **Security**: revoke the temporary Supabase Personal Access Token
-      (dashboard → Account → Access Tokens) now that provisioning is done; rotate the
-      Stripe test key and **both** projects' `service_role` keys since they passed
-      through chat (then re-set the Pages secret as above and redeploy).
-- [ ] Any time you change a secret, **redeploy** (`npm run deploy`) — Pages binds env at deploy time.
 
 ## Site language (EN / 中文)
 

@@ -371,7 +371,7 @@ export function wireAuthNav() {
 
 // ---------- Festival registration promo (homepage + events page) ----------
 // The mirrored homepage and events calendar predate the Mid-Autumn Festival
-// registration form, so both link to it: a card right after the homepage
+// registration form, so both link to it: a section right after the homepage
 // hero, and on the events page an "Upcoming Events" entry above "Latest Past
 // Events", in place of the calendar's "There are no upcoming events". Both
 // stop appearing once the festival is over, so nothing has to be removed by
@@ -414,18 +414,40 @@ function promoNode(tag, className, text) {
   return node;
 }
 
-function festivalCard(copy, href) {
-  const card = promoNode('aside', 'caaci-promo');
-  const body = promoNode('div', 'caaci-promo-body');
-  body.append(
-    promoNode('div', 'caaci-eyebrow', copy.eyebrow),
-    promoNode('h2', '', copy.title),
-    promoNode('p', '', copy.text),
-  );
+// Built from the homepage's own Divi section / row / column / text-module
+// markup (two half columns, like the "Welcome" section below it), so Divi lays
+// it out and stacks it on phones. The numbered classes (et_pb_section_1,
+// et_pb_row_2, et_pb_text_4…) are left out: they carry one-off rules for those
+// modules, such as a -65px row margin.
+function festivalSection(copy, href) {
+  const textModule = (...children) => {
+    const inner = promoNode('div', 'et_pb_text_inner');
+    inner.append(...children);
+    const module = promoNode(
+      'div',
+      'et_pb_module et_pb_text et_pb_text_align_left et_pb_bg_layout_light',
+    );
+    module.append(inner);
+    return module;
+  };
   const cta = promoNode('a', 'caaci-btn', `${copy.cta} →`);
   cta.href = href;
-  card.append(body, cta);
-  return card;
+
+  const left = promoNode('div', 'et_pb_column et_pb_column_1_2');
+  left.append(
+    textModule(
+      promoNode('div', 'caaci-promo-eyebrow', copy.eyebrow),
+      promoNode('h2', '', copy.title),
+    ),
+  );
+  const right = promoNode('div', 'et_pb_column et_pb_column_1_2 et-last-child');
+  right.append(textModule(promoNode('p', '', copy.text), cta));
+  // The "Welcome" row's wider gutter, so the columns line up with it too.
+  const row = promoNode('div', 'et_pb_row et_pb_gutters4');
+  row.append(left, right);
+  const section = promoNode('div', 'caaci-promo et_pb_section et_section_regular');
+  section.append(row);
+  return section;
 }
 
 // Built from the same markup and classes as the calendar's past-event rows,
@@ -498,7 +520,7 @@ export function wireFestivalPromo(now = Date.now()) {
 
   if (/^\/(zh\/?)?$/.test(path)) {
     const hero = document.querySelector('.et_pb_section_0');
-    if (hero) hero.after(festivalCard(copy, href));
+    if (hero) hero.after(festivalSection(copy, href));
   } else if (/^\/(zh\/)?events\/?$/.test(path)) {
     const past = document.querySelector('.tribe-events-calendar-latest-past');
     if (!past) return;
