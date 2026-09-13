@@ -53,7 +53,7 @@ function setup({ search = '', answer = true } = {}) {
 
 const USER = { id: 'u1', email: 'mei@x.com' };
 
-function supaStub({ user = USER, memberRow = null } = {}) {
+function supaStub({ user = USER, memberRow = null, tierRows = [] } = {}) {
   return {
     auth: {
       getUser: async () => ({ data: { user } }),
@@ -63,7 +63,7 @@ function supaStub({ user = USER, memberRow = null } = {}) {
     from: (table) => ({
       select: () => ({
         eq: () => {
-          if (table === 'membership_tiers') return Promise.resolve({ data: [] });
+          if (table === 'membership_tiers') return Promise.resolve({ data: tierRows });
           return {
             maybeSingle: async () => ({ data: memberRow }),
             order: () => ({ limit: async () => ({ data: [] }) }),
@@ -352,7 +352,7 @@ const settle = async () => {
   await tick();
 };
 
-test('family founder: name, plan, seats, badges, activity, and the not-linked hint that prefills the invite', async () => {
+test('family founder: name, plan, seats, badges, activity, and the not-linked hint that opens a row invite', async () => {
   setup();
   member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
   const api = familyApi(
@@ -368,7 +368,14 @@ test('family founder: name, plan, seats, badges, activity, and the not-linked hi
           type: 'person_added',
           actor_email: 'mei@x.com',
           subject_email: null,
+          subject_name: 'Baby Lin',
           created_at: '2026-09-02T12:00:00Z',
+        },
+        {
+          type: 'person_removed',
+          actor_email: 'mei@x.com',
+          subject_email: null,
+          created_at: '2026-09-03T12:00:00Z',
         },
       ],
     }),
@@ -397,24 +404,28 @@ test('family founder: name, plan, seats, badges, activity, and the not-linked hi
     assert.equal(child.querySelector('[data-fam-remove]').disabled, true);
     assert.match(child.textContent, /dissolve/i);
 
-    child.querySelector('[data-fam-prefill]').click();
-    const form = q('form[data-fam-invite]');
-    assert.equal(form.querySelector('[name="full_name"]').value, 'Baby Lin');
-    assert.equal(form.querySelector('[name="relationship"]').value, 'child');
-    assert.equal(document.activeElement, form.querySelector('[name="email"]'));
-    assert.equal(api.posts().length, 0, 'prefilling sends nothing');
+    // "Invite by email" opens a form in that row that invites this exact person.
+    const rowForm = child.querySelector('form[data-fam-row-invite]');
+    assert.equal(rowForm.hidden, true);
+    child.querySelector('[data-fam-link-invite]').click();
+    assert.equal(rowForm.hidden, false);
+    assert.equal(document.activeElement, rowForm.querySelector('[name="email"]'));
+    assert.equal(api.posts().length, 0, 'opening the form sends nothing');
 
+    const form = q('form[data-fam-invite]');
     assert.equal(q('[data-fam-full]'), null);
     assert.equal(form.querySelector('button[type="submit"]').disabled, false);
 
     const events = qa('[data-fam-events] li');
-    assert.equal(events.length, 2);
+    assert.equal(events.length, 3);
     assert.match(events[0].textContent, /mei@x\.com.*sent an invitation.*dad@x\.com/);
     assert.match(
       events[0].textContent,
       new RegExp(escRe(new Date('2026-09-01T12:00:00Z').toLocaleDateString())),
     );
-    assert.match(events[1].textContent, /added a person/);
+    assert.match(events[1].textContent, /added a person without an account · Baby Lin/);
+    // No subject_name: the plain wording, nothing after it.
+    assert.match(events[2].textContent, /removed a person without an account$/);
     assert.ok(q('[data-fam-dissolve]').classList.contains('btn-danger'));
   } finally {
     api.restore();
@@ -445,7 +456,11 @@ test('family founder: a full family disables both forms; Remove confirms, posts,
     assert.equal(api.posts().length, 0, 'a full family posts nothing');
 
     const child = qa('[data-fam-person]')[2];
-    assert.equal(child.querySelector('[data-fam-prefill]').disabled, true);
+    assert.equal(
+      child.querySelector('[data-fam-link-invite]').disabled,
+      false,
+      'inviting a name-only person takes no new seat, so it stays available',
+    );
     const remove = child.querySelector('[data-fam-remove]');
     assert.equal(remove.disabled, false);
     remove.click();
@@ -597,8 +612,8 @@ test('family: hostile family names, full names and emails render as text, never 
     assert.equal(fam.querySelector('img, x-evil'), null);
     assert.equal(q('[data-fam-name]').textContent, evil);
     assert.ok(fam.textContent.split(evil).length > 5, 'every hostile value shows as text');
-    qa('[data-fam-person]')[1].querySelector('[data-fam-prefill]').click();
-    assert.equal(q('form[data-fam-invite] [name="full_name"]').value, evil);
+    qa('[data-fam-person]')[1].querySelector('[data-fam-link-invite]').click();
+    assert.equal(fam.querySelector('img, x-evil'), null, 'opening the row form adds none');
   } finally {
     api.restore();
   }
@@ -847,5 +862,128 @@ test('family: hostile text in invitations and the member view renders no element
     );
   } finally {
     api.restore();
+  }
+});
+
+// ---------- contract follow-ups: person_id, subject_name, can_start_family, tier ----------
+test('family founder: inviting a name-only person sends their person_id, even when the family is full', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(
+    founderFam({ seats: { used: 3, limit: 3 }, people: [P_FOUNDER, P_SPOUSE, P_CHILD] }),
+    () => ({ body: { ok: true, invite: { id: 'i9' }, delivered: 'magic_link' } }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.ok(q('[data-fam-full]'));
+    assert.equal(q('form[data-fam-invite] button[type="submit"]').disabled, true);
+    assert.equal(q('form[data-fam-add] button[type="submit"]').disabled, true);
+    const [, spouse, child] = qa('[data-fam-person]');
+    assert.equal(spouse.querySelector('[data-fam-link-invite]'), null, 'linked: nothing to invite');
+
+    child.querySelector('[data-fam-link-invite]').click();
+    const rowForm = child.querySelector('form[data-fam-row-invite]');
+    for (const el of rowForm.querySelectorAll('input, button')) assert.equal(el.disabled, false);
+
+    submit(rowForm);
+    await tick();
+    assert.equal(api.posts().length, 0, 'no email, no request');
+    assert.match(q('[data-fam-notice]').textContent, /email address/);
+
+    rowForm.querySelector('[name="email"]').value = ' kid@x.com ';
+    const send = rowForm.querySelector('button[type="submit"]');
+    submit(rowForm);
+    assert.equal(send.disabled, true, 'busy while sending');
+    submit(rowForm);
+    await settle();
+    assert.deepEqual(api.posts(), [{ action: 'invite', email: 'kid@x.com', person_id: 'p3' }]);
+    assert.match(q('[data-fam-notice]').textContent, /sign-in link to kid@x\.com/);
+    assert.equal(api.gets().length, 2, 'reloaded');
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: a hostile subject_name in the activity log renders as text', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const evil = '<img src=x><x-evil></x-evil>';
+  const api = familyApi(
+    founderFam({
+      events: [
+        {
+          type: 'person_removed',
+          actor_email: 'mei@x.com',
+          subject_email: null,
+          subject_name: evil,
+          created_at: '2026-09-03T12:00:00Z',
+        },
+      ],
+    }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const li = q('[data-fam-events] li');
+    assert.equal(li.querySelector('img, x-evil'), null);
+    assert.ok(li.textContent.endsWith(`removed a person without an account · ${evil}`));
+  } finally {
+    api.restore();
+  }
+});
+
+test('family: can_start_family decides whether to offer "Invite your family"; the own tier is only a fallback', async () => {
+  const cases = [
+    {
+      row: { ...FAMILY_ROW, tier_id: 'individual' },
+      fam: { ...NONE, can_start_family: true, seats: { used: 1, limit: 3 } },
+      shown: true,
+    },
+    { row: FAMILY_ROW, fam: { ...NONE, can_start_family: false }, shown: false },
+    { row: FAMILY_ROW, fam: NONE, shown: true }, // field missing: infer from the own tier
+    { row: PLAIN_ROW, fam: NONE, shown: false },
+  ];
+  for (const { row, fam, shown } of cases) {
+    setup();
+    member.__setSupa(supaStub({ memberRow: row }));
+    const api = familyApi(fam);
+    const label = `can_start_family=${fam.can_start_family}, tier=${row.tier_id}`;
+    try {
+      await member.wireAccountPage();
+      await tick();
+      assert.equal(!!q('form[data-fam-invite]'), shown, label);
+      assert.equal(q('#caaci-family-host').hidden, !shown, label);
+      if (shown) assert.match(q('[data-fam-seats]').textContent, /1\s*\/\s*3/, label);
+    } finally {
+      api.restore();
+    }
+  }
+});
+
+test('membership card: plan.tier_id names the tier; missing or unknown falls back to the family tier', async () => {
+  const tierRows = [
+    { id: 'family', name: 'Household Plan', price_cents: 6000, active: true },
+    { id: 'individual', name: 'Solo Plan', price_cents: 3000, active: true },
+  ];
+  for (const [tierId, expected] of [
+    ['individual', /Solo Plan/],
+    ['mystery', /Household Plan/],
+    [undefined, /Household Plan/],
+  ]) {
+    setup();
+    member.__setSupa(supaStub({ memberRow: PLAIN_ROW, tierRows }));
+    const api = familyApi(
+      memberFam({
+        plan: { tier_id: tierId, status: 'active', expires_at: '2027-03-01T00:00:00Z' },
+      }),
+    );
+    try {
+      await member.wireAccountPage();
+      await tick();
+      assert.match(q('#caaci-mcard-host .caaci-mcard2').textContent, expected, String(tierId));
+    } finally {
+      api.restore();
+    }
   }
 });

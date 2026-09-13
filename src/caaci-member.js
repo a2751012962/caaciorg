@@ -1626,7 +1626,7 @@ function familySummary(fam, extra = '') {
 }
 
 // Rows point back at fam.people by index, so no server text reaches an attribute.
-function familyPeople(people, full) {
+function familyPeople(people) {
   const others = people.filter((p) => !p.is_founder).length;
   return `
     <h4 class="mb-2">${t('People', '成员')}</h4>
@@ -1654,7 +1654,13 @@ function familyPeople(people, full) {
             : `<div class="small mt-2">${t(
                 'Once they have an email address, you can invite them so they can sign in.',
                 '等 TA 有了邮箱，你可以邀请 TA，这样 TA 就能登录。',
-              )} <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-fam-prefill="${i}"${full ? ' disabled' : ''}>${t('Invite by email', '用邮箱邀请')}</button></div>`
+              )} <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-fam-link-invite="${i}">${t('Invite by email', '用邮箱邀请')}</button></div>
+        <form class="mt-2" data-fam-row-invite novalidate hidden>
+          <div class="input-group input-group-sm">
+            <input class="form-control" type="email" name="email" required autocomplete="off" placeholder="${t('Email address', '邮箱地址')}" aria-label="${t('Email address', '邮箱地址')}">
+            <button type="submit" class="btn btn-primary">${t('Send invitation', '发送邀请')}</button>
+          </div>
+        </form>`
         }
       </div>`;
       })
@@ -1688,7 +1694,9 @@ function familyEvents(events) {
     <ul class="list-unstyled small mb-0" data-fam-events>${events
       .map((e) => {
         const label = Object.hasOwn(EVENT_LABEL, e.type) ? EVENT_LABEL[e.type] : null;
-        return `<li class="mb-1"><span class="text-secondary">${fmtDate(e.created_at)}</span> · ${esc(e.actor_email || '')} ${label ? t(label[0], label[1]) : esc(e.type)}${e.subject_email ? ` · ${esc(e.subject_email)}` : ''}</li>`;
+        // Name-only people have no email; their events carry subject_name.
+        const subject = e.subject_email || e.subject_name;
+        return `<li class="mb-1"><span class="text-secondary">${fmtDate(e.created_at)}</span> · ${esc(e.actor_email || '')} ${label ? t(label[0], label[1]) : esc(e.type)}${subject ? ` · ${esc(subject)}` : ''}</li>`;
       })
       .join('')}</ul>`;
 }
@@ -1789,6 +1797,15 @@ function familyForms(full) {
 
 // The Family card. GET /api/family once, then again after every successful
 // change; any failure to load hides the card and leaves the page alone.
+// What went out after an invite: an invitation, or (new address) a sign-in link.
+const inviteSentText = (d, email) =>
+  d.delivered === 'magic_link'
+    ? t(
+        `We emailed a sign-in link to ${email}. Once they sign in, they can accept your invitation on their account page.`,
+        `已向 ${email} 发送登录链接。TA 登录后即可在账户页面接受你的邀请。`,
+      )
+    : t(`Invitation email sent to ${email}.`, `邀请邮件已发送至 ${email}。`);
+
 async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
   host.innerHTML = `
     <div class="card mb-3">
@@ -1813,7 +1830,9 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
     const eligible =
       (fam?.role === 'founder' || fam?.role === 'member') && fam.plan?.status === 'active';
     if (eligible && !planCard) {
-      const tier = tiers.find((x) => x.id === fam.plan.tier_id);
+      // plan.tier_id is authoritative; missing or unknown means the family tier.
+      const tier =
+        tiers.find((x) => x.id === fam.plan.tier_id) || tiers.find((x) => x.id === 'family');
       renderMemberCard(cardHost, {
         user,
         member: { ...member, expires_at: fam.plan.expires_at },
@@ -1866,13 +1885,7 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
       if (fullName) payload.full_name = fullName;
       if (relationship) payload.relationship = relationship;
       run($('button[type="submit"]', inv), payload, {
-        success: (d) =>
-          d.delivered === 'magic_link'
-            ? t(
-                `We emailed a sign-in link to ${email}. Once they sign in, they can accept your invitation on their account page.`,
-                `已向 ${email} 发送登录链接。TA 登录后即可在账户页面接受你的邀请。`,
-              )
-            : t(`Invitation email sent to ${email}.`, `邀请邮件已发送至 ${email}。`),
+        success: (d) => inviteSentText(d, email),
       });
     });
     const add = $('form[data-fam-add]', body);
@@ -1909,18 +1922,28 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
         ),
       );
     }
-    // "Invite by email" next to someone without an account fills the invite form.
-    for (const btn of $$('[data-fam-prefill]', body)) {
-      const p = people[Number(btn.dataset.famPrefill)];
+    // "Invite by email" next to someone without an account opens a form in that
+    // row. The invite carries their person_id, so accepting links the existing
+    // row instead of taking a seat — which is why it still works in a full family.
+    for (const btn of $$('[data-fam-link-invite]', body)) {
+      const p = people[Number(btn.dataset.famLinkInvite)];
+      const form = $('form[data-fam-row-invite]', btn.closest('[data-fam-person]'));
+      const email = $('[name="email"]', form);
       btn.addEventListener('click', () => {
-        const form = $('form[data-fam-invite]', body);
-        $('[name="full_name"]', form).value = p.full_name || '';
-        $('[name="relationship"]', form).value = RELATIONSHIPS.includes(p.relationship)
-          ? p.relationship
-          : '';
-        const email = $('[name="email"]', form);
+        form.hidden = false;
         email.scrollIntoView?.({ block: 'center' });
         email.focus();
+      });
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const address = email.value.trim();
+        if (!address)
+          return void notice(note, t('Enter an email address.', '请输入邮箱地址。'), false);
+        run(
+          $('button[type="submit"]', form),
+          { action: 'invite', email: address, person_id: p.id },
+          { success: (d) => inviteSentText(d, address) },
+        );
       });
     }
     const pending = pendingInvites(fam);
@@ -2008,7 +2031,7 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
           `<div class="datagrid-item"><div class="datagrid-title">${t('People', '人数')}</div>
             <div class="datagrid-content"><strong data-fam-seats>${seats.used} / ${seats.limit}</strong></div></div>`,
         )}
-        ${familyPeople(Array.isArray(fam.people) ? fam.people : [], full)}
+        ${familyPeople(Array.isArray(fam.people) ? fam.people : [])}
         ${familyPending(pendingInvites(fam))}
         ${familyForms(full)}
         <div class="border-top pt-3 mt-3">
@@ -2031,7 +2054,12 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
           '家庭会员有效期间，你共享其会员权益，包括电子会员卡。',
         )}</p>
         <button type="button" class="btn btn-outline-danger" data-fam-leave>${t('Leave family', '退出家庭')}</button>`;
-    } else if (fam?.role === 'none' && ownFamilyTier) {
+    } else if (
+      fam?.role === 'none' &&
+      // The server decides (can_start_family); a response without the field
+      // falls back to the member's own active family tier.
+      (typeof fam.can_start_family === 'boolean' ? fam.can_start_family : ownFamilyTier)
+    ) {
       // Before a household exists the plan holder is the only person: 1 of 3.
       const seats = seatCount(fam.seats);
       full = seats.used >= seats.limit;
