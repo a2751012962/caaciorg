@@ -1510,7 +1510,10 @@ test('account page: a dead reset link points a signed-in member to Account secur
   assert.ok(q('#caaci-security'), 'the account still renders below');
 });
 
-test('login page: ?signup=1 opens the signup card with the email an event form handed over, once', async () => {
+test('login page: ?signup=1 opens the signup card with the email an event form handed over, once', async (t) => {
+  // Creating the account starts the 60s resend countdown; on a real clock its
+  // interval kept the test process alive for a minute after the file finished.
+  mockClock(t);
   setup('login', { search: '?signup=1&next=%2Fmid_autumn_festival_form%2F' });
   sessionStorage.setItem('caaci-signup-email', 'mei@x.com');
   const stub = supaStub();
