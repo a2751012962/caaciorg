@@ -131,6 +131,52 @@
   cursor: not-allowed;
 }
 
+/* --- Festival promo — the homepage / events-page entry to a registration form --- */
+/* Sized like a Divi row (80% wide, capped at the content max) so it lines up
+   with the mirrored sections above and below it. */
+.caaci-promo {
+  box-sizing: border-box;
+  width: 80%;
+  max-width: var(--caaci-content-max);
+  margin: var(--caaci-gap) auto;
+  padding: var(--caaci-gap);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--caaci-gap);
+  background: var(--caaci-surface);
+  border-left: 4px solid var(--caaci-brick);
+  box-shadow: var(--caaci-shadow);
+  font-family: var(--caaci-font-body);
+}
+.caaci-promo-body {
+  flex: 1 1 320px;
+}
+/* Gold on white is too faint to read here; the promo's label takes the brick. */
+.caaci-promo .caaci-eyebrow {
+  color: var(--caaci-brick);
+}
+.caaci-promo h2 {
+  margin: 4px 0 8px;
+  padding: 0;
+  font-family: var(--caaci-font-display);
+  font-size: var(--caaci-fs-h3);
+  line-height: 1.3;
+  letter-spacing: 1px;
+  color: var(--caaci-maroon);
+}
+.caaci-promo p {
+  margin: 0;
+  padding: 0;
+  font-size: var(--caaci-fs-sm);
+  line-height: 1.6;
+  color: var(--caaci-body);
+}
+/* On the events page the calendar's own container already sets the width. */
+.tribe-events-l-container .caaci-promo {
+  width: 100%;
+}
+
 /* ================================================== Donation checkout === */
 /* Modal opened from /donate/ (caaci-app.js openDonation); card entry itself
    happens on Stripe. */

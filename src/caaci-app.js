@@ -369,6 +369,67 @@ export function wireAuthNav() {
   }
 }
 
+// ---------- Festival registration card (homepage + events page) ----------
+// The mirrored homepage and events calendar predate the Mid-Autumn Festival
+// registration form, so both get a card linking to it: right after the
+// homepage hero, and at the top of the calendar, which otherwise opens on
+// "There are no upcoming events". The card stops appearing once the festival
+// is over, so nothing has to be removed by hand.
+const FESTIVAL_PROMO = {
+  path: '/mid_autumn_festival_form/',
+  until: Date.parse('2026-09-27T23:00:00Z'), // 6:00 PM in Champaign, when the festival ends
+  en: {
+    eyebrow: 'Sun, Sept 27 · 2–6 PM · Siebel Center for Design',
+    title: 'Mid-Autumn Festival registration is open',
+    text: 'Register for the festival, and create a free CAACI account by 2:00 PM Central Time on September 27 to pick up a free mooncake.',
+    cta: 'Register now',
+  },
+  zh: {
+    eyebrow: '9月27日（周日）下午2点–6点 · Siebel Center for Design',
+    title: '中秋节活动报名中',
+    text: '欢迎报名参加中秋节活动。9月27日下午2点（美国中部时间）前报名并注册 CAACI 网站账户，现场免费领一份月饼。',
+    cta: '立即报名',
+  },
+};
+
+export function wireFestivalPromo(now = Date.now()) {
+  if (now > FESTIVAL_PROMO.until || document.querySelector('.caaci-promo')) return;
+  const path = location.pathname;
+  let place;
+  if (/^\/(zh\/?)?$/.test(path)) {
+    const hero = document.querySelector('.et_pb_section_0');
+    if (hero) place = (card) => hero.after(card);
+  } else if (/^\/(zh\/)?events\/?$/.test(path)) {
+    const calendar = document.querySelector('.tribe-events-l-container');
+    if (calendar) place = (card) => calendar.prepend(card);
+  }
+  if (!place) return;
+
+  const zh = /^\/zh(\/|$)/.test(path);
+  const copy = FESTIVAL_PROMO[zh ? 'zh' : 'en'];
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text) node.textContent = text;
+    // TranslatePress on the /zh/ pages blanks text it sees appear (see
+    // wireAuthNav); mark every node that carries copy, not just the card.
+    node.setAttribute('data-no-dynamic-translation', '');
+    return node;
+  };
+  const card = el('aside', 'caaci-promo');
+  const body = el('div', 'caaci-promo-body');
+  body.append(
+    el('div', 'caaci-eyebrow', copy.eyebrow),
+    el('h2', '', copy.title),
+    el('p', '', copy.text),
+  );
+  const cta = el('a', 'caaci-btn', `${copy.cta} →`);
+  // Open the form in the language of the page the visitor is reading.
+  cta.href = `${FESTIVAL_PROMO.path}?lang=${zh ? 'zh' : 'en'}`;
+  card.append(body, cta);
+  place(card);
+}
+
 // ---------- Bootstrap ----------
 // Runs every wiring fn. Each is feature-detected + isolated so a missing form
 // just no-ops and one failing page never blocks the others.
@@ -378,6 +439,7 @@ export function init() {
     wireAuthNav,
     wireClickableModules,
     wireBusinessServiceTiles,
+    wireFestivalPromo,
     wireDonate,
     wireContact,
   ]) {
