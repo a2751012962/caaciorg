@@ -13,9 +13,11 @@ import {
   stat,
   copyFile,
 } from 'node:fs/promises';
-import { join, extname } from 'node:path';
+import { join, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { mirrorLangScript } from './src/caaci-shared.js';
+import { planAssetVersions, versionAssetRefs } from './asset-versions.mjs';
 
 // On Windows, a file copied into dist/ moments ago can still be held open by
 // Defender / the search indexer when we reopen it to rewrite it, and the open
@@ -36,7 +38,8 @@ async function writeFile(path, data) {
 // segments, which breaks checkouts under a directory with CJK characters.
 const ROOT = fileURLToPath(new URL('./', import.meta.url));
 const MIRROR = join(ROOT, 'mirror');
-const DIST = join(ROOT, 'dist');
+// CAACI_DIST builds somewhere else (test/asset-versions.test.js uses a temp dir).
+const DIST = process.env.CAACI_DIST ? resolve(process.env.CAACI_DIST) : join(ROOT, 'dist');
 
 async function walk(dir, out = []) {
   for (const name of await readdir(dir)) {
@@ -194,8 +197,19 @@ const guard =
   `if(e.target.closest&&e.target.closest('a[href*="buy.stripe.com"]'))e.preventDefault();` +
   `},true);})();</script>\n`;
 
+// Every mirrored page has an English and a /zh/ copy. The head of each carries
+// mirrorLangScript with the other copy's URL, so a visitor lands on the language
+// they chose before, or on their browser's language the first time.
+const distFiles = await walk(DIST);
+const distPaths = new Set(distFiles.map((f) => relative(DIST, f).split(sep).join('/')));
+const otherLangUrl = (f) => {
+  const rel = relative(DIST, f).split(sep).join('/');
+  const other = rel.startsWith('zh/') ? rel.slice(3) : `zh/${rel}`;
+  return distPaths.has(other) ? '/' + other.replace(/(^|\/)index\.html$/, '$1') : null;
+};
+
 let n = 0;
-for (const f of await walk(DIST)) {
+for (const f of distFiles) {
   if (extname(f) !== '.html') continue;
   let html = await readFile(f, 'utf8');
   if (html.includes('caaci-app.js')) continue;
@@ -205,7 +219,9 @@ for (const f of await walk(DIST)) {
   // finds the real closing tag.
   const close = html.lastIndexOf('</body>');
   html = close === -1 ? html + inject : html.slice(0, close) + inject + html.slice(close);
-  if (html.includes('<head>')) html = html.replace('<head>', '<head>\n' + guard);
+  const alt = otherLangUrl(f);
+  if (html.includes('<head>'))
+    html = html.replace('<head>', '<head>\n' + (alt ? mirrorLangScript(alt) : '') + guard);
   // The mirror carries the TrustedSite badge loader on all 62 pages. Its config
   // endpoint now answers 403 (the WordPress account behind it is gone), so every
   // page makes two failing third-party requests and logs two console errors for
@@ -313,5 +329,26 @@ for (const [from, to, extra] of memberStubs) {
   }
 }
 console.log(`Member-page stubs (zh + register tiers): ${m}.`);
+
+// Cache busting, after every page and asset is written: each /assets/ URL gets
+// ?v=<content hash>, including the relative imports between modules. caaciorg.com
+// serves /assets/* with max-age=14400, so a fixed URL kept returning visitors on
+// the previous deploy's CSS/JS for hours. See asset-versions.mjs.
+const ASSETS = join(DIST, 'assets');
+const assetFiles = new Map();
+for (const name of await readdir(ASSETS)) assetFiles.set(name, await readFile(join(ASSETS, name)));
+const { versions, rewritten } = planAssetVersions(assetFiles);
+for (const [name, js] of rewritten) await writeFile(join(ASSETS, name), js);
+let versioned = 0;
+for (const f of await walk(DIST)) {
+  if (extname(f) !== '.html') continue;
+  const html = await readFile(f, 'utf8');
+  const page = relative(DIST, f).split(sep).join('/');
+  const out = versionAssetRefs(html, (name) => versions.get(name), page);
+  if (out === html) continue;
+  await writeFile(f, out);
+  versioned++;
+}
+console.log(`Versioned ${versions.size} assets; ${versioned} pages link them by content hash.`);
 
 console.log('dist/ ready. Deploy with:  npx wrangler pages deploy dist');

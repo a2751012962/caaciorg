@@ -111,6 +111,70 @@ export const STATUS_LABEL = {
 export const statusLabel = (status, lang) =>
   STATUS_LABEL[status]?.[lang === 'zh' ? 1 : 0] || status;
 
+// ---------- Site language (EN / 中文) ----------
+// A visitor sees the language they last chose — the member-page toggle, a
+// ?lang= link and the mirror's language switcher all store it under LANG_KEY —
+// and, until they choose one, the language their browser asks for.
+export const LANG_KEY = 'caaci-lang';
+
+// 'zh' when the first Chinese or English entry in the browser's language list is
+// Chinese, else 'en'. Self-contained: mirrorLangScript inlines its source.
+export function browserLang(languages) {
+  for (const l of languages || []) {
+    const tag = String(l).toLowerCase();
+    if (tag.startsWith('zh')) return 'zh';
+    if (tag.startsWith('en')) return 'en';
+  }
+  return 'en';
+}
+
+export const preferredLang = (stored, languages) =>
+  stored === 'zh' || stored === 'en' ? stored : browserLang(languages);
+
+// Every mirrored page exists twice, /about/ and /zh/about/. This runs inline at
+// the top of <head>, before anything renders, and touches the page only through
+// its arguments (build.mjs serialises it). `alt` is this page in the other
+// language. It records a click on a link into the other copy (TranslatePress's
+// floating switcher) as the visitor's choice, and moves the visitor to `alt`
+// when the language they want is the other one. Without a stored choice it
+// never leaves a /zh/ page, which someone opened on purpose, and never
+// redirects a crawler, so both copies stay indexable.
+export function mirrorLangBoot(w, alt, browserLang) {
+  const KEY = 'caaci-lang'; // LANG_KEY — the serialised copy cannot reach it
+  const isZh = (path) => /^\/zh(\/|$)/.test(path);
+  const zhPage = isZh(w.location.pathname);
+  w.document.addEventListener(
+    'click',
+    (e) => {
+      const a = e.target.closest?.('a[href]');
+      if (!a || a.origin !== w.location.origin || isZh(a.pathname) === zhPage) return;
+      try {
+        w.localStorage.setItem(KEY, zhPage ? 'en' : 'zh');
+      } catch {
+        // Storage blocked: the link still works, the choice is just not kept.
+      }
+    },
+    true,
+  );
+  let stored = null;
+  try {
+    stored = w.localStorage.getItem(KEY);
+  } catch {
+    // Storage blocked (sandboxed frame, cookies off): fall back to the browser.
+  }
+  let want = stored;
+  if (want !== 'zh' && want !== 'en') {
+    if (zhPage || /bot|crawl|spider|slurp/i.test(w.navigator.userAgent || '')) return;
+    want = browserLang(w.navigator.languages || [w.navigator.language]);
+  }
+  if (alt && (want === 'zh') !== zhPage)
+    w.location.replace(alt + w.location.search + w.location.hash);
+}
+
+// The inline <script> build.mjs puts at the top of a mirrored page's <head>.
+export const mirrorLangScript = (alt) =>
+  `<script>(${mirrorLangBoot})(window,${JSON.stringify(alt).replace(/</g, '\\u003c')},${browserLang});</script>\n`;
+
 // Merge live membership_tiers rows (from any Supabase client) over the fallback.
 export function mergeTiers(rows) {
   const base = TIERS_FALLBACK.map((t) => ({ ...t }));

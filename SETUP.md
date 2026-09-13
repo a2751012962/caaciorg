@@ -309,6 +309,26 @@ still works.
       through chat (then re-set the Pages secret as above and redeploy).
 - [ ] Any time you change a secret, **redeploy** (`npm run deploy`) — Pages binds env at deploy time.
 
+## Site language (EN / 中文)
+
+A visitor sees the language they last chose and, until they choose one, the
+language their browser asks for (the first Chinese or English entry in
+`navigator.languages`; anything else is English).
+
+- **The choice** is stored in `localStorage` under `caaci-lang`. It is set by the
+  member-page toggle, a `?lang=zh|en` link, and a click on any link from one
+  language copy of a mirrored page to the other (TranslatePress's floating
+  switcher). The admin panel keeps its own `caaci-admin-lang` and falls back to
+  `caaci-lang`, then the browser.
+- **Mirrored pages** exist twice (`/about/`, `/zh/about/`). `build.mjs` puts an
+  inline script (`mirrorLangScript` in `src/caaci-shared.js`) at the top of each
+  `<head>` with the other copy's URL, so the switch happens before anything
+  renders. It keeps `?query` and `#hash`.
+- **Without a stored choice** a `/zh/` page is never left (the visitor opened a
+  Chinese link on purpose), and crawlers (`bot|crawl|spider|slurp` user agents)
+  are never redirected, so both copies stay indexable.
+- To reset during testing: `localStorage.removeItem('caaci-lang')` in the console.
+
 ## Member pages (`/login-3/`, `/membership/`, `/account/`)
 
 The three member-facing flows are standalone **Tabler** pages (same open-source

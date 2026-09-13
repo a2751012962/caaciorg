@@ -7,7 +7,16 @@
 // routes; the behavioral contracts are identical — same API bodies, the same
 // 3.5% fee math, the same duplicate-email guard — only the markup is Tabler.
 // The Supabase client comes from the self-hosted UMD bundle (assets/supabase.js).
-import { esc, usd, withFee, statusLabel, mergeTiers, isFreeTier } from './caaci-shared.js';
+import {
+  esc,
+  usd,
+  withFee,
+  statusLabel,
+  mergeTiers,
+  isFreeTier,
+  LANG_KEY,
+  preferredLang,
+} from './caaci-shared.js';
 
 const cfg = window.CAACI_CONFIG || {};
 const sbLib = window.supabase;
@@ -23,13 +32,14 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 // ---------- i18n (EN / 中文) — same mechanism as the admin panel ----------
-// ?lang=zh (used by the /zh/ redirect stubs) wins once, then localStorage.
+// ?lang=zh (used by the /zh/ redirect stubs) is stored as the visitor's choice;
+// then the stored choice wins, and without one the browser's language.
 // Resolved lazily in boot() so the module imports cleanly outside a browser.
 let lang = 'en';
 function initLang() {
   const urlLang = new URLSearchParams(location.search || '').get('lang');
-  if (urlLang === 'zh' || urlLang === 'en') localStorage.setItem('caaci-lang', urlLang);
-  lang = localStorage.getItem('caaci-lang') || 'en';
+  if (urlLang === 'zh' || urlLang === 'en') localStorage.setItem(LANG_KEY, urlLang);
+  lang = preferredLang(localStorage.getItem(LANG_KEY), window.navigator?.languages);
 }
 export function __setLang(l) {
   lang = l;
@@ -3232,7 +3242,7 @@ export async function boot() {
   if (tgl)
     tgl.addEventListener('click', () => {
       lang = lang === 'en' ? 'zh' : 'en';
-      localStorage.setItem('caaci-lang', lang);
+      localStorage.setItem(LANG_KEY, lang);
       location.reload(); // dynamic content re-renders in the new language
     });
   const page = document.body.dataset.page;

@@ -45,6 +45,11 @@ test('build: _redirects rewrites /events/<slug>/register onto /event-register/, 
       false,
       `${route}: opted out of the mirror injection`,
     );
-    assert.match(page, /<script type="module" src="\/assets\/caaci-member.js"><\/script>/, route);
+    // build.mjs versions every /assets/ URL with a content hash (?v=…).
+    assert.match(
+      page,
+      /<script type="module" src="\/assets\/caaci-member\.js(\?v=[0-9a-f]{12})?"><\/script>/,
+      route,
+    );
   }
 });

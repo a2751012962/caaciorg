@@ -7,6 +7,8 @@
 // window.supabase.createClient. Serving it from our own origin drops the runtime
 // dependency on esm.sh — blocked/slow on some networks (e.g. China), which
 // otherwise leaves this panel stuck on "Checking access…".
+import { LANG_KEY, preferredLang } from './caaci-shared.js';
+
 const cfg = window.CAACI_CONFIG || {};
 const sb = window.supabase;
 const supa =
@@ -18,7 +20,12 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 // ---------- i18n (EN / 中文) ----------
-let lang = localStorage.getItem('caaci-admin-lang') || 'en';
+// The panel keeps its own choice; until one is made it follows the language
+// chosen on the public site, then the browser's.
+let lang = preferredLang(
+  localStorage.getItem('caaci-admin-lang') || localStorage.getItem(LANG_KEY),
+  window.navigator?.languages,
+);
 function applyLang() {
   document.documentElement.lang = lang === 'zh' ? 'zh' : 'en';
   for (const el of $$('[data-en]')) {
