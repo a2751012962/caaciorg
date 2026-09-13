@@ -88,14 +88,15 @@ test('endpointDrift: a fully subscribed enabled endpoint is ok', () => {
 test('endpointDrift: missing events and a disabled endpoint are both flagged', () => {
   const drift = endpointDrift({
     status: 'disabled',
-    enabled_events: ['checkout.session.completed', 'charge.refunded'],
+    enabled_events: ['checkout.session.completed', 'customer.created'],
   });
   assert.deepEqual(drift.missing, [
     'invoice.paid',
     'invoice.payment_failed',
     'customer.subscription.deleted',
+    'charge.refunded',
   ]);
-  assert.deepEqual(drift.extra, ['charge.refunded']);
+  assert.deepEqual(drift.extra, ['customer.created']);
   assert.equal(drift.disabled, true);
   assert.equal(drift.ok, false);
 });

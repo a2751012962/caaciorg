@@ -1,7 +1,11 @@
 // POST /api/stripe-webhook
 // Stripe calls this after checkout completes. Verifies the signature, then
-// activates the membership / marks the donation paid in Supabase.
-import { sb } from './_lib.js';
+// activates the membership / marks the donation paid in Supabase, and keeps the
+// payments ledger's refund total in step with refunds made anywhere in Stripe.
+import { sb, stripe } from './_lib.js';
+
+// A Stripe field is sometimes a string id, sometimes an expanded object.
+const idOf = (v) => (v && typeof v === 'object' ? v.id : v) || null;
 
 // Verify Stripe's signature (HMAC-SHA256) using Web Crypto (Workers-compatible).
 // Exported so the signature logic can be unit-tested directly.
@@ -35,6 +39,7 @@ export async function onRequestPost({ request, env }) {
   }
   const event = JSON.parse(payload);
   const DB = sb(env);
+  const S = stripe(env);
 
   // The Invoice object moved the subscription reference across API versions:
   //   legacy (< 2025-03-31.basil): invoice.subscription (string)
@@ -73,6 +78,36 @@ export async function onRequestPost({ request, env }) {
     } catch (err) {
       console.warn('stripe-webhook: payments insert failed —', err.message);
     }
+  }
+
+  // The ledger row a refunded charge paid for. Renewals are stored by invoice;
+  // a first year by the Checkout Session that created the subscription, which
+  // in subscription mode has no payment_intent — only the invoice it created —
+  // so the session is found through the invoice's subscription and must name
+  // this exact invoice. One-off (payment-mode) sessions match by payment_intent.
+  // Relies on the account's 2024-06-20 API shape, where a Charge names its invoice.
+  async function findPaymentForCharge(ch) {
+    const inv = idOf(ch.invoice);
+    if (inv) {
+      const byInvoice = await DB.selectOne('payments', { stripe_invoice_id: inv });
+      if (byInvoice) return byInvoice;
+      const sub = invoiceSub(await S.get(`invoices/${inv}`));
+      if (!sub) return null;
+      const sessions = await S.get(
+        `checkout/sessions?subscription=${encodeURIComponent(sub)}&limit=10`,
+      );
+      for (const s of sessions.data || []) {
+        if (idOf(s.invoice) !== inv) continue;
+        const row = await DB.selectOne('payments', { stripe_session_id: s.id });
+        if (row) return row;
+      }
+      return null;
+    }
+    const pi = idOf(ch.payment_intent);
+    if (!pi) return null;
+    const found = await S.get(`checkout/sessions?payment_intent=${encodeURIComponent(pi)}&limit=1`);
+    const s = found.data?.[0];
+    return s ? DB.selectOne('payments', { stripe_session_id: s.id }) : null;
   }
 
   try {
@@ -160,6 +195,32 @@ export async function onRequestPost({ request, env }) {
       const s = event.data.object;
       const m = await findMember({ sub: s.id, cust: s.customer });
       if (m) await DB.update('members', { id: m.id }, { status: 'cancelled' });
+    } else if (event.type === 'charge.refunded') {
+      // Fires for every refund — full or partial, from the admin Refunds tab or
+      // the Stripe Dashboard. amount_refunded is Stripe's running total for the
+      // charge, so writing it (not adding to it) is idempotent under retries and
+      // agrees with the total the Refunds tab records for its own refunds.
+      const ch = event.data.object;
+      const row = await findPaymentForCharge(ch);
+      const total = ch.amount_refunded ?? 0;
+      if (row && total !== (row.refunded_cents || 0)) {
+        const refunds = await S.get(`refunds?charge=${encodeURIComponent(ch.id)}&limit=1`);
+        const latest = refunds.data?.[0];
+        await DB.update(
+          'payments',
+          { id: row.id },
+          {
+            refunded_cents: total,
+            refunded_at: new Date((latest?.created ?? Date.now() / 1000) * 1000).toISOString(),
+            ...(latest ? { stripe_refund_id: latest.id } : {}),
+            // The Refunds tab tags its refunds with metadata.payment_id and writes
+            // its own note; anything else was issued in the Stripe Dashboard.
+            ...(latest && !latest.metadata?.payment_id
+              ? { refund_reason: `Stripe Dashboard${latest.reason ? ` (${latest.reason})` : ''}` }
+              : {}),
+          },
+        );
+      }
     }
     return new Response('ok');
   } catch (e) {

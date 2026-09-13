@@ -62,7 +62,7 @@ Payments run through account **`acct_1PfYMiJ3oYxWrRWD`**
 things to wire up per mode: a key, a webhook endpoint + Billing Portal
 (`stripe:connect`), and the tier catalogue (`stripe:catalog`).
 
-**Catalogue.** Each tier in `membership_tiers` gets one Stripe Product and one
+**Catalogue.** Each paid tier in `membership_tiers` gets one Stripe Product and one
 yearly Price (base price + 3.5% card fee) tagged `lookup_key = caaci_<tier>_year`.
 Checkout and change-plan resolve the Price by that key at request time, so no
 Stripe IDs live in the database and the same code serves test and live mode.
@@ -70,7 +70,18 @@ If the catalogue is missing in a mode, checkout falls back to inline `price_data
 — it still works, but every payment then mints its own ad-hoc product and the
 Dashboard's per-product MRR becomes noise. Run once per mode, and again after
 changing a price in Supabase (it re-prices and archives the old Price; existing
-subscribers stay on what they signed up for):
+subscribers stay on what they signed up for).
+
+It **reuses before it creates**: a tier lives on the active Product tagged with its
+`tier_id`, or else the one with the same name — in live mode that is the old
+MemberPress "Family Membership" / "Individual Membership" product, so legacy
+subscribers (still on their $60 / $30 Prices) and new members share one Product.
+An existing active yearly Price of the exact amount is tagged; only a missing Price or
+Product is created. The script never archives or re-activates a Price it did not
+create (no `metadata.source` / `base_cents`), so MemberPress plans stay as they are,
+and if Stripe refuses to tag a legacy Price that tier is left unwritten and the run
+exits 1 rather than minting a duplicate. `$0` tiers (free, honorary) never reach
+Stripe Checkout and get no Price. Always read the report before `--apply`:
 
 ```
 npm run stripe:catalog              # report only
@@ -100,6 +111,10 @@ npm run stripe:catalog -- --apply   # create / re-price
    - `invoice.paid` — renewal: extends the membership another year
    - `invoice.payment_failed` — flags the member `past_due`
    - `customer.subscription.deleted` — flags the member `cancelled`
+   - `charge.refunded` — writes the charge's refunded total onto its `payments` row,
+     so a refund issued in the Stripe Dashboard shows on the Payments / Refunds tabs
+     just like one issued from the admin panel. An existing endpoint picks the new
+     event up on the next `stripe:connect -- --apply` (repaired in place, same secret).
 
    It also creates a Billing Portal configuration if the account has none —
    `/api/portal` mints portal sessions without naming one, so Stripe needs an
