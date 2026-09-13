@@ -266,6 +266,7 @@ test('event form: "can\'t make it" needs no names and gets no mooncake step', as
   }
 });
 
+// POST_OK has no `linked`: a response from before that field counts as linked.
 test('event form: a signed-in visitor gets the email prefilled, sends a bearer token, and is counted', async () => {
   setup();
   member.__setSupa(supaWith(USER));
@@ -288,6 +289,56 @@ test('event form: a signed-in visitor gets the email prefilled, sends a bearer t
     assert.match(q('#caaci-ev-perk-counted').textContent, /✓ Counted for a free mooncake/);
     assert.equal(q('#caaci-ev-perk-cta').hidden, true);
     assert.equal(q('#caaci-ev-perk-closed').hidden, true);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event form: signed in but registered under another email, the mooncake step asks for an account with that email', async () => {
+  setup();
+  const signOuts = [];
+  const supa = supaWith(USER);
+  supa.auth.signOut = async () => {
+    signOuts.push(true);
+    return { error: null };
+  };
+  member.__setSupa(supa);
+  const fetch = stubApi({
+    get: () => ({
+      body: { event: EVENT, signed_in: true, email: 'mei@x.com', registration: null },
+    }),
+    post: () => POST_OK({ signed_in: true, linked: false }),
+  });
+  try {
+    await member.wireEventFormPage();
+    const emailEl = q('#caaci-ev-email');
+    assert.equal(emailEl.value, 'mei@x.com', 'prefilled from the account');
+    assert.equal(emailEl.readOnly || emailEl.disabled, false, 'and still editable');
+
+    fillForm({ email: 'family@x.com' });
+    await submit();
+    assert.equal(posts(fetch)[0].options.headers.authorization, 'Bearer tok');
+    assert.equal(q('#caaci-ev-perk-counted').hidden, true, 'not counted under another email');
+    assert.equal(q('#caaci-ev-perk-closed').hidden, true);
+    assert.ok(shown('#caaci-ev-perk-cta'));
+    const cta = q('#caaci-ev-perk-cta-text').textContent;
+    assert.match(cta, /goes with the email you registered with/);
+    assert.match(cta, /September 27\D+2:00\sPM CDT/);
+    assert.match(cta, /signed out/);
+
+    q('#caaci-ev-signup').click();
+    await tick();
+    // Otherwise the login page would send the signed-in visitor straight back.
+    assert.equal(signOuts.length, 1, 'signed out first');
+    assert.equal(sessionStorage.getItem('caaci-signup-email'), 'family@x.com');
+    assert.equal(location.href, '/login-3/?signup=1&next=%2Fmid_autumn_festival_form%2F');
+    assert.doesNotMatch(location.href, /family|@|%40/);
+
+    location.href = '';
+    q('#caaci-ev-login').click();
+    await tick();
+    assert.equal(signOuts.length, 2);
+    assert.equal(location.href, '/login-3/?next=%2Fmid_autumn_festival_form%2F');
   } finally {
     fetch.restore();
   }

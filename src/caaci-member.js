@@ -1888,8 +1888,32 @@ export async function wireEventFormPage() {
     );
   };
 
+  // Signed in, but registered under a different address than the login one.
+  let signOutFirst = false;
+
+  const signupStepText = () => {
+    const when = deadlineText(deadline);
+    if (signOutFirst)
+      return t(
+        `The free mooncake goes with the email you registered with, not the account you are signed in to. Create a free CAACI account with that email${when ? ` by ${when}` : ''}, or log in to it — you will be signed out of this account first.`,
+        `免费月饼与报名时填写的邮箱绑定，而不是您当前登录的账户。请${when ? `在 ${when} 前` : ''}用该邮箱免费注册 CAACI 账户或登录——系统会先为您退出当前账户。`,
+      );
+    return when
+      ? t(
+          `One more step for a free mooncake: create a free CAACI account with the email you registered with by ${when}.`,
+          `领取免费月饼还差一步：请在 ${when} 前，用报名时填写的邮箱免费注册 CAACI 账户。`,
+        )
+      : t(
+          'One more step for a free mooncake: create a free CAACI account with the email you registered with before the festival starts.',
+          '领取免费月饼还差一步：在活动开始前，用报名时填写的邮箱免费注册 CAACI 账户。',
+        );
+  };
+
   // Swap the form for the success state; returns its heading for focus.
-  const showDone = ({ registeredAt, attending, already, signedIn }) => {
+  // `linked`: the API tied the registration to the signed-in account, which it
+  // does only when the registration email is the login email. A response
+  // without the field comes from before that rule, when signed in meant linked.
+  const showDone = ({ registeredAt, attending, already, signedIn, linked = signedIn }) => {
     formCard.hidden = true;
     done.hidden = false;
     const title = $('#caaci-ev-done-title');
@@ -1900,33 +1924,51 @@ export async function wireEventFormPage() {
     const stamp = registeredText(registeredAt);
     setText($('#caaci-ev-done-time'), stamp ? t(`Registered ${stamp}`, `报名时间：${stamp}`) : '');
     $('#caaci-ev-done-already').hidden = !already;
+    // The mooncake goes with the registration email, so an unlinked signed-in
+    // registrant gets the same account step as an anonymous one.
+    signOutFirst = signedIn && !linked;
     // Someone who is not coming has no mooncake to collect.
     const step = attending
-      ? perkStep({ deadline, registeredAt, signedIn, accountCreatedAt: session?.user?.created_at })
+      ? perkStep({
+          deadline,
+          registeredAt,
+          signedIn: signedIn && linked,
+          accountCreatedAt: session?.user?.created_at,
+        })
       : null;
     $('#caaci-ev-perk-counted').hidden = step !== 'counted';
     $('#caaci-ev-perk-cta').hidden = step !== 'signup';
     $('#caaci-ev-perk-closed').hidden = step !== 'closed';
-    const when = deadlineText(deadline);
-    if (step === 'signup' && when)
-      setText(
-        $('#caaci-ev-perk-cta-text'),
-        t(
-          `One more step for a free mooncake: create a free CAACI account with the email you registered with by ${when}.`,
-          `领取免费月饼还差一步：请在 ${when} 前，用报名时填写的邮箱免费注册 CAACI 账户。`,
-        ),
-      );
+    if (step === 'signup') setText($('#caaci-ev-perk-cta-text'), signupStepText());
     return title;
   };
 
-  $('#caaci-ev-login').setAttribute('href', `/login-3/?next=${here}`);
+  // The login page sends a signed-in visitor straight back to ?next=, so
+  // someone who registered under another address is signed out on the way.
+  const goToLogin = async (path) => {
+    if (signOutFirst && supa) {
+      try {
+        await withTimeout(supa.auth.signOut(), 3500, null);
+      } catch {
+        /* go anyway */
+      }
+    }
+    location.href = path;
+  };
+  const loginLink = $('#caaci-ev-login');
+  loginLink.setAttribute('href', `/login-3/?next=${here}`);
+  loginLink.addEventListener('click', (e) => {
+    if (!signOutFirst) return; // otherwise a plain link
+    e.preventDefault();
+    goToLogin(loginLink.getAttribute('href'));
+  });
   $('#caaci-ev-signup').addEventListener('click', () => {
     try {
       if (registeredEmail) sessionStorage.setItem(SIGNUP_EMAIL_KEY, registeredEmail);
     } catch {
       /* storage blocked — they type the address on the signup form */
     }
-    location.href = `/login-3/?signup=1&next=${here}`;
+    goToLogin(`/login-3/?signup=1&next=${here}`);
   });
   $('#caaci-ev-edit').addEventListener('click', () => {
     done.hidden = true;
@@ -1985,6 +2027,7 @@ export async function wireEventFormPage() {
       attending: body.attending === 'yes',
       already: !!data.already,
       signedIn: !!data.signed_in,
+      linked: typeof data.linked === 'boolean' ? data.linked : !!data.signed_in,
     }).focus();
   });
 
