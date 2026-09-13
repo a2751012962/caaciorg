@@ -119,14 +119,17 @@ test('login page: the Google button does not narrow Google to a custom scope set
   );
 });
 
-test('login page: forgot-password returns to the recovery form, not the bare account page', async () => {
+test('login page: forgot-password returns to the recovery form, not the bare account page', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] }); // the resend countdown
   mountDom(LOGIN_HTML);
   const spy = spyClient();
   member.__setSupa(spy.client);
   await member.wireAuthPage();
 
+  // The link opens the reset form prefilled with this address; its submit sends.
   document.querySelector('#caaci-li-email').value = 'mei@example.com';
   document.querySelector('#caaci-forgot').dispatchEvent(new Event('click'));
+  document.querySelector('#caaci-reset-form').dispatchEvent(new Event('submit'));
   await tick();
 
   assert.equal(spy.resets.length, 1);
