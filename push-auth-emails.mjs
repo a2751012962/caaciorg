@@ -1,0 +1,198 @@
+// push-auth-emails.mjs — makes the project's Supabase Auth emails match the repo.
+//
+// Copies the six templates in supabase/templates/ (subjects from subjects.json)
+// and the non-secret custom-SMTP settings into the project's auth config over
+// the Management API.
+//
+// Usage:
+//   SUPABASE_ACCESS_TOKEN=<personal access token> npm run auth:emails              # dry run
+//   SUPABASE_ACCESS_TOKEN=<personal access token> npm run auth:emails -- --apply
+// SBP is accepted in place of SUPABASE_ACCESS_TOKEN, and SB_REF picks another
+// project, as in apply-supabase.mjs. Never prints the token.
+//
+// The default is a dry run: it reads the live config and lists which keys this
+// script owns differ from the repo. --apply PATCHes only those keys, reads the
+// config back, and exits non-zero unless every owned key now matches.
+//
+// The SMTP password (a Resend API key) is a secret. It is not in this repo, is
+// never sent, and stays whatever is set in the dashboard. That relies on PATCH
+// leaving omitted fields alone, which is how Supabase's own documented examples
+// use it (each sends only a handful of fields), though the API reference does
+// not state it outright — hence the loud note before every PATCH.
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+
+export const TEMPLATE_TYPES = [
+  'confirmation',
+  'recovery',
+  'invite',
+  'magic_link',
+  'email_change',
+  'reauthentication',
+];
+
+// Everything custom SMTP needs except the password, as set under
+// Authentication → SMTP. smtp_port is a number in Supabase's documented example;
+// smtp_max_frequency is the minimum interval per user, in seconds.
+export const SMTP_SETTINGS = Object.freeze({
+  smtp_admin_email: 'no-reply@caaciorg.com',
+  smtp_host: 'smtp.resend.com',
+  smtp_port: 465,
+  smtp_user: 'resend',
+  smtp_sender_name: 'CAACI',
+  smtp_max_frequency: 60,
+});
+
+const TEMPLATES_DIR = new URL('./supabase/templates/', import.meta.url);
+const API = 'https://api.supabase.com/v1';
+
+export async function loadTemplates(dir = TEMPLATES_DIR) {
+  const subjects = JSON.parse(await readFile(new URL('subjects.json', dir), 'utf8'));
+  const contents = {};
+  for (const type of TEMPLATE_TYPES) {
+    contents[type] = await readFile(new URL(`${type}.html`, dir), 'utf8');
+  }
+  return { subjects, contents };
+}
+
+// The full set of auth-config keys this script owns, with the values the repo
+// says they should have. Key names follow the Management API:
+// mailer_subjects_<type> and mailer_templates_<type>_content.
+export function buildAuthPatch({ subjects, contents }) {
+  const body = {};
+  for (const type of TEMPLATE_TYPES) {
+    if (typeof subjects[type] !== 'string' || typeof contents[type] !== 'string') {
+      throw new Error(`missing subject or template for ${type}`);
+    }
+    body[`mailer_subjects_${type}`] = subjects[type];
+    body[`mailer_templates_${type}_content`] = contents[type];
+  }
+  return { ...body, ...SMTP_SETTINGS };
+}
+
+// Line endings and trailing whitespace are not drift: git on Windows and the
+// dashboard editor both rewrite them. Values compare as text because the API
+// docs do not say whether smtp_port reads back as a number or a string.
+export function normalizeValue(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\s+$/, '');
+}
+
+// [{ key, summary }] for every owned key whose live value differs. Summaries
+// are one line: short values are shown, HTML is described, never dumped.
+export function diffAuthConfig(desired, live) {
+  const drift = [];
+  for (const [key, want] of Object.entries(desired)) {
+    const repo = normalizeValue(want);
+    const current = normalizeValue(live?.[key]);
+    if (repo !== current) drift.push({ key, summary: summarize(current, repo) });
+  }
+  return drift;
+}
+
+function summarize(live, repo) {
+  if (!live) return 'not set on the project';
+  const short = (s) => !s.includes('\n') && s.length <= 80;
+  if (short(live) && short(repo))
+    return `live ${JSON.stringify(live)} → repo ${JSON.stringify(repo)}`;
+  const a = live.split('\n');
+  const b = repo.split('\n');
+  let line = 0;
+  while (line < a.length && line < b.length && a[line] === b[line]) line++;
+  return `live ${a.length} lines / ${live.length} chars, repo ${b.length} lines / ${repo.length} chars, first difference on line ${line + 1}`;
+}
+
+export async function main(argv = process.argv.slice(2), env = process.env) {
+  let apply = false;
+  for (const arg of argv) {
+    if (arg === '--apply') apply = true;
+    else throw new Error(`unknown option: ${arg}`);
+  }
+  const token = env.SUPABASE_ACCESS_TOKEN || env.SBP;
+  if (!token) {
+    console.error('Missing SUPABASE_ACCESS_TOKEN (a Supabase personal access token). Run:');
+    console.error('  SUPABASE_ACCESS_TOKEN=sbp_… npm run auth:emails [-- --apply]');
+    return 1;
+  }
+  const ref = env.SB_REF || 'wslzeqhipvibeflmxznh';
+  const url = `${API}/projects/${ref}/config/auth`;
+  const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+
+  // Error bodies are printed for diagnosis; scrub the token in case one echoes it.
+  const failed = async (what, res) => {
+    const text = (await res.text()).slice(0, 400).split(token).join('[token]');
+    console.error(`✗ ${what}: HTTP ${res.status} ${text}`);
+  };
+  const readConfig = async () => {
+    const res = await fetch(url, { method: 'GET', headers });
+    if (res.ok) return res.json();
+    await failed(`GET ${url}`, res);
+    return null;
+  };
+
+  const desired = buildAuthPatch(await loadTemplates());
+  const owned = Object.keys(desired).length;
+  console.log(`Project ${ref}: comparing ${owned} auth email settings with supabase/templates/…`);
+
+  const live = await readConfig();
+  if (!live) return 1;
+  const drift = diffAuthConfig(desired, live);
+  if (!drift.length) {
+    console.log('✓ Live templates, subjects and SMTP settings match the repo. Nothing to do.');
+    return 0;
+  }
+  console.log(`\n${drift.length} setting(s) differ:`);
+  for (const d of drift) console.log(`  ${d.key}: ${d.summary}`);
+
+  if (!apply) {
+    console.log('\nDry run — nothing was changed. To push these: npm run auth:emails -- --apply');
+    return 0;
+  }
+
+  // Filling in host/user on a project with no custom SMTP would switch it on
+  // with no password, and every auth email would fail to send.
+  if (drift.some((d) => d.key.startsWith('smtp_')) && !normalizeValue(live.smtp_host)) {
+    console.error(
+      '\n✗ Custom SMTP is not configured on this project, and this script never sends the ' +
+        'password. Set it up under Authentication → SMTP in the dashboard first, then rerun.',
+    );
+    return 1;
+  }
+
+  const patch = Object.fromEntries(drift.map((d) => [d.key, desired[d.key]]));
+  console.log(
+    `\n⚠ PATCHing ${drift.length} setting(s). smtp_pass is NOT sent — the SMTP password stays ` +
+      'as set in the dashboard. If auth emails stop arriving afterwards, re-enter it there.',
+  );
+  const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
+  if (!res.ok) {
+    await failed(`PATCH ${url}`, res);
+    return 1;
+  }
+
+  const after = await readConfig();
+  if (!after) return 1;
+  const remaining = diffAuthConfig(desired, after);
+  if (remaining.length) {
+    console.error(`✗ PATCH accepted, but ${remaining.length} setting(s) still differ:`);
+    for (const d of remaining) console.error(`  ${d.key}: ${d.summary}`);
+    return 1;
+  }
+  console.log(`✓ Applied. All ${owned} owned settings now match the repo.`);
+  return 0;
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().then(
+    (code) => {
+      process.exitCode = code;
+    },
+    (err) => {
+      console.error(`✗ ${err.message}`);
+      process.exitCode = 1;
+    },
+  );
+}
