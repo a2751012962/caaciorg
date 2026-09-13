@@ -23,6 +23,13 @@ const HEARD_FROM = {
   social: 'Social Media',
 };
 const BAD_HEARD_FROM = 'Invalid answer for how you heard about the event.';
+// Chinese for the fixed answers, as shown in the confirmation email.
+const HEARD_FROM_ZH = {
+  Website: '网站',
+  Friend: '朋友',
+  Newsletter: '电子报',
+  'Social Media': '社交媒体',
+};
 
 // The free-gift cutoff: the event's own perk_deadline, else its start (inclusive).
 const deadlineOf = (event) => event.perk_deadline ?? event.starts_at;
@@ -180,7 +187,7 @@ export async function onRequestPost({ request, env }) {
             event,
             deadline,
             linked,
-            answers: { email, attending, names, heardFrom, wantsMeal },
+            answers: { attending, heardFrom, wantsMeal },
           }),
         });
       } catch {
@@ -221,12 +228,15 @@ function eventTime(event, locale) {
 }
 
 // The registrant's confirmation, laid out like supabase/templates/*.html:
-// Chinese first, then English. Everything user- or admin-supplied is escaped.
+// Chinese first, then English. Anyone can make this endpoint mail any address
+// from CAACI, so the email carries NO text the registrant typed — not the
+// names, not the Other answer, not even the address itself (its local part is
+// free text too) — or a script could send branded phishing copy through it.
+// Only structured answers, and the admin-written event fields, escaped.
 function confirmationHtml({ origin, host, logo, event, deadline, linked, answers }) {
   const title = esc(event.title);
   const heading = 'margin:0 0 8px;color:#300200;font-size:20px;';
   const small = 'font-size:13px;color:#666666;';
-  const text = (v) => (v ? esc(v).replace(/\r?\n/g, '<br>') : '—');
   const row = (label, value) =>
     `<tr><td style="padding:6px 16px 6px 0;vertical-align:top;${small}">${label}</td>` +
     `<td style="padding:6px 0;vertical-align:top;">${value}</td></tr>`;
@@ -251,7 +261,13 @@ function confirmationHtml({ origin, host, logo, event, deadline, linked, answers
   </div>`;
   }
 
-  const { email, attending, names, heardFrom, wantsMeal } = answers;
+  const { attending, heardFrom, wantsMeal } = answers;
+  // One of the four fixed labels, else "Other" for whatever was typed.
+  const heard = !heardFrom
+    ? '—'
+    : Object.hasOwn(HEARD_FROM_ZH, heardFrom)
+      ? `${HEARD_FROM_ZH[heardFrom]} · ${heardFrom}`
+      : '其他 · Other';
   return `<div style="max-width:600px;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;line-height:1.6;color:#333333;">
   <a href="${esc(origin)}/" style="text-decoration:none;">
     <img src="${esc(logo)}" width="200" alt="CAACI 华人协会" style="display:block;width:200px;height:auto;border:0;">
@@ -260,10 +276,10 @@ function confirmationHtml({ origin, host, logo, event, deadline, linked, answers
   <div style="border-top:3px solid #8e2e11;margin:16px 0 24px;"></div>
 
   <h2 style="${heading}">报名成功</h2>
-  <p style="margin:0 0 20px;">感谢报名 <strong>${title}</strong>！以下是你提交的信息，供你留存。</p>
+  <p style="margin:0 0 20px;">感谢报名 <strong>${title}</strong>！以下是你的报名摘要。</p>
 
   <h2 style="${heading}">You're registered</h2>
-  <p style="margin:0 0 24px;">Thanks for registering for <strong>${title}</strong>! Here is a copy of your answers.</p>
+  <p style="margin:0 0 24px;">Thanks for registering for <strong>${title}</strong>! Here is a summary of your answers.</p>
 
   <p style="margin:0 0 24px;">
     <strong style="color:#300200;">时间 · When</strong><br>
@@ -274,10 +290,8 @@ function confirmationHtml({ origin, host, logo, event, deadline, linked, answers
   </p>
 
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;font-size:15px;">
-    ${row('邮箱 · Email', esc(email))}
     ${row('能否参加 · Can you attend?', attending ? '我会参加 · Yes, I’ll be there' : '无法参加 · Sorry, can’t make it')}
-    ${row('参加人员 · Names of people attending', text(names))}
-    ${row('了解渠道 · How you heard about this event', text(heardFrom))}
+    ${row('了解渠道 · How you heard about this event', heard)}
     ${row('购买餐食 · Purchase a meal?', wantsMeal === true ? '是 · Yes' : wantsMeal === false ? '否 · No' : '—')}
   </table>
 
