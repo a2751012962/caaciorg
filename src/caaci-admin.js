@@ -1633,6 +1633,7 @@ const CSV_COLUMNS = [
   'heard_from',
   'wants_meal',
   'has_account',
+  'account_confirmed',
   'account_created_at (Chicago)',
   'mooncake_eligible',
 ];
@@ -1662,6 +1663,7 @@ export function registrationsCsv(rows, { eligibleOnly = false } = {}) {
       r.heard_from,
       yesNo(r.wants_meal),
       yesNo(!!r.account),
+      r.account ? yesNo(!!r.account.confirmed) : '',
       chicagoTime(r.account?.created_at),
       yesNo(!!r.perk_eligible),
     ]);
@@ -1718,7 +1720,7 @@ async function openRegistrations(ev) {
     stat(t('Attending', '参加'), summary.attending),
     stat(t('Not attending', '不参加'), summary.not_attending),
     stat(t('Want a meal', '订餐'), summary.meal),
-    stat(t('With account', '有账户'), summary.with_account),
+    stat(t('Confirmed account', '已验证账户'), summary.with_account),
     stat(t('Mooncake eligible', '可领月饼'), summary.perk_eligible, ' text-success'),
   ].join('');
   $('#caaci-reg-csv').disabled = false;
@@ -1731,6 +1733,11 @@ function renderRegistrations() {
   const mark = (yes) =>
     yes ? '<span class="text-success">✓</span>' : '<span class="text-secondary">—</span>';
   const meal = (v) => (v === true ? t('Yes', '要') : v === false ? t('No', '不要') : '—');
+  // A signup that never confirmed its email doesn't count, but staff should see it.
+  const account = (a) => {
+    if (!a) return mark(false);
+    return a.confirmed ? mark(true) : badgeHtml('pending', t('Unconfirmed', '未验证'));
+  };
   const html = [];
   regData.rows.forEach((r, i) => {
     if (eligibleOnly && !r.perk_eligible) return;
@@ -1743,7 +1750,7 @@ function renderRegistrations() {
       <td class="text-wrap">${esc(r.attendee_names || '—')}</td>
       <td>${esc(r.heard_from || '—')}</td>
       <td>${meal(r.wants_meal)}</td>
-      <td>${mark(r.account)}</td>
+      <td>${account(r.account)}</td>
       <td>${mark(r.perk_eligible)}</td>
     </tr>`);
   });
