@@ -59,60 +59,68 @@
           <span data-en="Loading…" data-zh="加载中…">Loading…</span>
         </p>
 
+        <!-- Tabler's .alert is a flex row, so each alert's content sits in one
+             <div> to stack the heading above the text instead of beside it. -->
         <div class="alert alert-secondary" id="caaci-ev-missing" role="alert" hidden>
-          <h2
-            class="h3 mb-1"
-            data-en="This event is not open for registration"
-            data-zh="该活动未开放报名"
-          >
-            This event is not open for registration
-          </h2>
-          <p class="mb-0">
-            <span
-              data-en="The link may be mistyped, or registration has not opened yet."
-              data-zh="链接可能有误，或报名尚未开始。"
-              >The link may be mistyped, or registration has not opened yet.</span
+          <div>
+            <h2
+              class="h3 mb-1"
+              data-en="This event is not open for registration"
+              data-zh="该活动未开放报名"
             >
-            <a
-              href="/events/"
-              data-zh-href="/zh/events/"
-              data-en="See all events"
-              data-zh="查看全部活动"
-              >See all events</a
-            >
-          </p>
+              This event is not open for registration
+            </h2>
+            <p class="mb-0">
+              <span
+                data-en="The link may be mistyped, or registration has not opened yet."
+                data-zh="链接可能有误，或报名尚未开始。"
+                >The link may be mistyped, or registration has not opened yet.</span
+              >
+              <a
+                href="/events/"
+                data-zh-href="/zh/events/"
+                data-en="See all events"
+                data-zh="查看全部活动"
+                >See all events</a
+              >
+            </p>
+          </div>
         </div>
 
         <div class="alert alert-danger" id="caaci-ev-error" role="alert" hidden>
-          <p
-            class="mb-2"
-            data-en="We couldn't load the registration form. Check your connection and try again."
-            data-zh="无法加载报名表，请检查网络后重试。"
-          >
-            We couldn't load the registration form. Check your connection and try again.
-          </p>
-          <button
-            type="button"
-            id="caaci-ev-retry"
-            class="btn btn-outline-danger"
-            data-en="Try again"
-            data-zh="重试"
-          >
-            Try again
-          </button>
+          <div>
+            <p
+              class="mb-2"
+              data-en="We couldn't load the registration form. Check your connection and try again."
+              data-zh="无法加载报名表，请检查网络后重试。"
+            >
+              We couldn't load the registration form. Check your connection and try again.
+            </p>
+            <button
+              type="button"
+              id="caaci-ev-retry"
+              class="btn btn-outline-danger"
+              data-en="Try again"
+              data-zh="重试"
+            >
+              Try again
+            </button>
+          </div>
         </div>
 
         <div class="alert alert-secondary" id="caaci-ev-closed" role="status" hidden>
-          <h2 class="h3 mb-1" data-en="Registration has closed" data-zh="报名已截止">
-            Registration has closed
-          </h2>
-          <p
-            class="mb-0"
-            data-en="This event is no longer taking registrations."
-            data-zh="本活动已停止接受报名。"
-          >
-            This event is no longer taking registrations.
-          </p>
+          <div>
+            <h2 class="h3 mb-1" data-en="Registration has closed" data-zh="报名已截止">
+              Registration has closed
+            </h2>
+            <p
+              class="mb-0"
+              data-en="This event is no longer taking registrations."
+              data-zh="本活动已停止接受报名。"
+            >
+              This event is no longer taking registrations.
+            </p>
+          </div>
         </div>
 
         <!-- The event's free gift: register AND hold a free account by its
@@ -120,9 +128,11 @@
              deadline, or the "closed" wording once it has passed; an event with no
              gift never shows it. -->
         <div class="alert alert-warning" id="caaci-ev-perk" hidden>
-          <h2 class="h3 mb-1" id="caaci-ev-perk-title"></h2>
-          <p class="mb-0" id="caaci-ev-perk-text"></p>
-          <p class="mb-0 mt-1" id="caaci-ev-perk-note"></p>
+          <div>
+            <h2 class="h3 mb-1" id="caaci-ev-perk-title"></h2>
+            <p class="mb-0" id="caaci-ev-perk-text"></p>
+            <p class="mb-0 mt-1" id="caaci-ev-perk-note"></p>
+          </div>
         </div>
 
         <div class="card card-md" id="caaci-ev-form-card" hidden>
