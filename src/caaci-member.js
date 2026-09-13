@@ -1693,6 +1693,29 @@ function familyEvents(events) {
       .join('')}</ul>`;
 }
 
+// Invitations addressed to the signed-in member. `focusId` (from the email
+// link) is only compared with the server's ids to choose the row to highlight.
+function familyInvitesForMe(list, focusId) {
+  if (!list.length) return '';
+  return `
+    <h4 class="mb-2">${t('Invitations for you', '给你的邀请')}</h4>
+    ${list
+      .map((inv) => {
+        const focused = !!focusId && inv.id === focusId;
+        return `
+    <div class="border rounded p-3 mb-3${focused ? ' border-primary bg-primary-lt' : ''}" data-fam-for-me${focused ? ' aria-current="true"' : ''}>
+      <div><span class="fw-bold">${esc(inv.founder_email)}</span> ${t('invited you to join their CAACI family membership', '邀请你加入 TA 的 CAACI 家庭会员')}</div>
+      ${inv.household_name ? `<div class="text-secondary">${esc(inv.household_name)}</div>` : ''}
+      <div class="text-secondary small">${t('Expires', '过期时间')} ${fmtDate(inv.expires_at)}</div>
+      <div class="btn-list mt-2">
+        <button type="button" class="btn btn-primary btn-sm" data-fam-accept>${t('Accept', '接受')}</button>
+        <button type="button" class="btn btn-sm" data-fam-decline>${t('Decline', '拒绝')}</button>
+      </div>
+    </div>`;
+      })
+      .join('')}`;
+}
+
 async function sessionBearer() {
   const { data: { session } = { session: null } } = (await supa.auth.getSession?.()) || {};
   return session ? { authorization: `Bearer ${session.access_token}` } : {};
@@ -1766,7 +1789,7 @@ function familyForms(full) {
 
 // The Family card. GET /api/family once, then again after every successful
 // change; any failure to load hides the card and leaves the page alone.
-async function wireFamily(host, { member }) {
+async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
   host.innerHTML = `
     <div class="card mb-3">
       <div class="card-header"><h3 class="card-title mb-0">${t('Family', '家庭')}</h3></div>
@@ -1778,6 +1801,27 @@ async function wireFamily(host, { member }) {
   const body = $('[data-fam-body]', host);
   const note = $('[data-fam-notice]', host);
   const ownFamilyTier = member.tier_id === 'family' && member.status === 'active';
+  // The invitation the email link pointed at; cleared once it is answered.
+  let focusId = familyInviteParam();
+  let scrolled = false;
+
+  // Without an active tier of their own, a founder or member of a family whose
+  // plan is active gets the membership card through that plan.
+  let planCard = false;
+  const syncCard = (fam) => {
+    if (ownCard || !cardHost) return;
+    const eligible =
+      (fam?.role === 'founder' || fam?.role === 'member') && fam.plan?.status === 'active';
+    if (eligible && !planCard) {
+      const tier = tiers.find((x) => x.id === fam.plan.tier_id);
+      renderMemberCard(cardHost, {
+        user,
+        member: { ...member, expires_at: fam.plan.expires_at },
+        tierName: tier ? tierText(tier, 'name') : t('Family Membership', '家庭会员'),
+      });
+    } else if (!eligible && planCard) cardHost.innerHTML = '';
+    planCard = eligible;
+  };
 
   const load = async () => {
     const { ok, data } = await familyRequest();
@@ -1943,10 +1987,22 @@ async function wireFamily(host, { member }) {
     for (const b of $$('[data-fam-resend]', body)) stopCooldown(b);
     let html = '';
     let full = false;
+    const forMe = Array.isArray(fam?.invitations_for_me) ? fam.invitations_for_me : [];
+    if (fam) {
+      html += familyInvitesForMe(forMe, focusId);
+      if (focusId && !forMe.some((i) => i.id === focusId))
+        html += `<div class="alert alert-warning" data-fam-invite-missing>${t(
+          'That family invitation isn’t available. It may have expired or already been used, or it was sent to a different email address.',
+          '该家庭邀请已不可用：可能已过期或已被使用，或者是发给另一个邮箱地址的。',
+        )} ${t(`You are signed in as ${esc(user.email)}.`, `你当前登录的邮箱是 ${esc(user.email)}。`)} ${t(
+          'If needed, ask the person who invited you to send a new invitation to this address.',
+          '如有需要，请让邀请人向这个邮箱重新发送邀请。',
+        )}</div>`;
+    }
     if (fam?.role === 'founder') {
       const seats = seatCount(fam.seats);
       full = seats.used >= seats.limit;
-      html = `
+      html += `
         ${familySummary(
           fam,
           `<div class="datagrid-item"><div class="datagrid-title">${t('People', '人数')}</div>
@@ -1963,11 +2019,23 @@ async function wireFamily(host, { member }) {
           )}</p>
         </div>
         ${familyEvents(fam.events)}`;
+    } else if (fam?.role === 'member') {
+      html += `
+        ${familySummary(
+          fam,
+          `<div class="datagrid-item"><div class="datagrid-title">${t('Founder', '创建人')}</div>
+            <div class="datagrid-content">${esc(fam.founder?.email || '—')}</div></div>`,
+        )}
+        <p class="text-secondary small">${t(
+          'While the family plan is active you share its benefits, including the digital membership card.',
+          '家庭会员有效期间，你共享其会员权益，包括电子会员卡。',
+        )}</p>
+        <button type="button" class="btn btn-outline-danger" data-fam-leave>${t('Leave family', '退出家庭')}</button>`;
     } else if (fam?.role === 'none' && ownFamilyTier) {
       // Before a household exists the plan holder is the only person: 1 of 3.
       const seats = seatCount(fam.seats);
       full = seats.used >= seats.limit;
-      html = `
+      html += `
         <h4 class="mb-1">${t('Invite your family', '邀请家人')}</h4>
         <p class="text-secondary">${t(
           'Your family plan covers up to 3 people, you included. Invite family members by email, or add someone who has no account.',
@@ -1979,7 +2047,70 @@ async function wireFamily(host, { member }) {
     body.innerHTML = html;
     host.hidden = !html && note.hidden;
     wireForms(full);
+    wireInvitesForMe(forMe);
     if (fam?.role === 'founder') wireFounder(fam);
+    if (fam?.role === 'member') {
+      const leave = $('[data-fam-leave]', body);
+      leave.addEventListener('click', () =>
+        run(
+          leave,
+          { action: 'leave' },
+          {
+            ask: t(
+              'Leave this family? You will lose the family plan benefits, including your digital membership card.',
+              '确定退出该家庭？你将失去家庭会员权益，包括电子会员卡。',
+            ),
+            success: () => t('You left the family.', '你已退出家庭。'),
+          },
+        ),
+      );
+    }
+    syncCard(fam);
+  };
+
+  const wireInvitesForMe = (list) => {
+    $$('[data-fam-for-me]', body).forEach((row, i) => {
+      const inv = list[i];
+      // An answered invitation is used up: the link's id must not read as "not found".
+      const answered = (msg) => {
+        if (inv.id === focusId) focusId = '';
+        return msg;
+      };
+      const accept = $('[data-fam-accept]', row);
+      accept.addEventListener('click', () =>
+        run(
+          accept,
+          { action: 'accept_invite', invite_id: inv.id },
+          {
+            success: () =>
+              answered(
+                t(
+                  'You joined the family. Its plan benefits now apply to you.',
+                  '你已加入该家庭，现可享受家庭会员权益。',
+                ),
+              ),
+          },
+        ),
+      );
+      const decline = $('[data-fam-decline]', row);
+      decline.addEventListener('click', () =>
+        run(
+          decline,
+          { action: 'decline_invite', invite_id: inv.id },
+          {
+            ask: t(
+              `Decline the invitation from ${inv.founder_email}?`,
+              `确定拒绝 ${inv.founder_email} 的邀请？`,
+            ),
+            success: () => answered(t('Invitation declined.', '已拒绝邀请。')),
+          },
+        ),
+      );
+      if (!scrolled && row.getAttribute('aria-current')) {
+        scrolled = true;
+        row.scrollIntoView?.({ block: 'center' });
+      }
+    });
   };
 
   await load();
@@ -2174,11 +2305,18 @@ export async function wireAccountPage() {
     /* payments table missing or slow — section keeps its empty state */
   }
 
-  // Digital membership card — active members only.
-  if (tier && member.status === 'active')
-    renderMemberCard($('#caaci-mcard-host', host), { user, member, tierName });
+  // Digital membership card — members whose own tier is active here; the
+  // Family card adds it for anyone covered by an active family plan instead.
+  const ownCard = !!(tier && member.status === 'active');
+  if (ownCard) renderMemberCard($('#caaci-mcard-host', host), { user, member, tierName });
 
-  await wireFamily($('#caaci-family-host', host), { user, member });
+  await wireFamily($('#caaci-family-host', host), {
+    user,
+    member,
+    tiers,
+    ownCard,
+    cardHost: $('#caaci-mcard-host', host),
+  });
 }
 
 // ---------- /mid_autumn_festival_form/ (event registration) ----------
