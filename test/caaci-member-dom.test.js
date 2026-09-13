@@ -1224,3 +1224,31 @@ test('login page: the confirmation resend hides again when sign-in fails for ano
   assert.equal(q('#caaci-li-resend').hidden, true);
   assert.equal(q('#caaci-login-notice').textContent, 'Invalid login credentials');
 });
+
+test('account security: a second Save while the first code request is in flight sends no second code', async (t) => {
+  mockClock(t);
+  let release;
+  const stub = await accountWith(EMAIL_USER, {
+    updateUser: async () => REAUTH_NEEDED,
+    reauthenticate: () =>
+      new Promise((resolve) => {
+        release = () => resolve({ data: {}, error: null });
+      }),
+  });
+  fillPasswords('oldpassword1', 'newpassword1');
+  await clickAndWait('#caaci-pw-save');
+  assert.equal(callsTo(stub, 'reauthenticate').length, 1);
+  assert.equal(q('#caaci-pw-code-resend').getAttribute('aria-busy'), 'true', 'code on its way');
+  assert.equal(q('#caaci-pw-save').disabled, false, 'Save is usable again meanwhile');
+
+  await clickAndWait('#caaci-pw-save');
+  assert.equal(
+    callsTo(stub, 'reauthenticate').length,
+    1,
+    'no second code while the first is pending',
+  );
+
+  release();
+  await tick();
+  assert.equal(q('#caaci-pw-code-resend').textContent, 'Resend in 60s');
+});

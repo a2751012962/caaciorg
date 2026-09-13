@@ -1292,7 +1292,9 @@ function securityCard(host, user) {
       );
       // A code sent inside the cooldown is still valid; asking for another
       // here would slip past the Resend button's countdown.
-      if (cooldownTimers.has(codeResend)) return;
+      // A request still in flight counts too: Save is usable again before
+      // reauthenticate() answers, and only that answer starts the countdown.
+      if (codeResend.getAttribute('aria-busy') || cooldownTimers.has(codeResend)) return;
       if (storedCooldownEnd('reauth', user.email))
         return void cooldown(codeResend, { action: 'reauth', email: user.email, label: codeLabel });
       return sendCode();
