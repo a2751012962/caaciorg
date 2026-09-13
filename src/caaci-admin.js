@@ -2002,19 +2002,26 @@ const chicagoTime = (d) => {
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 };
 
-const CSV_COLUMNS = [
-  '#',
-  'registered_at (Chicago)',
-  'email',
-  'attending',
-  'names',
-  'heard_from',
-  'wants_meal',
-  'has_account',
-  'account_confirmed',
-  'account_created_at (Chicago)',
-  'mooncake_eligible',
-];
+// A question's or option's label in `inLang` (English when the Chinese is missing).
+const labelIn = (x, inLang) => (inLang === 'zh' && x.label_zh) || x.label_en || '';
+
+// One registrant's answer to one question as plain text ('' = unanswered); the
+// caller escapes it. Choices show their option labels and a typed Other as
+// "Other: <text>"; an option removed from the form since shows its stored id.
+function answerText(q, answer, inLang) {
+  if (answer == null) return '';
+  if (!CHOICE_TYPES.has(q.type)) return typeof answer === 'string' ? answer : '';
+  const option = (id) => {
+    const o = (q.options || []).find((x) => x.id === id);
+    return o ? labelIn(o, inLang) : String(id);
+  };
+  let parts = [];
+  if (q.type === 'multi') parts = (Array.isArray(answer.options) ? answer.options : []).map(option);
+  else if (answer.option != null) parts = [option(answer.option)];
+  if (answer.other) parts.push(`${inLang === 'zh' ? '其他：' : 'Other: '}${answer.other}`);
+  return parts.join('; ');
+}
+
 const yesNo = (v) => (v === true ? 'yes' : v === false ? 'no' : '');
 // RFC 4180: quote a cell holding a comma, quote or line break, doubling quotes.
 // Registrant text that starts like a spreadsheet formula gets a leading ' so
@@ -2025,25 +2032,40 @@ const csvCell = (v) => {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-// The registrations CSV (pure — no DOM). `#` is the position in registration
-// order, so it stays the same when only eligible rows are exported. Starts with
-// a UTF-8 BOM so Excel reads Chinese names correctly; CRLF line ends.
-export function registrationsCsv(rows, { eligibleOnly = false } = {}) {
-  const lines = [CSV_COLUMNS];
+// The registrations CSV (pure — no DOM) from an /api/admin/event-registrations
+// answer: the same columns as the panel, with English labels — one per question,
+// then the account and, for an event with a free gift, eligibility. `#` is the
+// position in registration order, so it stays the same when only eligible rows
+// are exported. Starts with a UTF-8 BOM so Excel reads Chinese names correctly;
+// CRLF line ends.
+export function registrationsCsv(
+  { event, questions = [], rows = [] },
+  { eligibleOnly = false } = {},
+) {
+  const perk = event?.perk || null;
+  const lines = [
+    [
+      '#',
+      'registered_at (Chicago)',
+      'email',
+      ...questions.map((q) => q.label_en),
+      'has_account',
+      'account_confirmed',
+      'account_created_at (Chicago)',
+      ...(perk ? [`gift_eligible (${perk.item_en})`] : []),
+    ],
+  ];
   rows.forEach((r, i) => {
     if (eligibleOnly && !r.perk_eligible) return;
     lines.push([
       i + 1,
       chicagoTime(r.created_at),
       r.email,
-      yesNo(r.attending),
-      r.attendee_names,
-      r.heard_from,
-      yesNo(r.wants_meal),
+      ...questions.map((q) => answerText(q, r.answers?.[q.id], 'en')),
       yesNo(!!r.account),
       r.account ? yesNo(!!r.account.confirmed) : '',
       chicagoTime(r.account?.created_at),
-      yesNo(!!r.perk_eligible),
+      ...(perk ? [yesNo(!!r.perk_eligible)] : []),
     ]);
   });
   return `\uFEFF${lines.map((l) => l.map(csvCell).join(',')).join('\r\n')}\r\n`;
@@ -2051,6 +2073,8 @@ export function registrationsCsv(rows, { eligibleOnly = false } = {}) {
 
 let regData = null; // the /api/admin/event-registrations answer the panel shows
 let regSeq = 0; // a slow answer for an event the admin has since left is dropped
+
+const eventTitleIn = (e) => (lang === 'zh' && e.title_zh) || e.title;
 
 async function openRegistrations(ev) {
   const panel = $('#caaci-reg-panel');
@@ -2060,12 +2084,14 @@ async function openRegistrations(ev) {
   panel.hidden = false;
   notb.hidden = true;
   $('#caaci-reg-eligible').checked = false;
+  $('#caaci-reg-eligible-wrap').hidden = true;
   $('#caaci-reg-csv').disabled = true;
-  $('#caaci-reg-title').textContent = ev.title;
+  $('#caaci-reg-title').textContent = eventTitleIn(ev);
   $('#caaci-reg-deadline').textContent = '';
   $('#caaci-reg-stats').innerHTML = '';
+  $('#caaci-reg-head').innerHTML = '';
   $('#caaci-reg-body').innerHTML =
-    `<tr><td colspan="9" class="text-secondary">${t('Loading…', '加载中…')}</td></tr>`;
+    `<tr><td class="text-secondary">${t('Loading…', '加载中…')}</td></tr>`;
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   const { ok, data } = await api(
@@ -2076,77 +2102,118 @@ async function openRegistrations(ev) {
     $('#caaci-reg-body').innerHTML = '';
     return notice(notb, data.error || t('Could not load registrations.', '无法加载报名。'), false);
   }
-  regData = data;
-  const { event, summary } = data;
-  const when = chicagoTime(event.deadline);
-  $('#caaci-reg-title').textContent = event.title;
-  $('#caaci-reg-deadline').textContent = event.perk_deadline
-    ? t(`Free-gift deadline: ${when} (Chicago)`, `福利截止时间：${when}（芝加哥时间）`)
-    : t(
-        `Free-gift deadline: ${when} (Chicago) — the event start`,
-        `福利截止时间：${when}（芝加哥时间）——即活动开始时间`,
-      );
+  regData = {
+    ...data,
+    questions: Array.isArray(data.questions) ? data.questions : [],
+    rows: data.rows || [],
+  };
+  const { event, questions } = regData;
+  const summary = data.summary || {};
+  const perk = event.perk || null; // { item_en, item_zh, deadline } | null
+  $('#caaci-reg-title').textContent = eventTitleIn(event);
+  if (perk) {
+    const when = chicagoTime(perk.deadline);
+    const atStart = Date.parse(perk.deadline) === Date.parse(event.starts_at);
+    $('#caaci-reg-deadline').textContent = t(
+      `Free gift: ${perk.item_en} · deadline ${when} (Chicago)${atStart ? ' — the event start' : ''}`,
+      `福利：${perk.item_zh} · 截止时间 ${when}（芝加哥时间）${atStart ? '——即活动开始时间' : ''}`,
+    );
+  } else {
+    $('#caaci-reg-deadline').textContent = t('No free gift for this event.', '该活动没有福利。');
+  }
   const stat = (label, n, cls = '') => `
     <div class="col-6 col-sm-4 col-lg-2">
       <div class="card card-sm"><div class="card-body">
-        <div class="subheader">${label}</div>
+        <div class="subheader">${esc(label)}</div>
         <div class="h1 mb-0${cls}">${Number(n) || 0}</div>
       </div></div>
     </div>`;
+  // How many picked each option of a choice question (summary.choices), Other last.
+  const choiceCounts = (q) => {
+    const counts = summary.choices?.[q.id] || {};
+    const lines = (q.options || []).map((o) => [labelIn(o, lang), counts[o.id]]);
+    if (q.other || counts.other) lines.push([t('Other', '其他'), counts.other]);
+    return `
+    <div class="col-sm-6 col-lg-4" data-choice="${esc(q.id)}">
+      <div class="card card-sm"><div class="card-body">
+        <div class="subheader mb-2">${esc(labelIn(q, lang))}</div>
+        ${lines
+          .map(
+            ([label, n]) =>
+              `<div class="d-flex justify-content-between gap-2"><span>${esc(label)}</span><strong>${Number(n) || 0}</strong></div>`,
+          )
+          .join('')}
+      </div></div>
+    </div>`;
+  };
   $('#caaci-reg-stats').innerHTML = [
     stat(t('Total', '总数'), summary.total),
-    stat(t('Attending', '参加'), summary.attending),
-    stat(t('Not attending', '不参加'), summary.not_attending),
-    stat(t('Want a meal', '订餐'), summary.meal),
     stat(t('Confirmed account', '已验证账户'), summary.with_account),
-    stat(t('Mooncake eligible', '可领月饼'), summary.perk_eligible, ' text-success'),
+    ...(perk
+      ? [
+          stat(
+            t(`Free ${perk.item_en} eligible`, `可领${perk.item_zh}`),
+            summary.perk_eligible,
+            ' text-success',
+          ),
+        ]
+      : []),
+    ...questions.filter((q) => CHOICE_TYPES.has(q.type)).map(choiceCounts),
   ].join('');
+  $('#caaci-reg-eligible-wrap').hidden = !perk; // nobody is eligible without a gift
   $('#caaci-reg-csv').disabled = false;
   renderRegistrations();
 }
 
 function renderRegistrations() {
   if (!regData) return;
-  const eligibleOnly = $('#caaci-reg-eligible').checked;
+  const { event, questions, rows } = regData;
+  const perk = event.perk || null;
+  const eligibleOnly = !!perk && $('#caaci-reg-eligible').checked;
   const mark = (yes) =>
     yes ? '<span class="text-success">✓</span>' : '<span class="text-secondary">—</span>';
-  const meal = (v) => (v === true ? t('Yes', '要') : v === false ? t('No', '不要') : '—');
   // A signup that never confirmed its email doesn't count, but staff should see it.
   const account = (a) => {
     if (!a) return mark(false);
     return a.confirmed ? mark(true) : badgeHtml('pending', t('Unconfirmed', '未验证'));
   };
+  // Admin-written labels and everything a registrant typed go through esc().
+  $('#caaci-reg-head').innerHTML = `<tr>
+      <th>#</th>
+      <th>${t('Registered (Chicago)', '报名时间（芝加哥）')}</th>
+      <th>${t('Email', '邮箱')}</th>
+      ${questions.map((q) => `<th>${esc(labelIn(q, lang))}</th>`).join('')}
+      <th>${t('Account', '账户')}</th>
+      ${perk ? `<th>${esc(t(`Free ${perk.item_en}`, `免费${perk.item_zh}`))}</th>` : ''}
+    </tr>`;
   const html = [];
-  regData.rows.forEach((r, i) => {
+  rows.forEach((r, i) => {
     if (eligibleOnly && !r.perk_eligible) return;
-    // Everything a registrant typed goes through esc().
     html.push(`<tr>
       <td class="text-secondary">${i + 1}</td>
       <td class="text-nowrap">${chicagoTime(r.created_at)}</td>
       <td>${esc(r.email)}</td>
-      <td>${r.attending ? badgeHtml('active', t('Yes', '参加')) : badgeHtml('expired', t('No', '不参加'))}</td>
-      <td class="text-wrap">${esc(r.attendee_names || '—')}</td>
-      <td>${esc(r.heard_from || '—')}</td>
-      <td>${meal(r.wants_meal)}</td>
+      ${questions.map((q) => `<td class="text-wrap">${esc(answerText(q, r.answers?.[q.id], lang) || '—')}</td>`).join('')}
       <td>${account(r.account)}</td>
-      <td>${mark(r.perk_eligible)}</td>
+      ${perk ? `<td>${mark(r.perk_eligible)}</td>` : ''}
     </tr>`);
   });
+  const columns = 4 + questions.length + (perk ? 1 : 0);
   $('#caaci-reg-body').innerHTML =
     html.join('') ||
-    `<tr><td colspan="9" class="text-secondary">${
+    `<tr><td colspan="${columns}" class="text-secondary">${
       eligibleOnly
-        ? t('No eligible registrations.', '暂无可领月饼的报名。')
+        ? t('No eligible registrations.', '暂无可领福利的报名。')
         : t('No registrations yet.', '暂无报名。')
     }</td></tr>`;
 }
 
 function downloadRegistrationsCsv() {
   if (!regData) return;
-  const eligibleOnly = $('#caaci-reg-eligible').checked;
-  const csv = registrationsCsv(regData.rows, { eligibleOnly });
+  const eligibleOnly = !!regData.event.perk && $('#caaci-reg-eligible').checked;
+  const csv = registrationsCsv(regData, { eligibleOnly });
   const name =
-    String(regData.event.title || '')
+    String(regData.event.slug || regData.event.title || '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'event';

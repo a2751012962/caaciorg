@@ -443,22 +443,41 @@ const FAIR = {
   ],
   registration_count: 0,
 };
+// A multiple-choice question with an Other box, for the registrations panel and CSV.
+const HELPING = {
+  id: 'helping',
+  type: 'multi',
+  label_en: 'Can you help on the day?',
+  label_zh: '当天能来帮忙吗？',
+  required: false,
+  options: [
+    { id: 'setup', label_en: 'Setup & decor', label_zh: '布置' },
+    { id: 'cleanup', label_en: 'Cleanup', label_zh: '清理' },
+  ],
+  other: true,
+};
+const [ATTENDING, NAMES, HEARD_FROM] = MAF_QUESTIONS;
+// What /api/admin/event-registrations answers for the Mid-Autumn event.
 const REGISTRATIONS = {
   event: {
     id: 'ev-maf',
+    slug: 'mid-autumn-festival',
     title: 'Mid-Autumn Festival',
+    title_zh: '中秋节',
     starts_at: MAF.starts_at,
-    perk_deadline: DEADLINE,
-    deadline: DEADLINE,
+    perk: { item_en: 'mooncake', item_zh: '月饼', deadline: DEADLINE },
   },
+  questions: [ATTENDING, NAMES, HEARD_FROM, HELPING],
   rows: [
     {
       id: 'r1',
       email: 'mei@example.com',
-      attending: true,
-      attendee_names: '<img src=x onerror=alert(1)>',
-      heard_from: 'Friend',
-      wants_meal: true,
+      answers: {
+        attending: { option: 'yes' },
+        names: '<img src=x onerror=alert(1)>',
+        heard_from: { option: 'friend' },
+        helping: { options: ['setup', 'cleanup'], other: '<b>music</b>' },
+      },
       created_at: '2026-09-13T15:05:07Z',
       updated_at: '2026-09-13T15:05:07Z',
       member_id: 'm1',
@@ -474,10 +493,11 @@ const REGISTRATIONS = {
     {
       id: 'r2',
       email: 'jun@example.com',
-      attending: true,
-      attendee_names: 'Jun Wu',
-      heard_from: '<b>flyer</b>',
-      wants_meal: null,
+      answers: {
+        attending: { option: 'yes' },
+        names: 'Jun Wu',
+        heard_from: { other: '<b>flyer</b>' },
+      },
       created_at: '2026-09-14T16:00:00Z',
       updated_at: '2026-09-14T16:00:00Z',
       member_id: null,
@@ -493,10 +513,11 @@ const REGISTRATIONS = {
     {
       id: 'r3',
       email: 'kai@example.com',
-      attending: false,
-      attendee_names: null,
-      heard_from: null,
-      wants_meal: false,
+      answers: {
+        attending: { option: 'no' },
+        heard_from: { option: 'gone' }, // an option removed from the form since
+        helping: { options: [], other: 'Photos' },
+      },
       created_at: '2026-09-22T01:02:03Z',
       updated_at: '2026-09-22T01:02:03Z',
       member_id: null,
@@ -511,11 +532,46 @@ const REGISTRATIONS = {
       perk_eligible: false,
     },
   ],
-  summary: { total: 3, attending: 2, not_attending: 1, meal: 1, with_account: 2, perk_eligible: 1 },
+  summary: {
+    total: 3,
+    with_account: 2,
+    perk_eligible: 1,
+    choices: {
+      attending: { yes: 2, no: 1 },
+      heard_from: { friend: 1, other: 1 },
+      helping: { setup: 1, cleanup: 1, other: 2 },
+    },
+  },
+};
+// …and for Spring Fair: no free gift, one text question.
+const FAIR_REGISTRATIONS = {
+  event: {
+    id: 'ev-fair',
+    slug: 'spring-fair',
+    title: 'Spring Fair',
+    title_zh: '春季集市',
+    starts_at: FAIR.starts_at,
+    perk: null,
+  },
+  questions: FAIR.registration_questions,
+  rows: [
+    {
+      id: 'r9',
+      email: 'ann@example.com',
+      answers: { note: 'Bringing "cake" & <2 kids>' },
+      created_at: '2026-09-10T17:30:00Z',
+      updated_at: '2026-09-10T17:30:00Z',
+      member_id: null,
+      account: null,
+      perk_eligible: false,
+    },
+  ],
+  summary: { total: 1, with_account: 0, perk_eligible: 0, choices: {} },
 };
 
 function eventRoutes(u, options = {}) {
-  if (u.includes('/api/admin/event-registrations')) return { body: REGISTRATIONS };
+  if (u.includes('/api/admin/event-registrations'))
+    return { body: u.includes('event_id=ev-fair') ? FAIR_REGISTRATIONS : REGISTRATIONS };
   if (u.includes('/api/admin/events') && ['POST', 'PUT'].includes(options.method)) {
     // The API's own validation message comes back as is.
     if (JSON.parse(options.body).title === 'Refused')
@@ -1052,39 +1108,83 @@ test('admin events: only events open for registration offer the registration lin
   }
 });
 
-test('admin events: registrations panel shows the summary, escaped rows and an eligible-only filter', async () => {
+test('admin events: the registrations panel shows a column and option counts per question, escaped answers and an eligible-only filter', async () => {
   const fetch = mockFetch(eventRoutes);
   window.HTMLElement.prototype.scrollIntoView = () => {}; // jsdom does no layout
+  const text = (sel) => document.querySelector(sel).textContent;
+  const stats = () =>
+    [...document.querySelectorAll('#caaci-reg-stats .h1')].map((el) => el.textContent);
+  const counts = (questionId) =>
+    [...document.querySelectorAll(`#caaci-reg-stats [data-choice="${questionId}"] .d-flex`)].map(
+      (line) => [...line.children].map((el) => el.textContent),
+    );
+  const head = () =>
+    [...document.querySelectorAll('#caaci-reg-head th')].map((th) => th.textContent.trim());
+  const rows = () => [...document.querySelectorAll('#caaci-reg-body tr')];
+  const cells = (tr) => [...tr.cells].map((td) => td.textContent.trim());
+  const open = async (title) => {
+    eventRow(title).querySelector('[data-act="registrations"]').click();
+    await tick();
+  };
   try {
     document.querySelector('[data-tab="events"]').click();
     await tick();
-    eventRow('Mid-Autumn').querySelector('[data-act="registrations"]').click();
-    await tick();
+    await open('Mid-Autumn');
 
     const panel = document.querySelector('#caaci-reg-panel');
     assert.equal(panel.hidden, false);
     const call = fetch.calls.find((c) => c.url.includes('/api/admin/event-registrations'));
     assert.equal(call.url, '/api/admin/event-registrations?event_id=ev-maf');
     assert.equal(call.options.headers.authorization, 'Bearer tok');
-    assert.equal(document.querySelector('#caaci-reg-title').textContent, 'Mid-Autumn Festival');
-    assert.match(document.querySelector('#caaci-reg-deadline').textContent, /2026-09-20 23:59:00/);
-    assert.deepEqual(
-      [...document.querySelectorAll('#caaci-reg-stats .h1')].map((el) => el.textContent),
-      ['3', '2', '1', '1', '2', '1'],
+    assert.equal(text('#caaci-reg-title'), 'Mid-Autumn Festival');
+    assert.equal(
+      text('#caaci-reg-deadline'),
+      'Free gift: mooncake · deadline 2026-09-20 23:59:00 (Chicago)',
     );
 
-    const rows = () => [...document.querySelectorAll('#caaci-reg-body tr')];
-    const cells = (tr) => [...tr.cells].map((td) => td.textContent.trim());
+    // Head-counts, then how many picked each option (Other where the question allows it).
+    assert.deepEqual(stats(), ['3', '2', '1']);
+    assert.match(text('#caaci-reg-stats'), /Free mooncake eligible/);
+    assert.deepEqual(counts('attending'), [
+      ["Yes, I'll be there", '2'],
+      ["Sorry, can't make it", '1'],
+    ]);
+    assert.deepEqual(counts('heard_from'), [
+      ['Website', '0'],
+      ['Friend', '1'],
+      ['Newsletter', '0'],
+      ['Social Media', '0'],
+      ['Other', '1'],
+    ]);
+    assert.deepEqual(counts('helping'), [
+      ['Setup & decor', '1'],
+      ['Cleanup', '1'],
+      ['Other', '2'],
+    ]);
+    assert.deepEqual(counts('names'), [], 'text questions have no counts');
+
+    // A column per question, in form order.
+    assert.deepEqual(head(), [
+      '#',
+      'Registered (Chicago)',
+      'Email',
+      'Will you attend?',
+      'What are the names of people attending?',
+      'How did you hear about the festival?',
+      'Can you help on the day?',
+      'Account',
+      'Free mooncake',
+    ]);
     assert.equal(rows().length, 3);
     // Times in Chicago; registrant text shown literally, never parsed as markup.
     assert.deepEqual(cells(rows()[0]), [
       '1',
       '2026-09-13 10:05:07',
       'mei@example.com',
-      'Yes',
+      "Yes, I'll be there",
       '<img src=x onerror=alert(1)>',
       'Friend',
-      'Yes',
+      'Setup & decor; Cleanup; Other: <b>music</b>',
       '✓',
       '—',
     ]);
@@ -1092,9 +1192,9 @@ test('admin events: registrations panel shows the summary, escaped rows and an e
       '2',
       '2026-09-14 11:00:00',
       'jun@example.com',
-      'Yes',
+      "Yes, I'll be there",
       'Jun Wu',
-      '<b>flyer</b>',
+      'Other: <b>flyer</b>',
       '—',
       '✓',
       '✓',
@@ -1103,16 +1203,17 @@ test('admin events: registrations panel shows the summary, escaped rows and an e
       '3',
       '2026-09-21 20:02:03',
       'kai@example.com',
-      'No',
+      "Sorry, can't make it",
       '—',
-      '—',
-      'No',
+      'gone',
+      'Other: Photos',
       'Unconfirmed',
       '—',
     ]);
     assert.equal(document.querySelector('#caaci-reg-body img, #caaci-reg-body b'), null);
 
     // Eligible only: just Jun, still numbered by registration order.
+    assert.equal(document.querySelector('#caaci-reg-eligible-wrap').hidden, false);
     const toggle = document.querySelector('#caaci-reg-eligible');
     toggle.click();
     assert.equal(toggle.checked, true);
@@ -1123,6 +1224,53 @@ test('admin events: registrations panel shows the summary, escaped rows and an e
     toggle.click();
     assert.equal(rows().length, 3);
 
+    // In Chinese: the Chinese title and labels, and "其他：" for a typed Other.
+    document.querySelector('#caaci-lang').click();
+    try {
+      await open('Mid-Autumn');
+      assert.equal(text('#caaci-reg-title'), '中秋节');
+      assert.equal(
+        text('#caaci-reg-deadline'),
+        '福利：月饼 · 截止时间 2026-09-20 23:59:00（芝加哥时间）',
+      );
+      assert.deepEqual(head().slice(3), [
+        '您会参加吗？',
+        '参加者的姓名是？',
+        '您是如何得知本次活动的？',
+        '当天能来帮忙吗？',
+        '账户',
+        '免费月饼',
+      ]);
+      assert.deepEqual(cells(rows()[1]).slice(3, 6), [
+        '能，我会参加',
+        'Jun Wu',
+        '其他：<b>flyer</b>',
+      ]);
+      assert.deepEqual(counts('helping').at(-1), ['其他', '2']);
+    } finally {
+      document.querySelector('#caaci-lang').click();
+    }
+
+    // No free gift: no gift stat, column or filter.
+    await open('Spring Fair');
+    assert.equal(text('#caaci-reg-deadline'), 'No free gift for this event.');
+    assert.equal(document.querySelector('#caaci-reg-eligible-wrap').hidden, true);
+    assert.deepEqual(stats(), ['1', '0']);
+    assert.deepEqual(head(), [
+      '#',
+      'Registered (Chicago)',
+      'Email',
+      'Anything we should know?',
+      'Account',
+    ]);
+    assert.deepEqual(cells(rows()[0]), [
+      '1',
+      '2026-09-10 12:30:00',
+      'ann@example.com',
+      'Bringing "cake" & <2 kids>',
+      '—',
+    ]);
+
     document.querySelector('#caaci-reg-close').click();
     assert.equal(panel.hidden, true);
   } finally {
@@ -1131,67 +1279,91 @@ test('admin events: registrations panel shows the summary, escaped rows and an e
   }
 });
 
-test('admin events: registrations CSV has a BOM, Chicago times and RFC 4180 quoting', async () => {
+test('admin events: registrations CSV has a column per question, a BOM, Chicago times and RFC 4180 quoting', async () => {
   const { registrationsCsv } = await import('../src/caaci-admin.js'); // already booted
-  const rows = [
-    {
-      email: 'mei@example.com',
-      created_at: '2026-09-13T15:05:07Z',
-      attending: true,
-      attendee_names: 'Mei, "Jun"\nand Kai',
-      heard_from: 'Friend',
-      wants_meal: true,
-      account: { created_at: '2026-09-01T12:00:00Z', confirmed: true },
-      perk_eligible: true,
-    },
-    {
-      email: 'kai@example.com',
-      created_at: '2026-09-22T01:02:03Z',
-      attending: false,
-      attendee_names: null,
-      heard_from: '=HYPERLINK("http://x")',
-      wants_meal: null,
-      account: { created_at: '2026-09-02T12:00:00Z', confirmed: false }, // never confirmed
-      perk_eligible: false,
-    },
-    {
-      email: 'lin@example.com',
-      created_at: '2026-01-15T18:00:00Z', // CST (UTC−6) in winter
-      attending: true,
-      attendee_names: '林美',
-      heard_from: 'Social Media',
-      wants_meal: false,
-      account: { created_at: '2026-01-10T06:00:00Z', confirmed: true }, // midnight → 00, not 24
-      perk_eligible: true,
-    },
-    {
-      email: 'zoe@example.com',
-      created_at: '2026-09-23T00:00:00Z',
-      attending: true,
-      attendee_names: 'Zoe',
-      heard_from: 'Website',
-      wants_meal: null,
-      account: null, // no account: account_confirmed is blank, not "no"
-      perk_eligible: false,
-    },
-  ];
+  const data = {
+    event: { perk: { item_en: 'mooncake', item_zh: '月饼', deadline: DEADLINE } },
+    questions: [ATTENDING, NAMES, HEARD_FROM, HELPING],
+    rows: [
+      {
+        email: 'mei@example.com',
+        created_at: '2026-09-13T15:05:07Z',
+        answers: {
+          attending: { option: 'yes' },
+          names: 'Mei, "Jun"\nand Kai',
+          heard_from: { option: 'friend' },
+          helping: { options: ['setup', 'cleanup'], other: 'Lion dance' },
+        },
+        account: { created_at: '2026-09-01T12:00:00Z', confirmed: true },
+        perk_eligible: true,
+      },
+      {
+        email: 'kai@example.com',
+        created_at: '2026-09-22T01:02:03Z',
+        answers: {
+          attending: { option: 'no' },
+          names: '=HYPERLINK("http://x")',
+          heard_from: { other: 'WeChat, group' },
+        },
+        account: { created_at: '2026-09-02T12:00:00Z', confirmed: false }, // never confirmed
+        perk_eligible: false,
+      },
+      {
+        email: 'lin@example.com',
+        created_at: '2026-01-15T18:00:00Z', // CST (UTC−6) in winter
+        answers: {
+          attending: { option: 'yes' },
+          names: '林美',
+          heard_from: { option: 'social' },
+          helping: { options: ['cleanup'] },
+        },
+        account: { created_at: '2026-01-10T06:00:00Z', confirmed: true }, // midnight → 00, not 24
+        perk_eligible: true,
+      },
+      {
+        email: 'zoe@example.com',
+        created_at: '2026-09-23T00:00:00Z',
+        answers: {}, // nothing answered: blank cells
+        account: null, // no account: account_confirmed is blank, not "no"
+        perk_eligible: false,
+      },
+    ],
+  };
   const header =
-    '#,registered_at (Chicago),email,attending,names,heard_from,wants_meal,has_account,account_confirmed,account_created_at (Chicago),mooncake_eligible';
-  const mei =
-    '1,2026-09-13 10:05:07,mei@example.com,yes,"Mei, ""Jun""\nand Kai",Friend,yes,yes,yes,2026-09-01 07:00:00,yes';
-  // A formula-looking answer is defused with a leading ' (then quoted for its quotes).
-  const kai = `2,2026-09-21 20:02:03,kai@example.com,no,,"'=HYPERLINK(""http://x"")",,yes,no,2026-09-02 07:00:00,no`;
-  const lin =
-    '3,2026-01-15 12:00:00,lin@example.com,yes,林美,Social Media,no,yes,yes,2026-01-10 00:00:00,yes';
-  const zoe = '4,2026-09-22 19:00:00,zoe@example.com,yes,Zoe,Website,,no,,,no';
+    '#,registered_at (Chicago),email,Will you attend?,What are the names of people attending?,How did you hear about the festival?,Can you help on the day?,has_account,account_confirmed,account_created_at (Chicago),gift_eligible (mooncake)';
+  const mei = `1,2026-09-13 10:05:07,mei@example.com,"Yes, I'll be there","Mei, ""Jun""\nand Kai",Friend,Setup & decor; Cleanup; Other: Lion dance,yes,yes,2026-09-01 07:00:00,yes`;
+  // A formula-looking answer is defused with a leading ' (then quoted for its quotes);
+  // a typed Other reads "Other: <text>".
+  const kai = `2,2026-09-21 20:02:03,kai@example.com,"Sorry, can't make it","'=HYPERLINK(""http://x"")","Other: WeChat, group",,yes,no,2026-09-02 07:00:00,no`;
+  const lin = `3,2026-01-15 12:00:00,lin@example.com,"Yes, I'll be there",林美,Social Media,Cleanup,yes,yes,2026-01-10 00:00:00,yes`;
+  const zoe = '4,2026-09-22 19:00:00,zoe@example.com,,,,,no,,,no';
 
-  const csv = registrationsCsv(rows);
+  // No free gift: no eligibility column.
+  const bom = String.fromCharCode(0xfeff);
+  assert.equal(
+    registrationsCsv({
+      event: { perk: null },
+      questions: FAIR.registration_questions,
+      rows: [
+        {
+          email: 'ann@example.com',
+          created_at: '2026-09-10T17:30:00Z',
+          answers: { note: '-1 seat, thanks' },
+          account: null,
+          perk_eligible: false,
+        },
+      ],
+    }),
+    `${bom}#,registered_at (Chicago),email,Anything we should know?,has_account,account_confirmed,account_created_at (Chicago)\r\n1,2026-09-10 12:30:00,ann@example.com,"'-1 seat, thanks",no,,\r\n`,
+  );
+
+  const csv = registrationsCsv(data);
   assert.equal(csv.charCodeAt(0), 0xfeff, 'UTF-8 BOM first');
   assert.equal(csv, `\uFEFF${[header, mei, kai, lin, zoe].join('\r\n')}\r\n`);
 
   // Eligible only keeps each row's registration number.
   assert.equal(
-    registrationsCsv(rows, { eligibleOnly: true }),
+    registrationsCsv(data, { eligibleOnly: true }),
     `\uFEFF${[header, mei, lin].join('\r\n')}\r\n`,
   );
 });

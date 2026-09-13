@@ -456,14 +456,19 @@
                         <div class="text-secondary small" id="caaci-reg-deadline"></div>
                       </div>
                       <div class="card-actions btn-list align-items-center">
-                        <label class="form-check form-switch mb-0">
+                        <!-- Shown only for an event with a free gift. -->
+                        <label
+                          class="form-check form-switch mb-0"
+                          id="caaci-reg-eligible-wrap"
+                          hidden
+                        >
                           <input type="checkbox" class="form-check-input" id="caaci-reg-eligible" />
                           <span
                             class="form-check-label"
-                            data-en="Eligible only"
-                            data-zh="只看可领月饼"
+                            data-en="Gift-eligible only"
+                            data-zh="只看可领福利"
                           >
-                            Eligible only
+                            Gift-eligible only
                           </span>
                         </label>
                         <button
@@ -487,25 +492,13 @@
                       </div>
                     </div>
                     <div class="card-body">
+                      <!-- Head-counts, then per-option counts for each choice question. -->
                       <div class="row row-cards" id="caaci-reg-stats"></div>
                     </div>
                     <div class="table-responsive">
                       <table class="table table-vcenter card-table" id="caaci-reg-table">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th data-en="Registered (Chicago)" data-zh="报名时间（芝加哥）">
-                              Registered (Chicago)
-                            </th>
-                            <th data-en="Email" data-zh="邮箱">Email</th>
-                            <th data-en="Attending" data-zh="参加">Attending</th>
-                            <th data-en="Names" data-zh="参加者姓名">Names</th>
-                            <th data-en="Heard from" data-zh="信息来源">Heard from</th>
-                            <th data-en="Meal" data-zh="订餐">Meal</th>
-                            <th data-en="Account" data-zh="账户">Account</th>
-                            <th data-en="Mooncake" data-zh="月饼">Mooncake</th>
-                          </tr>
-                        </thead>
+                        <!-- One column per registration question, built from the event's form. -->
+                        <thead id="caaci-reg-head"></thead>
                         <tbody id="caaci-reg-body"></tbody>
                       </table>
                     </div>
