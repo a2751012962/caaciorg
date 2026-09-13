@@ -1127,36 +1127,39 @@ const needsReauth = (error) =>
   (error.code === 'reauthentication_needed' || /reauthenticat/i.test(error.message || ''));
 
 function securityCard(host, user) {
-  const hasPassword = hasPasswordLogin(user);
+  // Flips to true when an OAuth-only member sets a password on this page.
+  let hasPassword = hasPasswordLogin(user);
   const field = (id, label, type, autocomplete, extra = '') => `
         <div class="mb-3">
           <label class="form-label" for="${id}">${label}</label>
           <input type="${type}" id="${id}" class="form-control" autocomplete="${autocomplete}"${extra}>
         </div>`;
+  const currentField = () =>
+    field('caaci-pw-current', t('Current password', '当前密码'), 'password', 'current-password');
+  const passwordTitle = () =>
+    hasPassword ? t('Change password', '修改密码') : t('Set a password', '设置密码');
+  const saveLabel = () =>
+    hasPassword ? t('Change password', '修改密码') : t('Set password', '设置密码');
+  const codeLabel = t('Resend code', '重新发送验证码');
   host.innerHTML = `
     <div class="card mb-3" id="caaci-security">
       <div class="card-header"><h3 class="card-title mb-0">${t('Account security', '账户安全')}</h3></div>
       <div class="card-body">
-        <h4 class="mb-2">${hasPassword ? t('Change password', '修改密码') : t('Set a password', '设置密码')}</h4>
-        ${
+        <h4 class="mb-2" id="caaci-pw-title">${passwordTitle()}</h4>
+        <div id="caaci-pw-current-slot">${
           hasPassword
-            ? field(
-                'caaci-pw-current',
-                t('Current password', '当前密码'),
-                'password',
-                'current-password',
-              )
+            ? currentField()
             : `<p class="text-secondary">${t('You sign in with Google or Microsoft. Set a password to also sign in with your email address.', '您目前通过 Google 或 Microsoft 登录。设置密码后也可以使用邮箱登录。')}</p>`
-        }
+        }</div>
         ${field('caaci-pw-new', t('New password (at least 8 characters)', '新密码（至少 8 位）'), 'password', 'new-password', ' minlength="8"')}
         ${field('caaci-pw-new2', t('Confirm new password', '确认新密码'), 'password', 'new-password')}
-        <button type="button" class="btn btn-primary" id="caaci-pw-save">${hasPassword ? t('Change password', '修改密码') : t('Set password', '设置密码')}</button>
+        <button type="button" class="btn btn-primary" id="caaci-pw-save">${saveLabel()}</button>
         <div class="mt-3" id="caaci-pw-reauth" hidden>
           <p class="mb-2" id="caaci-pw-reauth-msg"></p>
           ${field('caaci-pw-code', t('Verification code', '验证码'), 'text', 'one-time-code', ' inputmode="numeric"')}
           <div class="btn-list">
             <button type="button" class="btn btn-primary" id="caaci-pw-confirm">${t('Confirm', '确认')}</button>
-            <button type="button" class="btn" id="caaci-pw-code-resend">${t('Resend code', '重新发送验证码')}</button>
+            <button type="button" class="btn" id="caaci-pw-code-resend">${codeLabel}</button>
           </div>
         </div>
         <p class="alert mt-3 mb-0" id="caaci-pw-notice" hidden></p>
@@ -1174,71 +1177,91 @@ function securityCard(host, user) {
   const pwNote = el('caaci-pw-notice');
   const reauth = el('caaci-pw-reauth');
   const codeResend = el('caaci-pw-code-resend');
-  let pending = null; // the update waiting on a reauthentication code
+  const saveBtn = el('caaci-pw-save');
+  const confirmBtn = el('caaci-pw-confirm');
 
   const sendCode = () =>
     sendEmail(codeResend, pwNote, {
       action: 'reauth',
       email: user.email,
-      label: t('Resend code', '重新发送验证码'),
+      label: codeLabel,
       send: () => supa.auth.reauthenticate(),
       sent: t('Verification code sent — check your inbox.', '验证码已发送，请查收。'),
     });
 
+  // The update the fields describe right now. Read at Save and again at
+  // Confirm, so edits made while the code prompt is open are what gets sent.
+  // Returns null after telling the member what is wrong.
+  const passwordUpdate = () => {
+    const current = hasPassword ? el('caaci-pw-current').value : '';
+    const password = el('caaci-pw-new').value;
+    let problem = '';
+    if (hasPassword && !current) problem = t('Enter your current password.', '请输入当前密码。');
+    else if (password.length < 8)
+      problem = t('Password must be at least 8 characters.', '密码至少 8 位。');
+    else if (password !== el('caaci-pw-new2').value)
+      problem = t('Passwords do not match.', '两次输入的密码不一致。');
+    if (problem) {
+      notice(pwNote, problem, false);
+      return null;
+    }
+    return hasPassword ? { password, current_password: current } : { password };
+  };
+
   const saved = () => {
-    pending = null;
+    const message = hasPassword
+      ? t('Password updated.', '密码已更新。')
+      : t(
+          'Password set — you can now also sign in with your email address.',
+          '密码已设置，现在也可以使用邮箱登录。',
+        );
     reauth.hidden = true;
+    if (!hasPassword) {
+      // They have a password now, so the next change on this page confirms it.
+      hasPassword = true;
+      el('caaci-pw-current-slot').innerHTML = currentField();
+      el('caaci-pw-title').textContent = passwordTitle();
+      saveBtn.textContent = saveLabel();
+    }
     for (const id of ['caaci-pw-current', 'caaci-pw-new', 'caaci-pw-new2', 'caaci-pw-code']) {
       const input = el(id);
       if (input) input.value = '';
     }
-    notice(
-      pwNote,
-      hasPassword
-        ? t('Password updated.', '密码已更新。')
-        : t(
-            'Password set — you can now also sign in with your email address.',
-            '密码已设置，现在也可以使用邮箱登录。',
-          ),
-      true,
-    );
+    notice(pwNote, message, true);
   };
 
-  const saveBtn = el('caaci-pw-save');
   saveBtn.addEventListener('click', async () => {
-    const current = hasPassword ? el('caaci-pw-current').value : '';
-    const password = el('caaci-pw-new').value;
-    if (hasPassword && !current)
-      return notice(pwNote, t('Enter your current password.', '请输入当前密码。'), false);
-    if (password.length < 8)
-      return notice(pwNote, t('Password must be at least 8 characters.', '密码至少 8 位。'), false);
-    if (password !== el('caaci-pw-new2').value)
-      return notice(pwNote, t('Passwords do not match.', '两次输入的密码不一致。'), false);
-    const attrs = hasPassword ? { password, current_password: current } : { password };
+    const attrs = passwordUpdate();
+    if (!attrs) return;
     const done = busy(saveBtn, t('Saving…', '保存中…'));
     const { error } = await supa.auth.updateUser(attrs);
     done();
     if (needsReauth(error)) {
-      pending = attrs;
       reauth.hidden = false;
       el('caaci-pw-reauth-msg').textContent = t(
         `We emailed a verification code to ${user.email}. Enter it below to finish.`,
         `我们已向 ${user.email} 发送验证码，请在下方输入以完成修改。`,
       );
+      // A code sent inside the cooldown is still valid; asking for another
+      // here would slip past the Resend button's countdown.
+      if (cooldownTimers.has(codeResend)) return;
+      if (storedCooldownEnd('reauth', user.email))
+        return void cooldown(codeResend, { action: 'reauth', email: user.email, label: codeLabel });
       return sendCode();
     }
     if (error) return notice(pwNote, error.message, false);
     saved();
   });
 
-  const confirmBtn = el('caaci-pw-confirm');
   confirmBtn.addEventListener('click', async () => {
+    if (reauth.hidden) return;
+    const attrs = passwordUpdate();
+    if (!attrs) return;
     const nonce = el('caaci-pw-code').value.trim();
-    if (!pending) return;
     if (!nonce)
       return notice(pwNote, t('Enter the code from the email.', '请输入邮件中的验证码。'), false);
     const done = busy(confirmBtn, t('Confirming…', '确认中…'));
-    const { error } = await supa.auth.updateUser({ ...pending, nonce });
+    const { error } = await supa.auth.updateUser({ ...attrs, nonce });
     done();
     if (error) return notice(pwNote, error.message, false);
     saved();

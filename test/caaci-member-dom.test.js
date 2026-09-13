@@ -948,3 +948,90 @@ test('account security: changing email confirms via the new address, with a rese
   ]);
   assert.equal(resend.disabled, true);
 });
+
+const REAUTH_NEEDED = {
+  data: { user: null },
+  error: { code: 'reauthentication_needed', message: 'Password update requires reauthentication' },
+};
+const fillPasswords = (current, next, confirm = next) => {
+  if (current != null) fill('#caaci-pw-current', current);
+  fill('#caaci-pw-new', next);
+  fill('#caaci-pw-new2', confirm);
+};
+const clickAndWait = async (sel) => {
+  q(sel).click();
+  await tick();
+};
+
+test('account security: Confirm sends the password fields as they are now, checked again', async (t) => {
+  mockClock(t);
+  const stub = await accountWith(EMAIL_USER, {
+    updateUser: async (attrs) =>
+      attrs.nonce ? { data: { user: EMAIL_USER }, error: null } : REAUTH_NEEDED,
+  });
+  fillPasswords('oldpassword1', 'newpassword1');
+  await clickAndWait('#caaci-pw-save');
+  assert.equal(q('#caaci-pw-reauth').hidden, false);
+  fill('#caaci-pw-code', '123456');
+
+  // Edited while the code prompt was open.
+  fillPasswords('oldpassword1', 'betterpass22', 'mismatch22');
+  await clickAndWait('#caaci-pw-confirm');
+  assert.match(q('#caaci-pw-notice').textContent, /do not match/);
+  fillPasswords('', 'betterpass22');
+  await clickAndWait('#caaci-pw-confirm');
+  assert.match(q('#caaci-pw-notice').textContent, /current password/i);
+  fillPasswords('oldpassword1', 'short');
+  await clickAndWait('#caaci-pw-confirm');
+  assert.match(q('#caaci-pw-notice').textContent, /at least 8 characters/);
+  assert.equal(callsTo(stub, 'updateUser').length, 1, 'nothing sent while the fields are invalid');
+
+  fillPasswords('oldpassword2', 'betterpass22');
+  await clickAndWait('#caaci-pw-confirm');
+  assert.deepEqual(callsTo(stub, 'updateUser').at(-1), [
+    { password: 'betterpass22', current_password: 'oldpassword2', nonce: '123456' },
+  ]);
+  assert.match(q('#caaci-pw-notice').textContent, /Password updated/);
+});
+
+test('account security: saving again while a code is cooling down shows the prompt without sending another', async (t) => {
+  mockClock(t);
+  const stub = await accountWith(EMAIL_USER, { updateUser: async () => REAUTH_NEEDED });
+  fillPasswords('oldpassword1', 'newpassword1');
+  await clickAndWait('#caaci-pw-save');
+  assert.equal(callsTo(stub, 'reauthenticate').length, 1);
+
+  await clickAndWait('#caaci-pw-save');
+  assert.equal(callsTo(stub, 'reauthenticate').length, 1, 'no second code inside the cooldown');
+  assert.equal(q('#caaci-pw-reauth').hidden, false);
+  assert.equal(q('#caaci-pw-code-resend').disabled, true);
+
+  t.mock.timers.tick(60000);
+  await clickAndWait('#caaci-pw-save');
+  assert.equal(
+    callsTo(stub, 'reauthenticate').length,
+    2,
+    'after the cooldown a new code may go out',
+  );
+});
+
+test('account security: once an OAuth-only member sets a password, the next change asks for it', async () => {
+  const stub = await accountWith(OAUTH_USER);
+  fillPasswords(null, 'newpassword1');
+  await clickAndWait('#caaci-pw-save');
+  assert.match(q('#caaci-pw-notice').textContent, /Password set/);
+  assert.ok(q('#caaci-pw-current'), 'the current-password field appears');
+  assert.match(q('#caaci-security').textContent, /Change password/);
+  assert.doesNotMatch(q('#caaci-security').textContent, /Set a password/);
+
+  fillPasswords(null, 'another-pass3');
+  await clickAndWait('#caaci-pw-save');
+  assert.match(q('#caaci-pw-notice').textContent, /current password/i);
+  assert.equal(callsTo(stub, 'updateUser').length, 1);
+
+  fillPasswords('newpassword1', 'another-pass3');
+  await clickAndWait('#caaci-pw-save');
+  assert.deepEqual(callsTo(stub, 'updateUser').at(-1), [
+    { password: 'another-pass3', current_password: 'newpassword1' },
+  ]);
+});
