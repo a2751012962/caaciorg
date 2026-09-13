@@ -17,7 +17,8 @@
 //   AUTHORIZE  — hits the public /auth/v1/authorize endpoint. No credentials of
 //                any kind. Enabled with CAACI_AUTH_CONFIG_TESTS=1.
 //   CONFIG     — reads the project's auth config over the Management API.
-//                Needs SUPABASE_ACCESS_TOKEN (a personal access token).
+//                Needs SUPABASE_ACCESS_TOKEN (a personal access token; SBP
+//                also works, as in the push scripts).
 //
 // Both are opt-in so `npm test` stays hermetic and offline. CI runs them in
 // their own job (.github/workflows/auth-config.yml), including on a daily
@@ -39,10 +40,10 @@ const skipAuthorize = AUTHORIZE_ON
   ? false
   : 'set CAACI_AUTH_CONFIG_TESTS=1 to run (makes live requests to the Supabase auth endpoint)';
 
-const ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN || '';
+const ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN || process.env.SBP || '';
 const skipConfig = ACCESS_TOKEN
   ? false
-  : 'set SUPABASE_ACCESS_TOKEN to run (reads the project auth config over the Management API)';
+  : 'set SUPABASE_ACCESS_TOKEN (or SBP) to run (reads the project auth config over the Management API)';
 
 // All public values. The client ids especially are not secrets — they are handed
 // to the browser on every sign-in and appear in the redirect URL below. Pinning
@@ -78,15 +79,26 @@ async function authorize({ provider, redirectTo, scopes }) {
   return new URL(location);
 }
 
-let configCache;
-async function authConfig() {
-  if (configCache) return configCache;
-  const res = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/config/auth`, {
-    headers: { authorization: `Bearer ${ACCESS_TOKEN}` },
-  });
-  assert.equal(res.status, 200, `Management API returned HTTP ${res.status}`);
-  configCache = await res.json();
-  return configCache;
+// One request for the whole CONFIG group. The promise is kept even when it
+// rejects, so a bad token fails every test with the same message instead of
+// asking the API again for each one.
+let configRequest;
+function authConfig() {
+  configRequest ??= (async () => {
+    const res = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/config/auth`, {
+      headers: { authorization: `Bearer ${ACCESS_TOKEN}` },
+    });
+    if (res.status === 401 || res.status === 403) {
+      assert.fail(
+        `Management API returned HTTP ${res.status}: SUPABASE_ACCESS_TOKEN was rejected or has ` +
+          'expired. Create a new personal access token at ' +
+          'https://supabase.com/dashboard/account/tokens and update the secret.',
+      );
+    }
+    assert.equal(res.status, 200, `Management API returned HTTP ${res.status}`);
+    return res.json();
+  })();
+  return configRequest;
 }
 
 // ---------------------------------------------------------------- AUTHORIZE
