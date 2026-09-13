@@ -1076,3 +1076,48 @@ test('account security: once an OAuth-only member sets a password, the next chan
     { password: 'another-pass3', current_password: 'newpassword1' },
   ]);
 });
+
+test('membership checkout: the reset-link countdown follows the typed email, survives reopening, and ends on its label', async (t) => {
+  mockClock(t);
+  setup('membership');
+  const stub = supaStub(); // logged out
+  member.__setSupa(stub);
+  await member.wireMembershipPage();
+  // Types the email in signup mode, then switches to log-in mode.
+  const openLogin = async (email) => {
+    q('[data-tier="individual"]').click();
+    await tick();
+    fill('#caaci-email', email);
+    q('#caaci-auth-toggle').click();
+    return q('#caaci-co-forgot');
+  };
+  const typeEmail = (email) => {
+    fill('#caaci-email', email);
+    q('#caaci-email').dispatchEvent(new Event('input'));
+  };
+
+  let forgot = await openLogin('mei@x.com');
+  forgot.click();
+  await tick();
+  assert.equal(forgot.textContent, 'Resend in 60s');
+
+  typeEmail('ada@x.com');
+  assert.equal(forgot.disabled, false, 'another address is not held back');
+  assert.equal(forgot.textContent, 'Forgot password?');
+  typeEmail('mei@x.com');
+  assert.equal(forgot.disabled, true);
+  assert.equal(forgot.textContent, 'Resend in 60s');
+
+  q('[data-act="close"]').click();
+  t.mock.timers.tick(10000);
+  forgot = await openLogin('MEI@x.com');
+  assert.equal(forgot.disabled, true, 'switching to log-in mode picks up the stored countdown');
+  assert.equal(forgot.textContent, 'Resend in 50s');
+  forgot.click();
+  await tick();
+  assert.equal(callsTo(stub, 'resetPasswordForEmail').length, 1, 'no second email inside 60s');
+
+  t.mock.timers.tick(50000);
+  assert.equal(forgot.disabled, false);
+  assert.equal(forgot.textContent, 'Resend reset email');
+});

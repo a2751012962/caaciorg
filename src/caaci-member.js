@@ -114,6 +114,19 @@ const cooldownKey = (action, email) =>
     .toLowerCase()}`;
 const cooldownTimers = new WeakMap();
 
+// Stop a button's countdown without touching its label or the stored end time.
+function stopCooldown(btn) {
+  clearInterval(cooldownTimers.get(btn));
+  cooldownTimers.delete(btn);
+}
+
+// Keep `btn` tied to the address currently typed: resume the countdown stored
+// for it (from this page or an earlier one), or free the button as `idleLabel`.
+function followCooldown(btn, { action, email, label, idleLabel }) {
+  if (btn.getAttribute('aria-busy')) return;
+  if (!cooldown(btn, { action, email, label })) btn.textContent = idleLabel;
+}
+
 function storedCooldownEnd(action, email) {
   try {
     const end = Number(localStorage.getItem(cooldownKey(action, email)));
@@ -137,8 +150,7 @@ function cooldown(btn, { action, email, seconds, label }) {
       /* storage blocked — the countdown still runs for this page */
     }
   }
-  clearInterval(cooldownTimers.get(btn));
-  cooldownTimers.delete(btn);
+  stopCooldown(btn);
   if (!end) {
     btn.disabled = false;
     return false;
@@ -150,8 +162,7 @@ function cooldown(btn, { action, email, seconds, label }) {
       btn.textContent = t(`Resend in ${left}s`, `${left} 秒后可重新发送`);
       return;
     }
-    clearInterval(cooldownTimers.get(btn));
-    cooldownTimers.delete(btn);
+    stopCooldown(btn);
     btn.disabled = false;
     btn.textContent = label;
     try {
@@ -437,11 +448,13 @@ export async function wireAuthPage() {
   const resetSend = $('#caaci-reset-send');
   const resetNote = $('#caaci-reset-notice');
   const resendLabel = t('Resend', '重新发送');
-  const resumeReset = () => {
-    if (resetSend.getAttribute('aria-busy')) return;
-    if (!cooldown(resetSend, { action: 'recovery', email: resetEmail.value, label: resendLabel }))
-      resetSend.textContent = t('Send reset link', '发送重置链接');
-  };
+  const resumeReset = () =>
+    followCooldown(resetSend, {
+      action: 'recovery',
+      email: resetEmail.value,
+      label: resendLabel,
+      idleLabel: t('Send reset link', '发送重置链接'),
+    });
   $('#caaci-forgot').addEventListener('click', (e) => {
     e.preventDefault();
     $('#caaci-reset-panel').hidden = false;
@@ -820,6 +833,9 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
   const main = $('#caaci-co-main', host);
   const msg = $('#caaci-co-notice', host);
   const close = () => {
+    // A forgot-password countdown must not keep ticking once the modal is gone.
+    const forgotBtn = $('#caaci-co-forgot', host);
+    if (forgotBtn) stopCooldown(forgotBtn);
     host.innerHTML = '';
     document.removeEventListener('keydown', onKey);
   };
@@ -868,15 +884,28 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
       <div class="row g-2 mb-2" id="caaci-co-oauth"></div>`;
     oauthButtons($('#caaci-co-oauth', host), location.href);
     const forgot = $('#caaci-co-forgot', host);
+    const emailInput = $('#caaci-email', host);
+    const resendResetLabel = t('Resend reset email', '重新发送重置邮件');
+    // The countdown belongs to the address typed — including one that a reset
+    // from an earlier modal (or page load) left in localStorage.
+    const followForgot = () =>
+      followCooldown(forgot, {
+        action: 'recovery',
+        email: emailInput.value,
+        label: resendResetLabel,
+        idleLabel: t('Forgot password?', '忘记密码？'),
+      });
+    emailInput.addEventListener('input', followForgot);
     forgot.addEventListener('click', () => {
-      const email = $('#caaci-email', host).value.trim();
+      if (forgot.disabled) return;
+      const email = emailInput.value.trim();
       if (!EMAIL_RE.test(email))
         return notice(
           msg,
           t('Enter a valid email address above first.', '请先在上方填写有效邮箱。'),
           false,
         );
-      return sendResetLink(forgot, msg, email, t('Resend reset email', '重新发送重置邮件'));
+      return sendResetLink(forgot, msg, email, resendResetLabel);
     });
     $('#caaci-auth-toggle', host).addEventListener('click', (e) => {
       e.preventDefault();
@@ -887,6 +916,7 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
         : t('Log in', '登录');
       $('#caaci-co-namewrap', host).style.display = signup ? '' : 'none';
       $('#caaci-co-forgotwrap', host).hidden = signup;
+      if (!signup) followForgot();
       $('#caaci-pwd', host).autocomplete = signup ? 'new-password' : 'current-password';
       $('#caaci-auth-prompt', host).textContent = signup
         ? t('Already have an account?', '已有账户？')
