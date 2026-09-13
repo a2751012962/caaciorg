@@ -345,20 +345,28 @@ test('admin page: module boots against the real Tabler markup', async () => {
 const DEADLINE = '2026-09-21T04:59:00.000Z'; // 2026-09-20 23:59:00 in Chicago (CDT)
 const MAF = {
   id: 'ev-maf',
+  slug: 'mid-autumn-festival',
   title: 'Mid-Autumn Festival',
+  title_zh: '中秋节',
   starts_at: '2026-09-27T19:00:00Z', // 2:00 PM Chicago (CDT)
   ends_at: '2026-09-27T23:00:00Z', // 6:00 PM Chicago
   location: 'Siebel Center for Design',
   published: true,
   perk_deadline: DEADLINE,
+  perk_item_zh: '月饼',
+  perk_item_en: 'mooncake',
 };
 const PICNIC = {
   id: 'ev-picnic',
+  slug: 'picnic',
   title: 'Picnic',
+  title_zh: null,
   starts_at: '2026-08-01T17:00:00Z',
   location: null,
   published: true,
   perk_deadline: null,
+  perk_item_zh: null,
+  perk_item_en: null,
 };
 const REGISTRATIONS = {
   event: {
@@ -523,6 +531,64 @@ test('admin events: saving an event sends its start and end as real instants, so
     sent = await save();
     assert.equal(sent.starts_at, '2026-09-27T19:30:00.000Z');
     assert.equal(sent.ends_at, '');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: the Chinese title and gift names round-trip, and a gift needs both names or neither', async () => {
+  const fetch = mockFetch(eventRoutes);
+  try {
+    document.querySelector('[data-tab="events"]').click();
+    await tick();
+    const form = () => document.querySelector('#caaci-event-form-host form');
+    const input = (f) => form().querySelector(`[data-f="${f}"]`);
+    const posts = () =>
+      fetch.calls.filter((c) => c.url.includes('/api/admin/events') && c.options.method === 'POST');
+    const submit = async () => {
+      form().querySelector('[type="submit"]').click();
+      await tick();
+    };
+
+    eventRow('Mid-Autumn').querySelector('[data-act="edit"]').click();
+    assert.equal(input('title_zh').value, '中秋节');
+    assert.equal(input('perk_item_zh').value, '月饼');
+    assert.equal(input('perk_item_en').value, 'mooncake');
+    for (const f of ['title_zh', 'perk_item_zh', 'perk_item_en'])
+      assert.ok(form().querySelector(`label[for="${input(f).id}"]`), `${f} is labelled`);
+    await submit();
+    let sent = JSON.parse(posts().at(-1).options.body);
+    assert.equal(sent.title_zh, '中秋节');
+    assert.equal(sent.perk_item_zh, '月饼');
+    assert.equal(sent.perk_item_en, 'mooncake');
+
+    // One name without the other is refused before any request, in the API's words.
+    eventRow('Mid-Autumn').querySelector('[data-act="edit"]').click();
+    input('perk_item_en').value = '   ';
+    const before = posts().length;
+    await submit();
+    assert.equal(posts().length, before, 'nothing sent');
+    const msg = form().querySelector('[data-msg]');
+    assert.ok(msg.classList.contains('alert-danger'));
+    assert.equal(msg.textContent, 'Enter the gift name in both languages, or neither.');
+
+    // Both cleared (and the Chinese title) → '' each, which the API stores as null.
+    input('perk_item_zh').value = '';
+    input('title_zh').value = ' ';
+    await submit();
+    assert.equal(form(), null, 'saved');
+    sent = JSON.parse(posts().at(-1).options.body);
+    assert.equal(sent.perk_item_zh, '');
+    assert.equal(sent.perk_item_en, '');
+    assert.equal(sent.title_zh, '');
+
+    // An event without them opens with empty fields.
+    eventRow('Picnic').querySelector('[data-act="edit"]').click();
+    assert.deepEqual(
+      ['title_zh', 'perk_item_zh', 'perk_item_en'].map((f) => input(f).value),
+      ['', '', ''],
+    );
+    form().querySelector('[data-act="cancel"]').click();
   } finally {
     fetch.restore();
   }

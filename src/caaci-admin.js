@@ -1546,10 +1546,13 @@ function eventForm(host, ev) {
     <form class="card card-body mb-3">
       <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
         ${field(`${t('Title', '标题')} *`, `<input type="text" class="form-control" data-f="title" value="${edit ? esc(ev.title) : ''}" required>`)}
+        ${field(t('Chinese title (optional)', '中文标题（可选）'), `<input type="text" class="form-control" data-f="title_zh" value="${edit ? esc(ev.title_zh || '') : ''}">`)}
         ${field(t('Location', '地点'), `<input type="text" class="form-control" data-f="location" value="${edit ? esc(ev.location || '') : ''}">`)}
         ${field(`${t('Starts', '开始')} *`, `<input type="datetime-local" class="form-control" data-f="starts_at" value="${edit ? dtInput(ev.starts_at) : ''}">`)}
         ${field(t('Ends (optional)', '结束（可选）'), `<input type="datetime-local" class="form-control" data-f="ends_at" value="${edit ? dtInput(ev.ends_at) : ''}">`)}
         ${field(t('Free-gift deadline', '福利截止时间'), `<input type="datetime-local" class="form-control" data-f="perk_deadline" value="${edit ? dtInput(ev.perk_deadline) : ''}"><small class="form-hint">${t('Register and create an account by this time to get the free gift. Empty = event start.', '在此时间前报名并注册账户可领取福利。留空 = 活动开始时间。')}</small>`)}
+        ${field(t('Free gift (Chinese)', '福利礼品（中文）'), `<input type="text" class="form-control" data-f="perk_item_zh" value="${edit ? esc(ev.perk_item_zh || '') : ''}" placeholder="月饼"><small class="form-hint">${t('Name the gift in both languages, or leave both empty for no free gift.', '请用中英文填写礼品名称；都留空表示没有福利。')}</small>`)}
+        ${field(t('Free gift (English)', '福利礼品（英文）'), `<input type="text" class="form-control" data-f="perk_item_en" value="${edit ? esc(ev.perk_item_en || '') : ''}" placeholder="mooncake">`)}
         ${imageFieldHtml(edit ? ev.image_url : '')}
       </div>
       ${field(t('Description', '描述'), `<textarea class="form-control" data-f="description" rows="3">${edit ? esc(ev.description || '') : ''}</textarea>`, 'mb-3')}
@@ -1572,6 +1575,7 @@ function eventForm(host, ev) {
     const val = (f) => form.querySelector(`[data-f="${f}"]`);
     const body = {
       title: val('title').value.trim(),
+      title_zh: val('title_zh').value.trim(),
       location: val('location').value.trim(),
       // The admin's wall-clock times as real instants. A bare datetime-local value
       // would be read as UTC by the Worker, shifting the event by the admin's
@@ -1579,6 +1583,9 @@ function eventForm(host, ev) {
       starts_at: localToIso(val('starts_at').value),
       ends_at: localToIso(val('ends_at').value),
       perk_deadline: localToIso(val('perk_deadline').value),
+      // The free gift, e.g. 月饼 / mooncake; '' for both = no gift.
+      perk_item_zh: val('perk_item_zh').value.trim(),
+      perk_item_en: val('perk_item_en').value.trim(),
       description: val('description').value.trim(),
       image_url: val('image_url').value.trim(),
       published: val('published').checked,
@@ -1586,6 +1593,15 @@ function eventForm(host, ev) {
     if (!body.title) return notice(msg, t('Title is required.', '标题为必填项。'), false);
     if (!body.starts_at)
       return notice(msg, t('Start date is required.', '开始时间为必填项。'), false);
+    if (!body.perk_item_zh !== !body.perk_item_en)
+      return notice(
+        msg,
+        t(
+          'Enter the gift name in both languages, or neither.',
+          '请用中英文填写礼品名称，或都不填。',
+        ),
+        false,
+      );
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
     const { ok, data } = edit
