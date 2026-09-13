@@ -67,6 +67,9 @@ function parseFields(b) {
   // The gift's name in both languages, or neither: a one-language name would
   // show an empty gift on the other half of every bilingual page and email.
   if (b.perk_item_zh !== undefined || b.perk_item_en !== undefined) {
+    // Sent together, so one name is never paired with a stale stored other.
+    if (b.perk_item_zh === undefined || b.perk_item_en === undefined)
+      return { error: 'Send the gift name in both languages together.' };
     const zh = String(b.perk_item_zh ?? '').trim() || null;
     const en = String(b.perk_item_en ?? '').trim() || null;
     if (!zh !== !en) return { error: 'Enter the gift name in both languages, or neither.' };

@@ -431,8 +431,6 @@ test('admin events: the gift name is set in both languages or neither', async ()
     for (const one of [
       { perk_item_zh: '月饼', perk_item_en: '' },
       { perk_item_zh: '  ', perk_item_en: 'mooncake' },
-      { perk_item_zh: '月饼' },
-      { perk_item_en: 'mooncake' },
     ]) {
       const r = await postPatch(one);
       assert.equal(r.status, 400, JSON.stringify(one));
@@ -440,7 +438,30 @@ test('admin events: the gift name is set in both languages or neither', async ()
         error: 'Enter the gift name in both languages, or neither.',
       });
     }
+    // One key without the other would pair a name with whatever is stored.
+    for (const alone of [
+      { perk_item_zh: '月饼' },
+      { perk_item_en: 'mooncake' },
+      { perk_item_zh: '' },
+      { perk_item_en: null },
+    ]) {
+      const r = await postPatch(alone);
+      assert.equal(r.status, 400, JSON.stringify(alone));
+      assert.deepEqual(await r.json(), {
+        error: 'Send the gift name in both languages together.',
+      });
+      const created = await onRequestPut({
+        request: authed({ body: { title: 'Picnic', starts_at: '2026-10-01T18:00:00Z', ...alone } }),
+        env: fakeEnv(),
+      });
+      assert.equal(created.status, 400, `create ${JSON.stringify(alone)}`);
+    }
     assert.equal(patchBodies(fetch).length, patches);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('/rest/v1/events') && c.options.method === 'POST'),
+      false,
+      'no event created with half a gift name',
+    );
   } finally {
     fetch.restore();
   }
