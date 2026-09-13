@@ -283,14 +283,14 @@ function wireAuthEmails(row, m) {
     invite: {
       label: t('Send invitation', '发送邀请邮件'),
       ask: t(
-        `Email ${who} an invitation to set up their login?`,
-        `向 ${who} 发送设置登录账户的邀请？`,
+        `Email ${who} a link to set up their login? Members without a login get an invitation; existing accounts get a password-setup link.`,
+        `向 ${who} 发送登录设置链接？尚未启用登录的会员会收到邀请邮件；已有账户的会员会收到设置密码的链接。`,
       ),
       done: t(`Invitation sent to ${who}.`, `已向 ${who} 发送邀请邮件。`),
       // The server sends an existing account the password-setup email instead.
       password_setup: t(
-        `${who} already has an account, so they were emailed a link to set their password.`,
-        `${who} 已有账户，已向其发送设置密码的链接。`,
+        `${who} already has an account, so they were emailed a link to set their password. The email's subject reads "Set or reset your CAACI password".`,
+        `${who} 已有账户，已向其发送设置密码的链接。邮件主题为“设置或重置你的 CAACI 账号密码”。`,
       ),
     },
   };
