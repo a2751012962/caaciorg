@@ -286,8 +286,9 @@ visit `/admin/` while logged in. The panel provides:
 - **Members & Subscriptions** — search/filter/paginate members; **add** a member (creates a
   login account so they can sign in — set a password or leave it blank for a sign-in link),
   **edit** status / tier / expiry / family inline, and **delete** a member (removes their
-  login account too). Subscription state is also updated automatically by the Stripe webhook
-  events listed above.
+  login account too). The editor can also **send a password reset or invitation email** to
+  the member's login address (see _Self-service auth & billing_ below). Subscription state is
+  also updated automatically by the Stripe webhook events listed above.
 - **Families** — manage family memberships. A household groups several people under one
   membership: link login accounts via a member's _Family_ field, and add family members who
   **don't** have their own login (children, a spouse) directly on the family card. Create,
@@ -343,8 +344,45 @@ size/MIME limits, behind the **Media** tab), and `0010_refunds.sql` (adds the
   checkout overlay's inline signup enforces the same password rules and detects
   already-registered emails instead of silently continuing. `/register/` (which the
   mirror never captured an index page for) now redirects to `/membership/`.
-- **Password reset**: "Forgot your password?" on the login page emails a reset link
-  that lands on `/account/?recovery=1` with a set-new-password form.
+- **Password reset**: "Forgot password?" on the login page (and in the checkout
+  dialog's log-in mode) opens an inline form with its own email field; the emailed
+  link lands on `/account/?recovery=1` with a set-new-password form. An expired or
+  already-used link shows a clear message instead of a dead form; other failed links
+  (signup confirmation, email change, OAuth) get a generic one.
+- **Resend countdowns**: every button that sends an auth email — reset link,
+  confirmation resend (after signup, or when signing in with an unconfirmed email),
+  reauthentication code, email-change confirmation — is disabled for 60 s after a
+  send, matching the SMTP "minimum interval per user". The end time is kept in
+  `localStorage` per action + address, so a reload does not reset it; a Supabase
+  rate-limit reply starts the countdown from the seconds it reports.
+- **Account security** (`/account/`): change password (asks for the current
+  password — turn on _Require current password when updating_ under Authentication →
+  Sign In / Providers → Email so Supabase enforces it; Google/Microsoft-only members
+  see "Set a password" instead) and change email. If Supabase answers
+  `reauthentication_needed`, the page emails a code (the _Reauthentication_ template)
+  and asks for it. The email-change resend uses the member's **current** address,
+  which is how Supabase finds the pending change.
+- **Admin-sent auth emails**: Admin → Members → edit → "Send password reset" /
+  "Send invitation" (`POST /api/admin/member-email`). They go to the member's
+  **login** email in Supabase Auth, never the editable profile email, and land on
+  `/account/?recovery=1` — so every deploy origin must be on the Supabase redirect
+  allow list. Invitations only work for logins whose email was never confirmed;
+  members created in this panel are created confirmed, so send them a reset instead.
+- **Auth email delivery & templates**: Supabase Auth sends through custom SMTP on
+  Resend (`smtp.resend.com:465`, user `resend`, sender `CAACI <no-reply@caaciorg.com>`,
+  60 s minimum interval per user). The six bilingual templates and their subjects live
+  in `supabase/templates/` (named after the Management API keys
+  `mailer_templates_<type>_content` / `mailer_subjects_<type>`) — **edit them there, not
+  in the dashboard**. Preview and push with a Supabase personal access token:
+  `SUPABASE_ACCESS_TOKEN=sbp_… npm run auth:emails` (dry run: lists what differs) and
+  `npm run auth:emails -- --apply` (PATCHes only the differing keys, re-reads, exits 1 on
+  any mismatch). The SMTP **password** (a Resend API key) is entered only in the
+  dashboard (Authentication → Emails → SMTP Settings) and is never read from or written
+  by the script; SMTP keys are only written to a project already on `smtp.resend.com`.
+  Template images must be hosted on the project's Supabase Storage
+  (`media/email/caaci-logo.png`) — the dashboard preview blocks other image hosts. The
+  daily **Auth config** workflow compares the live templates, subjects and SMTP sender
+  with the repo, so a dashboard edit (or an un-pushed repo change) turns it red.
 - **Billing portal**: `/account/` shows the full subscription (plan, status, price,
   renewal date) and a "Manage billing" button — `/api/portal` mints a Stripe Billing
   Portal session for updating cards, viewing invoices, or cancelling. Enable the

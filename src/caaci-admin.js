@@ -200,6 +200,7 @@ async function loadMembers() {
 
 function renderRows(rows) {
   const tb = $('#caaci-members-body');
+  clearEditorTimers(); // the open editor row is about to be wiped with the table
   tb.innerHTML = '';
   for (const m of rows) {
     const tr = document.createElement('tr');
@@ -216,7 +217,132 @@ function renderRows(rows) {
   }
 }
 
+// ---------- auth emails (password reset / invitation) ----------
+// Supabase allows one auth email per user per 60s, so a button counts that down
+// after a send (or a 429). The expiry lives in a module-level map keyed by
+// member + action, so closing and reopening the editor, or the table
+// re-rendering after Save, resumes the countdown instead of resetting it. Only
+// one editor is open at a time; its intervals are cleared when it goes away.
+const AUTH_EMAIL_COOLDOWN_MS = 60_000;
+const authEmailCooldownUntil = new Map(); // `${member.id}:${action}` → epoch ms
+const editorTimers = new Set();
+const ticking = new WeakSet(); // buttons that already have a countdown interval
+function clearEditorTimers() {
+  for (const id of editorTimers) clearInterval(id);
+  editorTimers.clear();
+}
+// Paint a button from its stored expiry and keep ticking while it is cooling.
+function showCooldown(btn, label, key) {
+  const paint = () => {
+    const left = Math.ceil(((authEmailCooldownUntil.get(key) || 0) - Date.now()) / 1000);
+    if (left > 0) {
+      btn.disabled = true;
+      btn.textContent = `${label} (${left}s)`;
+      return true;
+    }
+    authEmailCooldownUntil.delete(key);
+    btn.disabled = false;
+    btn.textContent = label;
+    return false;
+  };
+  // One interval per button, even if two sends for the same key resolve.
+  if (!paint() || ticking.has(btn)) return;
+  ticking.add(btn);
+  const timer = setInterval(() => {
+    if (paint()) return;
+    clearInterval(timer);
+    editorTimers.delete(timer);
+    ticking.delete(btn);
+  }, 1000);
+  editorTimers.add(timer);
+}
+
+// The send button and notice line for a member's action in whichever member
+// editor is open NOW. The editor that was clicked may have been closed (or
+// closed and reopened) while its request was in flight; null when none is open.
+function openEditorTarget(memberId, action) {
+  const row = [...$$('#caaci-members-body tr[data-edit-row]')].find(
+    (r) => r.dataset.memberId === memberId,
+  );
+  if (!row) return null;
+  return {
+    btn: row.querySelector(`[data-act="send-${action}"]`),
+    msg: row.querySelector('[data-msg]'),
+  };
+}
+
+function wireAuthEmails(row, m) {
+  row.dataset.memberId = m.id; // lets a late response find this member's open editor
+  const who = m.full_name || m.email;
+  const kinds = {
+    reset: {
+      label: t('Send password reset', '发送重置密码邮件'),
+      ask: t(`Email ${who} a link to set a new password?`, `向 ${who} 发送设置新密码的链接？`),
+      done: t(`Password reset email sent to ${who}.`, `已向 ${who} 发送重置密码邮件。`),
+    },
+    invite: {
+      label: t('Send invitation', '发送邀请邮件'),
+      ask: t(
+        `Email ${who} an invitation to set up their login?`,
+        `向 ${who} 发送设置登录账户的邀请？`,
+      ),
+      done: t(`Invitation sent to ${who}.`, `已向 ${who} 发送邀请邮件。`),
+    },
+  };
+  for (const [action, k] of Object.entries(kinds)) {
+    const btn = row.querySelector(`[data-act="send-${action}"]`);
+    const key = `${m.id}:${action}`;
+    showCooldown(btn, k.label, key); // resume a countdown from an earlier editor
+    btn.addEventListener('click', async () => {
+      if (!window.confirm(k.ask)) return;
+      btn.disabled = true;
+      let res = null;
+      try {
+        res = await api('/api/admin/member-email', {
+          method: 'POST',
+          body: { member_id: m.id, action },
+        });
+      } catch {
+        // Network failure: reported below as an unsent email, button re-enabled.
+      }
+      // Report into the member's editor that is open now (maybe none, maybe a
+      // rebuilt one), never into a detached button that would tick unseen.
+      const target = openEditorTarget(m.id, action);
+      const say = (text, good) => {
+        if (target) notice(target.msg, text, good);
+      };
+      if (res?.ok || res?.status === 429) {
+        authEmailCooldownUntil.set(key, Date.now() + AUTH_EMAIL_COOLDOWN_MS);
+        if (target) showCooldown(target.btn, k.label, key);
+        say(
+          res.ok
+            ? k.done
+            : t(
+                'An email was sent to this member very recently. Please wait a minute and try again.',
+                '刚刚已向该会员发送过邮件，请等一分钟后再试。',
+              ),
+          res.ok,
+        );
+        return;
+      }
+      if (target) target.btn.disabled = false;
+      if (res?.status === 409) {
+        say(
+          t(
+            'This login email is already confirmed, so it cannot be invited. Use "Send password reset" instead.',
+            '该登录邮箱已确认，无法发送邀请，请改用“发送重置密码邮件”。',
+          ),
+          false,
+        );
+        return;
+      }
+      say(res?.data?.error || t('Could not send the email.', '邮件发送失败。'), false);
+    });
+  }
+}
+
 function toggleEditor(tr, m) {
+  clearEditorTimers(); // closing or replacing the open editor ends its countdowns
   const next = tr.nextElementSibling;
   if (next?.hasAttribute('data-edit-row')) {
     next.remove();
@@ -265,8 +391,14 @@ function toggleEditor(tr, m) {
         <button type="button" class="btn btn-outline-danger" data-act="delete">${t('Delete', '删除')}</button>
       </div>
     </div>
+    <div class="btn-list align-items-center mt-2">
+      <button type="button" class="btn btn-sm" data-act="send-reset">${t('Send password reset', '发送重置密码邮件')}</button>
+      <button type="button" class="btn btn-sm" data-act="send-invite">${t('Send invitation', '发送邀请邮件')}</button>
+      <span class="text-secondary small">${t('Invitations only work for members whose email was never confirmed. Members created in this admin panel are already confirmed, so send them a password reset.', '邀请仅适用于邮箱从未确认过的会员。在本后台创建的会员邮箱已确认，请改为发送重置密码邮件。')}</span>
+    </div>
     <div class="alert mb-0 mt-2" data-msg hidden></div></td>`;
   tr.after(row);
+  wireAuthEmails(row, m);
 
   row.querySelector('[data-act="save"]').addEventListener('click', async () => {
     const get = (f) => row.querySelector(`[data-f="${f}"]`).value;

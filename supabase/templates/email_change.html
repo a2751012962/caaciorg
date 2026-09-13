@@ -1,0 +1,31 @@
+<div style="max-width:600px;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;line-height:1.6;color:#333333;">
+  <a href="https://caaciorg.com" style="text-decoration:none;">
+    <img src="https://wslzeqhipvibeflmxznh.supabase.co/storage/v1/object/public/media/email/caaci-logo.png" width="200" alt="CAACI 华人协会" style="display:block;width:200px;height:auto;border:0;">
+  </a>
+
+  <div style="border-top:3px solid #8e2e11;margin:16px 0 24px;"></div>
+
+  <h2 style="margin:0 0 8px;color:#300200;font-size:20px;">确认新邮箱</h2>
+  <p style="margin:0 0 20px;">你申请将 CAACI 会员账号的邮箱从 <strong>{{ .Email }}</strong> 更改为 <strong>{{ .NewEmail }}</strong>。请点击下方按钮确认。</p>
+
+  <h2 style="margin:0 0 8px;color:#300200;font-size:20px;">Confirm your new email address</h2>
+  <p style="margin:0 0 24px;">You asked to change your CAACI account email from <strong>{{ .Email }}</strong> to <strong>{{ .NewEmail }}</strong>. Click the button below to confirm.</p>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;"><tr>
+    <td bgcolor="#8e2e11" style="border-radius:4px;">
+      <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:bold;">确认新邮箱 · Confirm new email</a>
+    </td>
+  </tr></table>
+
+  <p style="margin:0 0 4px;font-size:13px;color:#666666;">按钮无法点击？请复制以下链接到浏览器打开 / Button not working? Copy this link into your browser:</p>
+  <p style="margin:0 0 20px;font-size:13px;word-break:break-all;"><a href="{{ .ConfirmationURL }}" style="color:#cd5c5c;">{{ .ConfirmationURL }}</a></p>
+
+  <p style="margin:0 0 28px;font-size:13px;color:#666666;">如果这不是你本人的操作，请忽略此邮件，你的账号邮箱不会改变。<br>If you didn't request this change, you can safely ignore this email — your email won't change.</p>
+
+  <div style="border-top:1px solid #dddddd;padding-top:16px;font-size:12px;line-height:1.7;color:#666666;">
+    <strong style="color:#300200;">Chinese American Association of Central Illinois</strong><br>
+    美中伊利诺伊中部华人协会<br>
+    P.O. Box 2276, Champaign, IL 61825<br>
+    <a href="mailto:caaci.org@gmail.com" style="color:#cd5c5c;">caaci.org@gmail.com</a> · <a href="https://caaciorg.com" style="color:#cd5c5c;">caaciorg.com</a>
+  </div>
+</div>
