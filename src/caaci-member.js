@@ -477,7 +477,13 @@ export async function wireAuthPage() {
     await sendResetLink(resetSend, resetNote, email, resendLabel);
   });
 
-  oauthButtons($('#caaci-oauth-host'), location.origin + (next || '/account/'));
+  // Google/Microsoft return here rather than straight to /account/: the
+  // signed-in check at the bottom of this function then routes them through
+  // destinationAfterSignIn like the password form, so admins land in /admin/ and
+  // `next` still wins for everyone else. The allow list's /** glob covers it.
+  const oauthReturn =
+    location.origin + location.pathname + (next ? `?next=${encodeURIComponent(next)}` : '');
+  oauthButtons($('#caaci-oauth-host'), oauthReturn);
 
   const suToggle = $('#caaci-show-signup');
   suToggle.setAttribute('aria-controls', 'caaci-signup-card');
