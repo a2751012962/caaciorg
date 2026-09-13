@@ -2,6 +2,7 @@
 //   /login-3/     sign in · create account · forgot password  (data-page="login")
 //   /membership/  plan grid · discount codes · checkout       (data-page="membership")
 //   /account/     subscription · billing · card · history     (data-page="account")
+//   /mid_autumn_festival_form/  public event registration  (data-page="event-form")
 // These pages replace the old mirror-enhancement flow (caaci-app.js) on their
 // routes; the behavioral contracts are identical — same API bodies, the same
 // 3.5% fee math, the same duplicate-email guard — only the markup is Tabler.
@@ -1746,6 +1747,280 @@ export async function wireAccountPage() {
     renderMemberCard($('#caaci-mcard-host', host), { user, member, tierName });
 }
 
+// ---------- /mid_autumn_festival_form/ (event registration) ----------
+// A public form: registering needs no account. The page's own markup carries
+// the flyer's date, place and contact, so it is complete before any request;
+// GET /api/event-register then fills in the live details and the free-gift
+// deadline, and tells a signed-in visitor whether they already registered.
+// The mooncake also needs an account by that deadline, so the success state
+// walks an anonymous registrant to signup with the address they used —
+// handed over in sessionStorage, never in the URL.
+const SIGNUP_EMAIL_KEY = 'caaci-signup-email';
+// Events are stored in UTC and always shown in Champaign's time zone, whatever
+// the visitor's phone is set to.
+const EVENT_TZ = 'America/Chicago';
+
+function inEventTz(iso, opts) {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat(lang === 'zh' ? 'zh-CN' : 'en-US', {
+    timeZone: EVENT_TZ,
+    ...opts,
+  }).format(d);
+}
+const DAY_FMT = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+const TIME_FMT = { hour: 'numeric', minute: '2-digit' };
+
+// "Sunday, September 27, 2026 · 2:00 PM – 6:00 PM"; the end's date only when it differs.
+function eventWhen({ starts_at: start, ends_at: end }) {
+  const day = inEventTz(start, DAY_FMT);
+  if (!day) return '';
+  const from = `${day} · ${inEventTz(start, TIME_FMT)}`;
+  const endDay = inEventTz(end, DAY_FMT);
+  if (!endDay) return from;
+  const to = inEventTz(end, TIME_FMT);
+  return `${from} – ${endDay === day ? to : `${endDay} · ${to}`}`;
+}
+const deadlineText = (iso) =>
+  inEventTz(iso, { month: 'long', day: 'numeric', ...TIME_FMT, timeZoneName: 'short' });
+// The registration time, to the second: "Sep 13, 2026, 3:04:05 PM CDT".
+const registeredText = (iso) => inEventTz(iso, { dateStyle: 'medium', timeStyle: 'long' });
+
+// Live copy replacing a static bilingual element: drop data-en/data-zh so the
+// language pass can never put the flyer's text back.
+function setText(el, text) {
+  el.removeAttribute('data-en');
+  el.removeAttribute('data-zh');
+  el.textContent = text;
+}
+
+async function eventSession() {
+  if (!supa) return null;
+  try {
+    const { data } = await withTimeout(supa.auth.getSession(), 3500, { data: null });
+    return data?.session || null;
+  } catch {
+    return null;
+  }
+}
+const bearerFor = (session) =>
+  session?.access_token ? { authorization: `Bearer ${session.access_token}` } : {};
+
+// null on any failure (HTTP error, network, timeout): the page keeps its static copy.
+function loadEventRegistration(slug, session) {
+  const request = (async () => {
+    const res = await fetch(`/api/event-register?event=${encodeURIComponent(slug)}`, {
+      headers: bearerFor(session),
+    });
+    return res.ok ? res.json() : null;
+  })().catch(() => null);
+  return withTimeout(request, 6000, null);
+}
+
+// Which mooncake step a registration shows. The server decides who really gets
+// one; this mirrors its rule (registered, and holding an account, by the
+// deadline) only to pick the wording. A time we do not know never closes it.
+function perkStep({ deadline, registeredAt, signedIn, accountCreatedAt }) {
+  const end = deadline ? new Date(deadline).getTime() : NaN;
+  const after = (time) => time > end; // false whenever either side is NaN
+  if (after(new Date(registeredAt).getTime())) return 'closed';
+  if (signedIn) return after(new Date(accountCreatedAt).getTime()) ? 'closed' : 'counted';
+  return after(Date.now()) ? 'closed' : 'signup';
+}
+
+export async function wireEventFormPage() {
+  const slug = document.body.dataset.event;
+  const form = $('#caaci-ev-form');
+  const formCard = $('#caaci-ev-form-card');
+  const done = $('#caaci-ev-done');
+  const note = $('#caaci-ev-notice');
+  const btn = $('#caaci-ev-submit');
+  const emailEl = $('#caaci-ev-email');
+  const namesEl = $('#caaci-ev-names');
+  const otherEl = $('#caaci-ev-heard-other-text');
+  // Same-site links built from where the page is served, never a fixed host.
+  const here = encodeURIComponent(location.pathname);
+  let deadline = null; // the effective free-gift deadline, once the API has said
+  let session = null;
+  let registeredEmail = '';
+
+  const choice = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value || '';
+
+  // Names are required only from someone who is coming.
+  const namesLabel = $('label[for="caaci-ev-names"]');
+  const syncNames = () => {
+    const needed = choice('attending') !== 'no';
+    namesEl.required = needed;
+    namesLabel.classList.toggle('required', needed);
+  };
+  for (const radio of form.querySelectorAll('input[name="attending"]'))
+    radio.addEventListener('change', syncNames);
+  // Typing an "Other" answer picks Other, as the Google Form did.
+  otherEl.addEventListener('input', () => {
+    if (otherEl.value.trim()) $('#caaci-ev-heard-other').checked = true;
+  });
+
+  // The callout above the form: the deadline while it is open, "closed" after.
+  const renderPerk = () => {
+    const when = deadlineText(deadline);
+    if (!when) return; // the static copy already says "before the festival starts"
+    const open = Date.now() <= new Date(deadline).getTime();
+    const box = $('#caaci-ev-perk');
+    box.classList.toggle('alert-warning', open);
+    box.classList.toggle('alert-secondary', !open);
+    setText(
+      $('#caaci-ev-perk-title'),
+      open
+        ? t('Free mooncake', '免费月饼')
+        : t('Free mooncake sign-up has closed', '免费月饼登记已截止'),
+    );
+    setText(
+      $('#caaci-ev-perk-text'),
+      open
+        ? t(
+            `Register below and create a free CAACI website account by ${when}, and a free mooncake is waiting for you at the festival. The account is optional — anyone can register.`,
+            `在 ${when} 前完成报名并免费注册 CAACI 网站账户，即可在活动现场领取免费月饼。注册账户并非必需——任何人都可以报名。`,
+          )
+        : t(
+            `It closed on ${when}. You can still register for the festival below.`,
+            `已于 ${when} 截止。您仍可在下方报名参加活动。`,
+          ),
+    );
+  };
+
+  // Swap the form for the success state; returns its heading for focus.
+  const showDone = ({ registeredAt, attending, already, signedIn }) => {
+    formCard.hidden = true;
+    done.hidden = false;
+    const title = $('#caaci-ev-done-title');
+    setText(
+      title,
+      attending ? t("You're registered", '报名成功') : t('Thanks for letting us know', '感谢告知'),
+    );
+    const stamp = registeredText(registeredAt);
+    setText($('#caaci-ev-done-time'), stamp ? t(`Registered ${stamp}`, `报名时间：${stamp}`) : '');
+    $('#caaci-ev-done-already').hidden = !already;
+    // Someone who is not coming has no mooncake to collect.
+    const step = attending
+      ? perkStep({ deadline, registeredAt, signedIn, accountCreatedAt: session?.user?.created_at })
+      : null;
+    $('#caaci-ev-perk-counted').hidden = step !== 'counted';
+    $('#caaci-ev-perk-cta').hidden = step !== 'signup';
+    $('#caaci-ev-perk-closed').hidden = step !== 'closed';
+    const when = deadlineText(deadline);
+    if (step === 'signup' && when)
+      setText(
+        $('#caaci-ev-perk-cta-text'),
+        t(
+          `One more step for a free mooncake: create a free CAACI account with the email you registered with by ${when}.`,
+          `领取免费月饼还差一步：请在 ${when} 前，用报名时填写的邮箱免费注册 CAACI 账户。`,
+        ),
+      );
+    return title;
+  };
+
+  $('#caaci-ev-login').setAttribute('href', `/login-3/?next=${here}`);
+  $('#caaci-ev-signup').addEventListener('click', () => {
+    try {
+      if (registeredEmail) sessionStorage.setItem(SIGNUP_EMAIL_KEY, registeredEmail);
+    } catch {
+      /* storage blocked — they type the address on the signup form */
+    }
+    location.href = `/login-3/?signup=1&next=${here}`;
+  });
+  $('#caaci-ev-edit').addEventListener('click', () => {
+    done.hidden = true;
+    formCard.hidden = false;
+    note.hidden = true;
+    emailEl.focus();
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (btn.disabled) return; // a second tap while the first is sending
+    const heardFrom = choice('heard_from');
+    const body = {
+      event: slug,
+      email: emailEl.value.trim(),
+      attending: choice('attending'),
+      names: namesEl.value.trim(),
+      heard_from: heardFrom,
+      heard_from_other: heardFrom === 'other' ? otherEl.value.trim() : '',
+      wants_meal: choice('wants_meal'),
+      _hp: $('#caaci-ev-hp').value,
+    };
+    // The API checks all of this again; asking here saves a round trip on a phone.
+    const stop = (msg, field) => {
+      notice(note, msg, false);
+      field.focus();
+    };
+    if (!EMAIL_RE.test(body.email))
+      return stop(t('Enter a valid email address.', '请填写有效邮箱。'), emailEl);
+    if (!body.attending)
+      return stop(
+        t('Tell us whether you can attend.', '请告诉我们您能否参加。'),
+        $('#caaci-ev-attending-yes'),
+      );
+    if (body.attending === 'yes' && !body.names)
+      return stop(t('List the names of the people attending.', '请填写参加者姓名。'), namesEl);
+
+    note.hidden = true;
+    const undo = busy(btn, t('Submitting…', '提交中…'));
+    session = await eventSession();
+    const { ok, data } = await api('/api/event-register', body, bearerFor(session));
+    undo();
+    if (!ok)
+      return notice(
+        note,
+        data.error || t('Could not submit — please try again.', '提交失败，请重试。'),
+        false,
+      );
+    registeredEmail = body.email;
+    if (data.deadline) {
+      deadline = data.deadline;
+      renderPerk();
+    }
+    showDone({
+      registeredAt: data.registered_at,
+      attending: body.attending === 'yes',
+      already: !!data.already,
+      signedIn: !!data.signed_in,
+    }).focus();
+  });
+
+  // Everything above works without the API; its answer only refines the page.
+  session = await eventSession();
+  const info = await loadEventRegistration(slug, session);
+  if (!info?.event) return;
+  const ev = info.event;
+  if (ev.title) setText($('#caaci-ev-title'), ev.title);
+  const when = eventWhen(ev);
+  if (when) setText($('#caaci-ev-when'), when);
+  if (ev.location) setText($('#caaci-ev-where'), ev.location);
+  if (ev.description) {
+    const desc = $('#caaci-ev-desc');
+    desc.textContent = ev.description;
+    desc.hidden = false;
+  }
+  deadline = ev.deadline || ev.perk_deadline || ev.starts_at || null;
+  renderPerk();
+
+  // Signed in: prefill the address (unless they already typed one), and skip
+  // straight to the success state if they registered before. A submit that
+  // finished while this request was out has already shown it.
+  if (!info.signed_in || !done.hidden) return;
+  if (info.email && !emailEl.value) emailEl.value = info.email;
+  if (info.registration) {
+    registeredEmail = info.email || '';
+    showDone({
+      registeredAt: info.registration.registered_at,
+      attending: info.registration.attending !== false,
+      already: false,
+      signedIn: true,
+    });
+  }
+}
+
 // ---------- boot ----------
 export async function boot() {
   initLang();
@@ -1765,6 +2040,7 @@ export async function boot() {
     if (page === 'login') await wireAuthPage();
     else if (page === 'membership') await wireMembershipPage();
     else if (page === 'account') await wireAccountPage();
+    else if (page === 'event-form') await wireEventFormPage();
   } catch (e) {
     console.warn('caaci-member:', e);
   }
