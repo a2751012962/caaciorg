@@ -346,7 +346,13 @@ const REGISTRATIONS = {
       created_at: '2026-09-13T15:05:07Z',
       updated_at: '2026-09-13T15:05:07Z',
       member_id: 'm1',
-      account: { id: 'm1', created_at: '2026-09-25T00:00:00Z', status: 'active', tier_id: 'free' },
+      account: {
+        id: 'm1',
+        created_at: '2026-09-25T00:00:00Z',
+        status: 'active',
+        tier_id: 'free',
+        confirmed: true,
+      },
       perk_eligible: false,
     },
     {
@@ -359,7 +365,13 @@ const REGISTRATIONS = {
       created_at: '2026-09-14T16:00:00Z',
       updated_at: '2026-09-14T16:00:00Z',
       member_id: null,
-      account: { id: 'm2', created_at: '2026-09-01T12:00:00Z', status: 'active', tier_id: 'free' },
+      account: {
+        id: 'm2',
+        created_at: '2026-09-01T12:00:00Z',
+        status: 'active',
+        tier_id: 'free',
+        confirmed: true,
+      },
       perk_eligible: true,
     },
     {
@@ -372,7 +384,14 @@ const REGISTRATIONS = {
       created_at: '2026-09-22T01:02:03Z',
       updated_at: '2026-09-22T01:02:03Z',
       member_id: null,
-      account: null,
+      // signed up, never confirmed the email: shown, not counted
+      account: {
+        id: 'm3',
+        created_at: '2026-09-02T12:00:00Z',
+        status: 'pending',
+        tier_id: null,
+        confirmed: false,
+      },
       perk_eligible: false,
     },
   ],
@@ -531,7 +550,7 @@ test('admin events: registrations panel shows the summary, escaped rows and an e
       '—',
       '—',
       'No',
-      '—',
+      'Unconfirmed',
       '—',
     ]);
     assert.equal(document.querySelector('#caaci-reg-body img, #caaci-reg-body b'), null);
@@ -565,7 +584,7 @@ test('admin events: registrations CSV has a BOM, Chicago times and RFC 4180 quot
       attendee_names: 'Mei, "Jun"\nand Kai',
       heard_from: 'Friend',
       wants_meal: true,
-      account: { created_at: '2026-09-01T12:00:00Z' },
+      account: { created_at: '2026-09-01T12:00:00Z', confirmed: true },
       perk_eligible: true,
     },
     {
@@ -575,7 +594,7 @@ test('admin events: registrations CSV has a BOM, Chicago times and RFC 4180 quot
       attendee_names: null,
       heard_from: '=HYPERLINK("http://x")',
       wants_meal: null,
-      account: null,
+      account: { created_at: '2026-09-02T12:00:00Z', confirmed: false }, // never confirmed
       perk_eligible: false,
     },
     {
@@ -585,22 +604,33 @@ test('admin events: registrations CSV has a BOM, Chicago times and RFC 4180 quot
       attendee_names: '林美',
       heard_from: 'Social Media',
       wants_meal: false,
-      account: { created_at: '2026-01-10T06:00:00Z' }, // midnight → 00, not 24
+      account: { created_at: '2026-01-10T06:00:00Z', confirmed: true }, // midnight → 00, not 24
       perk_eligible: true,
+    },
+    {
+      email: 'zoe@example.com',
+      created_at: '2026-09-23T00:00:00Z',
+      attending: true,
+      attendee_names: 'Zoe',
+      heard_from: 'Website',
+      wants_meal: null,
+      account: null, // no account: account_confirmed is blank, not "no"
+      perk_eligible: false,
     },
   ];
   const header =
-    '#,registered_at (Chicago),email,attending,names,heard_from,wants_meal,has_account,account_created_at (Chicago),mooncake_eligible';
+    '#,registered_at (Chicago),email,attending,names,heard_from,wants_meal,has_account,account_confirmed,account_created_at (Chicago),mooncake_eligible';
   const mei =
-    '1,2026-09-13 10:05:07,mei@example.com,yes,"Mei, ""Jun""\nand Kai",Friend,yes,yes,2026-09-01 07:00:00,yes';
+    '1,2026-09-13 10:05:07,mei@example.com,yes,"Mei, ""Jun""\nand Kai",Friend,yes,yes,yes,2026-09-01 07:00:00,yes';
   // A formula-looking answer is defused with a leading ' (then quoted for its quotes).
-  const kai = `2,2026-09-21 20:02:03,kai@example.com,no,,"'=HYPERLINK(""http://x"")",,no,,no`;
+  const kai = `2,2026-09-21 20:02:03,kai@example.com,no,,"'=HYPERLINK(""http://x"")",,yes,no,2026-09-02 07:00:00,no`;
   const lin =
-    '3,2026-01-15 12:00:00,lin@example.com,yes,林美,Social Media,no,yes,2026-01-10 00:00:00,yes';
+    '3,2026-01-15 12:00:00,lin@example.com,yes,林美,Social Media,no,yes,yes,2026-01-10 00:00:00,yes';
+  const zoe = '4,2026-09-22 19:00:00,zoe@example.com,yes,Zoe,Website,,no,,,no';
 
   const csv = registrationsCsv(rows);
   assert.equal(csv.charCodeAt(0), 0xfeff, 'UTF-8 BOM first');
-  assert.equal(csv, `\uFEFF${[header, mei, kai, lin].join('\r\n')}\r\n`);
+  assert.equal(csv, `\uFEFF${[header, mei, kai, lin, zoe].join('\r\n')}\r\n`);
 
   // Eligible only keeps each row's registration number.
   assert.equal(

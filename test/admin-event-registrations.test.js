@@ -26,6 +26,13 @@ const MEMBERS = [
     tier_id: 'free',
   },
   { id: 'm-jun', email: 'jun@example.com', created_at: BEFORE, status: 'pending', tier_id: null },
+  {
+    id: 'm-unconf',
+    email: 'unconfirmed@example.com',
+    created_at: BEFORE,
+    status: 'pending',
+    tier_id: null,
+  },
   { id: 'm-late', email: 'late@example.com', created_at: AFTER, status: 'active', tier_id: 'free' },
   {
     id: 'm-edge',
@@ -34,6 +41,17 @@ const MEMBERS = [
     status: 'active',
     tier_id: 'free',
   },
+];
+
+// GoTrue /auth/v1/admin/users. m-unconf signed up (the trigger made its members
+// row) but never confirmed the email.
+const AUTH_USERS = [
+  { id: 'admin-1', email_confirmed_at: BEFORE },
+  { id: 'm-mei', email_confirmed_at: BEFORE },
+  { id: 'm-jun', email_confirmed_at: null, confirmed_at: BEFORE }, // only confirmed_at set
+  { id: 'm-unconf', email_confirmed_at: null, confirmed_at: null },
+  { id: 'm-late', email_confirmed_at: AFTER },
+  { id: 'm-edge', email_confirmed_at: DEADLINE },
 ];
 
 const reg = (over) => ({
@@ -54,6 +72,8 @@ const REGS = [
   reg({ email: 'mei.lin@example.com', wants_meal: true }),
   // member_id wins over the email, which belongs to someone else's account
   reg({ email: 'late@example.com', member_id: 'm-jun', attending: false, attendee_names: null }),
+  // account made in time but never confirmed → shown, not counted
+  reg({ email: 'unconfirmed@example.com' }),
   // registered and account created EXACTLY at the deadline → counts
   reg({ email: 'edge@example.com', created_at: DEADLINE, wants_meal: false }),
   // account created after the deadline
@@ -68,8 +88,12 @@ const REGS = [
   reg({ email: 'jun@example.com', created_at: AFTER }),
 ];
 
-function route({ admin = true, regs = REGS } = {}) {
+function route({ admin = true, regs = REGS, authPages = [AUTH_USERS] } = {}) {
   return (u) => {
+    if (u.includes('/auth/v1/admin/users')) {
+      const page = Number(new URL(u).searchParams.get('page'));
+      return { body: { users: authPages[page - 1] || [] } };
+    }
     if (u.includes('/auth/v1/user')) return { body: { id: 'admin-1' } };
     if (u.includes('/rest/v1/members') && u.includes('is_admin'))
       return { body: [{ id: 'admin-1', is_admin: admin }] };
@@ -92,6 +116,8 @@ const get = (query, headers = { authorization: 'Bearer tok' }) =>
     env: fakeEnv(),
   });
 
+const authCalls = (fetch) => fetch.calls.filter((c) => c.url.includes('/auth/v1/admin/users'));
+
 test('admin registrations: 401 without a token, 403 for a non-admin', async () => {
   let fetch = mockFetch(route());
   try {
@@ -109,6 +135,7 @@ test('admin registrations: 401 without a token, 403 for a non-admin', async () =
       false,
       'no registration data is read for a non-admin',
     );
+    assert.equal(authCalls(fetch).length, 0, 'no auth user list for a non-admin');
   } finally {
     fetch.restore();
   }
@@ -154,17 +181,27 @@ test('admin registrations: matches accounts and applies the eligibility rule', a
 
     const by = Object.fromEntries(data.rows.map((x) => [x.email, x]));
     // case-insensitive email match against a mixed-case members.email
-    assert.equal(by['mei.lin@example.com'].account.id, 'm-mei');
     assert.deepEqual(by['mei.lin@example.com'].account, {
       id: 'm-mei',
       created_at: BEFORE,
       status: 'active',
       tier_id: 'free',
+      confirmed: true,
     });
     assert.equal(by['mei.lin@example.com'].perk_eligible, true);
-    // member_id first, even though the email belongs to m-late
+    // member_id first, even though the email belongs to m-late; confirmed_at counts
     assert.equal(by['late@example.com'].account.id, 'm-jun');
+    assert.equal(by['late@example.com'].account.confirmed, true);
     assert.equal(by['late@example.com'].perk_eligible, true);
+    // an unconfirmed signup is listed, but it isn't an account for the gift
+    assert.deepEqual(by['unconfirmed@example.com'].account, {
+      id: 'm-unconf',
+      created_at: BEFORE,
+      status: 'pending',
+      tier_id: null,
+      confirmed: false,
+    });
+    assert.equal(by['unconfirmed@example.com'].perk_eligible, false);
     // exactly at the deadline (both timestamps) is inclusive
     assert.equal(by['edge@example.com'].account.id, 'm-edge');
     assert.equal(by['edge@example.com'].perk_eligible, true);
@@ -193,14 +230,89 @@ test('admin registrations: matches accounts and applies the eligibility rule', a
       'wants_meal',
     ]);
 
+    // with_account counts confirmed accounts only (not the unconfirmed signup).
     assert.deepEqual(data.summary, {
-      total: 6,
-      attending: 5,
+      total: 7,
+      attending: 6,
       not_attending: 1,
       meal: 1,
       with_account: 5,
       perk_eligible: 3,
     });
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin registrations: only a confirmed account makes a registrant eligible', async () => {
+  const one = [reg({ email: 'mei.lin@example.com' })];
+  const cases = [
+    ['email_confirmed_at set', [{ id: 'm-mei', email_confirmed_at: BEFORE }], true],
+    [
+      'only confirmed_at set',
+      [{ id: 'm-mei', email_confirmed_at: null, confirmed_at: BEFORE }],
+      true,
+    ],
+    ['unconfirmed', [{ id: 'm-mei', email_confirmed_at: null, confirmed_at: null }], false],
+    ['no auth user at all', [], false],
+  ];
+  for (const [label, users, confirmed] of cases) {
+    const fetch = mockFetch(route({ regs: one, authPages: [users] }));
+    try {
+      const data = await (await get(`?event_id=${EV}`)).json();
+      const [row] = data.rows;
+      assert.equal(row.account.id, 'm-mei', `${label}: account still shown`);
+      assert.equal(row.account.confirmed, confirmed, `${label}: confirmed`);
+      assert.equal(row.perk_eligible, confirmed, `${label}: perk_eligible`);
+      assert.equal(data.summary.with_account, confirmed ? 1 : 0, `${label}: with_account`);
+      assert.equal(data.summary.perk_eligible, confirmed ? 1 : 0, `${label}: summary`);
+    } finally {
+      fetch.restore();
+    }
+  }
+});
+
+test('admin registrations: pages through auth users with the service-role key', async () => {
+  const filler = Array.from({ length: 999 }, (_, i) => ({
+    id: `u-${i}`,
+    email_confirmed_at: BEFORE,
+  }));
+  const page1 = [...filler, { id: 'm-mei', email_confirmed_at: BEFORE }]; // full page
+  const page2 = [{ id: 'm-jun', email_confirmed_at: BEFORE }]; // short page → last
+  const fetch = mockFetch(route({ authPages: [page1, page2] }));
+  try {
+    const data = await (await get(`?event_id=${EV}`)).json();
+    assert.deepEqual(
+      authCalls(fetch).map((c) => c.url),
+      [
+        'https://db.example/auth/v1/admin/users?page=1&per_page=1000',
+        'https://db.example/auth/v1/admin/users?page=2&per_page=1000',
+      ],
+    );
+    for (const c of authCalls(fetch)) {
+      assert.equal(c.options.headers.apikey, 'service-key');
+      assert.equal(c.options.headers.authorization, 'Bearer service-key');
+    }
+    const by = Object.fromEntries(data.rows.map((x) => [x.email, x]));
+    assert.equal(by['mei.lin@example.com'].account.confirmed, true, 'found on page 1');
+    assert.equal(by['jun@example.com'].account.confirmed, true, 'found on page 2');
+    assert.equal(by['edge@example.com'].account.confirmed, false, 'on neither page');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin registrations: stops listing auth users after 20 full pages', async () => {
+  const full = Array.from({ length: 1000 }, (_, i) => ({
+    id: `u-${i}`,
+    email_confirmed_at: BEFORE,
+  }));
+  const fetch = mockFetch(route({ authPages: Array(25).fill(full) }));
+  try {
+    const r = await get(`?event_id=${EV}`);
+    assert.equal(r.status, 200);
+    assert.equal(authCalls(fetch).length, 20);
+    assert.match(authCalls(fetch).at(-1).url, /page=20&/);
   } finally {
     fetch.restore();
   }
@@ -261,6 +373,19 @@ test('admin registrations: a database error is a 500', async () => {
     const r = await get(`?event_id=${EV}`);
     assert.equal(r.status, 500);
     assert.match((await r.json()).error, /event_registrations: 503/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin registrations: a failing auth user list is a 500, not "nobody is confirmed"', async () => {
+  const fetch = mockFetch((u, o) =>
+    u.includes('/auth/v1/admin/users') ? { status: 401, body: 'bad key' } : route()(u, o),
+  );
+  try {
+    const r = await get(`?event_id=${EV}`);
+    assert.equal(r.status, 500);
+    assert.match((await r.json()).error, /auth list users: 401/);
   } finally {
     fetch.restore();
   }
