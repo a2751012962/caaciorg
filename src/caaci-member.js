@@ -1280,7 +1280,7 @@ function securityCard(host, user) {
     emResend.hidden = false;
     cooldown(emResend, {
       action: 'email_change',
-      email: value,
+      email: user.email,
       seconds: EMAIL_COOLDOWN_S,
       label: emLabel,
     });
@@ -1288,9 +1288,16 @@ function securityCard(host, user) {
   emResend.addEventListener('click', () =>
     sendEmail(emResend, emNote, {
       action: 'email_change',
-      email: newEmail,
+      email: user.email,
       label: emLabel,
-      send: () => supa.auth.resend({ type: 'email_change', email: newEmail }),
+      // GoTrue looks the member up by the CURRENT address and re-mails the
+      // pending change; given the new address it finds no one and sends nothing.
+      send: () =>
+        supa.auth.resend({
+          type: 'email_change',
+          email: user.email,
+          options: { emailRedirectTo: location.origin + '/account/' },
+        }),
       sent: t(`Confirmation email sent to ${newEmail}.`, `确认邮件已发送至 ${newEmail}。`),
     }),
   );

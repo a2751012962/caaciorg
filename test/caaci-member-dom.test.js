@@ -935,6 +935,16 @@ test('account security: changing email confirms via the new address, with a rese
   t.mock.timers.tick(60000);
   resend.click();
   await tick();
-  assert.deepEqual(callsTo(stub, 'resend'), [[{ type: 'email_change', email: 'mei.lin@y.com' }]]);
+  // GoTrue finds the member by the CURRENT address and re-mails the pending
+  // change; asked about the new address it finds no one and sends nothing.
+  assert.deepEqual(callsTo(stub, 'resend'), [
+    [
+      {
+        type: 'email_change',
+        email: 'mei@x.com',
+        options: { emailRedirectTo: 'https://caaci.example/account/' },
+      },
+    ],
+  ]);
   assert.equal(resend.disabled, true);
 });
