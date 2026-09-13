@@ -77,6 +77,20 @@ test('each template carries the variable its flow depends on', async () => {
   assert.match(await read('email_change.html'), /\{\{\s*\.NewEmail\s*\}\}/);
 });
 
+test('the verification-code subject shows the code; every other subject is bilingual', async () => {
+  const subjects = JSON.parse(await read('subjects.json'));
+  // The code is readable straight from the inbox list, without opening the email.
+  assert.match(subjects.reauthentication, /\{\{\s*\.Token\s*\}\}/);
+  for (const type of TYPES.filter((t) => t !== 'reauthentication')) {
+    assert.match(subjects[type], /\p{Script=Han}/u, `subject for ${type} has no Chinese`);
+    assert.match(
+      subjects[type],
+      /[A-Za-z]{2,}.*[A-Za-z]{2,}/,
+      `subject for ${type} has no English`,
+    );
+  }
+});
+
 test('every image is served from Supabase Storage', async () => {
   for (const type of TYPES) {
     const html = await read(`${type}.html`);
