@@ -66,7 +66,13 @@ const openNews = async () => {
 
 test('Compose News: Send test email posts a test send with the extra addresses and says who got it', async () => {
   newsReply = (method, body) => {
-    if (method === 'GET') return { body: { test_only: false } };
+    if (method === 'GET')
+      return {
+        body: {
+          test_only: false,
+          test_recipients: { self: 'ada@x.com', admins: ['bo@x.com', 'cy@x.com'] },
+        },
+      };
     return body.test
       ? { body: { ok: true, test: true, sent: 2, recipients: ['ada@x.com', 'bo@x.com'] } }
       : { body: { ok: true, sent: 9, failed: 0, total: 9 } };
@@ -80,7 +86,19 @@ test('Compose News: Send test email posts a test send with the extra addresses a
     await openNews();
     assert.equal($('#caaci-news-test-only').hidden, true);
     assert.equal($('#caaci-news-send').disabled, false);
-    assert.ok($('label[for="caaci-news-test-to"]'), 'the field is labelled');
+    // The dropdown: you, ticked and fixed, then the other admin accounts to tick.
+    const boxes = () => [
+      ...document.querySelectorAll('#caaci-news-test-to input[type="checkbox"]'),
+    ];
+    assert.deepEqual(
+      boxes().map((b) => [b.value, b.checked, b.disabled]),
+      [
+        ['ada@x.com', true, true],
+        ['bo@x.com', false, false],
+        ['cy@x.com', false, false],
+      ],
+    );
+    assert.equal($('#caaci-news-test-to-btn').textContent, 'Just you');
 
     // Nothing to send yet.
     $('#caaci-news-test-btn').click();
@@ -88,10 +106,14 @@ test('Compose News: Send test email posts a test send with the extra addresses a
     assert.equal(posts().length, 0);
     assert.match(notb().textContent, /Subject and message are required/);
 
-    // No confirmation box needed; extra addresses split on commas and spaces.
+    // No confirmation box needed; the ticked admins are added to the test.
     $('#caaci-news-subject').value = 'Hello';
     $('#caaci-news-body').value = '<p>Hi</p>';
-    $('#caaci-news-test-to').value = 'bo@x.com, ,  cy@x.com';
+    for (const b of boxes().slice(1)) {
+      b.checked = true;
+      b.dispatchEvent(new window.Event('change', { bubbles: true }));
+    }
+    assert.equal($('#caaci-news-test-to-btn').textContent, 'You + 2 admin(s)');
     $('#caaci-news-test-btn').click();
     await tick();
     assert.equal(posts().length, 1);
@@ -134,7 +156,7 @@ test('Compose News: Send test email posts a test send with the extra addresses a
     $('#caaci-lang').click();
     await tick();
     assert.equal($('#caaci-news-test-btn').textContent.trim(), '发送测试邮件');
-    assert.equal($('label[for="caaci-news-test-to"]').textContent.trim(), '测试收件人（可选）');
+    assert.equal($('#caaci-news-test-to-label').textContent.trim(), '测试收件人');
   } finally {
     fetch.restore();
   }
@@ -166,6 +188,10 @@ test('Compose News in a test-only environment shows the banner and turns the rea
 function fakeJodit() {
   const made = [];
   const Jodit = {
+    defaultOptions: {
+      iframeStyle:
+        'body{margin:0}table{width:100%;border:none}th,td{padding: 2px 5px;border:1px solid #ccc}p{margin-top:0}',
+    },
     atom: (value) => ({ atom: value }),
     make: (selector, options) => {
       const editor = { selector, options, value: '' };
@@ -198,6 +224,8 @@ test('Compose News makes the Jodit editor once the tab opens: sandboxed frame, p
     assert.equal(o.askBeforePasteHTML, false);
     assert.equal(o.defaultActionOnPaste, 'insert_as_html');
     assert.equal(o.toolbarAdaptive, false, 'every button stays on the toolbar');
+    // Jodit's frame style minus its table rules, which stretched a template's button.
+    assert.equal(o.iframeStyle, 'body{margin:0}p{margin-top:0}');
     for (const b of [
       'undo',
       'redo',

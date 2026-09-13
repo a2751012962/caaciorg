@@ -140,8 +140,10 @@ test('news: NEWS_TEST_ONLY refuses a real send before anything is read, test sen
 
     const get = async (env) =>
       (await onRequestGet({ request: request(), env: fakeEnv({ ...ENV, ...env }) })).json();
-    assert.deepEqual(await get({ NEWS_TEST_ONLY: '1' }), { test_only: true });
-    assert.deepEqual(await get({}), { test_only: false });
+    // The dropdown's list: you, then the other admin accounts, lower-cased.
+    const test_recipients = { self: 'ada@x.com', admins: ['bo@x.com'] };
+    assert.deepEqual(await get({ NEWS_TEST_ONLY: '1' }), { test_only: true, test_recipients });
+    assert.deepEqual(await get({}), { test_only: false, test_recipients });
   } finally {
     fetch.restore();
   }
@@ -171,6 +173,22 @@ test('news GET needs an admin', async () => {
       env: fakeEnv(ENV),
     });
     assert.equal(r.status, 401);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('news GET: an admin list that fails to load still answers, with just you', async () => {
+  const fetch = mockFetch((u, o) =>
+    u.includes('is_admin=eq.true') ? { status: 503, body: 'down' } : route(u, o),
+  );
+  try {
+    const r = await onRequestGet({ request: request(), env: fakeEnv(ENV) });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), {
+      test_only: false,
+      test_recipients: { self: 'ada@x.com', admins: null },
+    });
   } finally {
     fetch.restore();
   }

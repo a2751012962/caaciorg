@@ -1085,6 +1085,13 @@ function initNewsEditor() {
     askBeforePasteFromWord: false,
     defaultActionOnPaste: 'insert_as_html',
     hidePoweredByJodit: true,
+    // Jodit's default frame style stretches every table to the full width and
+    // draws cell borders, so a template's button showed as a wide, boxed bar the
+    // email does not have. Keep the rest of that style.
+    iframeStyle: String(Jodit.defaultOptions?.iframeStyle || '').replace(
+      /table\{[^}]*\}th,td\{[^}]*\}/,
+      '',
+    ),
     controls: { font: { list: Jodit.atom(NEWS_FONTS) } },
     uploader: {
       url: '/api/admin/media',
@@ -1106,6 +1113,35 @@ function initNewsEditor() {
   });
 }
 
+// Who a test email goes to, as ticks in a dropdown: you, always (ticked and
+// fixed), and whichever other admin accounts are ticked. The API still refuses
+// any address that is not an admin account.
+const newsTestPicked = () =>
+  [...$$('#caaci-news-test-to input:checked:not([data-self])')].map((box) => box.value);
+
+function updateNewsTestLabel() {
+  const n = newsTestPicked().length;
+  $('#caaci-news-test-to-btn').textContent = n
+    ? t(`You + ${n} admin(s)`, `你自己 + ${n} 位管理员`)
+    : t('Just you', '只发给你自己');
+}
+
+function renderNewsTestRecipients(list) {
+  const picked = new Set(newsTestPicked());
+  const option = (email, { checked = false, self = false } = {}) =>
+    `<label class="dropdown-item gap-2"><input type="checkbox" class="form-check-input m-0" value="${esc(email)}"${checked ? ' checked' : ''}${self ? ' disabled data-self' : ''} />${esc(email)}${self ? ` <span class="text-secondary">${esc(t('(you)', '（你自己）'))}</span>` : ''}</label>`;
+  const admins = list?.admins;
+  const note = admins
+    ? t('No other admin accounts.', '没有其他管理员账号。')
+    : t("Couldn't load the admin accounts.", '无法加载管理员账号。');
+  $('#caaci-news-test-to').innerHTML = [
+    list?.self ? option(list.self, { checked: true, self: true }) : '',
+    ...(admins || []).map((email) => option(email, { checked: picked.has(email) })),
+    admins?.length ? '' : `<div class="dropdown-item-text text-secondary small">${esc(note)}</div>`,
+  ].join('');
+  updateNewsTestLabel();
+}
+
 // Whether this environment refuses real sends (NEWS_TEST_ONLY): shows the banner
 // and turns the real send button off. The API refuses them either way.
 async function loadNewsMode() {
@@ -1113,6 +1149,7 @@ async function loadNewsMode() {
   const testOnly = ok && data.test_only === true;
   $('#caaci-news-test-only').hidden = !testOnly;
   $('#caaci-news-send').disabled = testOnly;
+  renderNewsTestRecipients(ok ? data.test_recipients : null);
 }
 
 // A test email: to the signed-in admin, plus the extra addresses typed in, which
@@ -1124,9 +1161,7 @@ async function sendNewsTest() {
     subject: $('#caaci-news-subject').value.trim(),
     body_html: newsHtml().trim(),
     test: true,
-    test_to: $('#caaci-news-test-to')
-      .value.split(/[\s,;]+/)
-      .filter(Boolean),
+    test_to: newsTestPicked(),
   };
   if (!body.subject || !body.body_html)
     return notice(notb, t('Subject and message are required.', '主题和正文为必填项。'), false);
@@ -1163,6 +1198,7 @@ function wireNews() {
   });
   $('#caaci-news-event').addEventListener('change', applyNewsTemplate);
   $('#caaci-news-test-btn').addEventListener('click', sendNewsTest);
+  $('#caaci-news-test-to').addEventListener('change', updateNewsTestLabel);
   $('#caaci-news-send').addEventListener('click', async () => {
     const notb = $('#caaci-news-notice');
     const btn = $('#caaci-news-send');

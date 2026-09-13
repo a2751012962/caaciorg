@@ -860,26 +860,39 @@
                     <textarea id="caaci-news-body" class="form-control" rows="14"></textarea>
                   </div>
                   <div class="mb-3">
-                    <label
+                    <span
                       class="form-label"
-                      for="caaci-news-test-to"
-                      data-en="Test recipients (optional)"
-                      data-zh="测试收件人（可选）"
-                      >Test recipients (optional)</label
+                      id="caaci-news-test-to-label"
+                      data-en="Test recipients"
+                      data-zh="测试收件人"
+                      >Test recipients</span
                     >
-                    <input
-                      type="text"
-                      id="caaci-news-test-to"
-                      class="form-control"
-                      placeholder="admin@example.com, …"
-                    />
+                    <!-- caaci-admin.js fills the menu with ticks: you (fixed) and the other
+                         admin accounts. -->
+                    <div class="dropdown">
+                      <button
+                        type="button"
+                        class="form-select text-start"
+                        id="caaci-news-test-to-btn"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-expanded="false"
+                        aria-labelledby="caaci-news-test-to-label caaci-news-test-to-btn"
+                      >
+                        Just you
+                      </button>
+                      <div
+                        class="dropdown-menu w-100"
+                        id="caaci-news-test-to"
+                        aria-labelledby="caaci-news-test-to-label"
+                      ></div>
+                    </div>
                     <div
                       class="form-hint"
-                      data-en="A test email always goes to you, plus these addresses (comma-separated). Only admin accounts are allowed."
-                      data-zh="测试邮件总会发给你自己，另外可填这些邮箱（逗号分隔），只允许管理员账号。"
+                      data-en="A test email always goes to you. Tick other admin accounts to add them."
+                      data-zh="测试邮件总会发给你自己；可以再勾选其他管理员账号。"
                     >
-                      A test email always goes to you, plus these addresses (comma-separated). Only
-                      admin accounts are allowed.
+                      A test email always goes to you. Tick other admin accounts to add them.
                     </div>
                   </div>
                   <label class="form-check">

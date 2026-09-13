@@ -1,6 +1,9 @@
 // /api/admin/news  (admin only)
-//   GET  — { test_only }: whether this environment refuses real sends, so
-//          Compose News can say so before anyone tries.
+//   GET  — { test_only, test_recipients: { self, admins } }: whether this
+//          environment refuses real sends, and who a test email can go to (the
+//          signed-in admin always, plus the other admin accounts), so Compose
+//          News can say so and offer them in a dropdown. Admins already see every
+//          member's email; admins is null when that list could not be read.
 //   POST { subject, body_html, audience, confirm } — the real send.
 //          Compose-and-send a news email to the membership. Recipient emails are
 //          fetched server-side (service role) and NEVER returned to the browser;
@@ -29,7 +32,20 @@ const testOnly = (env) => env.NEWS_TEST_ONLY === '1' || env.NEWS_TEST_ONLY === '
 export async function onRequestGet({ request, env }) {
   const gate = await requireAdmin(request, env);
   if (gate.error) return gate.error;
-  return json({ test_only: testOnly(env) });
+  const self = normEmail(gate.member.email);
+  let admins; // a list that fails to load leaves just you, not a failed tab
+  try {
+    const { rows } = await sb(env).select('members', {
+      columns: 'email',
+      filters: ['is_admin=eq.true', 'email=not.is.null'],
+      order: 'email.asc',
+      limit: 1000,
+    });
+    admins = [...new Set(rows.map((r) => normEmail(r.email)).filter((e) => e && e !== self))];
+  } catch {
+    admins = null;
+  }
+  return json({ test_only: testOnly(env), test_recipients: { self, admins } });
 }
 
 export async function onRequestPost({ request, env }) {
