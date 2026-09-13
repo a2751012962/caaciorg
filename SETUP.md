@@ -317,6 +317,48 @@ Like the member pages it is a standalone bilingual Tabler page
 - Another event: copy the page, change `data-event` and the fallback text, and
   add its route to the member-page loop in `build.mjs`.
 
+## Family invitations (`/api/family`)
+
+A member on the family plan (`members.tier_id = 'family'`) is the family's
+**founder**. From `/account/` they invite people by email, add name-only people
+(e.g. young children, no account) and manage the family; everyone else in it can
+leave. Joined members get the family plan's benefits while the founder's plan is
+active (families an admin made by hand, with no founder, keep using the
+`households` row's plan).
+
+- **3 people at most, founder included.** Linked accounts, name-only people and
+  pending, unexpired invitations all count. The cap is enforced in Postgres by the
+  `family_*` functions in `0017`, which lock the household row before counting, so
+  two invitations sent at once cannot both take the last seat. The founder cannot
+  remove the last other person; they dissolve the family instead (accounts are
+  unlinked, name-only people deleted, pending invitations cancelled, the history
+  in `household_events` kept).
+- **Invitations** last 14 days, can only be sent while the founder's plan is
+  `active`, and are accepted by signing in with the invited address. They are
+  Supabase Auth emails through the project's SMTP: a new address gets the Invite
+  template, an existing confirmed login the Magic Link template, an existing
+  unconfirmed login the Invite template again. The link lands on
+  `/account/?family_invite=<id>`, so `/account/` must be allowed by the Site URL
+  or the redirect allow list. The templates show "_founder login email_ invited
+  you" from `user_metadata.family_invite_from`, which `/api/family` sets just
+  before the send and clears right after it, and again on accept, decline, cancel
+  or expiry; outside that one `{{ if }}` block both templates read as before.
+- **Founder emails** (someone joined or left) and the removed member's email go
+  through Resend (`RESEND_API_KEY` + `NOTIFY_FROM`). Without them the action still
+  succeeds and answers `notified: false`. They carry fixed bilingual copy and login
+  email addresses only, never a typed name.
+- **Deploy order:**
+  1. Paste `0017_family_invites.sql` into the Supabase SQL editor **before**
+     deploying this code; `/api/family` fails with a 502 until its tables and
+     functions exist.
+  2. Push the templates: `npm run auth:emails` (dry run), then
+     `npm run auth:emails -- --apply`. Do it right before or after the deploy:
+     `test/auth-config.test.js` compares the repo templates with the live project
+     exactly, so the two must not drift apart.
+  3. For founder emails, set the `RESEND_API_KEY` and `NOTIFY_FROM` secrets in
+     Cloudflare Pages.
+  4. Deploy.
+
 ## Admin / back-office panel (`/admin/`)
 
 A staff panel lives at **`/admin/`**. Its UI is built on **Tabler** (`@tabler/core`
