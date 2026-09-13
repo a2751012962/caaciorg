@@ -9,7 +9,12 @@
 // accounts, name-only people and pending unexpired invitations (an invitation
 // for a name-only person rides on that person's seat). The cap is enforced by
 // the family_* SQL functions (0017), which lock the household row before
-// counting; this file never counts and then inserts on its own.
+// counting; this file never counts and then inserts on its own. Removing a
+// person and leaving go through locked functions too, so the last-person rule
+// cannot be raced.
+//
+// The founder may change the family only while their own plan is the family
+// tier, active and unexpired.
 //
 // Invitations go out as Supabase Auth emails only: a GoTrue invite for a new
 // address, a magic link for an existing confirmed login, and a re-sent invite
@@ -23,6 +28,9 @@
 // carry fixed bilingual copy plus login email addresses only — never a family
 // name or a typed full name, which could carry phishing text. Typed names do
 // appear in the on-site history (events[].subject_name), never in an email.
+//
+// No members<->households embed is used here: after 0017 there are two foreign
+// key paths between them, and an unhinted embed fails (PGRST201).
 import { json, bad, sb, authAdmin, requireUser, sendEmailBatch } from './_lib.js';
 
 export const FAMILY_LIMIT = 3;
@@ -37,7 +45,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@<>"'()\\,;:]+@[^\s@<>"'()\\,;:]+\.[^\s@<>"'()\\,;:]+$/;
 
 const FOUNDER_ONLY = 'Only the member who holds the family plan can do this.';
-const PLAN_INACTIVE = 'The family plan is not active, so invitations cannot be sent right now.';
+const PLAN_INACTIVE = 'Your family plan is not active, so the family cannot be changed right now.';
 const PLAN_INACTIVE_ACCEPT = "This family's plan is not active, so it cannot take new members.";
 const RATE_LIMITED =
   'An email was sent to this address very recently. Please wait a minute and try again.';
@@ -63,6 +71,9 @@ const REFUSALS = {
   not_found: ['Invitation not found.', 404],
   no_member: ['Member not found.', 404],
   person_not_found: [PERSON_NOT_FOUND, 404],
+  last_person: [LAST_PERSON, 409],
+  is_founder: ["You can't remove yourself. Dissolve the family instead.", 409],
+  not_member: ['You are not in a family.', 409],
 };
 const refusal = (reason) => {
   const [msg, status] = REFUSALS[reason] || ['That could not be done right now.', 502];
@@ -79,6 +90,8 @@ const isExpired = (inv) =>
 const isLive = (inv) => inv.status === 'pending' && !isExpired(inv);
 const planActive = (p) =>
   !!p && p.status === 'active' && (!p.expires_at || new Date(p.expires_at).getTime() > Date.now());
+// A founder's plan: the family tier, active and unexpired.
+const familyPlanActive = (p) => !!p && p.tier_id === 'family' && planActive(p);
 const escapeHtml = (s) =>
   String(s).replace(
     /[&<>"']/g,
@@ -307,8 +320,7 @@ export async function onRequestGet({ request, env }) {
     const ctx = await load(env, gate.user);
     // A family-plan member with no family yet: /account/ offers to start one,
     // and they would take the first seat themselves.
-    const canStart =
-      ctx.role === 'none' && ctx.member?.tier_id === 'family' && planActive(ctx.member);
+    const canStart = ctx.role === 'none' && familyPlanActive(ctx.member);
     const out = {
       role: ctx.role,
       can_start_family: canStart,
@@ -398,12 +410,21 @@ export async function onRequestPost({ request, env }) {
 
 const notFounder = (ctx) => (ctx.role === 'founder' ? null : bad(FOUNDER_ONLY, 403));
 
+// Who may change a family: its founder, or a family-plan member about to start
+// one, and only while that member's own plan is the family tier and active.
+function founderGate(ctx) {
+  if (ctx.role === 'member') return bad(FOUNDER_ONLY, 403);
+  if (ctx.role === 'none' && ctx.member.tier_id !== 'family')
+    return bad('Only a member on the family plan can start a family.', 403);
+  if (!familyPlanActive(ctx.member)) return bad(PLAN_INACTIVE, 403);
+  return null;
+}
+
 // The founder's household, creating it for a family-plan member who has none yet.
 async function founderHousehold(ctx) {
+  const denied = founderGate(ctx);
+  if (denied) return { error: denied };
   if (ctx.role === 'founder') return { id: ctx.household.id };
-  if (ctx.role === 'member') return { error: bad(FOUNDER_ONLY, 403) };
-  if (ctx.member.tier_id !== 'family')
-    return { error: bad('Only a member on the family plan can start a family.', 403) };
   const res = await ctx.DB.rpc('family_create_household', {
     p_founder: ctx.member.id,
     p_name: `${ctx.email}'s family`,
@@ -463,6 +484,15 @@ async function deliver(ctx, inv, user) {
     }
   } catch {
     res = { ok: false, status: 502, code: '', message: '' };
+    // The request can fail after GoTrue already created the user with the flag
+    // in its metadata; find that user so the flag is cleared below.
+    if (!flagged) {
+      try {
+        flagged = (await A.findUserByEmail(inv.email))?.id || null;
+      } catch {
+        // ignore
+      }
+    }
   } finally {
     // GoTrue renders the email from user_metadata before it answers, so clear
     // the flag now: later ordinary sign-in emails must not carry the family line.
@@ -480,28 +510,6 @@ async function deliver(ctx, inv, user) {
   return { error: bad(EMAIL_FAILED, 502) };
 }
 
-// Cancel the pending invitations riding on a name-only person who is being removed.
-async function cancelPersonInvites(ctx, personId) {
-  const { rows } = await ctx.DB.select('household_invites', {
-    columns: 'id,email,member_id',
-    filters: [`person_id=eq.${personId}`, 'status=eq.pending'],
-    limit: 10,
-  });
-  if (!rows.length) return;
-  await ctx.DB.update(
-    'household_invites',
-    { person_id: personId, status: 'pending' },
-    { status: 'cancelled', responded_at: iso() },
-  );
-  for (const inv of rows) {
-    await clearInviteFlag(ctx.env, inv.member_id);
-    await logEvent(ctx, ctx.household.id, 'invite_cancelled', {
-      subjectMember: inv.member_id || null,
-      subjectEmail: inv.email,
-    });
-  }
-}
-
 const ACTIONS = {
   async invite(ctx, b) {
     const email = lower(b.email);
@@ -510,10 +518,8 @@ const ACTIONS = {
     if (fields.error) return fields.error;
     const personId = b.person_id == null || b.person_id === '' ? null : String(b.person_id);
     if (personId && !UUID.test(personId)) return bad('person_id must be a person in your family.');
-    if (ctx.role === 'member') return bad(FOUNDER_ONLY, 403);
-    if (ctx.role === 'none' && ctx.member.tier_id !== 'family')
-      return bad('Only a member on the family plan can invite people.', 403);
-    if (!planActive(ctx.member)) return bad(PLAN_INACTIVE, 403);
+    const denied = founderGate(ctx);
+    if (denied) return denied;
     if (email === ctx.email) return bad("You can't invite your own email address.");
 
     // Giving a name-only person a login: they must be one in this family.
@@ -601,7 +607,7 @@ const ACTIONS = {
       await expireInvite(ctx, inv);
       return bad(EXPIRED, 409);
     }
-    if (!planActive(ctx.member)) return bad(PLAN_INACTIVE, 403);
+    if (!familyPlanActive(ctx.member)) return bad(PLAN_INACTIVE, 403);
     const user = await authAdmin(ctx.env).findUserByEmail(inv.email);
     const sent = await deliver(ctx, inv, user);
     if (sent.error) return sent.error;
@@ -627,10 +633,13 @@ const ACTIONS = {
     }
     const H = await ctx.DB.selectOne('households', { id: inv.household_id }, HOUSEHOLD_COLS);
     if (!H || H.status === 'cancelled') return refusal('no_household');
-    const founder = H.founder_member_id
-      ? await ctx.DB.selectOne('members', { id: H.founder_member_id }, MEMBER_COLS)
-      : null;
-    if (!planActive(H.founder_member_id ? founder : H)) return bad(PLAN_INACTIVE_ACCEPT, 403);
+    // A founder's plan must still be the family tier; a legacy family's is its own row.
+    const planOk = H.founder_member_id
+      ? familyPlanActive(
+          await ctx.DB.selectOne('members', { id: H.founder_member_id }, MEMBER_COLS),
+        )
+      : planActive(H);
+    if (!planOk) return bad(PLAN_INACTIVE_ACCEPT, 403);
     if (ctx.member.household_id)
       return bad('You are already in a family. Leave it before accepting another.', 409);
 
@@ -700,36 +709,33 @@ const ACTIONS = {
     });
   },
 
+  // The last-person rule (linked accounts + name-only people, never pending
+  // invitations) is checked and applied by family_remove_person under the
+  // household lock; this only logs and tells people afterwards.
   async remove_person(ctx, b) {
     const denied = notFounder(ctx);
     if (denied) return denied;
     const pid = String(b.person_id || '');
     if (!UUID.test(pid)) return bad('person_id is required.');
     const H = ctx.household;
-    const { linked, hm } = await householdRows(ctx, H);
-    const people = buildPeople(H, linked, hm);
-    const target = people.find((p) => p.id === pid) || people.find((p) => p.member_id === pid);
-    if (!target) return bad('Person not found in your family.', 404);
-    if (target.is_founder)
-      return bad("You can't remove yourself. Dissolve the family instead.", 409);
-    // The last-person rule counts linked accounts and name-only people only;
-    // pending invitations are not people yet.
-    const counts = (p) => !p.is_founder && (p.kind === 'name_only' || p.linked);
-    if (counts(target) && people.filter(counts).length <= 1) return bad(LAST_PERSON, 409);
+    const res = await ctx.DB.rpc('family_remove_person', { p_household: H.id, p_person: pid });
+    if (!res?.ok) return refusal(res?.reason);
 
-    if (target.kind === 'name_only') {
-      await cancelPersonInvites(ctx, target.id);
-      await ctx.DB.del('household_members', { id: target.id, household_id: H.id });
-      await logEvent(ctx, H.id, 'person_removed', { subjectName: target.full_name });
+    if (res.kind === 'name_only') {
+      for (const inv of res.cancelled || []) {
+        await clearInviteFlag(ctx.env, inv.member_id);
+        await logEvent(ctx, H.id, 'invite_cancelled', {
+          subjectMember: inv.member_id || null,
+          subjectEmail: inv.email,
+        });
+      }
+      await logEvent(ctx, H.id, 'person_removed', { subjectName: res.full_name ?? null });
       return json({ ok: true });
     }
-    const mid = target.member_id;
-    if (target.linked)
-      await ctx.DB.update('members', { id: mid, household_id: H.id }, { household_id: null });
-    await ctx.DB.del('household_members', { member_id: mid, household_id: H.id });
+    const mid = res.member_id;
     const removedEmail = await loginEmail(ctx.env, mid);
     await logEvent(ctx, H.id, 'member_removed', { subjectMember: mid, subjectEmail: removedEmail });
-    const notified = target.linked
+    const notified = res.linked
       ? await notify(ctx.env, ctx.origin, removedEmail, 'removed', ctx.email)
       : false;
     return json({ ok: true, notified });
@@ -740,12 +746,8 @@ const ACTIONS = {
     if (ctx.role === 'founder')
       return bad('You hold the family plan. Dissolve the family instead of leaving it.', 403);
     const H = ctx.household;
-    await ctx.DB.update(
-      'members',
-      { id: ctx.member.id, household_id: H.id },
-      { household_id: null },
-    );
-    await ctx.DB.del('household_members', { member_id: ctx.member.id, household_id: H.id });
+    const res = await ctx.DB.rpc('family_leave', { p_household: H.id, p_member: ctx.member.id });
+    if (!res?.ok) return refusal(res?.reason);
     await logEvent(ctx, H.id, 'left', { subjectMember: ctx.member.id, subjectEmail: ctx.email });
     const founderEmail = await loginEmail(ctx.env, H.founder_member_id);
     const notified = await notify(ctx.env, ctx.origin, founderEmail, 'left', ctx.email);

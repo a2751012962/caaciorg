@@ -174,6 +174,56 @@ const RPC = {
     });
     return { ok: true, invite: { ...row } };
   },
+  family_remove_person(s, a) {
+    const h = s.households.find((x) => x.id === a.p_household && x.status !== 'cancelled');
+    if (!h) return { ok: false, reason: 'no_household' };
+    const row = s.household_members.find((p) => p.id === a.p_person && p.household_id === h.id);
+    let mid = row ? row.member_id : null;
+    if (!row) {
+      const m = s.members.find((x) => x.id === a.p_person && x.household_id === h.id);
+      if (!m) return { ok: false, reason: 'person_not_found' };
+      mid = m.id;
+    }
+    if (mid && mid === h.founder_member_id) return { ok: false, reason: 'is_founder' };
+    const linked = !!mid && s.members.some((x) => x.id === mid && x.household_id === h.id);
+    const others =
+      s.members.filter((x) => x.household_id === h.id && x.id !== h.founder_member_id).length +
+      s.household_members.filter((p) => p.household_id === h.id && !p.member_id).length;
+    if ((!mid || linked) && others <= 1) return { ok: false, reason: 'last_person' };
+    if (!mid) {
+      const cancelled = s.household_invites.filter(
+        (i) => i.person_id === row.id && i.status === 'pending',
+      );
+      for (const i of cancelled) Object.assign(i, { status: 'cancelled', responded_at: 'now' });
+      deletePeople(s, [row]);
+      return {
+        ok: true,
+        kind: 'name_only',
+        full_name: row.full_name,
+        cancelled: cancelled.map(({ id, email, member_id }) => ({ id, email, member_id })),
+      };
+    }
+    const m = s.members.find((x) => x.id === mid && x.household_id === h.id);
+    if (m) m.household_id = null;
+    deletePeople(
+      s,
+      s.household_members.filter((p) => p.member_id === mid && p.household_id === h.id),
+    );
+    return { ok: true, kind: 'account', member_id: mid, linked };
+  },
+  family_leave(s, a) {
+    const h = s.households.find((x) => x.id === a.p_household && x.status !== 'cancelled');
+    if (!h) return { ok: false, reason: 'no_household' };
+    const m = s.members.find((x) => x.id === a.p_member && x.household_id === h.id);
+    if (!m) return { ok: false, reason: 'not_member' };
+    if (m.id === h.founder_member_id) return { ok: false, reason: 'is_founder' };
+    m.household_id = null;
+    deletePeople(
+      s,
+      s.household_members.filter((p) => p.member_id === m.id && p.household_id === h.id),
+    );
+    return { ok: true };
+  },
   family_add_person(s, a) {
     const h = s.households.find((x) => x.id === a.p_household && x.status !== 'cancelled');
     if (!h) return { ok: false, reason: 'no_household' };
@@ -280,6 +330,7 @@ function backend(s) {
       s.log.push(call);
       const user = s.auth.find((x) => x.email === body.email);
       call.metadata = user ? { ...user.user_metadata } : { ...body.data };
+      if (typeof s.responses[kind] === 'function') return s.responses[kind](s, body);
       if (s.responses[kind]) return s.responses[kind];
       if (kind === 'invite' && !user) {
         const created = { id: uid(++s.seq), email: body.email, user_metadata: { ...body.data } };
@@ -310,10 +361,12 @@ function backend(s) {
       return { body: rows };
     }
     if (method === 'PATCH') {
+      s.log.push({ kind: 'write', method, table });
       for (const r of hit) Object.assign(r, body);
       return { body: '' };
     }
     if (method === 'DELETE') {
+      s.log.push({ kind: 'write', method, table });
       if (table === 'household_members') deletePeople(s, hit);
       else s[table] = s[table].filter((r) => !hit.includes(r));
       return { body: '' };
@@ -1252,6 +1305,129 @@ test('authAdmin.findUserByEmail matches the whole login email, not the LIKE filt
   } finally {
     fetch.restore();
   }
+});
+
+test('authAdmin.findUserByEmail pages past a full page of substring hits, but not forever', async () => {
+  const noise = Array.from({ length: 50 }, (_, i) => ({ id: `n${i}`, email: `${i}xann@x.com` }));
+  const fetch = mockFetch((url) => {
+    const page = Number(new URL(url).searchParams.get('page') || 1);
+    if (page === 1) return { body: { users: noise } };
+    if (page === 2) return { body: { users: [{ id: 'hit', email: 'Ann@x.com' }] } };
+    return { body: { users: [] } };
+  });
+  try {
+    const found = await authAdmin(fakeEnv()).findUserByEmail('ann@x.com');
+    assert.equal(found?.id, 'hit');
+    assert.deepEqual(
+      fetch.calls.map((c) => new URL(c.url).searchParams.get('page')),
+      ['1', '2'],
+    );
+  } finally {
+    fetch.restore();
+  }
+  const endless = mockFetch(() => ({ body: { users: noise } }));
+  try {
+    assert.equal(await authAdmin(fakeEnv()).findUserByEmail('ann@x.com'), null);
+    assert.equal(endless.calls.length, 20);
+  } finally {
+    endless.restore();
+  }
+});
+
+// ---------------------------------------------------------------- review fixes
+
+test('add_person: refused while the family plan is inactive or no longer the family tier', async () => {
+  for (const patch of [{ status: 'expired' }, { expires_at: PAST }, { tier_id: 'individual' }]) {
+    const s = world();
+    Object.assign(
+      s.members.find((m) => m.id === F),
+      patch,
+    );
+    const { status } = await call(s, { body: { action: 'add_person', full_name: 'Kid' } });
+    assert.equal(status, 403, JSON.stringify(patch));
+    assert.equal(ofKind(s, 'rpc').length, 0, JSON.stringify(patch));
+  }
+  // a family-tier member whose plan lapsed never starts a family
+  const s = as(world(), I);
+  Object.assign(
+    s.members.find((m) => m.id === I),
+    { tier_id: 'family', status: 'expired' },
+  );
+  const { status } = await call(s, { body: { action: 'add_person', full_name: 'Kid' } });
+  assert.equal(status, 403);
+  assert.equal(s.households.length, 1);
+  assert.equal(ofKind(s, 'rpc').length, 0);
+});
+
+test('a founder moved off the family tier cannot invite, resend, or have an invitation accepted', async () => {
+  const s = world();
+  const inv = invite(s, { member_id: I });
+  s.members.find((m) => m.id === F).tier_id = 'individual';
+  assert.equal((await call(s, { body: { action: 'invite', email: 'new@x.com' } })).status, 403);
+  assert.equal(
+    (await call(s, { body: { action: 'resend_invite', invite_id: inv.id } })).status,
+    403,
+  );
+  as(s, I);
+  assert.equal(
+    (await call(s, { body: { action: 'accept_invite', invite_id: inv.id } })).status,
+    403,
+  );
+  assert.equal(ofKind(s, 'rpc').length + ofKind(s, 'otp').length + ofKind(s, 'invite').length, 0);
+  assert.equal(s.members.find((m) => m.id === I).household_id, null);
+});
+
+test('invite: a failed invite request still clears the flag on a user GoTrue already created', async () => {
+  const s = world();
+  s.responses.invite = (world2, body) => {
+    world2.auth.push({ id: uid(++world2.seq), email: body.email, user_metadata: { ...body.data } });
+    throw new TypeError('network connection lost');
+  };
+  const { status } = await call(s, { body: { action: 'invite', email: 'new@x.com' } });
+  assert.equal(status, 502);
+  assert.equal(s.household_invites[0].status, 'cancelled');
+  const created = s.auth.find((u) => u.email === 'new@x.com');
+  assert.ok(created, 'the fixture created the user');
+  assert.deepEqual(created.user_metadata, {});
+});
+
+test('remove_person and leave change the family only through locked RPCs', async () => {
+  const s = world();
+  const [kid] = nameOnly(s);
+  const removed = await call(s, { body: { action: 'remove_person', person_id: kid.id } });
+  assert.equal(removed.status, 200, JSON.stringify(removed.body));
+  as(s, M);
+  const left = await call(s, { body: { action: 'leave' } });
+  assert.equal(left.status, 200, JSON.stringify(left.body));
+  assert.deepEqual(
+    ofKind(s, 'rpc').map((c) => c.fn),
+    ['family_remove_person', 'family_leave'],
+  );
+  const writes = ofKind(s, 'write').filter((w) =>
+    ['members', 'household_members'].includes(w.table),
+  );
+  assert.deepEqual(writes, []);
+});
+
+test('remove_person: two concurrent removals cannot leave the founder alone', async () => {
+  const { s, kids } = founderWithKids(2);
+  const fetch = mockFetch(backend(s));
+  try {
+    const remove = (person_id) =>
+      onRequestPost({
+        request: fakeRequest({
+          url: 'https://caaci.example/api/family',
+          headers: { authorization: 'Bearer tok' },
+          body: { action: 'remove_person', person_id },
+        }),
+        env: fakeEnv(),
+      }).then((r) => r.status);
+    const statuses = await Promise.all(kids.map((k) => remove(k.id)));
+    assert.deepEqual(statuses.sort(), [200, 409]);
+  } finally {
+    fetch.restore();
+  }
+  assert.equal(s.household_members.filter((p) => p.household_id === H && !p.member_id).length, 1);
 });
 
 test('authAdmin.updateUserMetadata PUTs only the given user_metadata keys', async () => {

@@ -220,7 +220,7 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'no_household');
   end if;
   select * into v_invite from public.household_invites where id = p_invite for update;
-  if lower(v_invite.email) <> lower(p_email) then
+  if p_email is null or lower(v_invite.email) is distinct from lower(p_email) then
     return jsonb_build_object('ok', false, 'reason', 'wrong_email');
   end if;
   if v_invite.status <> 'pending' then
@@ -261,6 +261,89 @@ begin
 end;
 $$;
 
+-- Remove one non-founder person. The last-person rule is checked here, under
+-- the household lock, so two removals at once cannot both pass it: the founder
+-- may not remove the last other person, counting linked accounts and name-only
+-- people (pending invitations are not people). p_person is a household_members
+-- id, or the member id of a linked account. A name-only person's pending
+-- invitations are cancelled and returned so the caller can log them.
+create or replace function public.family_remove_person(p_household uuid, p_person uuid)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_founder   uuid;
+  v_row       public.household_members;
+  v_member    uuid;
+  v_linked    boolean;
+  v_others    integer;
+  v_cancelled jsonb;
+begin
+  select founder_member_id into v_founder from public.households
+    where id = p_household and status <> 'cancelled' for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'no_household');
+  end if;
+  select * into v_row from public.household_members
+    where id = p_person and household_id = p_household for update;
+  if found then
+    v_member := v_row.member_id;
+  else
+    select id into v_member from public.members
+      where id = p_person and household_id = p_household for update;
+    if not found then
+      return jsonb_build_object('ok', false, 'reason', 'person_not_found');
+    end if;
+  end if;
+  if v_member is not null and v_member = v_founder then
+    return jsonb_build_object('ok', false, 'reason', 'is_founder');
+  end if;
+  v_linked := v_member is not null and exists (
+    select 1 from public.members where id = v_member and household_id = p_household);
+  v_others := (select count(*) from public.members where household_id = p_household and id is distinct from v_founder)
+            + (select count(*) from public.household_members where household_id = p_household and member_id is null);
+  if (v_member is null or v_linked) and v_others <= 1 then
+    return jsonb_build_object('ok', false, 'reason', 'last_person');
+  end if;
+  if v_member is null then
+    select coalesce(jsonb_agg(jsonb_build_object('id', id, 'email', email, 'member_id', member_id)), '[]'::jsonb)
+      into v_cancelled from public.household_invites
+      where person_id = v_row.id and status = 'pending';
+    update public.household_invites set status = 'cancelled', responded_at = now()
+      where person_id = v_row.id and status = 'pending';
+    delete from public.household_members where id = v_row.id;
+    return jsonb_build_object('ok', true, 'kind', 'name_only', 'full_name', v_row.full_name,
+                              'cancelled', v_cancelled);
+  end if;
+  update public.members set household_id = null where id = v_member and household_id = p_household;
+  delete from public.household_members where member_id = v_member and household_id = p_household;
+  return jsonb_build_object('ok', true, 'kind', 'account', 'member_id', v_member, 'linked', v_linked);
+end;
+$$;
+
+-- A joined member leaves. Under the same household lock as family_remove_person,
+-- so a concurrent removal rechecks the last-person rule after the leave.
+create or replace function public.family_leave(p_household uuid, p_member uuid)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_founder uuid;
+begin
+  select founder_member_id into v_founder from public.households
+    where id = p_household and status <> 'cancelled' for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'no_household');
+  end if;
+  perform 1 from public.members where id = p_member and household_id = p_household for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'not_member');
+  end if;
+  if p_member = v_founder then
+    return jsonb_build_object('ok', false, 'reason', 'is_founder');
+  end if;
+  update public.members set household_id = null where id = p_member and household_id = p_household;
+  delete from public.household_members where member_id = p_member and household_id = p_household;
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
 -- ---- server-only: only the service role (the Pages Functions) may call these ----
 revoke execute on function public.family_seats_used(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.family_create_household(uuid, text, text, text) from public, anon, authenticated;
@@ -272,3 +355,7 @@ grant execute on function public.family_create_household(uuid, text, text, text)
 grant execute on function public.family_create_invite(uuid, text, text, text, uuid, uuid, uuid) to service_role;
 grant execute on function public.family_add_person(uuid, text, text) to service_role;
 grant execute on function public.family_accept_invite(uuid, uuid, text, text) to service_role;
+revoke execute on function public.family_remove_person(uuid, uuid) from public, anon, authenticated;
+revoke execute on function public.family_leave(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.family_remove_person(uuid, uuid) to service_role;
+grant execute on function public.family_leave(uuid, uuid) to service_role;
