@@ -1,8 +1,10 @@
-// Boots the real /mid_autumn_festival_form/ page (member-src/mid-autumn-form.html)
-// with src/caaci-member.js in jsdom and /api/event-register stubbed. Pins what
-// the page sends (the POST body, a bearer token only when signed in) and what
-// each answer does to it: the event details, the mooncake callout and step,
-// and the success state.
+// Boots the real registration page (member-src/event-register.html) with
+// src/caaci-member.js in jsdom and /api/event-register stubbed. Pins where the
+// page takes its event from, what it sends (the POST body with the answers in
+// the API's shape, a bearer token only when signed in), how it draws each kind
+// of question, and what each API answer does to it: loading, not open, could
+// not load, closed, the event details, the free-gift callout and step, and the
+// success state.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -11,22 +13,29 @@ import { mockFetch } from './helpers.js';
 
 globalThis.window = { __CAACI_TEST__: true }; // block auto-boot at import
 const member = await import('../src/caaci-member.js');
-const PAGE = await readFile(new URL('../member-src/mid-autumn-form.html', import.meta.url), 'utf8');
+const SOURCE = await readFile(
+  new URL('../member-src/event-register.html', import.meta.url),
+  'utf8',
+);
 
-const PATH = '/mid_autumn_festival_form/';
+const FESTIVAL_PATH = '/mid_autumn_festival_form/';
 const tick = () => new Promise((r) => setTimeout(r, 15));
 const q = (s) => document.querySelector(s);
 
-function setup() {
-  const dom = new JSDOM(PAGE, { url: `https://caaci.example${PATH}` });
+// `event` does what build.mjs does for the festival's printed QR route: the
+// same page with data-event on <body> (test/build-routes.test.js checks the
+// real build). Pass event: null for the generic /event-register/ page.
+function setup({ path = FESTIVAL_PATH, search = '', event = 'mid-autumn-festival' } = {}) {
+  const html = event ? SOURCE.replace('<body ', `<body data-event="${event}" `) : SOURCE;
+  const dom = new JSDOM(html, { url: `https://caaci.example${path}${search}` });
   globalThis.document = dom.window.document;
   globalThis.Event = dom.window.Event;
   globalThis.localStorage = dom.window.localStorage;
   globalThis.sessionStorage = dom.window.sessionStorage;
   globalThis.location = {
-    pathname: PATH,
+    pathname: path,
     origin: 'https://caaci.example',
-    search: '',
+    search,
     hash: '',
     href: '',
   };
@@ -44,30 +53,128 @@ const USER = { id: 'u1', email: 'mei@x.com', created_at: '2026-01-01T00:00:00Z' 
 
 const FUTURE = '2099-09-27T19:00:00Z'; // a Sunday, 2:00 PM in Chicago (CDT)
 const PAST = '2020-09-27T19:00:00Z';
+const opt = (id, en, zh) => ({ id, label_en: en, label_zh: zh });
+
+// The festival's four questions, as the migration backfills them.
+const MID_AUTUMN_QUESTIONS = [
+  {
+    id: 'attending',
+    type: 'single',
+    label_en: 'Can you attend?',
+    label_zh: '您能参加吗？',
+    required: true,
+    options: [
+      opt('yes', "Yes, I'll be there", '能，我会参加'),
+      opt('no', "Sorry, can't make it", '抱歉，无法参加'),
+    ],
+  },
+  {
+    id: 'names',
+    type: 'textarea',
+    label_en: 'What are the names of people attending?',
+    label_zh: '参加者的姓名是？',
+    required: true,
+  },
+  {
+    id: 'heard_from',
+    type: 'single',
+    label_en: 'How did you hear about this event?',
+    label_zh: '您是从哪里得知本次活动的？',
+    required: false,
+    options: [
+      opt('website', 'Website', '网站'),
+      opt('friend', 'Friend', '朋友'),
+      opt('newsletter', 'Newsletter', '简报'),
+      opt('social', 'Social Media', '社交媒体'),
+    ],
+    other: true,
+  },
+  {
+    id: 'meal',
+    type: 'single',
+    label_en: 'Would you like to purchase a meal?',
+    label_zh: '您想购买餐食吗？',
+    required: false,
+    options: [opt('yes', 'Yes', '是'), opt('no', 'No', '否')],
+  },
+];
+const MOONCAKE = { item_en: 'mooncake', item_zh: '月饼', deadline: FUTURE };
 const EVENT = {
   slug: 'mid-autumn-festival',
   title: 'Mid-Autumn Festival 2099',
+  title_zh: '中秋节',
   description: 'Mooncakes under the harvest moon.',
   starts_at: FUTURE,
   ends_at: '2099-09-27T23:00:00Z',
   location: 'Siebel Center for Design',
-  perk_deadline: null,
-  deadline: FUTURE,
+  perk: MOONCAKE,
+  questions: MID_AUTUMN_QUESTIONS,
+  open: true,
 };
-const ANON_GET = () => ({ body: { event: EVENT, signed_in: false } });
+
+// Every question type, for an event with no free gift.
+const POTLUCK_QUESTIONS = [
+  {
+    id: 'dishes',
+    type: 'multi',
+    label_en: 'Which dishes will you bring?',
+    label_zh: '您会带哪些菜？',
+    required: true,
+    options: [
+      opt('dumplings', 'Dumplings', '饺子'),
+      opt('noodles', 'Noodles', '面条'),
+      opt('tea', 'Tea', '茶'),
+    ],
+    other: true,
+  },
+  {
+    id: 'size',
+    type: 'single',
+    label_en: 'T-shirt size',
+    label_zh: 'T恤尺码',
+    required: false,
+    options: [opt('s', 'Small', '小号'), opt('m', 'Medium', '中号')],
+    other: true,
+  },
+  { id: 'phone', type: 'text', label_en: 'Phone number', label_zh: '电话号码', required: true },
+  {
+    id: 'notes',
+    type: 'textarea',
+    label_en: 'Anything else?',
+    label_zh: '还有别的吗？',
+    required: false,
+  },
+];
+const POTLUCK = {
+  slug: 'spring-potluck',
+  title: 'Spring Potluck',
+  title_zh: null,
+  description: null,
+  starts_at: FUTURE,
+  ends_at: null,
+  location: null,
+  perk: null,
+  questions: POTLUCK_QUESTIONS,
+  open: true,
+};
+
+const anonGet =
+  (event = EVENT) =>
+  () => ({ body: { event, signed_in: false } });
+// No `linked`: a response from before that field counts as linked when signed in.
 const POST_OK = (extra = {}) => ({
   body: {
     ok: true,
     already: false,
     registered_at: '2026-09-13T20:04:05.123Z',
     signed_in: false,
-    deadline: FUTURE,
+    perk: MOONCAKE,
     ...extra,
   },
 });
 
 // Routes the page's two requests: GET ?event= and the POST.
-function stubApi({ get = ANON_GET, post = () => POST_OK() } = {}) {
+function stubApi({ get = anonGet(), post = () => POST_OK() } = {}) {
   return mockFetch((url, options) => {
     if (options.method === 'POST' && url === '/api/event-register') return post(url, options);
     if (url.startsWith('/api/event-register?')) return get(url, options);
@@ -75,7 +182,9 @@ function stubApi({ get = ANON_GET, post = () => POST_OK() } = {}) {
   });
 }
 const posts = (fetch) => fetch.calls.filter((c) => c.options.method === 'POST');
+const postedBody = (fetch, i = 0) => JSON.parse(posts(fetch)[i].options.body);
 
+// Fills in the festival's form. `heard` is an option id or 'other'.
 function fillForm({
   email = 'mei@x.com',
   attending = 'yes',
@@ -85,50 +194,73 @@ function fillForm({
   meal = 'yes',
 } = {}) {
   q('#caaci-ev-email').value = email;
-  if (attending) {
-    const radio = q(`#caaci-ev-attending-${attending}`);
-    radio.checked = true;
-    radio.dispatchEvent(new Event('change'));
-  }
-  q('#caaci-ev-names').value = names;
-  if (heard) q(`#caaci-ev-heard-${heard}`).checked = true;
-  q('#caaci-ev-heard-other-text').value = other;
-  if (meal) q(`#caaci-ev-meal-${meal}`).checked = true;
+  if (attending) q(`#caaci-ev-q-attending-o-${attending}`).checked = true;
+  q('#caaci-ev-q-names').value = names;
+  if (heard === 'other') q('#caaci-ev-q-heard_from-other').checked = true;
+  else if (heard) q(`#caaci-ev-q-heard_from-o-${heard}`).checked = true;
+  q('#caaci-ev-q-heard_from-other-text').value = other;
+  if (meal) q(`#caaci-ev-q-meal-o-${meal}`).checked = true;
 }
 const submit = async () => {
   q('#caaci-ev-form').dispatchEvent(new Event('submit'));
   await tick();
 };
 const shown = (sel) => q(sel).hidden === false;
+const typeInto = (sel, value) => {
+  q(sel).value = value;
+  q(sel).dispatchEvent(new Event('input', { bubbles: true }));
+};
 
-test('event form: an anonymous visitor registers, then is sent to signup with the email kept out of the URL', async () => {
+test('event form: an anonymous visitor registers for the festival, then is sent to signup with the email kept out of the URL', async () => {
   setup();
   member.__setSupa(supaWith(null));
   const fetch = stubApi();
   try {
-    await member.wireEventFormPage();
+    const wired = member.wireEventFormPage();
+    assert.ok(shown('#caaci-ev-loading'), 'loading until the API answers');
+    assert.equal(q('#caaci-ev-form-card').hidden, true);
+    await wired;
     const [get] = fetch.calls;
     assert.equal(get.url, '/api/event-register?event=mid-autumn-festival');
     assert.equal(get.options.headers?.authorization, undefined);
-    // The database title is English only, so the bilingual heading stays.
-    const title = q('#caaci-ev-title');
-    assert.equal(title.textContent.trim(), 'Mid-Autumn Festival 中秋节');
-    assert.equal(title.getAttribute('data-en'), 'Mid-Autumn Festival 中秋节');
-    assert.equal(title.getAttribute('data-zh'), '中秋节 Mid-Autumn Festival');
+    for (const sel of [
+      '#caaci-ev-loading',
+      '#caaci-ev-missing',
+      '#caaci-ev-error',
+      '#caaci-ev-closed',
+    ])
+      assert.equal(q(sel).hidden, true, sel);
+    assert.ok(shown('#caaci-ev-form-card'));
+
+    // In English the title is the English one, though the event has title_zh.
+    assert.equal(q('#caaci-ev-title').textContent, 'Mid-Autumn Festival 2099');
+    assert.equal(
+      document.title,
+      'Mid-Autumn Festival 2099 | Chinese American Association of Central Illinois',
+    );
     assert.match(
       q('#caaci-ev-when').textContent,
       /^Sunday, September 27, 2099 · 2:00\sPM – 6:00\sPM$/,
     );
     assert.equal(q('#caaci-ev-where').textContent, 'Siebel Center for Design');
+    assert.ok(shown('#caaci-ev-details'));
+    assert.equal(q('#caaci-ev-desc').textContent, 'Mooncakes under the harvest moon.');
     assert.ok(shown('#caaci-ev-desc'));
+    // The user-approved festival copy, word for word, built from the gift's
+    // name and its deadline (2:00 PM in Chicago).
     const perk = q('#caaci-ev-perk');
+    assert.ok(shown('#caaci-ev-perk'));
     assert.ok(perk.classList.contains('alert-warning'));
-    assert.match(perk.textContent, /Free mooncake/);
-    assert.match(
-      perk.textContent,
-      /September 27, 2:00 PM Central Time/,
-      'deadline in Chicago time',
+    assert.equal(q('#caaci-ev-perk-title').textContent, 'Free mooncake');
+    assert.equal(
+      q('#caaci-ev-perk-text').textContent,
+      'Register and create a free CAACI website account by September 27, 2:00 PM Central Time, and pick up a free mooncake at the festival.',
     );
+    assert.equal(
+      q('#caaci-ev-perk-note').textContent,
+      "You can register for the festival without an account — you just won't get a mooncake.",
+    );
+    assert.ok(shown('#caaci-ev-perk-note'));
 
     fillForm({ email: '  mei@x.com ' });
     await submit();
@@ -138,11 +270,12 @@ test('event form: an anonymous visitor registers, then is sent to signup with th
     assert.deepEqual(JSON.parse(post.options.body), {
       event: 'mid-autumn-festival',
       email: 'mei@x.com',
-      attending: 'yes',
-      names: 'Mei Lin, Ada Lin',
-      heard_from: 'other',
-      heard_from_other: 'Flyer at the library',
-      wants_meal: 'yes',
+      answers: {
+        attending: { option: 'yes' },
+        names: 'Mei Lin, Ada Lin',
+        heard_from: { other: 'Flyer at the library' },
+        meal: { option: 'yes' },
+      },
       _hp: '',
     });
 
@@ -157,7 +290,11 @@ test('event form: an anonymous visitor registers, then is sent to signup with th
     assert.equal(q('#caaci-ev-perk-counted').hidden, true);
     assert.equal(q('#caaci-ev-perk-closed').hidden, true);
     assert.ok(shown('#caaci-ev-perk-cta'));
-    assert.match(q('#caaci-ev-perk-cta').textContent, /September 27, 2:00 PM Central Time/);
+    assert.equal(
+      q('#caaci-ev-perk-cta-text').textContent,
+      'One more step for a free mooncake: create a free CAACI account with the email you registered with by September 27, 2:00 PM Central Time.',
+    );
+    assert.ok(shown('#caaci-ev-edit-row'));
     assert.equal(
       q('#caaci-ev-login').getAttribute('href'),
       '/login-3/?next=%2Fmid_autumn_festival_form%2F',
@@ -172,7 +309,7 @@ test('event form: an anonymous visitor registers, then is sent to signup with th
   }
 });
 
-test('event form: checks answers before sending, keeps the button busy, and shows the API error', async () => {
+test('event form: checks answers before sending, keeps the button busy, and shows the API error as returned', async () => {
   setup();
   member.__setSupa(supaWith(null));
   let release;
@@ -180,10 +317,7 @@ test('event form: checks answers before sending, keeps the button busy, and show
     post: () =>
       new Promise((resolve) => {
         release = () =>
-          resolve({
-            status: 400,
-            body: { error: 'Invalid answer for how you heard about the event.' },
-          });
+          resolve({ status: 409, body: { error: 'Registration for this event has closed.' } });
       }),
   });
   try {
@@ -191,12 +325,30 @@ test('event form: checks answers before sending, keeps the button busy, and show
     const note = q('#caaci-ev-notice');
     await submit();
     assert.match(note.textContent, /valid email/i);
+    assert.equal(q('#caaci-ev-email').getAttribute('aria-invalid'), 'true');
+    assert.equal(document.activeElement, q('#caaci-ev-email'));
+
     fillForm({ attending: null });
     await submit();
-    assert.match(note.textContent, /whether you can attend/i);
+    assert.equal(note.textContent, 'Answer the question: Can you attend?');
+    assert.equal(document.activeElement, q('#caaci-ev-q-attending-o-yes'));
+    assert.equal(q('#caaci-ev-q-attending-o-yes').getAttribute('aria-invalid'), 'true');
+    assert.equal(
+      q('#caaci-ev-email').hasAttribute('aria-invalid'),
+      false,
+      'the fixed field is cleared',
+    );
+
     fillForm({ names: '  ' });
     await submit();
-    assert.match(note.textContent, /names of the people attending/i);
+    assert.equal(note.textContent, 'Answer the question: What are the names of people attending?');
+    assert.equal(document.activeElement, q('#caaci-ev-q-names'));
+
+    fillForm({ other: '  ' }); // "Other" picked with nothing typed
+    await submit();
+    assert.equal(note.textContent, 'Fill in “Other” for: How did you hear about this event?');
+    assert.equal(document.activeElement, q('#caaci-ev-q-heard_from-other-text'));
+    assert.ok(note.classList.contains('alert-danger'));
     assert.equal(posts(fetch).length, 0, 'nothing sent while answers are missing');
 
     fillForm();
@@ -211,7 +363,7 @@ test('event form: checks answers before sending, keeps the button busy, and show
 
     release();
     await tick();
-    assert.equal(note.textContent, 'Invalid answer for how you heard about the event.');
+    assert.equal(note.textContent, 'Registration for this event has closed.');
     assert.ok(note.classList.contains('alert-danger'));
     assert.equal(note.hidden, false);
     assert.equal(btn.disabled, false);
@@ -246,7 +398,7 @@ test('event form: the honeypot has a name autofill ignores, and an ok without a 
     fillForm();
     hp.value = 'https://bot.example';
     await submit();
-    assert.equal(JSON.parse(posts(fetch)[0].options.body)._hp, 'https://bot.example');
+    assert.equal(postedBody(fetch)._hp, 'https://bot.example');
     const note = q('#caaci-ev-notice');
     assert.equal(note.hidden, false);
     assert.ok(note.classList.contains('alert-danger'));
@@ -277,37 +429,399 @@ test('event form: a resubmission says the answers were updated and shows the ori
   }
 });
 
-test('event form: "can\'t make it" needs no names and gets no mooncake step', async () => {
-  setup();
+test('event form: every question type is drawn in order with its label, required marker and field', async () => {
+  setup({ path: '/events/spring-potluck/register/', event: null });
   member.__setSupa(supaWith(null));
-  const fetch = stubApi();
+  const fetch = stubApi({ get: anonGet(POTLUCK) });
   try {
     await member.wireEventFormPage();
-    const namesLabel = q('label[for="caaci-ev-names"]');
-    assert.ok(namesLabel.classList.contains('required'));
-    fillForm({ attending: 'no', names: '', heard: null, other: '', meal: null });
-    assert.equal(namesLabel.classList.contains('required'), false);
-    assert.equal(q('#caaci-ev-names').required, false);
-    await submit();
-    assert.deepEqual(JSON.parse(posts(fetch)[0].options.body), {
-      event: 'mid-autumn-festival',
-      email: 'mei@x.com',
-      attending: 'no',
-      names: '',
-      heard_from: '',
-      heard_from_other: '',
-      wants_meal: '',
-      _hp: '',
-    });
-    assert.equal(q('#caaci-ev-done-title').textContent, 'Thanks for letting us know');
-    for (const sel of ['#caaci-ev-perk-counted', '#caaci-ev-perk-cta', '#caaci-ev-perk-closed'])
-      assert.equal(q(sel).hidden, true, sel);
+    const host = q('#caaci-ev-questions');
+    assert.deepEqual(
+      [...host.children].map((el) => el.querySelector('input, textarea').id),
+      [
+        'caaci-ev-q-dishes-o-dumplings',
+        'caaci-ev-q-size-o-s',
+        'caaci-ev-q-phone',
+        'caaci-ev-q-notes',
+      ],
+      'in the order the event lists them',
+    );
+    const labelFor = (id) => q(`label[for="${id}"]`);
+
+    // multi: a fieldset of checkboxes, the question as its legend, plus Other.
+    const dishes = q('#caaci-ev-q-dishes-o-dumplings').closest('fieldset');
+    assert.ok(dishes, 'a choice question is a fieldset');
+    const dishesLegend = dishes.querySelector('legend');
+    assert.equal(dishesLegend.textContent, 'Which dishes will you bring?');
+    assert.ok(dishesLegend.classList.contains('required'), 'required marker');
+    const boxes = [...dishes.querySelectorAll('input[type="checkbox"]')];
+    assert.deepEqual(
+      boxes.map((b) => [b.id, b.value, labelFor(b.id).textContent]),
+      [
+        ['caaci-ev-q-dishes-o-dumplings', 'dumplings', 'Dumplings'],
+        ['caaci-ev-q-dishes-o-noodles', 'noodles', 'Noodles'],
+        ['caaci-ev-q-dishes-o-tea', 'tea', 'Tea'],
+        ['caaci-ev-q-dishes-other', '', 'Other:'],
+      ],
+    );
+    assert.ok(
+      boxes.every((b) => !b.required),
+      'a required checkbox would demand every box',
+    );
+    const otherText = q('#caaci-ev-q-dishes-other-text');
+    assert.equal(otherText.type, 'text');
+    assert.equal(otherText.maxLength, 200);
+    assert.equal(labelFor(otherText.id).textContent, 'Other — Which dishes will you bring?');
+    assert.ok(labelFor(otherText.id).classList.contains('visually-hidden'));
+    assert.ok(dishes.contains(otherText));
+
+    // single: radios in one group, not required here.
+    const size = q('#caaci-ev-q-size-o-s').closest('fieldset');
+    assert.equal(size.querySelector('legend').textContent, 'T-shirt size');
+    assert.equal(size.querySelector('legend').classList.contains('required'), false);
+    const radios = [...size.querySelectorAll('input[type="radio"]')];
+    assert.deepEqual(
+      radios.map((r) => r.id),
+      ['caaci-ev-q-size-o-s', 'caaci-ev-q-size-o-m', 'caaci-ev-q-size-other'],
+    );
+    assert.ok(radios.every((r) => r.name === 'caaci-ev-q-size' && !r.required));
+
+    // text: a labelled input, required.
+    const phone = q('#caaci-ev-q-phone');
+    assert.equal(phone.tagName, 'INPUT');
+    assert.equal(phone.type, 'text');
+    assert.equal(phone.required, true);
+    assert.equal(phone.maxLength, 500);
+    assert.equal(labelFor('caaci-ev-q-phone').textContent, 'Phone number');
+    assert.ok(labelFor('caaci-ev-q-phone').classList.contains('required'));
+
+    // textarea: a labelled textarea, optional.
+    const notes = q('#caaci-ev-q-notes');
+    assert.equal(notes.tagName, 'TEXTAREA');
+    assert.equal(notes.required, false);
+    assert.equal(notes.maxLength, 2000);
+    assert.equal(labelFor('caaci-ev-q-notes').textContent, 'Anything else?');
+    assert.equal(labelFor('caaci-ev-q-notes').classList.contains('required'), false);
+
+    // A required single choice puts `required` on its radios.
+    setup();
+    await member.wireEventFormPage();
+    assert.ok(
+      [...document.querySelectorAll('input[name="caaci-ev-q-attending"]')].every((r) => r.required),
+    );
   } finally {
     fetch.restore();
   }
 });
 
-// POST_OK has no `linked`: a response from before that field counts as linked.
+test('event form: each question type sends its answer in the API shape, Other included, and blanks are left out', async () => {
+  setup({ path: '/events/spring-potluck/register/', event: null });
+  member.__setSupa(supaWith(null));
+  const fetch = stubApi({ get: anonGet(POTLUCK), post: () => POST_OK({ perk: null }) });
+  try {
+    await member.wireEventFormPage();
+    q('#caaci-ev-email').value = 'ann@x.com';
+    q('#caaci-ev-q-dishes-o-dumplings').checked = true;
+    q('#caaci-ev-q-dishes-o-tea').checked = true;
+    typeInto('#caaci-ev-q-dishes-other-text', 'Scallion pancakes');
+    assert.equal(q('#caaci-ev-q-dishes-other').checked, true, 'typing an Other answer picks Other');
+    typeInto('#caaci-ev-q-size-other-text', ' XL ');
+    assert.equal(q('#caaci-ev-q-size-other').checked, true);
+    q('#caaci-ev-q-phone').value = '  217-555-0100 ';
+    await submit();
+    assert.deepEqual(postedBody(fetch), {
+      event: 'spring-potluck',
+      email: 'ann@x.com',
+      answers: {
+        dishes: { options: ['dumplings', 'tea'], other: 'Scallion pancakes' },
+        size: { other: 'XL' },
+        phone: '217-555-0100',
+      },
+      _hp: '',
+    });
+    // No gift: no callout and no gift step.
+    assert.ok(shown('#caaci-ev-done'));
+    for (const sel of [
+      '#caaci-ev-perk',
+      '#caaci-ev-perk-counted',
+      '#caaci-ev-perk-cta',
+      '#caaci-ev-perk-closed',
+    ])
+      assert.equal(q(sel).hidden, true, sel);
+
+    q('#caaci-ev-edit').click();
+    q('#caaci-ev-q-dishes-o-dumplings').checked = false;
+    q('#caaci-ev-q-dishes-o-tea').checked = false;
+    q('#caaci-ev-q-dishes-other-text').value = 'Fruit';
+    q('#caaci-ev-q-size-o-s').checked = true; // replaces Other; its text is ignored
+    q('#caaci-ev-q-notes').value = ' Vegetarian, please. ';
+    await submit();
+    assert.deepEqual(postedBody(fetch, 1).answers, {
+      dishes: { options: [], other: 'Fruit' },
+      size: { option: 's' },
+      phone: '217-555-0100',
+      notes: 'Vegetarian, please.',
+    });
+
+    q('#caaci-ev-edit').click();
+    q('#caaci-ev-q-dishes-other').checked = false;
+    q('#caaci-ev-q-dishes-o-noodles').checked = true;
+    await submit();
+    assert.deepEqual(postedBody(fetch, 2).answers.dishes, { options: ['noodles'] }, 'no Other key');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event form: a required choice or text question left blank blocks the POST', async () => {
+  setup({ path: '/events/spring-potluck/register/', event: null });
+  member.__setSupa(supaWith(null));
+  const fetch = stubApi({ get: anonGet(POTLUCK), post: () => POST_OK({ perk: null }) });
+  try {
+    await member.wireEventFormPage();
+    const note = q('#caaci-ev-notice');
+    q('#caaci-ev-email').value = 'ann@x.com';
+    await submit();
+    assert.equal(note.textContent, 'Answer the question: Which dishes will you bring?');
+    assert.equal(document.activeElement, q('#caaci-ev-q-dishes-o-dumplings'));
+
+    q('#caaci-ev-q-dishes-other').checked = true; // Other ticked, nothing typed
+    await submit();
+    assert.equal(note.textContent, 'Fill in “Other” for: Which dishes will you bring?');
+
+    q('#caaci-ev-q-dishes-other').checked = false;
+    q('#caaci-ev-q-dishes-o-noodles').checked = true;
+    q('#caaci-ev-q-phone').value = '   ';
+    await submit();
+    assert.equal(note.textContent, 'Answer the question: Phone number');
+    assert.equal(document.activeElement, q('#caaci-ev-q-phone'));
+    assert.equal(posts(fetch).length, 0, 'nothing sent');
+
+    q('#caaci-ev-q-phone').value = '217-555-0100';
+    await submit();
+    assert.deepEqual(postedBody(fetch).answers, {
+      dishes: { options: ['noodles'] },
+      phone: '217-555-0100',
+    });
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event form: the event comes from data-event, else the /events/<slug>/register/ path, else ?event=', async () => {
+  const cases = [
+    [
+      'data-event wins over the path and the query',
+      { path: '/events/lantern-walk/register/', search: '?event=other', event: 'spring-potluck' },
+    ],
+    [
+      'the rewritten path wins over the query',
+      { path: '/events/spring-potluck/register/', search: '?event=other', event: null },
+    ],
+    ['the path without its slash', { path: '/events/spring-potluck/register', event: null }],
+    [
+      '?event= on /event-register/',
+      { path: '/event-register/', search: '?event=spring-potluck', event: null },
+    ],
+  ];
+  for (const [label, where] of cases) {
+    setup(where);
+    member.__setSupa(supaWith(null));
+    const fetch = stubApi({ get: anonGet(POTLUCK) });
+    try {
+      await member.wireEventFormPage();
+      assert.equal(fetch.calls[0].url, '/api/event-register?event=spring-potluck', label);
+      assert.ok(shown('#caaci-ev-form-card'), label);
+      if (where.path === '/event-register/')
+        assert.equal(
+          q('#caaci-ev-login').getAttribute('href'),
+          '/login-3/?next=%2Fevent-register%2F%3Fevent%3Dspring-potluck',
+          'the way back keeps the query that names the event',
+        );
+    } finally {
+      fetch.restore();
+    }
+  }
+
+  setup({ path: '/event-register/', event: null });
+  const fetch = stubApi();
+  try {
+    await member.wireEventFormPage();
+    assert.equal(fetch.calls.length, 0, 'no event named, nothing asked');
+    assert.ok(shown('#caaci-ev-missing'));
+    assert.equal(q('#caaci-ev-loading').hidden, true);
+    assert.equal(q('#caaci-ev-form-card').hidden, true);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event form: an event the API does not know (404) is "not open for registration", with no form', async () => {
+  setup({ path: '/events/no-such-event/register/', event: null });
+  member.__setSupa(supaWith(null));
+  const fetch = stubApi({ get: () => ({ status: 404, body: { error: 'Event not found.' } }) });
+  try {
+    await member.wireEventFormPage();
+    assert.equal(fetch.calls[0].url, '/api/event-register?event=no-such-event');
+    assert.ok(shown('#caaci-ev-missing'));
+    assert.match(q('#caaci-ev-missing').textContent, /This event is not open for registration/);
+    assert.equal(q('#caaci-ev-missing').getAttribute('role'), 'alert');
+    for (const sel of [
+      '#caaci-ev-loading',
+      '#caaci-ev-error',
+      '#caaci-ev-closed',
+      '#caaci-ev-form-card',
+      '#caaci-ev-perk',
+      '#caaci-ev-details',
+    ])
+      assert.equal(q(sel).hidden, true, sel);
+
+    member.__setLang('zh');
+    member.applyLang();
+    assert.match(q('#caaci-ev-missing').textContent, /该活动未开放报名/);
+  } finally {
+    fetch.restore();
+    member.__setLang('en');
+  }
+});
+
+test('event form: a load that fails offers a retry, which brings the form', async () => {
+  const failures = [
+    [
+      'network error, no Supabase client',
+      () => {
+        throw new TypeError('Failed to fetch');
+      },
+    ],
+    ['500', () => ({ status: 500, body: { error: 'boom' } })],
+  ];
+  for (const [label, fail] of failures) {
+    setup();
+    member.__setSupa(null);
+    let gets = 0;
+    const fetch = stubApi({
+      get: (...args) => (++gets === 1 ? fail() : anonGet()(...args)),
+    });
+    try {
+      await member.wireEventFormPage();
+      assert.ok(shown('#caaci-ev-error'), label);
+      assert.equal(q('#caaci-ev-error').getAttribute('role'), 'alert');
+      assert.match(q('#caaci-ev-error').textContent, /couldn't load the registration form/, label);
+      for (const sel of [
+        '#caaci-ev-loading',
+        '#caaci-ev-missing',
+        '#caaci-ev-form-card',
+        '#caaci-ev-perk',
+      ])
+        assert.equal(q(sel).hidden, true, `${label}: ${sel}`);
+
+      q('#caaci-ev-retry').click();
+      assert.ok(shown('#caaci-ev-loading'), `${label}: loading again`);
+      assert.equal(q('#caaci-ev-error').hidden, true, label);
+      await tick();
+      assert.equal(gets, 2, label);
+      assert.equal(q('#caaci-ev-loading').hidden, true, label);
+      assert.ok(shown('#caaci-ev-form-card'), label);
+      assert.ok(q('#caaci-ev-q-attending-o-yes'), `${label}: the questions are drawn`);
+
+      fillForm();
+      await submit();
+      assert.equal(posts(fetch).length, 1, label);
+      assert.ok(shown('#caaci-ev-done'), label);
+    } finally {
+      fetch.restore();
+    }
+  }
+});
+
+test('event form: a closed event (open: false) says registration has closed and draws no form', async () => {
+  const CLOSED = { ...EVENT, perk: { ...MOONCAKE, deadline: PAST }, open: false };
+  setup();
+  member.__setSupa(supaWith(null));
+  let fetch = stubApi({ get: anonGet(CLOSED) });
+  try {
+    await member.wireEventFormPage();
+    assert.ok(shown('#caaci-ev-closed'));
+    assert.match(q('#caaci-ev-closed').textContent, /Registration has closed/);
+    assert.equal(
+      q('#caaci-ev-title').textContent,
+      'Mid-Autumn Festival 2099',
+      'still says which event',
+    );
+    for (const sel of [
+      '#caaci-ev-loading',
+      '#caaci-ev-form-card',
+      '#caaci-ev-perk',
+      '#caaci-ev-done',
+    ])
+      assert.equal(q(sel).hidden, true, sel);
+    assert.equal(q('#caaci-ev-questions').children.length, 0, 'no questions drawn');
+    member.__setLang('zh');
+    member.applyLang();
+    assert.match(q('#caaci-ev-closed').textContent, /报名已截止/);
+  } finally {
+    fetch.restore();
+    member.__setLang('en');
+  }
+
+  // Signed in and registered before it closed: their registration, but nothing to change.
+  setup();
+  member.__setSupa(supaWith(USER));
+  fetch = stubApi({
+    get: () => ({
+      body: {
+        event: CLOSED,
+        signed_in: true,
+        email: 'mei@x.com',
+        registration: { registered_at: '2020-09-10T01:02:03Z', updated_at: '2020-09-11T00:00:00Z' },
+      },
+    }),
+  });
+  try {
+    await member.wireEventFormPage();
+    assert.ok(shown('#caaci-ev-closed'));
+    assert.ok(shown('#caaci-ev-done'));
+    assert.equal(q('#caaci-ev-edit-row').hidden, true, 'no "Change my answers"');
+    assert.equal(q('#caaci-ev-form-card').hidden, true);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event form: the callout names the event\'s own gift, and says "event" unless the title says festival', async () => {
+  const UMBRELLA = { item_en: 'umbrella', item_zh: '雨伞', deadline: FUTURE };
+  setup({ path: '/events/lantern-walk/register/', event: null });
+  member.__setSupa(supaWith(null));
+  const fetch = stubApi({
+    get: anonGet({ ...POTLUCK, slug: 'lantern-walk', title: 'Lantern Walk', perk: UMBRELLA }),
+    post: () => POST_OK({ perk: UMBRELLA }),
+  });
+  try {
+    await member.wireEventFormPage();
+    assert.ok(shown('#caaci-ev-perk'));
+    assert.equal(q('#caaci-ev-perk-title').textContent, 'Free umbrella');
+    assert.equal(
+      q('#caaci-ev-perk-text').textContent,
+      'Register and create a free CAACI website account by September 27, 2:00 PM Central Time, and pick up a free umbrella at the event.',
+    );
+    assert.equal(
+      q('#caaci-ev-perk-note').textContent,
+      "You can register for the event without an account — you just won't get an umbrella.",
+    );
+    q('#caaci-ev-email').value = 'ann@x.com';
+    q('#caaci-ev-q-dishes-o-tea').checked = true;
+    q('#caaci-ev-q-phone').value = '217-555-0100';
+    await submit();
+    assert.equal(
+      q('#caaci-ev-perk-cta-text').textContent,
+      'One more step for a free umbrella: create a free CAACI account with the email you registered with by September 27, 2:00 PM Central Time.',
+    );
+    assert.doesNotMatch(document.body.textContent, /mooncake|festival/i);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('event form: a signed-in visitor gets the email prefilled, sends a bearer token, and is counted', async () => {
   setup();
   member.__setSupa(supaWith(USER));
@@ -327,7 +841,7 @@ test('event form: a signed-in visitor gets the email prefilled, sends a bearer t
     await submit();
     assert.equal(posts(fetch)[0].options.headers.authorization, 'Bearer tok');
     assert.ok(shown('#caaci-ev-perk-counted'));
-    assert.match(q('#caaci-ev-perk-counted').textContent, /✓ Counted for a free mooncake/);
+    assert.equal(q('#caaci-ev-perk-counted').textContent, '✓ Counted for a free mooncake');
     assert.equal(q('#caaci-ev-perk-cta').hidden, true);
     assert.equal(q('#caaci-ev-perk-closed').hidden, true);
   } finally {
@@ -335,7 +849,7 @@ test('event form: a signed-in visitor gets the email prefilled, sends a bearer t
   }
 });
 
-test('event form: signed in but registered under another email, the mooncake step asks for an account with that email', async () => {
+test('event form: signed in but registered under another email, the gift step asks for an account with that email', async () => {
   setup();
   const signOuts = [];
   const supa = supaWith(USER);
@@ -363,7 +877,7 @@ test('event form: signed in but registered under another email, the mooncake ste
     assert.equal(q('#caaci-ev-perk-closed').hidden, true);
     assert.ok(shown('#caaci-ev-perk-cta'));
     const cta = q('#caaci-ev-perk-cta-text').textContent;
-    assert.match(cta, /goes with the email you registered with/);
+    assert.match(cta, /The free mooncake goes with the email you registered with/);
     assert.match(cta, /September 27, 2:00 PM Central Time/);
     assert.match(cta, /signed out/);
 
@@ -465,11 +979,7 @@ test('event form: a signed-in visitor who already registered sees the success st
         event: EVENT,
         signed_in: true,
         email: 'mei@x.com',
-        registration: {
-          registered_at: '2026-09-10T01:02:03Z',
-          attending: true,
-          updated_at: '2026-09-11T00:00:00Z',
-        },
+        registration: { registered_at: '2026-09-10T01:02:03Z', updated_at: '2026-09-11T00:00:00Z' },
       },
     }),
   });
@@ -482,6 +992,7 @@ test('event form: a signed-in visitor who already registered sees the success st
     assert.match(q('#caaci-ev-done-time').textContent, /Sep 9, 2026\D+8:02:03 PM Central Time/);
     assert.equal(q('#caaci-ev-done-already').hidden, true);
     assert.ok(shown('#caaci-ev-perk-counted'));
+    assert.ok(shown('#caaci-ev-edit-row'));
 
     q('#caaci-ev-edit').click();
     assert.equal(
@@ -491,34 +1002,36 @@ test('event form: a signed-in visitor who already registered sees the success st
     );
     assert.equal(q('#caaci-ev-done').hidden, true);
     assert.equal(q('#caaci-ev-email').value, 'mei@x.com');
+    assert.ok(q('#caaci-ev-q-names'), 'with the questions drawn');
   } finally {
     fetch.restore();
   }
 });
 
-test('event form: after the deadline the callout says mooncake sign-up closed, and registering still works', async () => {
+test('event form: after the gift deadline the callout says mooncake sign-up closed, and registering still works', async () => {
+  const closedPerk = { ...MOONCAKE, deadline: PAST };
   setup();
   member.__setSupa(supaWith(null));
   const fetch = stubApi({
-    get: () => ({
-      body: { event: { ...EVENT, perk_deadline: PAST, deadline: PAST }, signed_in: false },
-    }),
-    post: () => POST_OK({ deadline: PAST }),
+    get: anonGet({ ...EVENT, perk: closedPerk }),
+    post: () => POST_OK({ perk: closedPerk }),
   });
   try {
     await member.wireEventFormPage();
     const perk = q('#caaci-ev-perk');
     assert.ok(perk.classList.contains('alert-secondary'));
     assert.equal(perk.classList.contains('alert-warning'), false);
+    assert.equal(q('#caaci-ev-perk-title').textContent, 'Free mooncake sign-up has closed');
     assert.match(perk.textContent, /sign-up has closed/);
     assert.match(perk.textContent, /September 27, 2:00 PM Central Time/);
-    assert.match(perk.textContent, /still register/);
+    assert.match(perk.textContent, /still register for the festival/);
     assert.equal(q('#caaci-ev-perk-note').hidden, true, 'no "without an account" line once closed');
 
     fillForm();
     await submit();
     assert.ok(shown('#caaci-ev-done'));
     assert.ok(shown('#caaci-ev-perk-closed'));
+    assert.equal(q('#caaci-ev-perk-closed').textContent, 'Free mooncake sign-up has closed.');
     assert.equal(q('#caaci-ev-perk-cta').hidden, true, 'no signup push for a closed perk');
     assert.equal(q('#caaci-ev-perk-counted').hidden, true);
   } finally {
@@ -526,7 +1039,7 @@ test('event form: after the deadline the callout says mooncake sign-up closed, a
   }
 });
 
-test('event form: in Chinese the mooncake callout and times say 美国中部时间, never GMT-5', async () => {
+test('event form: in Chinese the title is title_zh, the questions are in Chinese, and the mooncake copy and times say 美国中部时间, never GMT-5', async () => {
   const PERK_ZH =
     '9月27日下午2点（美国中部时间）前报名，并免费注册一个 CAACI 网站账户，活动当天就能在现场免费领一份月饼。';
   const NOTE_ZH = '不注册账户也可以报名参加活动，只是领不到月饼。';
@@ -535,62 +1048,40 @@ test('event form: in Chinese the mooncake callout and times say 美国中部时�
   member.__setSupa(supaWith(null));
   const fetch = stubApi();
   try {
-    // The flyer copy, before the API has answered.
     member.applyLang();
+    await member.wireEventFormPage();
+    assert.equal(q('#caaci-ev-title').textContent, '中秋节');
+    assert.equal(
+      q('#caaci-ev-q-attending-o-yes').closest('fieldset').querySelector('legend').textContent,
+      '您能参加吗？',
+    );
+    assert.equal(q('label[for="caaci-ev-q-attending-o-yes"]').textContent, '能，我会参加');
+    assert.equal(q('label[for="caaci-ev-q-names"]').textContent, '参加者的姓名是？');
+    assert.equal(q('label[for="caaci-ev-q-heard_from-other"]').textContent, '其他：');
+    assert.equal(q('#caaci-ev-q-heard_from-other-text').placeholder, '请注明');
+
+    // The user-approved copy, rebuilt from 月饼 and the deadline (2:00 PM in Chicago).
     assert.equal(q('#caaci-ev-perk-title').textContent, '免费领月饼');
     assert.equal(q('#caaci-ev-perk-text').textContent, PERK_ZH);
     assert.equal(q('#caaci-ev-perk-note').textContent, NOTE_ZH);
-
-    // The same sentence rebuilt from the API's deadline (2:00 PM in Chicago).
-    await member.wireEventFormPage();
-    assert.equal(q('#caaci-ev-perk-title').textContent, '免费领月饼');
-    assert.equal(q('#caaci-ev-perk-text').textContent, PERK_ZH);
     assert.ok(shown('#caaci-ev-perk-note'));
+
+    fillForm({ attending: null });
+    await submit();
+    assert.equal(q('#caaci-ev-notice').textContent, '请回答：您能参加吗？');
 
     fillForm();
     await submit();
+    assert.equal(q('#caaci-ev-done-title').textContent, '报名成功');
     // 20:04:05 UTC is 3:04:05 in the afternoon in Champaign.
     assert.match(q('#caaci-ev-done-time').textContent, /2026年9月13日 下午3:04:05（美国中部时间）/);
-    assert.match(q('#caaci-ev-perk-cta').textContent, /请在9月27日下午2点（美国中部时间）前，/);
+    assert.equal(
+      q('#caaci-ev-perk-cta-text').textContent,
+      '领取免费月饼还差一步：请在9月27日下午2点（美国中部时间）前，用报名时填写的邮箱免费注册 CAACI 账户。',
+    );
     assert.doesNotMatch(document.body.textContent, /GMT|CDT/);
   } finally {
     fetch.restore();
     member.__setLang('en');
-  }
-});
-
-test('event form: a failing API leaves the flyer details in place and the form still submits', async () => {
-  const failures = [
-    ['500', () => ({ status: 500, body: { error: 'boom' } }), supaWith(null)],
-    [
-      'network error, no Supabase client',
-      () => {
-        throw new TypeError('Failed to fetch');
-      },
-      null,
-    ],
-  ];
-  for (const [label, get, supa] of failures) {
-    setup();
-    member.__setSupa(supa);
-    const before = ['#caaci-ev-title', '#caaci-ev-when', '#caaci-ev-where', '#caaci-ev-perk'].map(
-      (s) => q(s).textContent,
-    );
-    const fetch = stubApi({ get });
-    try {
-      await member.wireEventFormPage();
-      const after = ['#caaci-ev-title', '#caaci-ev-when', '#caaci-ev-where', '#caaci-ev-perk'].map(
-        (s) => q(s).textContent,
-      );
-      assert.deepEqual(after, before, label);
-      assert.match(before[1], /September 27/, label);
-
-      fillForm();
-      await submit();
-      assert.equal(posts(fetch).length, 1, label);
-      assert.ok(shown('#caaci-ev-done'), label);
-    } finally {
-      fetch.restore();
-    }
   }
 });

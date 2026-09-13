@@ -1753,14 +1753,14 @@ export async function wireAccountPage() {
     renderMemberCard($('#caaci-mcard-host', host), { user, member, tierName });
 }
 
-// ---------- /mid_autumn_festival_form/ (event registration) ----------
-// A public form: registering needs no account. The page's own markup carries
-// the flyer's date, place and contact, so it is complete before any request;
-// GET /api/event-register then fills in the live details and the free-gift
-// deadline, and tells a signed-in visitor whether they already registered.
-// The mooncake also needs an account by that deadline, so the success state
-// walks an anonymous registrant to signup with the address they used —
-// handed over in sessionStorage, never in the URL.
+// ---------- /events/<slug>/register/ (event registration) ----------
+// A public form: registering needs no account. One page serves every event
+// (member-src/event-register.html). GET /api/event-register answers with the
+// event's details, its free gift (the "perk") and its own questions, which are
+// drawn here, and tells a signed-in visitor whether they already registered.
+// A gift also needs an account by its deadline, so the success state walks an
+// anonymous registrant to signup with the address they used — handed over in
+// sessionStorage, never in the URL.
 const SIGNUP_EMAIL_KEY = 'caaci-signup-email';
 // Events are stored in UTC and always shown in Champaign's time zone, whatever
 // the visitor's phone is set to.
@@ -1854,7 +1854,7 @@ function registeredText(iso) {
 }
 
 // Live copy replacing a static bilingual element: drop data-en/data-zh so the
-// language pass can never put the flyer's text back.
+// language pass can never put the placeholder text back.
 function setText(el, text) {
   el.removeAttribute('data-en');
   el.removeAttribute('data-zh');
@@ -1873,19 +1873,39 @@ async function eventSession() {
 const bearerFor = (session) =>
   session?.access_token ? { authorization: `Bearer ${session.access_token}` } : {};
 
-// null on any failure (HTTP error, network, timeout): the page keeps its static copy.
+// Which event the page is for: its own data-event (build.mjs sets it on the
+// festival's printed QR route), else the slug in /events/<slug>/register/ (the
+// _redirects rewrite keeps that path in the address bar), else ?event=.
+function eventSlug() {
+  if (document.body.dataset.event) return document.body.dataset.event;
+  const m = /^\/events\/([^/]+)\/register\/?$/.exec(location.pathname || '');
+  if (m) {
+    try {
+      return decodeURIComponent(m[1]);
+    } catch {
+      return ''; // a malformed escape names no event
+    }
+  }
+  return (new URLSearchParams(location.search || '').get('event') || '').trim();
+}
+
+// { info } once the API has answered; { missing: true } when it says the event
+// is not open for registration (404); { failed: true } for anything else — an
+// HTTP error, a network failure or a timeout — which the page offers to retry.
 function loadEventRegistration(slug, session) {
   const request = (async () => {
     const res = await fetch(`/api/event-register?event=${encodeURIComponent(slug)}`, {
       headers: bearerFor(session),
     });
-    return res.ok ? res.json() : null;
-  })().catch(() => null);
-  return withTimeout(request, 6000, null);
+    if (res.status === 404) return { missing: true };
+    const info = res.ok ? await res.json() : null;
+    return info?.event ? { info } : { failed: true };
+  })().catch(() => ({ failed: true }));
+  return withTimeout(request, 6000, { failed: true });
 }
 
-// Which mooncake step a registration shows. The server decides who really gets
-// one; this mirrors its rule (registered, and holding an account, by the
+// Which free-gift step a registration shows. The server decides who really
+// gets one; this mirrors its rule (registered, and holding an account, by the
 // deadline) only to pick the wording. A time we do not know never closes it.
 function perkStep({ deadline, registeredAt, signedIn, accountCreatedAt }) {
   const end = deadline ? new Date(deadline).getTime() : NaN;
@@ -1895,86 +1915,187 @@ function perkStep({ deadline, registeredAt, signedIn, accountCreatedAt }) {
   return after(Date.now()) ? 'closed' : 'signup';
 }
 
+// A question's (or an option's) label in the current language.
+const questionLabel = (item) => t(item.label_en, item.label_zh || item.label_en);
+
+// One event question as form markup. A choice question is a fieldset whose
+// legend is the question, with "Other" as one more radio or checkbox that has
+// its own text box; a text question is a labelled field. Ids come from the
+// question and option ids (the API allows only [a-z0-9_]); labels are escaped.
+function questionHtml(q) {
+  const base = `caaci-ev-q-${q.id}`;
+  const requiredMark = q.required ? ' required' : ''; // Tabler's "*" after the label
+  if (q.type === 'text' || q.type === 'textarea') {
+    const attrs = `id="${base}" class="form-control" autocomplete="off"${q.required ? ' required' : ''}`;
+    return `<div class="mb-4">
+      <label class="form-label${requiredMark}" for="${base}">${esc(questionLabel(q))}</label>
+      ${
+        q.type === 'text'
+          ? `<input type="text" ${attrs} maxlength="500" />`
+          : `<textarea ${attrs} rows="3" maxlength="2000"></textarea>`
+      }
+    </div>`;
+  }
+  if (q.type !== 'single' && q.type !== 'multi') return '';
+  const type = q.type === 'single' ? 'radio' : 'checkbox';
+  // A radio group can be required; on checkboxes `required` would demand every box.
+  const required = q.required && type === 'radio' ? ' required' : '';
+  const choice = (id, value, label) => `<div class="form-check">
+      <input class="form-check-input" type="${type}" name="${base}" id="${id}" value="${esc(value)}"${required} />
+      <label class="form-check-label" for="${id}">${esc(label)}</label>
+    </div>`;
+  const options = (q.options || []).map((o) => choice(`${base}-o-${o.id}`, o.id, questionLabel(o)));
+  const other = q.other
+    ? `${choice(`${base}-other`, '', t('Other:', '其他：'))}
+    <label class="visually-hidden" for="${base}-other-text">${esc(t(`Other — ${q.label_en}`, `其他——${questionLabel(q)}`))}</label>
+    <input type="text" id="${base}-other-text" class="form-control" maxlength="200" autocomplete="off" placeholder="${esc(t('Please specify', '请注明'))}" />`
+    : '';
+  return `<fieldset class="mb-4">
+    <legend class="form-label${requiredMark}">${esc(questionLabel(q))}</legend>
+    ${options.join('')}${other}
+  </fieldset>`;
+}
+
+// The answers in the API's shape — a text answer as a string, a single choice
+// as { option } or { other }, a multiple choice as { options, other? }, and an
+// unanswered question left out — or the first problem as { error, field }.
+// The API checks all of it again; asking here saves a round trip on a phone.
+function readEventAnswers(form, questions) {
+  const answers = {};
+  for (const q of questions) {
+    const base = `caaci-ev-q-${q.id}`;
+    const unanswered = (field) => ({
+      error: t(`Answer the question: ${q.label_en}`, `请回答：${questionLabel(q)}`),
+      field,
+    });
+    if (q.type === 'text' || q.type === 'textarea') {
+      const field = $(`#${base}`, form);
+      const value = field.value.trim();
+      if (value) answers[q.id] = value;
+      else if (q.required) return unanswered(field);
+      continue;
+    }
+    if (q.type !== 'single' && q.type !== 'multi') continue;
+    const boxes = $$(`input[name="${base}"]`, form);
+    const otherBox = $(`#${base}-other`, form);
+    const picked = boxes.filter((b) => b.checked && b !== otherBox).map((b) => b.value);
+    let other = null;
+    if (otherBox?.checked) {
+      const otherText = $(`#${base}-other-text`, form);
+      other = otherText.value.trim();
+      if (!other)
+        return {
+          error: t(`Fill in “Other” for: ${q.label_en}`, `请填写“其他”的内容：${questionLabel(q)}`),
+          field: otherText,
+        };
+    }
+    if (q.type === 'single') {
+      if (other !== null) answers[q.id] = { other };
+      else if (picked.length) answers[q.id] = { option: picked[0] };
+    } else if (picked.length || other !== null) {
+      answers[q.id] = other === null ? { options: picked } : { options: picked, other };
+    }
+    if (q.required && !answers[q.id]) return unanswered(boxes[0]);
+  }
+  return { answers };
+}
+
 export async function wireEventFormPage() {
-  const slug = document.body.dataset.event;
+  const slug = eventSlug();
   const form = $('#caaci-ev-form');
   const formCard = $('#caaci-ev-form-card');
   const done = $('#caaci-ev-done');
   const note = $('#caaci-ev-notice');
   const btn = $('#caaci-ev-submit');
   const emailEl = $('#caaci-ev-email');
-  const namesEl = $('#caaci-ev-names');
-  const otherEl = $('#caaci-ev-heard-other-text');
-  // Same-site links built from where the page is served, never a fixed host.
-  const here = encodeURIComponent(location.pathname);
-  let deadline = null; // the effective free-gift deadline, once the API has said
+  const questionsHost = $('#caaci-ev-questions');
+  // Same-site links back to the page as it was reached (with the query, which
+  // names the event on /event-register/?event=), never a fixed host.
+  const here = encodeURIComponent(location.pathname + (location.search || ''));
+  let ev = null; // the event, once the API has answered
+  let perk = null; // its free gift { item_en, item_zh, deadline }; null for none
+  let questions = [];
   let session = null;
   let registeredEmail = '';
 
-  const choice = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value || '';
-
-  // Names are required only from someone who is coming.
-  const namesLabel = $('label[for="caaci-ev-names"]');
-  const syncNames = () => {
-    const needed = choice('attending') !== 'no';
-    namesEl.required = needed;
-    namesLabel.classList.toggle('required', needed);
+  // Until the event is known, one of these stands in for the form.
+  const STATES = ['#caaci-ev-loading', '#caaci-ev-missing', '#caaci-ev-error', '#caaci-ev-closed'];
+  const showState = (shown) => {
+    for (const sel of STATES) $(sel).hidden = sel !== shown;
   };
-  for (const radio of form.querySelectorAll('input[name="attending"]'))
-    radio.addEventListener('change', syncNames);
+
   // Typing an "Other" answer picks Other, as the Google Form did.
-  otherEl.addEventListener('input', () => {
-    if (otherEl.value.trim()) $('#caaci-ev-heard-other').checked = true;
+  questionsHost.addEventListener('input', (e) => {
+    const m = /^(caaci-ev-q-[a-z0-9_]+)-other-text$/.exec(e.target.id || '');
+    const box = m && $(`#${m[1]}-other`);
+    if (box && e.target.value.trim()) box.checked = true;
   });
+
+  // The gift's wording says "festival" for an event whose title says it is
+  // one, so that 月饼 / mooncake at the Mid-Autumn Festival reads word for word
+  // as the copy approved for it, and "event" otherwise.
+  const place = () => (/festival/i.test(ev?.title || '') ? 'festival' : 'event');
+  const article = (word) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
 
   // The callout above the form: the deadline while it is open, "closed" after.
   const renderPerk = () => {
-    const when = deadlineText(deadline);
-    if (!when) return; // the static copy already carries the flyer's deadline
-    const open = Date.now() <= new Date(deadline).getTime();
     const box = $('#caaci-ev-perk');
+    box.hidden = !perk || ev?.open === false;
+    if (!perk) return;
+    const { item_en: en, item_zh: zh } = perk;
+    const when = deadlineText(perk.deadline);
+    const open = !when || Date.now() <= new Date(perk.deadline).getTime();
     box.classList.toggle('alert-warning', open);
     box.classList.toggle('alert-secondary', !open);
     setText(
       $('#caaci-ev-perk-title'),
       open
-        ? t('Free mooncake', '免费领月饼')
-        : t('Free mooncake sign-up has closed', '免费月饼登记已截止'),
+        ? t(`Free ${en}`, `免费领${zh}`)
+        : t(`Free ${en} sign-up has closed`, `免费${zh}登记已截止`),
     );
     setText(
       $('#caaci-ev-perk-text'),
       open
         ? t(
-            `Register and create a free CAACI website account by ${when}, and pick up a free mooncake at the festival.`,
-            `${when}前报名，并免费注册一个 CAACI 网站账户，活动当天就能在现场免费领一份月饼。`,
+            `Register and create a free CAACI website account${when ? ` by ${when}` : ''}, and pick up a free ${en} at the ${place()}.`,
+            `${when ? `${when}前` : ''}报名，并免费注册一个 CAACI 网站账户，活动当天就能在现场免费领一份${zh}。`,
           )
         : t(
-            `It closed on ${when}. You can still register for the festival below.`,
+            `It closed on ${when}. You can still register for the ${place()} below.`,
             `已于${when}截止。您仍可在下方报名参加活动。`,
           ),
     );
-    // "No account still lets you register, just without a mooncake" — moot once closed.
-    $('#caaci-ev-perk-note').hidden = !open;
+    // "No account still lets you register, just without the gift" — moot once closed.
+    const perkNote = $('#caaci-ev-perk-note');
+    setText(
+      perkNote,
+      t(
+        `You can register for the ${place()} without an account — you just won't get ${article(en)} ${en}.`,
+        `不注册账户也可以报名参加活动，只是领不到${zh}。`,
+      ),
+    );
+    perkNote.hidden = !open;
   };
 
   // Signed in, but registered under a different address than the login one.
   let signOutFirst = false;
 
   const signupStepText = () => {
-    const when = deadlineText(deadline);
+    const { item_en: en, item_zh: zh } = perk;
+    const when = deadlineText(perk.deadline);
     if (signOutFirst)
       return t(
-        `The free mooncake goes with the email you registered with, not the account you are signed in to. Create a free CAACI account with that email${when ? ` by ${when}` : ''}, or log in to it — you will be signed out of this account first.`,
-        `免费月饼与报名时填写的邮箱绑定，而不是您当前登录的账户。请${when ? `在${when}前` : ''}用该邮箱免费注册 CAACI 账户或登录——系统会先为您退出当前账户。`,
+        `The free ${en} goes with the email you registered with, not the account you are signed in to. Create a free CAACI account with that email${when ? ` by ${when}` : ''}, or log in to it — you will be signed out of this account first.`,
+        `免费${zh}与报名时填写的邮箱绑定，而不是您当前登录的账户。请${when ? `在${when}前` : ''}用该邮箱免费注册 CAACI 账户或登录——系统会先为您退出当前账户。`,
       );
     return when
       ? t(
-          `One more step for a free mooncake: create a free CAACI account with the email you registered with by ${when}.`,
-          `领取免费月饼还差一步：请在${when}前，用报名时填写的邮箱免费注册 CAACI 账户。`,
+          `One more step for a free ${en}: create a free CAACI account with the email you registered with by ${when}.`,
+          `领取免费${zh}还差一步：请在${when}前，用报名时填写的邮箱免费注册 CAACI 账户。`,
         )
       : t(
-          'One more step for a free mooncake: create a free CAACI account with the email you registered with before the festival starts.',
-          '领取免费月饼还差一步：在活动开始前，用报名时填写的邮箱免费注册 CAACI 账户。',
+          `One more step for a free ${en}: create a free CAACI account with the email you registered with before the ${place()} starts.`,
+          `领取免费${zh}还差一步：在活动开始前，用报名时填写的邮箱免费注册 CAACI 账户。`,
         );
   };
 
@@ -1982,24 +2103,21 @@ export async function wireEventFormPage() {
   // `linked`: the API tied the registration to the signed-in account, which it
   // does only when the registration email is the login email. A response
   // without the field comes from before that rule, when signed in meant linked.
-  const showDone = ({ registeredAt, attending, already, signedIn, linked = signedIn }) => {
+  const showDone = ({ registeredAt, already, signedIn, linked = signedIn }) => {
     formCard.hidden = true;
     done.hidden = false;
     const title = $('#caaci-ev-done-title');
-    setText(
-      title,
-      attending ? t("You're registered", '报名成功') : t('Thanks for letting us know', '感谢告知'),
-    );
+    setText(title, t("You're registered", '报名成功'));
     const stamp = registeredText(registeredAt);
     setText($('#caaci-ev-done-time'), stamp ? t(`Registered ${stamp}`, `报名时间：${stamp}`) : '');
     $('#caaci-ev-done-already').hidden = !already;
-    // The mooncake goes with the registration email, so an unlinked signed-in
+    // The gift goes with the registration email, so an unlinked signed-in
     // registrant gets the same account step as an anonymous one.
     signOutFirst = signedIn && !linked;
-    // Someone who is not coming has no mooncake to collect.
-    const step = attending
+    // An event without a gift has no gift step.
+    const step = perk
       ? perkStep({
-          deadline,
+          deadline: perk.deadline,
           registeredAt,
           signedIn: signedIn && linked,
           accountCreatedAt: session?.user?.created_at,
@@ -2008,7 +2126,19 @@ export async function wireEventFormPage() {
     $('#caaci-ev-perk-counted').hidden = step !== 'counted';
     $('#caaci-ev-perk-cta').hidden = step !== 'signup';
     $('#caaci-ev-perk-closed').hidden = step !== 'closed';
+    if (step === 'counted')
+      setText(
+        $('#caaci-ev-perk-counted'),
+        t(`✓ Counted for a free ${perk.item_en}`, `✓ 已计入免费${perk.item_zh}名单`),
+      );
     if (step === 'signup') setText($('#caaci-ev-perk-cta-text'), signupStepText());
+    if (step === 'closed')
+      setText(
+        $('#caaci-ev-perk-closed'),
+        t(`Free ${perk.item_en} sign-up has closed.`, `免费${perk.item_zh}登记已截止。`),
+      );
+    // A closed event takes no more answers, so there is nothing to change.
+    $('#caaci-ev-edit-row').hidden = ev?.open === false;
     return title;
   };
 
@@ -2078,31 +2208,18 @@ export async function wireEventFormPage() {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (btn.disabled) return; // a second tap while the first is sending
-    const heardFrom = choice('heard_from');
-    const body = {
-      event: slug,
-      email: emailEl.value.trim(),
-      attending: choice('attending'),
-      names: namesEl.value.trim(),
-      heard_from: heardFrom,
-      heard_from_other: heardFrom === 'other' ? otherEl.value.trim() : '',
-      wants_meal: choice('wants_meal'),
-      _hp: $('#caaci_hp_field').value,
-    };
-    // The API checks all of this again; asking here saves a round trip on a phone.
+    for (const field of $$('[aria-invalid]', form)) field.removeAttribute('aria-invalid');
     const stop = (msg, field) => {
       notice(note, msg, false);
+      field.setAttribute('aria-invalid', 'true');
       field.focus();
     };
-    if (!EMAIL_RE.test(body.email))
+    const email = emailEl.value.trim();
+    if (!EMAIL_RE.test(email))
       return stop(t('Enter a valid email address.', '请填写有效邮箱。'), emailEl);
-    if (!body.attending)
-      return stop(
-        t('Tell us whether you can attend.', '请告诉我们您能否参加。'),
-        $('#caaci-ev-attending-yes'),
-      );
-    if (body.attending === 'yes' && !body.names)
-      return stop(t('List the names of the people attending.', '请填写参加者姓名。'), namesEl);
+    const read = readEventAnswers(form, questions);
+    if (read.error) return stop(read.error, read.field);
+    const body = { event: slug, email, answers: read.answers, _hp: $('#caaci_hp_field').value };
 
     note.hidden = true;
     const undo = busy(btn, t('Submitting…', '提交中…'));
@@ -2128,51 +2245,72 @@ export async function wireEventFormPage() {
         false,
       );
     registeredEmail = body.email;
-    if (data.deadline) {
-      deadline = data.deadline;
+    if ('perk' in data) {
+      perk = data.perk || null;
       renderPerk();
     }
     showDone({
       registeredAt: data.registered_at,
-      attending: body.attending === 'yes',
       already: !!data.already,
       signedIn: !!data.signed_in,
       linked: typeof data.linked === 'boolean' ? data.linked : !!data.signed_in,
     }).focus();
   });
 
-  // Everything above works without the API; its answer only refines the page.
-  session = await eventSession();
-  const info = await loadEventRegistration(slug, session);
-  if (!info?.event) return;
-  const ev = info.event;
-  // The heading stays the page's own bilingual title: event titles in the
-  // database are English only, and a Chinese visitor would lose theirs.
-  const when = eventWhen(ev);
-  if (when) setText($('#caaci-ev-when'), when);
-  if (ev.location) setText($('#caaci-ev-where'), ev.location);
-  if (ev.description) {
-    const desc = $('#caaci-ev-desc');
-    desc.textContent = ev.description;
-    desc.hidden = false;
-  }
-  deadline = ev.deadline || ev.perk_deadline || ev.starts_at || null;
-  renderPerk();
+  // Draw the event from the API's answer.
+  const render = (info) => {
+    ev = info.event;
+    perk = ev.perk || null;
+    questions = Array.isArray(ev.questions) ? ev.questions : [];
+    const title = t(ev.title, ev.title_zh || ev.title);
+    if (title) {
+      setText($('#caaci-ev-title'), title);
+      document.title = `${title} | Chinese American Association of Central Illinois`;
+    }
+    const when = eventWhen(ev);
+    $('#caaci-ev-when').textContent = when;
+    $('#caaci-ev-when-row').hidden = !when;
+    $('#caaci-ev-where').textContent = ev.location || '';
+    $('#caaci-ev-where-row').hidden = !ev.location;
+    $('#caaci-ev-details').hidden = !when && !ev.location;
+    if (ev.description) {
+      const desc = $('#caaci-ev-desc');
+      desc.textContent = ev.description;
+      desc.hidden = false;
+    }
+    renderPerk();
+    // Closed: the API would refuse an answer, so there is no form to fill in.
+    if (ev.open === false) showState('#caaci-ev-closed');
+    else {
+      showState(null);
+      questionsHost.innerHTML = questions.map(questionHtml).join('');
+      formCard.hidden = false;
+    }
 
-  // Signed in: prefill the address (unless they already typed one), and skip
-  // straight to the success state if they registered before. A submit that
-  // finished while this request was out has already shown it.
-  if (!info.signed_in || !done.hidden) return;
-  if (info.email && !emailEl.value) emailEl.value = info.email;
-  if (info.registration) {
-    registeredEmail = info.email || '';
-    showDone({
-      registeredAt: info.registration.registered_at,
-      attending: info.registration.attending !== false,
-      already: false,
-      signedIn: true,
-    });
-  }
+    // Signed in: prefill the address, and skip straight to the success state
+    // if they registered before.
+    if (!info.signed_in) return;
+    if (info.email && !emailEl.value) emailEl.value = info.email;
+    if (info.registration) {
+      registeredEmail = info.email || '';
+      showDone({
+        registeredAt: info.registration.registered_at,
+        already: false,
+        signedIn: true,
+      });
+    }
+  };
+
+  const load = async () => {
+    if (!slug) return showState('#caaci-ev-missing');
+    showState('#caaci-ev-loading');
+    session = await eventSession();
+    const { info, missing } = await loadEventRegistration(slug, session);
+    if (info) render(info);
+    else showState(missing ? '#caaci-ev-missing' : '#caaci-ev-error');
+  };
+  $('#caaci-ev-retry').addEventListener('click', load);
+  await load();
 }
 
 // ---------- boot ----------
