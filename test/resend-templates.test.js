@@ -11,7 +11,14 @@ import {
 import { templateVariables } from '../functions/api/_event-emails.js';
 
 const KEY = 're_SECRET_full_access_key_123';
-const ALIASES = ['event-registration-confirmation', 'event-announcement'];
+const ALIASES = [
+  'event-registration-confirmation',
+  'event-announcement',
+  'event-reminder',
+  'event-thank-you',
+  'news-general',
+  'membership-renewal-reminder',
+];
 const noPause = { pause: async () => {} };
 
 function capture(t) {
@@ -190,7 +197,7 @@ test('without a key, or with a bad option or a key a header cannot carry, it exi
   assert.equal(out.join('\n').includes(KEY), false);
 });
 
-test('the dry run only reads, and says both would be created', async (t) => {
+test('the dry run only reads, and says each would be created', async (t) => {
   const out = capture(t);
   const server = resendServer();
   const stub = mockFetch(server);
@@ -214,7 +221,13 @@ test('the dry run only reads, and says both would be created', async (t) => {
 test('the dry run names the fields that differ and what is already up to date', async (t) => {
   const out = capture(t);
   const stub = mockFetch(
-    resendServer({ templates: [LIVE[0], { ...LIVE[1], subject: 'old subject', status: 'draft' }] }),
+    resendServer({
+      templates: [
+        LIVE[0],
+        { ...LIVE[1], subject: 'old subject', status: 'draft' },
+        ...LIVE.slice(2),
+      ],
+    }),
   );
   try {
     assert.equal(await main([], { RESEND_API_KEY: KEY }, noPause), 0);
@@ -228,6 +241,7 @@ test('the dry run names the fields that differ and what is already up to date', 
   const text = out.join('\n');
   assert.match(text, /event-registration-confirmation: up to date and published/);
   assert.match(text, /event-announcement: differs \(subject\) — would be updated and published/);
+  assert.match(text, /membership-renewal-reminder: up to date and published/);
   assert.match(text, /--apply would write 1 template\(s\): event-announcement/);
 });
 
@@ -241,14 +255,12 @@ test('--apply creates, publishes and reads back each missing template', async (t
     stub.restore();
   }
   assert.deepEqual(calls(stub), [
-    'GET /templates/event-registration-confirmation',
-    'GET /templates/event-announcement',
-    'POST /templates',
-    'POST /templates/tpl_1/publish',
-    'GET /templates/event-registration-confirmation',
-    'POST /templates',
-    'POST /templates/tpl_2/publish',
-    'GET /templates/event-announcement',
+    ...ALIASES.map((a) => `GET /templates/${a}`),
+    ...ALIASES.flatMap((a, i) => [
+      'POST /templates',
+      `POST /templates/tpl_${i + 1}/publish`,
+      `GET /templates/${a}`,
+    ]),
   ]);
   const creates = stub.calls.filter(
     (c) => c.options.method === 'POST' && c.url.endsWith('/templates'),
@@ -267,7 +279,9 @@ test('--apply creates, publishes and reads back each missing template', async (t
 
 test('--apply updates a drifted template by id, publishes it, and leaves an up-to-date one alone', async (t) => {
   capture(t);
-  const server = resendServer({ templates: [LIVE[0], { ...LIVE[1], html: '<p>old</p>' }] });
+  const server = resendServer({
+    templates: [LIVE[0], { ...LIVE[1], html: '<p>old</p>' }, ...LIVE.slice(2)],
+  });
   const stub = mockFetch(server);
   try {
     assert.equal(await main(['--apply'], { RESEND_API_KEY: KEY }, noPause), 0);
@@ -275,8 +289,7 @@ test('--apply updates a drifted template by id, publishes it, and leaves an up-t
     stub.restore();
   }
   assert.deepEqual(calls(stub), [
-    'GET /templates/event-registration-confirmation',
-    'GET /templates/event-announcement',
+    ...ALIASES.map((a) => `GET /templates/${a}`),
     'PATCH /templates/live_event-announcement',
     'POST /templates/live_event-announcement/publish',
     'GET /templates/event-announcement',
@@ -287,14 +300,16 @@ test('--apply updates a drifted template by id, publishes it, and leaves an up-t
 test('--apply only publishes a template whose content already matches', async (t) => {
   capture(t);
   const stub = mockFetch(
-    resendServer({ templates: [LIVE[0], { ...LIVE[1], has_unpublished_versions: true }] }),
+    resendServer({
+      templates: [LIVE[0], { ...LIVE[1], has_unpublished_versions: true }, ...LIVE.slice(2)],
+    }),
   );
   try {
     assert.equal(await main(['--apply'], { RESEND_API_KEY: KEY }, noPause), 0);
   } finally {
     stub.restore();
   }
-  assert.deepEqual(calls(stub).slice(2), [
+  assert.deepEqual(calls(stub).slice(ALIASES.length), [
     'POST /templates/live_event-announcement/publish',
     'GET /templates/event-announcement',
   ]);

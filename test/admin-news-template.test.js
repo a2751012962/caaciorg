@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestGet } from '../functions/api/admin/news-template.js';
-import { eventAnnouncement } from '../functions/api/_event-emails.js';
+import { eventAnnouncement, newsTemplate } from '../functions/api/_event-emails.js';
 import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
 
 const EV = '11111111-1111-4111-8111-111111111111';
@@ -137,6 +137,80 @@ test('news template: 200 with the announcement subject and HTML, links from the 
       'published',
     ])
       assert.ok(columns.includes(col), col);
+  } finally {
+    fetch.restore();
+  }
+});
+
+const LOGO = 'https://db.example/storage/v1/object/public/media/email/caaci-logo.png';
+const rendered = (name, event) =>
+  newsTemplate(name, { origin: 'https://caaciorg.com', logo: LOGO, event });
+
+test('news template: an unknown template is 400, with no event read', async () => {
+  const fetch = mockFetch(route());
+  try {
+    const r = await get(`?template=bogus&event_id=${EV}`);
+    assert.equal(r.status, 400);
+    assert.deepEqual(await r.json(), { error: 'Unknown template.' });
+    assert.equal(eventReads(fetch).length, 0);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('news template: general and renewal need no event and read none, but still need an admin', async () => {
+  let fetch = mockFetch(route());
+  try {
+    for (const name of ['general', 'renewal']) {
+      const r = await get(`?template=${name}`);
+      assert.equal(r.status, 200, name);
+      assert.deepEqual(await r.json(), rendered(name), name);
+    }
+    assert.equal(eventReads(fetch).length, 0);
+  } finally {
+    fetch.restore();
+  }
+  fetch = mockFetch(route({ admin: false }));
+  try {
+    assert.equal((await get('?template=general')).status, 403);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('news template: reminder refuses an unpublished event and works without registrations', async () => {
+  let fetch = mockFetch(route({ event: { ...EVENT, published: false } }));
+  try {
+    const r = await get(`?template=reminder&event_id=${EV}`);
+    assert.equal(r.status, 409);
+    assert.deepEqual(await r.json(), { error: 'Publish this event before sending a reminder.' });
+  } finally {
+    fetch.restore();
+  }
+  const noRegistrations = { ...EVENT, registration_questions: null };
+  fetch = mockFetch(route({ event: noRegistrations }));
+  try {
+    const r = await get(`?template=reminder&event_id=${EV}`);
+    assert.equal(r.status, 200);
+    const out = await r.json();
+    assert.deepEqual(out, rendered('reminder', noRegistrations));
+    assert.match(out.subject, /活动提醒 \/ Event reminder$/);
+    assert.doesNotMatch(out.html, /\/register\//);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('news template: thanks works for an unpublished event without registrations; event_id is still required', async () => {
+  const past = { ...EVENT, published: false, registration_questions: null };
+  const fetch = mockFetch(route({ event: past }));
+  try {
+    const r = await get(`?template=thanks&event_id=${EV}`);
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), rendered('thanks', past));
+    const missing = await get('?template=thanks');
+    assert.equal(missing.status, 400);
+    assert.deepEqual(await missing.json(), { error: 'event_id required' });
   } finally {
     fetch.restore();
   }

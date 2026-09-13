@@ -1,4 +1,4 @@
-// The two event emails, laid out like supabase/templates/*.html: the CAACI
+// The CAACI emails, laid out like supabase/templates/*.html: the CAACI
 // logo (Storage media/email/caaci-logo.png), a brick rule, Chinese first then
 // English, inline styles only, and the association's footer. Pure — callers
 // pass the origin, the logo URL and the time.
@@ -7,8 +7,12 @@
 //     so it carries NO text the registrant typed: not text answers, not an
 //     Other answer (only the word "Other"), not even the address. Only option
 //     labels and the admin-written event fields, all escaped.
-//   eventAnnouncement — the "event announcement" template in admin Compose
-//     News (/api/admin/news-template), for the admin to edit and send.
+//   newsTemplate — the templates in admin Compose News
+//     (/api/admin/news-template), for the admin to edit and send: for one
+//     event an announcement (eventAnnouncement), a reminder and a thank-you;
+//     with no event a general announcement and a membership renewal reminder.
+//     Text only the admin can write is left as 【待填写：…】 / [To fill in: …],
+//     and /api/admin/news refuses a message that still has it (PLACEHOLDER).
 // Each layout is written once, as a Resend Template with {{{VARIABLE}}}
 // placeholders (templateVariables, synced by resend-templates.mjs). Rendering
 // an email fills that same template with pre-escaped HTML slots taken from the
@@ -23,6 +27,10 @@ const BRICK = '#8e2e11';
 const INK = '#300200';
 const HEADING = `margin:0 0 8px;color:${INK};font-size:20px;`;
 const SMALL = 'font-size:13px;color:#666666;';
+const LINK = 'color:#cd5c5c;';
+
+// Text a template leaves for the admin to replace before sending.
+export const PLACEHOLDER = /【待填写|\[To fill in/;
 
 export const esc = (s) =>
   String(s ?? '').replace(
@@ -103,7 +111,7 @@ ${inner}
     <strong style="color:${INK};">Chinese American Association of Central Illinois</strong><br>
     美中伊利诺伊中部华人协会<br>
     P.O. Box 2276, Champaign, IL 61825<br>
-    <a href="mailto:caaci.org@gmail.com" style="color:#cd5c5c;">caaci.org@gmail.com</a> · <a href="${s.SITE_URL}/" style="color:#cd5c5c;">${s.SITE_HOST}</a>
+    <a href="mailto:caaci.org@gmail.com" style="${LINK}">caaci.org@gmail.com</a> · <a href="${s.SITE_URL}/" style="${LINK}">${s.SITE_HOST}</a>
   </div>
 </div>`;
 }
@@ -161,17 +169,90 @@ ${whenWhere(s)}
   ${s.PERK_HTML}
 
   ${button(s.REGISTER_URL, '报名 · Register')}
-  <p style="margin:0 0 28px;${SMALL}">或打开此链接报名：<br>Or register at: <a href="${s.REGISTER_URL}" style="color:#cd5c5c;">${s.REGISTER_URL}</a></p>`,
+  <p style="margin:0 0 28px;${SMALL}">或打开此链接报名：<br>Or register at: <a href="${s.REGISTER_URL}" style="${LINK}">${s.REGISTER_URL}</a></p>`,
+  );
+
+const reminderSubject = (titleZh, title) => `${titleZh} · ${title} 活动提醒 / Event reminder`;
+const reminderLayout = (s) =>
+  frame(
+    s,
+    `  <h2 style="${HEADING}">${s.EVENT_TITLE_ZH} 即将举行</h2>
+  <p style="margin:0 0 20px;">提醒您：<strong>${s.EVENT_TITLE_ZH}</strong> 即将举行，期待与您相见！</p>
+
+  <h2 style="${HEADING}">Coming up soon</h2>
+  <p style="margin:0 0 24px;">A reminder that <strong>${s.EVENT_TITLE}</strong> is coming up soon. We look forward to seeing you!</p>
+
+${whenWhere(s)}
+
+  ${s.PERK_HTML}
+
+  ${s.ACTION_HTML}`,
+  );
+
+const thanksSubject = (titleZh, title) => `${titleZh} · ${title} 感谢参与 / Thank you`;
+const thanksLayout = (s) =>
+  frame(
+    s,
+    `  <h2 style="${HEADING}">感谢参与${s.EVENT_TITLE_ZH}</h2>
+  <p style="margin:0 0 20px;">感谢大家参加 <strong>${s.EVENT_TITLE_ZH}</strong>！【待填写：几句活动回顾，例如参加人数和精彩瞬间】</p>
+
+  <h2 style="${HEADING}">Thank you for joining us</h2>
+  <p style="margin:0 0 24px;">Thank you for coming to <strong>${s.EVENT_TITLE}</strong>! [To fill in: a few lines about the event, such as turnout and highlights]</p>
+
+  <!-- 没有照片就删掉下面这一段 · Delete the next paragraph if there are no photos -->
+  <p style="margin:0 0 24px;">
+    <strong style="color:${INK};">活动照片 · Photos</strong><br>
+    【待填写：相册链接】 [To fill in: photo album link]
+  </p>
+
+  ${button(`${s.SITE_URL}/events/`, '近期活动 · Upcoming events')}
+  <p style="margin:0 0 28px;${SMALL}">期待在下次活动与您相见！<br>We hope to see you at our next event!</p>`,
+  );
+
+const GENERAL_SUBJECT = 'CAACI 通讯 / CAACI News';
+const generalLayout = (s) =>
+  frame(
+    s,
+    `  <!-- 每段一个 <p>…</p>，不需要的部分可以删掉 · One <p>…</p> per paragraph; delete what you don't need -->
+  <h2 style="${HEADING}">【待填写：中文标题】</h2>
+  <p style="margin:0 0 20px;">【待填写：中文正文】</p>
+
+  <h2 style="${HEADING}">[To fill in: English heading]</h2>
+  <p style="margin:0 0 24px;">[To fill in: English text]</p>
+
+  ${button(`${s.SITE_URL}/`, `访问网站 · Visit ${s.SITE_HOST}`)}
+  <p style="margin:0 0 28px;${SMALL}">如有问题，请写信至 <a href="mailto:caaci.org@gmail.com" style="${LINK}">caaci.org@gmail.com</a>。<br>Questions? Email us at <a href="mailto:caaci.org@gmail.com" style="${LINK}">caaci.org@gmail.com</a>.</p>`,
+  );
+
+const RENEWAL_SUBJECT = 'CAACI 会员续费提醒 / Membership renewal reminder';
+const renewalLayout = (s) =>
+  frame(
+    s,
+    `  <h2 style="${HEADING}">会员续费提醒</h2>
+  <p style="margin:0 0 20px;">感谢您对美中伊利诺伊中部华人协会（CAACI）的支持！如果您的会员已经到期或即将到期，请登录网站续费，继续享受会员权益。</p>
+
+  <h2 style="${HEADING}">Time to renew your membership</h2>
+  <p style="margin:0 0 24px;">Thank you for supporting the Chinese American Association of Central Illinois! If your membership has expired or is about to, please sign in and renew to keep your member benefits.</p>
+
+  ${button(`${s.SITE_URL}/membership/`, '续费会员 · Renew membership')}
+  <p style="margin:0 0 28px;${SMALL}">登录后可在<a href="${s.SITE_URL}/account/" style="${LINK}">我的账户</a>查看会员到期日期。已开启自动续费的会员无需任何操作。<br>Sign in to see when your membership expires under <a href="${s.SITE_URL}/account/" style="${LINK}">My Account</a>. If your membership renews automatically, you don't need to do anything.</p>`,
   );
 
 // ------------------------------------------------------------------- slots ----
 
-// The slots every email shares, escaped from the event.
-function commonSlots({ origin, logo, event }) {
+// The slots every email shares: the site's link, host and logo.
+function siteSlots({ origin, logo }) {
   return {
     SITE_URL: esc(origin),
     SITE_HOST: esc(new URL(origin).host),
     LOGO_URL: esc(logo),
+  };
+}
+
+// The slots every event email shares, escaped from the event.
+function commonSlots({ origin, logo, event }) {
+  return {
+    ...siteSlots({ origin, logo }),
     EVENT_TITLE_ZH: esc(event.title_zh || event.title),
     EVENT_TITLE: esc(event.title),
     WHEN_ZH: esc(eventTime(event, 'zh-CN')),
@@ -181,6 +262,9 @@ function commonSlots({ origin, logo, event }) {
       : '',
   };
 }
+
+const registerUrl = (origin, event) =>
+  esc(`${origin}/events/${encodeURIComponent(event.slug)}/register/`);
 
 // The free-gift box: its title and the paragraphs under it; '' when the event
 // has no gift or its deadline has passed.
@@ -198,6 +282,20 @@ function perkBox(event, now, paragraphs) {
     ${paragraphs(copy)}
   </div>`;
 }
+
+// The gift box for an email that invites people to register: the wording
+// approved for the Mid-Autumn page, with the event's own gift.
+const registerPerk = (event, now) =>
+  perkBox(
+    event,
+    now,
+    (
+      c,
+    ) => `<p style="margin:0 0 8px;">${c.whenZh}前报名，并免费注册一个 CAACI 网站账户，活动当天就能在现场免费领一份${c.zh}。</p>
+    <p style="margin:0 0 8px;${SMALL}">不注册账户也可以报名参加活动，只是领不到${c.zh}。</p>
+    <p style="margin:0 0 8px;">Register and create a free CAACI website account by ${c.whenEn}, and pick up your free ${c.en} at the event.</p>
+    <p style="margin:0;${SMALL}">You can register without an account — you just won't get the free ${c.en}.</p>`,
+  );
 
 // One row per choice question: option labels only (Other as the word). Text
 // questions are left out entirely — their answers are typed text.
@@ -250,17 +348,6 @@ export function registrationConfirmation({
 }
 
 export function eventAnnouncement({ origin, logo, event, now = Date.now() }) {
-  // The wording approved for the Mid-Autumn page, with the event's own gift.
-  const perk = perkBox(
-    event,
-    now,
-    (
-      c,
-    ) => `<p style="margin:0 0 8px;">${c.whenZh}前报名，并免费注册一个 CAACI 网站账户，活动当天就能在现场免费领一份${c.zh}。</p>
-    <p style="margin:0 0 8px;${SMALL}">不注册账户也可以报名参加活动，只是领不到${c.zh}。</p>
-    <p style="margin:0 0 8px;">Register and create a free CAACI website account by ${c.whenEn}, and pick up your free ${c.en} at the event.</p>
-    <p style="margin:0;${SMALL}">You can register without an account — you just won't get the free ${c.en}.</p>`,
-  );
   const description = String(event.description ?? '').trim();
   return {
     subject: announcementSubject(event.title_zh || event.title, event.title),
@@ -269,20 +356,64 @@ export function eventAnnouncement({ origin, logo, event, now = Date.now() }) {
       DESCRIPTION_HTML: description
         ? `<p style="margin:0 0 24px;">${esc(description).replace(/\r?\n/g, '<br>')}</p>`
         : '',
-      PERK_HTML: perk,
-      REGISTER_URL: esc(`${origin}/events/${encodeURIComponent(event.slug)}/register/`),
+      PERK_HTML: registerPerk(event, now),
+      REGISTER_URL: registerUrl(origin, event),
     }),
   };
 }
 
+// The Compose News templates by name: EVENT_NEWS_TEMPLATES are rendered for one
+// event, SITE_NEWS_TEMPLATES need none.
+export const EVENT_NEWS_TEMPLATES = Object.freeze(['announcement', 'reminder', 'thanks']);
+export const SITE_NEWS_TEMPLATES = Object.freeze(['general', 'renewal']);
+
+// { subject, html } for one Compose News template. `event` is required for the
+// event templates and ignored by the others.
+export function newsTemplate(name, { origin, logo, event, now = Date.now() }) {
+  const titles = () => [event.title_zh || event.title, event.title];
+  switch (name) {
+    case 'announcement':
+      return eventAnnouncement({ origin, logo, event, now });
+    case 'reminder': {
+      // The registration link only for an event that takes registrations; the
+      // gift wording asks people to register, so it goes with it.
+      const slots = commonSlots({ origin, logo, event });
+      const registering = event.registration_questions != null;
+      const url = registerUrl(origin, event);
+      return {
+        subject: reminderSubject(...titles()),
+        html: fill(REMINDER.html, {
+          ...slots,
+          PERK_HTML: registering ? registerPerk(event, now) : '',
+          ACTION_HTML: registering
+            ? `${button(url, '报名 · Register')}
+  <p style="margin:0 0 28px;${SMALL}">还没报名，或想修改报名？请用同一邮箱打开此链接提交：<br>Not registered yet, or need to change your answers? Use the same email at: <a href="${url}" style="${LINK}">${url}</a></p>`
+            : `<p style="margin:0 0 28px;${SMALL}">更多活动信息 · More events: <a href="${slots.SITE_URL}/events/" style="${LINK}">${slots.SITE_URL}/events/</a></p>`,
+        }),
+      };
+    }
+    case 'thanks':
+      return {
+        subject: thanksSubject(...titles()),
+        html: fill(THANKS.html, commonSlots({ origin, logo, event })),
+      };
+    case 'general':
+      return { subject: GENERAL_SUBJECT, html: fill(GENERAL.html, siteSlots({ origin, logo })) };
+    case 'renewal':
+      return { subject: RENEWAL_SUBJECT, html: fill(RENEWAL.html, siteSlots({ origin, logo })) };
+    default:
+      throw new Error(`Unknown news template: ${name}`);
+  }
+}
+
 // ------------------------------------------------------- Resend templates ----
 
-// The two layouts as Resend Templates (synced by resend-templates.mjs; nothing
+// Every layout as a Resend Template (synced by resend-templates.mjs; nothing
 // on the site sends through Resend's copies). Every slot is a {{{KEY}}}
 // placeholder — triple braces, so Resend inserts the value unescaped, which
-// means a sender must pass HTML-escaped values, exactly what commonSlots()
-// builds. ANSWERS_HTML, PERK_HTML, WHERE_HTML and DESCRIPTION_HTML are whole
-// sections of HTML ('' to leave one out).
+// means a sender must pass HTML-escaped values, exactly what siteSlots() and
+// commonSlots() build. ANSWERS_HTML, PERK_HTML, WHERE_HTML, DESCRIPTION_HTML
+// and ACTION_HTML are whole sections of HTML ('' to leave one out).
 
 // One pass over the template: a value that itself contains "{{{KEY}}}" (an
 // admin could type that into a title) is inserted as it is, never expanded.
@@ -291,16 +422,9 @@ const fill = (text, values) =>
     Object.hasOwn(values, key) ? values[key] : m,
   );
 
-const COMMON_KEYS = [
-  'SITE_URL',
-  'SITE_HOST',
-  'LOGO_URL',
-  'EVENT_TITLE_ZH',
-  'EVENT_TITLE',
-  'WHEN_ZH',
-  'WHEN_EN',
-  'WHERE_HTML',
-];
+const SITE_KEYS = ['SITE_URL', 'SITE_HOST', 'LOGO_URL'];
+const TITLE_KEYS = [...SITE_KEYS, 'EVENT_TITLE_ZH', 'EVENT_TITLE'];
+const COMMON_KEYS = [...TITLE_KEYS, 'WHEN_ZH', 'WHEN_EN', 'WHERE_HTML'];
 const placeholders = (keys) => Object.fromEntries(keys.map((k) => [k, `{{{${k}}}}`]));
 const template = ({ alias, name, keys, subject, layout }) =>
   Object.freeze({
@@ -313,6 +437,7 @@ const template = ({ alias, name, keys, subject, layout }) =>
 
 const CONFIRMATION_KEYS = [...COMMON_KEYS, 'ANSWERS_HTML', 'PERK_HTML'];
 const ANNOUNCEMENT_KEYS = [...COMMON_KEYS, 'DESCRIPTION_HTML', 'PERK_HTML', 'REGISTER_URL'];
+const REMINDER_KEYS = [...COMMON_KEYS, 'PERK_HTML', 'ACTION_HTML'];
 
 const CONFIRMATION = template({
   alias: 'event-registration-confirmation',
@@ -328,6 +453,41 @@ const ANNOUNCEMENT = template({
   subject: announcementSubject('{{{EVENT_TITLE_ZH}}}', '{{{EVENT_TITLE}}}'),
   layout: announcementLayout,
 });
+const REMINDER = template({
+  alias: 'event-reminder',
+  name: 'CAACI event reminder',
+  keys: REMINDER_KEYS,
+  subject: reminderSubject('{{{EVENT_TITLE_ZH}}}', '{{{EVENT_TITLE}}}'),
+  layout: reminderLayout,
+});
+const THANKS = template({
+  alias: 'event-thank-you',
+  name: 'CAACI event thank-you',
+  keys: TITLE_KEYS,
+  subject: thanksSubject('{{{EVENT_TITLE_ZH}}}', '{{{EVENT_TITLE}}}'),
+  layout: thanksLayout,
+});
+const GENERAL = template({
+  alias: 'news-general',
+  name: 'CAACI general announcement',
+  keys: SITE_KEYS,
+  subject: GENERAL_SUBJECT,
+  layout: generalLayout,
+});
+const RENEWAL = template({
+  alias: 'membership-renewal-reminder',
+  name: 'CAACI membership renewal reminder',
+  keys: SITE_KEYS,
+  subject: RENEWAL_SUBJECT,
+  layout: renewalLayout,
+});
 
 // [{ alias, name, subject, html, variables: [{ key, type }] }]
-export const templateVariables = Object.freeze([CONFIRMATION, ANNOUNCEMENT]);
+export const templateVariables = Object.freeze([
+  CONFIRMATION,
+  ANNOUNCEMENT,
+  REMINDER,
+  THANKS,
+  GENERAL,
+  RENEWAL,
+]);

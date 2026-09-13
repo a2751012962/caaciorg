@@ -873,11 +873,23 @@ function wireDiscounts() {
 }
 
 // ---------- news composer ----------
-// The "Event announcement" template: the API renders the email for a published
-// event (GET /api/admin/news-template → { subject, html }) into the subject and
-// message boxes, where it stays editable and is sent like any other news email.
+// Templates: the API renders one (GET /api/admin/news-template → { subject,
+// html }) into the subject and message boxes, where it stays editable and is
+// sent like any other news email. An event template waits for an event.
+const NEWS_TEMPLATES = {
+  general: { api: 'general', event: false, en: 'general announcement', zh: '通用公告' },
+  event: { api: 'announcement', event: true, en: 'event announcement', zh: '活动通知' },
+  reminder: { api: 'reminder', event: true, en: 'event reminder', zh: '活动提醒' },
+  thanks: { api: 'thanks', event: true, en: 'event thank-you', zh: '活动感谢信' },
+  renewal: { api: 'renewal', event: false, en: 'renewal reminder', zh: '会员续费提醒' },
+};
+const newsTemplateOf = (value) =>
+  Object.hasOwn(NEWS_TEMPLATES, value) ? NEWS_TEMPLATES[value] : null;
+// Text a template leaves for the admin to write. /api/admin/news refuses it
+// too (PLACEHOLDER in functions/api/_event-emails.js).
+const NEWS_PLACEHOLDER = /【待填写|\[To fill in/;
 let newsFilled = null; // the template text last put in the boxes
-let newsSeq = 0; // a slow template answer for an event since deselected is dropped
+let newsSeq = 0; // a slow template answer for a choice since changed is dropped
 
 async function loadNewsEvents() {
   const sel = $('#caaci-news-event');
@@ -902,8 +914,9 @@ async function loadNewsEvents() {
 }
 
 async function applyNewsTemplate() {
+  const tpl = newsTemplateOf($('#caaci-news-template').value);
   const eventId = $('#caaci-news-event').value;
-  if ($('#caaci-news-template').value !== 'event' || !eventId) return;
+  if (!tpl || (tpl.event && !eventId)) return;
   const subject = $('#caaci-news-subject');
   const body = $('#caaci-news-body');
   const notb = $('#caaci-news-notice');
@@ -914,17 +927,14 @@ async function applyNewsTemplate() {
     (subject.value.trim() || body.value.trim()) &&
     !untouched &&
     !window.confirm(
-      t(
-        'Replace the subject and message with the event announcement?',
-        '用活动通知替换当前的主题和正文？',
-      ),
+      t(`Replace the subject and message with the ${tpl.en}?`, `用${tpl.zh}替换当前的主题和正文？`),
     )
   )
     return;
+  const query = new URLSearchParams({ template: tpl.api });
+  if (tpl.event) query.set('event_id', eventId);
   const seq = ++newsSeq;
-  const { ok, data } = await api(
-    `/api/admin/news-template?event_id=${encodeURIComponent(eventId)}`,
-  );
+  const { ok, data } = await api(`/api/admin/news-template?${query}`);
   if (seq !== newsSeq) return;
   if (!ok)
     return notice(notb, data.error || t('Could not load the template.', '无法加载模板。'), false);
@@ -963,10 +973,13 @@ function showNewsPreview() {
 
 function wireNews() {
   $('#caaci-news-template').addEventListener('change', async () => {
-    const isEvent = $('#caaci-news-template').value === 'event';
-    $('#caaci-news-event-wrap').hidden = !isEvent;
-    if (!isEvent) return; // Blank leaves the boxes as they are
-    await loadNewsEvents();
+    const tpl = newsTemplateOf($('#caaci-news-template').value);
+    $('#caaci-news-event-wrap').hidden = !tpl?.event;
+    if (!tpl) {
+      newsSeq++; // Blank leaves the boxes as they are, and drops a pending template
+      return;
+    }
+    if (tpl.event) await loadNewsEvents();
     await applyNewsTemplate();
   });
   $('#caaci-news-event').addEventListener('change', applyNewsTemplate);
@@ -982,6 +995,15 @@ function wireNews() {
     };
     if (!body.subject || !body.body_html)
       return notice(notb, t('Subject and message are required.', '主题和正文为必填项。'), false);
+    if (NEWS_PLACEHOLDER.test(body.subject) || NEWS_PLACEHOLDER.test(body.body_html))
+      return notice(
+        notb,
+        t(
+          'Replace the 【待填写】 / [To fill in] text before sending.',
+          '请先替换【待填写】/ [To fill in] 文字再发送。',
+        ),
+        false,
+      );
     if (!body.confirm)
       return notice(notb, t('Please check the confirmation box.', '请勾选确认框。'), false);
     btn.disabled = true;

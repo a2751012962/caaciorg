@@ -1,9 +1,13 @@
-// resend-templates.mjs — copies the two event email layouts into Resend Templates.
+// resend-templates.mjs — copies the CAACI email layouts into Resend Templates.
 //
 // The layouts live in functions/api/_event-emails.js (templateVariables):
 //   event-registration-confirmation — what /api/event-register sends a registrant
 //   event-announcement              — admin Compose News → Event announcement
-// NOTHING ON THE SITE READS THESE COPIES. The site renders both emails from
+//   event-reminder                  — admin Compose News → Event reminder
+//   event-thank-you                 — admin Compose News → Event thank-you
+//   news-general                    — admin Compose News → General announcement
+//   membership-renewal-reminder     — admin Compose News → Membership renewal reminder
+// NOTHING ON THE SITE READS THESE COPIES. The site renders every email from
 // _event-emails.js itself and sends plain HTML; the Resend copies exist so the
 // layouts can be previewed, or sent by hand, from the Resend dashboard. Changing
 // a template in Resend changes nothing the site sends; rerun this to put the
@@ -189,7 +193,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, { pa
 
   const todo = plans.filter((p) => p.action);
   if (!todo.length) {
-    console.log('✓ Both templates match the repo. Nothing to do.');
+    console.log('✓ Every template matches the repo. Nothing to do.');
     return 0;
   }
   if (!apply) {

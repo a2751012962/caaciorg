@@ -479,14 +479,20 @@ wired by `wireEventFormPage` in `src/caaci-member.js`) serves every event.
   submission sends the registrant a confirmation with the event details, their
   multiple-choice answers and the gift step. It never carries typed text (text
   answers, "Other" text, or the address itself), so the public endpoint cannot be
-  used to mail arbitrary copy from CAACI. **Admin → Compose News → Template "Event
-  announcement"** fills the subject and body for a published event with
-  registrations turned on; edit and preview before sending. Both need
-  `RESEND_API_KEY` and `NOTIFY_FROM`; `NOTIFY_TO` is the confirmation's reply-to.
+  used to mail arbitrary copy from CAACI. **Admin → Compose News → Template**
+  fills the subject and body from a layout: "Event announcement" for a published
+  event with registrations turned on, "Event reminder" for a published event
+  (with the registration link only if it takes registrations), "Event thank-you"
+  for any event, and "General announcement" and "Membership renewal reminder"
+  with no event. Text only the admin can write is left as `【待填写：…】` /
+  `[To fill in: …]`, and `/api/admin/news` refuses a message that still has it.
+  Edit and preview before sending. Sending needs `RESEND_API_KEY` and
+  `NOTIFY_FROM`; `NOTIFY_TO` is the confirmation's reply-to.
 - **Resend Templates.** `npm run resend:templates` (dry run) and
-  `npm run resend:templates -- --apply` publish the same two layouts to Resend as
-  Templates (aliases `event-registration-confirmation` and `event-announcement`)
-  with `{{{VARIABLE}}}` slots. This needs a full-access `RESEND_API_KEY` in the
+  `npm run resend:templates -- --apply` publish the same six layouts to Resend as
+  Templates (aliases `event-registration-confirmation`, `event-announcement`,
+  `event-reminder`, `event-thank-you`, `news-general` and
+  `membership-renewal-reminder`) with `{{{VARIABLE}}}` slots. This needs a full-access `RESEND_API_KEY` in the
   environment, not the site's sending-only key. The site does not read these
   copies; they are for sending through the Resend API by hand.
 - **Admin → Events → Registrations**: one column per question, per-option counts,

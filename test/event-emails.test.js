@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   registrationConfirmation,
   eventAnnouncement,
+  newsTemplate,
+  PLACEHOLDER,
   templateVariables,
   centralTime,
   emailLogo,
@@ -413,10 +415,29 @@ const RESERVED = [
   'THIS',
 ];
 
-test('templateVariables: the two templates, with every placeholder declared and every variable used', () => {
+// Mid-Autumn taking registrations, for the Compose News templates.
+const REGISTERING = { ...MID_AUTUMN, registration_questions: QUESTIONS };
+const news = (name, over = {}) =>
+  newsTemplate(name, {
+    origin: ORIGIN,
+    logo: LOGO,
+    event: REGISTERING,
+    now: BEFORE_DEADLINE,
+    ...over,
+  });
+const SITE_KEYS = ['SITE_URL', 'SITE_HOST', 'LOGO_URL'];
+
+test('templateVariables: every template, with every placeholder declared and every variable used', () => {
   assert.deepEqual(
     templateVariables.map((t) => t.alias),
-    ['event-registration-confirmation', 'event-announcement'],
+    [
+      'event-registration-confirmation',
+      'event-announcement',
+      'event-reminder',
+      'event-thank-you',
+      'news-general',
+      'membership-renewal-reminder',
+    ],
   );
   for (const t of templateVariables) {
     assert.ok(t.name && t.subject && t.html, t.alias);
@@ -430,10 +451,17 @@ test('templateVariables: the two templates, with every placeholder declared and 
       assert.equal(RESERVED.includes(v.key.toUpperCase()), false, v.key);
       assert.equal(v.type, 'string');
     }
-    assert.ok(declared.includes('PERK_HTML'), `${t.alias} has PERK_HTML`);
   }
-  assert.ok(templateVariables[0].variables.some((v) => v.key === 'ANSWERS_HTML'));
-  assert.ok(templateVariables[1].variables.some((v) => v.key === 'REGISTER_URL'));
+  const keysOf = (alias) =>
+    templateVariables.find((t) => t.alias === alias).variables.map((v) => v.key);
+  for (const alias of ['event-registration-confirmation', 'event-announcement', 'event-reminder'])
+    assert.ok(keysOf(alias).includes('PERK_HTML'), `${alias} has PERK_HTML`);
+  assert.ok(keysOf('event-registration-confirmation').includes('ANSWERS_HTML'));
+  assert.ok(keysOf('event-announcement').includes('REGISTER_URL'));
+  assert.ok(keysOf('event-reminder').includes('ACTION_HTML'));
+  assert.deepEqual(keysOf('event-thank-you'), [...SITE_KEYS, 'EVENT_TITLE_ZH', 'EVENT_TITLE']);
+  assert.deepEqual(keysOf('news-general'), SITE_KEYS);
+  assert.deepEqual(keysOf('membership-renewal-reminder'), SITE_KEYS);
 });
 
 test('templateVariables: the rendered emails are these templates filled in', () => {
@@ -446,11 +474,99 @@ test('templateVariables: the rendered emails are these templates filled in', () 
         .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
         .join('[\\s\\S]*')}$`,
     );
-  const [confirmation, announcement] = templateVariables;
-  assert.match(confirm().html, shape(confirmation.html));
-  assert.match(confirm().subject, shape(confirmation.subject));
-  assert.match(announce().html, shape(announcement.html));
-  assert.match(announce().subject, shape(announcement.subject));
+  const byAlias = Object.fromEntries(templateVariables.map((t) => [t.alias, t]));
+  for (const [alias, email] of [
+    ['event-registration-confirmation', confirm()],
+    ['event-announcement', announce()],
+    ['event-reminder', news('reminder')],
+    ['event-reminder', news('reminder', { event: MID_AUTUMN })],
+    ['event-thank-you', news('thanks')],
+    ['news-general', news('general')],
+    ['membership-renewal-reminder', news('renewal')],
+  ]) {
+    assert.match(email.html, shape(byAlias[alias].html), alias);
+    assert.match(email.subject, shape(byAlias[alias].subject), alias);
+  }
+});
+
+// ------------------------------------------------------------ Compose News ----
+
+test('newsTemplate: announcement is eventAnnouncement; an unknown name throws', () => {
+  assert.deepEqual(news('announcement', { event: MID_AUTUMN }), announce());
+  assert.throws(() => news('bogus'), /Unknown news template: bogus/);
+});
+
+test('newsTemplate reminder: when, where, the gift and the registration link for an event that takes registrations', () => {
+  const { subject, html } = news('reminder');
+  assert.equal(subject, '中秋节 · Mid-Autumn Festival 中秋节 活动提醒 / Event reminder');
+  const t = text(html);
+  assert.match(t, /中秋节 即将举行/);
+  assert.match(html, /Sunday, September 27, 2026 at 2:00\sPM – 6:00\sPM/);
+  assert.match(t, /Siebel Center for Design/);
+  assert.match(t, /免费领月饼 · Free mooncake/);
+  const reg = 'https://caaciorg.com/events/mid-autumn-festival/register/';
+  assert.ok(html.includes(`href="${reg}"`));
+  assert.match(t, /Not registered yet, or need to change your answers\?/);
+  assert.equal(PLACEHOLDER.test(subject + html), false, 'ready to send as it is');
+
+  // After the gift deadline the gift box is gone and the link stays.
+  const late = news('reminder', { now: Date.parse('2026-09-28T00:00:00Z') });
+  assert.doesNotMatch(late.html, /免费领/);
+  assert.ok(late.html.includes(`href="${reg}"`));
+});
+
+test('newsTemplate reminder: an event that takes no registrations gets no registration link and no gift', () => {
+  const { html } = news('reminder', { event: MID_AUTUMN }); // no registration_questions
+  assert.doesNotMatch(html, /\/register\//);
+  assert.doesNotMatch(html, /免费领/);
+  assert.ok(html.includes('href="https://caaciorg.com/events/"'));
+});
+
+test('newsTemplate thanks: the event title, text to fill in, and a link to upcoming events', () => {
+  const { subject, html } = news('thanks');
+  assert.equal(subject, '中秋节 · Mid-Autumn Festival 中秋节 感谢参与 / Thank you');
+  assert.match(text(html), /感谢大家参加 中秋节 ！/);
+  assert.ok(PLACEHOLDER.test(html));
+  assert.match(html, /【待填写：相册链接】/);
+  assert.ok(html.includes('href="https://caaciorg.com/events/"'));
+  assert.doesNotMatch(html, /免费领|\/register\//);
+});
+
+test('newsTemplate general and renewal: no event; general has text to fill in, renewal is ready to send', () => {
+  const general = newsTemplate('general', { origin: ORIGIN, logo: LOGO });
+  assert.equal(general.subject, 'CAACI 通讯 / CAACI News');
+  assert.ok(PLACEHOLDER.test(general.html));
+  assert.match(general.html, /\[To fill in: English heading\]/);
+  assert.ok(general.html.includes(`src="${LOGO}"`));
+  assert.match(text(general.html), /Visit caaciorg\.com/);
+
+  const renewal = newsTemplate('renewal', { origin: ORIGIN, logo: LOGO });
+  assert.equal(renewal.subject, 'CAACI 会员续费提醒 / Membership renewal reminder');
+  assert.equal(PLACEHOLDER.test(renewal.subject + renewal.html), false);
+  assert.ok(renewal.html.includes('href="https://caaciorg.com/membership/"'));
+  assert.ok(renewal.html.includes('href="https://caaciorg.com/account/"'));
+});
+
+test('newsTemplate: event text is escaped in the reminder and the thank-you', () => {
+  const hostile = {
+    ...REGISTERING,
+    title: '<b>Gala</b>',
+    title_zh: '<i>晚会</i>',
+    location: '<img src=x>',
+    slug: 'a"b',
+  };
+  for (const name of ['reminder', 'thanks']) {
+    const { html } = news(name, { event: hostile });
+    assert.doesNotMatch(html, /<b>|<i>|<img src=x>/, name);
+    assert.match(html, /&lt;i&gt;晚会&lt;\/i&gt;/, name);
+  }
+  assert.ok(news('reminder', { event: hostile }).html.includes('/events/a%22b/register/'));
+});
+
+test('PLACEHOLDER matches the fill-in markers and nothing like them', () => {
+  for (const s of ['【待填写：标题】', '[To fill in: heading]']) assert.ok(PLACEHOLDER.test(s), s);
+  for (const s of ['【活动】', '[To fill]', 'To fill in', '待填写'])
+    assert.equal(PLACEHOLDER.test(s), false, s);
 });
 
 test('esc escapes the five HTML characters', () => {

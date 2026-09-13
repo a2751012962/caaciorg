@@ -1364,7 +1364,10 @@ test('admin news: the event announcement template fills subject and message, sta
     // Choosing one fills the empty boxes without asking.
     choose($('#caaci-news-event'), 'ev-maf');
     await tick();
-    assert.equal(templateCalls()[0].url, '/api/admin/news-template?event_id=ev-maf');
+    assert.equal(
+      templateCalls()[0].url,
+      '/api/admin/news-template?template=announcement&event_id=ev-maf',
+    );
     assert.equal(templateCalls()[0].options.headers.authorization, 'Bearer tok');
     assert.equal(subject.value, rendered('ev-maf').subject);
     assert.equal(body.value, rendered('ev-maf').html);
@@ -1425,6 +1428,104 @@ test('admin news: the event announcement template fills subject and message, sta
       confirm: true,
     });
     assert.match($('#caaci-news-notice').textContent, /Sent to 2 member\(s\)/);
+  } finally {
+    asked.restore();
+    fetch.restore();
+  }
+});
+
+test('admin news: general and renewal need no event, event templates send their name, and placeholder text is never sent', async () => {
+  const fetch = mockFetch((u) => {
+    if (u.includes('/api/admin/news-template')) {
+      const q = new URL(u, 'https://x').searchParams;
+      const name = q.get('template');
+      if (name === 'renewal') return { body: { subject: 'Renew', html: '<p>Renew now</p>' } };
+      return {
+        body: {
+          subject: `${name} ${q.get('event_id') || ''}`.trim(),
+          html: `<p>${name} 【待填写：正文】</p>`,
+        },
+      };
+    }
+    if (u === '/api/admin/news') return { body: { ok: true, sent: 1, failed: 0, total: 1 } };
+    if (u.includes('/api/admin/events')) return { body: { rows: [MAF, FAIR], total: 2 } };
+    return { body: {} };
+  });
+  const asked = stubConfirm(true);
+  const $ = (s) => document.querySelector(s);
+  const subject = $('#caaci-news-subject');
+  const body = $('#caaci-news-body');
+  const lastTemplateUrl = () =>
+    fetch.calls.filter((c) => c.url.includes('/api/admin/news-template')).at(-1)?.url;
+  const newsPosts = () => fetch.calls.filter((c) => c.url === '/api/admin/news');
+  const send = async () => {
+    $('#caaci-news-confirm').checked = true;
+    $('#caaci-news-send').click();
+    await tick();
+  };
+  try {
+    $('[data-tab="news"]').click();
+    await tick();
+    subject.value = '';
+    body.value = '';
+
+    // General: no event picker, filled at once.
+    choose($('#caaci-news-template'), 'general');
+    await tick();
+    assert.equal($('#caaci-news-event-wrap').hidden, true);
+    assert.equal(lastTemplateUrl(), '/api/admin/news-template?template=general');
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('/api/admin/events')),
+      false,
+      'no events loaded',
+    );
+    assert.equal(body.value, '<p>general 【待填写：正文】</p>');
+    assert.equal(asked.length, 0, 'empty boxes are filled without asking');
+
+    // Placeholder text left in the message or the subject is never sent.
+    await send();
+    assert.equal(newsPosts().length, 0);
+    assert.match(
+      $('#caaci-news-notice').textContent,
+      /Replace the 【待填写】 \/ \[To fill in\] text before sending/,
+    );
+    subject.value = '[To fill in: English heading]';
+    body.value = '<p>Hello</p>';
+    await send();
+    assert.equal(newsPosts().length, 0);
+
+    // Event reminder waits for an event, then asks before replacing the edited boxes.
+    choose($('#caaci-news-template'), 'reminder');
+    await tick();
+    assert.equal($('#caaci-news-event-wrap').hidden, false);
+    assert.equal(lastTemplateUrl(), '/api/admin/news-template?template=general', 'no event yet');
+    choose($('#caaci-news-event'), 'ev-fair');
+    await tick();
+    assert.equal(asked.length, 1);
+    assert.match(asked[0], /Replace the subject and message with the event reminder\?/);
+    assert.equal(lastTemplateUrl(), '/api/admin/news-template?template=reminder&event_id=ev-fair');
+    assert.equal(subject.value, 'reminder ev-fair');
+
+    // The thank-you keeps the chosen event and swaps untouched template text without asking.
+    choose($('#caaci-news-template'), 'thanks');
+    await tick();
+    assert.equal(asked.length, 1);
+    assert.equal(lastTemplateUrl(), '/api/admin/news-template?template=thanks&event_id=ev-fair');
+    assert.equal(subject.value, 'thanks ev-fair');
+
+    // Renewal: no event and nothing to replace, so it sends as filled.
+    choose($('#caaci-news-template'), 'renewal');
+    await tick();
+    assert.equal($('#caaci-news-event-wrap').hidden, true);
+    assert.equal(lastTemplateUrl(), '/api/admin/news-template?template=renewal');
+    await send();
+    assert.equal(newsPosts().length, 1);
+    assert.deepEqual(JSON.parse(newsPosts()[0].options.body), {
+      subject: 'Renew',
+      body_html: '<p>Renew now</p>',
+      audience: 'active',
+      confirm: true,
+    });
   } finally {
     asked.restore();
     fetch.restore();

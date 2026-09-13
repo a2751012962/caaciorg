@@ -4,6 +4,7 @@
 // their own message (no shared to/cc) so the list isn't leaked. Throttled and
 // requires an explicit confirm to prevent accidental mass-sends.
 import { json, bad, sb, requireAdmin, sendEmailBatch } from '../_lib.js';
+import { PLACEHOLDER } from '../_event-emails.js';
 
 const AUDIENCES = ['all', 'active']; // plus 'tier:<id>'
 const THROTTLE_MS = 60_000; // min gap between sends
@@ -27,6 +28,9 @@ export async function onRequestPost({ request, env }) {
   if (!subject) return bad('Subject is required.');
   if (!html) return bad('Message body is required.');
   if (html.length > MAX_BODY) return bad('Message body is too large.');
+  // A Compose News template's 【待填写】 / [To fill in] text was never replaced.
+  if (PLACEHOLDER.test(subject) || PLACEHOLDER.test(html))
+    return bad('Replace the 【待填写】 / [To fill in] text before sending.');
   if (!b.confirm) return bad('Please confirm before sending.');
   const isTier = audience.startsWith('tier:');
   if (!AUDIENCES.includes(audience) && !isTier) return bad('Invalid audience.');
