@@ -1,8 +1,8 @@
-# Pages project name — this is the deploy target, so it decides which
-# *.pages.dev host `npm run deploy` publishes to. The project on the new
-# Supabase backend is caaci-8s2; the older `caaci` project is still up and still
-# points at the old database, kept only as a rollback.
-name = "caaci-8s2"
+# Pages project name — the deploy target for `npm run deploy` and the
+# `--project-name` for secret commands. The one Pages project is `caaci`
+# (Git-connected); caaci-8s2.pages.dev is only its pages.dev subdomain, not a
+# separate project.
+name = "caaci"
 compatibility_date = "2024-11-01"
 pages_build_output_dir = "dist"
 
@@ -21,12 +21,18 @@ SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 # Not a secret. Without it (or without the RESEND_API_KEY secret) sendEmail in
 # functions/api/_lib.js silently sends nothing.
 NOTIFY_FROM = "CAACI <no-reply@caaciorg.com>"
+# Staff inbox for notifications that have no explicit recipient (contact form,
+# business listings) and the reply-to on registration confirmations. Without it
+# those staff emails are skipped even when RESEND_API_KEY and NOTIFY_FROM are set.
+NOTIFY_TO = "caaci.org@gmail.com"
 
-# Secrets are NOT stored here — set them with wrangler (targets production by default):
-#   npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci-8s2
-#   npx wrangler pages secret put STRIPE_SECRET_KEY         --project-name=caaci-8s2
-#   npx wrangler pages secret put STRIPE_WEBHOOK_SECRET     --project-name=caaci-8s2
-#   npx wrangler pages secret put RESEND_API_KEY            --project-name=caaci-8s2
+# Secrets are NOT stored here — set them with wrangler (production by default;
+# secrets are per environment). The argument after `put` is the NAME below; the
+# value is pasted at the prompt that follows, never typed on the command line:
+#   npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci
+#   npx wrangler pages secret put STRIPE_SECRET_KEY         --project-name=caaci
+#   npx wrangler pages secret put STRIPE_WEBHOOK_SECRET     --project-name=caaci
+#   npx wrangler pages secret put RESEND_API_KEY            --project-name=caaci
 # NOTE: SUPABASE_URL / SUPABASE_ANON_KEY must NOT also exist as secrets — a secret
 # shadows the [vars] value of the same name. They were removed as secrets so the
 # plaintext vars above are authoritative.
