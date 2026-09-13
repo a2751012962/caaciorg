@@ -711,6 +711,38 @@
                       </option>
                     </select>
                   </div>
+                  <!-- A template fills the subject and message below; both stay editable. -->
+                  <div class="row g-2 mb-3">
+                    <div class="col-sm-6">
+                      <label
+                        class="form-label"
+                        for="caaci-news-template"
+                        data-en="Template"
+                        data-zh="模板"
+                        >Template</label
+                      >
+                      <select id="caaci-news-template" class="form-select">
+                        <option value="" data-en="Blank" data-zh="空白">Blank</option>
+                        <option
+                          value="event"
+                          data-en="Event announcement · 活动通知"
+                          data-zh="活动通知 · Event announcement"
+                        >
+                          Event announcement · 活动通知
+                        </option>
+                      </select>
+                    </div>
+                    <div class="col-sm-6" id="caaci-news-event-wrap" hidden>
+                      <label
+                        class="form-label"
+                        for="caaci-news-event"
+                        data-en="Event (published)"
+                        data-zh="活动（已发布）"
+                        >Event (published)</label
+                      >
+                      <select id="caaci-news-event" class="form-select"></select>
+                    </div>
+                  </div>
                   <div class="mb-3">
                     <label class="form-label" data-en="Subject" data-zh="主题">Subject</label>
                     <input type="text" id="caaci-news-subject" class="form-control" />
@@ -733,7 +765,16 @@
                       >I understand this emails real members.</span
                     >
                   </label>
-                  <div class="mt-3">
+                  <div class="mt-3 btn-list">
+                    <button
+                      type="button"
+                      class="btn"
+                      id="caaci-news-preview-btn"
+                      data-en="Preview"
+                      data-zh="预览"
+                    >
+                      Preview
+                    </button>
                     <button
                       type="button"
                       class="btn btn-primary"
@@ -744,6 +785,8 @@
                       Send news email
                     </button>
                   </div>
+                  <!-- The message rendered in a sandboxed frame (no scripts) by caaci-admin.js. -->
+                  <div class="mt-3" id="caaci-news-preview" hidden></div>
                   <p class="alert mt-3" id="caaci-news-notice" hidden></p>
                 </div>
               </section>

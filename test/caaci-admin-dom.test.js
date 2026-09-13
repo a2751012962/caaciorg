@@ -1279,6 +1279,122 @@ test('admin events: the registrations panel shows a column and option counts per
   }
 });
 
+test('admin news: the event announcement template fills subject and message, stays editable, and previews sandboxed', async () => {
+  // The API's rendering of an announcement, per event (a script in it must never run).
+  const rendered = (id) => ({
+    subject: `${id} · 报名开始 / Registration open`,
+    html: `<h1>${id}</h1><script>parent.hacked = true</script><a href="https://caaci.example/events/${id}/register/">报名 · Register</a>`,
+  });
+  const fetch = mockFetch((u) => {
+    if (u.includes('/api/admin/news-template'))
+      return u.endsWith('event_id=ev-gone')
+        ? { status: 404, body: { error: 'Event not found.' } }
+        : { body: rendered(new URL(u, 'https://x').searchParams.get('event_id')) };
+    if (u === '/api/admin/news') return { body: { ok: true, sent: 2, failed: 0, total: 2 } };
+    if (u.includes('/api/admin/events'))
+      return { body: { rows: [MAF, FAIR, { ...PICNIC, id: 'ev-gone', title: 'Gone' }], total: 3 } };
+    return { body: {} };
+  });
+  const asked = stubConfirm(false);
+  const $ = (s) => document.querySelector(s);
+  const subject = $('#caaci-news-subject');
+  const body = $('#caaci-news-body');
+  const templateCalls = () => fetch.calls.filter((c) => c.url.includes('/api/admin/news-template'));
+  try {
+    $('[data-tab="news"]').click();
+    await tick();
+
+    // Blank by default: no event picker. Nothing to preview yet.
+    assert.equal($('#caaci-news-template').value, '');
+    assert.equal($('#caaci-news-event-wrap').hidden, true);
+    $('#caaci-news-preview-btn').click();
+    assert.equal($('#caaci-news-preview').hidden, true);
+    assert.match($('#caaci-news-notice').textContent, /Write a message to preview/);
+
+    // Event announcement lists the published events.
+    choose($('#caaci-news-template'), 'event');
+    await tick();
+    assert.equal($('#caaci-news-event-wrap').hidden, false);
+    const listCall = fetch.calls.find((c) => c.url.includes('/api/admin/events'));
+    assert.match(listCall.url, /[?&]published=true(&|$)/);
+    const options = [...$('#caaci-news-event').options];
+    assert.deepEqual(
+      options.map((o) => o.value),
+      ['', 'ev-maf', 'ev-fair', 'ev-gone'],
+    );
+    assert.match(options[1].textContent, /^中秋节 · Mid-Autumn Festival \(/);
+    assert.equal(templateCalls().length, 0, 'nothing to fill until an event is chosen');
+
+    // Choosing one fills the empty boxes without asking.
+    choose($('#caaci-news-event'), 'ev-maf');
+    await tick();
+    assert.equal(templateCalls()[0].url, '/api/admin/news-template?event_id=ev-maf');
+    assert.equal(templateCalls()[0].options.headers.authorization, 'Bearer tok');
+    assert.equal(subject.value, rendered('ev-maf').subject);
+    assert.equal(body.value, rendered('ev-maf').html);
+    assert.equal(asked.length, 0);
+
+    // The body stays editable, and the preview shows exactly what is in it, in a
+    // sandboxed frame that may not run scripts.
+    body.value += '<p>See you there!</p>';
+    $('#caaci-news-preview-btn').click();
+    const frame = () => $('#caaci-news-preview iframe');
+    assert.equal($('#caaci-news-preview').hidden, false);
+    assert.ok(frame().hasAttribute('sandbox'), 'sandboxed');
+    assert.doesNotMatch(frame().getAttribute('sandbox'), /allow-scripts/);
+    assert.doesNotMatch(frame().getAttribute('sandbox'), /allow-same-origin/);
+    assert.equal(frame().getAttribute('srcdoc'), body.value);
+    assert.match(frame().getAttribute('srcdoc'), /See you there!/);
+
+    // An edited message is not replaced unless the admin agrees.
+    choose($('#caaci-news-event'), 'ev-fair');
+    await tick();
+    assert.equal(asked.length, 1);
+    assert.match(asked[0], /Replace the subject and message/);
+    assert.equal(templateCalls().length, 1, 'declined: nothing fetched');
+    assert.equal(body.value, `${rendered('ev-maf').html}<p>See you there!</p>`, 'edit kept');
+    window.confirm = (m) => asked.push(m) > 0; // now agree
+    choose($('#caaci-news-event'), 'ev-fair');
+    await tick();
+    assert.equal(asked.length, 2);
+    assert.equal(subject.value, rendered('ev-fair').subject);
+    assert.equal(body.value, rendered('ev-fair').html);
+    assert.equal(frame().getAttribute('srcdoc'), rendered('ev-fair').html, 'open preview follows');
+
+    // Untouched template text is swapped without asking.
+    choose($('#caaci-news-event'), 'ev-maf');
+    await tick();
+    assert.equal(asked.length, 2);
+    assert.equal(body.value, rendered('ev-maf').html);
+
+    // The API's error is shown as returned and the boxes are left alone.
+    choose($('#caaci-news-event'), 'ev-gone');
+    await tick();
+    assert.equal($('#caaci-news-notice').textContent, 'Event not found.');
+    assert.equal(body.value, rendered('ev-maf').html);
+
+    // Blank hides the picker and keeps the text; sending is the usual flow.
+    choose($('#caaci-news-template'), '');
+    assert.equal($('#caaci-news-event-wrap').hidden, true);
+    assert.equal(subject.value, rendered('ev-maf').subject);
+    $('#caaci-news-confirm').checked = true;
+    $('#caaci-news-send').click();
+    await tick();
+    const send = fetch.calls.find((c) => c.url === '/api/admin/news');
+    assert.equal(send.options.method, 'POST');
+    assert.deepEqual(JSON.parse(send.options.body), {
+      subject: rendered('ev-maf').subject,
+      body_html: rendered('ev-maf').html,
+      audience: 'active',
+      confirm: true,
+    });
+    assert.match($('#caaci-news-notice').textContent, /Sent to 2 member\(s\)/);
+  } finally {
+    asked.restore();
+    fetch.restore();
+  }
+});
+
 test('admin events: registrations CSV has a column per question, a BOM, Chicago times and RFC 4180 quoting', async () => {
   const { registrationsCsv } = await import('../src/caaci-admin.js'); // already booted
   const data = {

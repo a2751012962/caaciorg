@@ -871,7 +871,104 @@ function wireDiscounts() {
 }
 
 // ---------- news composer ----------
+// The "Event announcement" template: the API renders the email for a published
+// event (GET /api/admin/news-template → { subject, html }) into the subject and
+// message boxes, where it stays editable and is sent like any other news email.
+let newsFilled = null; // the template text last put in the boxes
+let newsSeq = 0; // a slow template answer for an event since deselected is dropped
+
+async function loadNewsEvents() {
+  const sel = $('#caaci-news-event');
+  const { ok, data } = await api('/api/admin/events?published=true&limit=50');
+  if (!ok) {
+    notice(
+      $('#caaci-news-notice'),
+      data.error || t('Could not load events.', '无法加载活动。'),
+      false,
+    );
+    return;
+  }
+  const current = sel.value;
+  sel.innerHTML = [
+    `<option value="">${t('— Choose an event —', '— 选择活动 —')}</option>`,
+    ...(data.rows || []).map(
+      (e) =>
+        `<option value="${esc(e.id)}">${esc(e.title_zh ? `${e.title_zh} · ${e.title}` : e.title)} (${fmtDate(e.starts_at)})</option>`,
+    ),
+  ].join('');
+  if ([...sel.options].some((o) => o.value === current)) sel.value = current;
+}
+
+async function applyNewsTemplate() {
+  const eventId = $('#caaci-news-event').value;
+  if ($('#caaci-news-template').value !== 'event' || !eventId) return;
+  const subject = $('#caaci-news-subject');
+  const body = $('#caaci-news-body');
+  const notb = $('#caaci-news-notice');
+  // Never silently replace something the admin wrote or edited.
+  const untouched =
+    newsFilled && subject.value === newsFilled.subject && body.value === newsFilled.html;
+  if (
+    (subject.value.trim() || body.value.trim()) &&
+    !untouched &&
+    !window.confirm(
+      t(
+        'Replace the subject and message with the event announcement?',
+        '用活动通知替换当前的主题和正文？',
+      ),
+    )
+  )
+    return;
+  const seq = ++newsSeq;
+  const { ok, data } = await api(
+    `/api/admin/news-template?event_id=${encodeURIComponent(eventId)}`,
+  );
+  if (seq !== newsSeq) return;
+  if (!ok)
+    return notice(notb, data.error || t('Could not load the template.', '无法加载模板。'), false);
+  subject.value = data.subject || '';
+  body.value = data.html || '';
+  newsFilled = { subject: subject.value, html: body.value };
+  notb.hidden = true;
+  if (!$('#caaci-news-preview').hidden) showNewsPreview(); // keep an open preview current
+}
+
+// The message as the email will render, in a frame sandboxed with no allow-* at
+// all (so no scripts and no same-origin access to this admin session). The
+// sandbox attribute is set before srcdoc so the content never loads unsandboxed.
+function showNewsPreview() {
+  const host = $('#caaci-news-preview');
+  const html = $('#caaci-news-body').value;
+  if (!html.trim()) {
+    host.hidden = true;
+    host.innerHTML = '';
+    return notice(
+      $('#caaci-news-notice'),
+      t('Write a message to preview.', '请先填写正文再预览。'),
+      false,
+    );
+  }
+  const frame = document.createElement('iframe');
+  frame.setAttribute('sandbox', '');
+  frame.setAttribute('title', t('Message preview', '正文预览'));
+  frame.setAttribute('srcdoc', html);
+  const box = document.createElement('div');
+  box.className = 'ratio ratio-4x3 border';
+  box.appendChild(frame);
+  host.replaceChildren(box);
+  host.hidden = false;
+}
+
 function wireNews() {
+  $('#caaci-news-template').addEventListener('change', async () => {
+    const isEvent = $('#caaci-news-template').value === 'event';
+    $('#caaci-news-event-wrap').hidden = !isEvent;
+    if (!isEvent) return; // Blank leaves the boxes as they are
+    await loadNewsEvents();
+    await applyNewsTemplate();
+  });
+  $('#caaci-news-event').addEventListener('change', applyNewsTemplate);
+  $('#caaci-news-preview-btn').addEventListener('click', showNewsPreview);
   $('#caaci-news-send').addEventListener('click', async () => {
     const notb = $('#caaci-news-notice');
     const btn = $('#caaci-news-send');
