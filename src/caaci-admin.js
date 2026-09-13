@@ -376,11 +376,7 @@ function toggleEditor(tr, m) {
         `<input type="date" class="form-control" data-f="expires_at" value="${exp}">`,
         'col-sm-6 col-lg',
       )}
-      ${field(
-        t('Family', '家庭'),
-        `<select class="form-select" data-f="household_id">${householdOptionsHtml(m.household_id)}</select>`,
-        'col-sm-6 col-lg',
-      )}
+      ${field(t('Family', '家庭'), householdFieldHtml(m.household_id), 'col-sm-6 col-lg')}
       <div class="col-auto btn-list">
         <button type="button" class="btn btn-primary" data-act="save">${t('Save', '保存')}</button>
         <button type="button" class="btn btn-outline-danger" data-act="delete">${t('Delete', '删除')}</button>
@@ -398,16 +394,15 @@ function toggleEditor(tr, m) {
   row.querySelector('[data-act="save"]').addEventListener('click', async () => {
     const get = (f) => row.querySelector(`[data-f="${f}"]`).value;
     const msg = row.querySelector('[data-msg]');
-    const { ok, data } = await api('/api/admin/members', {
-      method: 'POST',
-      body: {
-        id: m.id,
-        status: get('status'),
-        tier_id: get('tier_id'),
-        expires_at: get('expires_at'),
-        household_id: get('household_id'),
-      },
-    });
+    const body = {
+      id: m.id,
+      status: get('status'),
+      tier_id: get('tier_id'),
+      expires_at: get('expires_at'),
+    };
+    // Left out, the API keeps the member's family as it is.
+    if (householdsLoaded) body.household_id = get('household_id');
+    const { ok, data } = await api('/api/admin/members', { method: 'POST', body });
     if (!ok) {
       notice(msg, data.error || t('Update failed.', '更新失败。'), false);
       return;
@@ -946,9 +941,19 @@ function householdOptionsHtml(selected) {
   }
   return opts.join('');
 }
+// False until the families list has loaded once. Until then the Family dropdown
+// only offers "— none —", so the member editor must not send it (it would unlink).
+let householdsLoaded = false;
+function householdFieldHtml(selected) {
+  const select = `<select class="form-select" data-f="household_id"${householdsLoaded ? '' : ' disabled'}>${householdOptionsHtml(selected)}</select>`;
+  if (householdsLoaded) return select;
+  return `${select}<div class="form-hint" data-household-unavailable>${t("Families couldn't be loaded, so family is unchanged", '家庭列表加载失败，家庭不会被修改')}</div>`;
+}
 async function loadHouseholds() {
   const { ok, data } = await api('/api/admin/households');
-  if (ok) households = data.rows || [];
+  if (!ok) return;
+  households = data.rows || [];
+  householdsLoaded = true;
 }
 
 // ---------- add a member (creates a login account) ----------
@@ -1027,19 +1032,72 @@ async function loadFamilies() {
   }
   notb.hidden = true;
   households = data.rows || [];
+  householdsLoaded = true;
   const host = $('#caaci-families-list');
   host.innerHTML = '';
   if (!households.length) {
     host.innerHTML = `<p class="text-secondary">${t('No families yet.', '暂无家庭。')}</p>`;
     return;
   }
-  for (const h of households) host.appendChild(familyCard(h));
+  // false when the server could not read invitations (migration 0017 not applied yet).
+  const invitesAvailable = data.invites_available !== false;
+  for (const h of households) host.appendChild(familyCard(h, invitesAvailable));
+}
+
+const RELATIONSHIP_LABEL = {
+  head: () => t('Head', '户主'),
+  spouse: () => t('Spouse', '配偶'),
+  child: () => t('Child', '子女'),
+  parent: () => t('Parent', '父母'),
+  other: () => t('Other', '其他'),
+};
+const FAMILY_EVENT_LABEL = {
+  invite_sent: () => t('Invitation sent', '已发送邀请'),
+  invite_cancelled: () => t('Invitation cancelled', '邀请已取消'),
+  invite_declined: () => t('Invitation declined', '邀请被拒绝'),
+  joined: () => t('Joined the family', '加入家庭'),
+  left: () => t('Left the family', '退出家庭'),
+  member_removed: () => t('Removed from the family', '被移出家庭'),
+  person_added: () => t('Person added', '已添加成员'),
+  person_removed: () => t('Person removed', '已移除成员'),
+  dissolved: () => t('Family dissolved', '家庭已解散'),
+};
+
+function inviteItem(i) {
+  const rel = RELATIONSHIP_LABEL[i.relationship]?.() || i.relationship;
+  return `<li>${esc(i.email)}${rel ? ` · ${esc(rel)}` : ''} · ${t('expires', '到期')} ${esc(fmtDate(i.expires_at))}</li>`;
+}
+
+function familyEventItem(e) {
+  const label = FAMILY_EVENT_LABEL[e.type]?.() || e.type;
+  const subject = [e.subject_name, e.subject_email].filter(Boolean).join(' ');
+  const by = e.actor_email ? ` · ${t('by', '操作人')} ${esc(e.actor_email)}` : '';
+  return `<li>${esc(fmtDate(e.created_at))} · ${esc(label)}${subject ? ` · ${esc(subject)}` : ''}${by}</li>`;
+}
+
+// Founder, pending invitations and activity — or a note when they couldn't be read.
+function familyInvitesBlock(h, available) {
+  if (!available)
+    return `<p class="text-secondary small mb-0" data-invites-unavailable>${t('Invitations and activity are unavailable right now.', '邀请和动态暂不可用。')}</p>`;
+  const invites = h.invites || [];
+  const events = h.events || [];
+  const list = invites.length
+    ? `<ul class="list-unstyled mb-0" data-invites>${invites.map(inviteItem).join('')}</ul>`
+    : `<p class="text-secondary mb-0">${t('No pending invitations.', '暂无待接受的邀请。')}</p>`;
+  const activity = events.length
+    ? `<details class="mt-3" data-activity><summary class="subheader">${t('Activity', '动态')}</summary>
+        <ul class="list-unstyled small mt-2 mb-0">${events.map(familyEventItem).join('')}</ul></details>`
+    : '';
+  return `<div class="subheader mb-2">${t('Pending invitations', '待接受的邀请')}</div>${list}${activity}`;
 }
 
 function personRow(p) {
   const primary = p.is_primary ? ` <span class="badge">${t('primary', '主要')}</span>` : '';
+  const unlinked = p.member_id
+    ? ''
+    : ` <span class="badge bg-secondary-lt">${t('Not linked to an account', '未关联账号')}</span>`;
   return `<tr>
-    <td>${esc(p.full_name)}${primary}</td>
+    <td>${esc(p.full_name)}${primary}${unlinked}</td>
     <td>${esc(p.relationship || '—')}</td>
     <td>${esc(p.email || '—')}</td>
     <td>${esc(p.phone || '—')}</td>
@@ -1049,7 +1107,7 @@ function personRow(p) {
     </div></td></tr>`;
 }
 
-function familyCard(h) {
+function familyCard(h, invitesAvailable = true) {
   const card = document.createElement('section');
   card.className = 'card mb-3';
   const tierTxt = esc(tierName[h.tier_id] || h.tier_id || t('— no tier —', '— 无类型 —'));
@@ -1057,11 +1115,26 @@ function familyCard(h) {
   const expTxt = h.expires_at ? ` · ${t('expires', '到期')} ${fmtDate(h.expires_at)}` : '';
   const accounts = h.accounts || [];
   const people = h.people || [];
+  const founderId = h.founder?.id || h.founder_member_id;
+  const founderBadge = (a) =>
+    founderId && a.id === founderId
+      ? ` <span class="badge bg-primary-lt">${t('Founder', '创始人')}</span>`
+      : '';
+  // A founder an admin moved out of the family is still named, marked as outside.
+  const f = h.founder;
+  const founderOutside =
+    f && !accounts.some((a) => a.id === f.id)
+      ? `<div class="text-secondary small mt-2" data-founder-outside>${t(
+          `Founder: ${esc(f.full_name || '—')} — ${esc(f.email || '')} (not in this family)`,
+          `创始人：${esc(f.full_name || '—')} — ${esc(f.email || '')}（不在此家庭）`,
+        )}</div>`
+      : '';
+  const seatsTxt = `${t('Seats', '名额')}: ${esc(h.seats_used ?? '—')} / ${esc(h.seats_limit ?? '—')}`;
   const acctList = accounts.length
-    ? `<ul class="list-unstyled mb-0">${accounts
+    ? `<ul class="list-unstyled mb-0" data-accounts>${accounts
         .map(
           (a) =>
-            `<li>${esc(a.full_name || '—')} — ${esc(a.email || '')} ${badgeHtml(a.status, STATUS_LABEL[a.status]?.() || a.status || '—')}</li>`,
+            `<li>${esc(a.full_name || '—')} — ${esc(a.email || '')}${founderBadge(a)} ${badgeHtml(a.status, STATUS_LABEL[a.status]?.() || a.status || '—')}</li>`,
         )
         .join('')}</ul>`
     : `<p class="text-secondary mb-0">${t('None linked. Edit a member and choose this family.', '暂无关联账户。编辑会员并选择该家庭即可关联。')}</p>`;
@@ -1085,8 +1158,12 @@ function familyCard(h) {
     </div>
     <div data-edit-host></div>
     <div class="card-body border-top">
-      <div class="subheader mb-2">${t('Login accounts', '登录账户')}</div>
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="subheader">${t('Login accounts', '登录账户')}</div>
+        <div class="text-secondary small" data-seats>${seatsTxt}</div>
+      </div>
       ${acctList}
+      ${founderOutside}
     </div>
     <div class="card-body border-top">
       <div class="d-flex align-items-center justify-content-between mb-2">
@@ -1095,6 +1172,9 @@ function familyCard(h) {
       </div>
       <div data-person-host></div>
       ${peopleBlock}
+    </div>
+    <div class="card-body border-top">
+      ${familyInvitesBlock(h, invitesAvailable)}
     </div>`;
 
   const editHost = card.querySelector('[data-edit-host]');

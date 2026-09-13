@@ -68,7 +68,8 @@ function apiRoutes(u, options = {}) {
         total: 2,
       },
     };
-  if (u.includes('/api/admin/households')) return { body: { rows: [] } };
+  // Families fail to load at boot: the member editor must not unlink anyone.
+  if (u.includes('/api/admin/households')) return { status: 500, body: { error: 'down' } };
   if (u.includes('/api/admin/payments'))
     return {
       body: {
@@ -234,9 +235,26 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.match(btnFor('reset').textContent, /\(\d+s\)/);
     assert.equal(btnFor('invite').disabled, true);
 
+    // Families never loaded, so the Family field is locked and saving leaves the
+    // member's family alone (an empty household_id would unlink them).
+    assert.equal(editRow().querySelector('[data-f="household_id"]').disabled, true);
+    assert.match(
+      editRow().querySelector('[data-household-unavailable]').textContent,
+      /Families couldn't be loaded, so family is unchanged/,
+    );
+
     // Save re-renders the table (editor gone); the cooldown survives that too.
     editRow().querySelector('[data-act="save"]').click();
     await tick();
+    const memberSave = fetch.calls
+      .filter((c) => c.url.includes('/api/admin/members') && c.options.method === 'POST')
+      .at(-1);
+    assert.ok(memberSave, 'member saved');
+    assert.equal(
+      'household_id' in JSON.parse(memberSave.options.body),
+      false,
+      'no household_id when families failed to load',
+    );
     assert.equal(editRow(), null);
     assert.equal(live.size, 0, 're-rendering the table clears the intervals');
     editBtn().click();
@@ -688,4 +706,307 @@ test('admin events: registrations CSV has a BOM, Chicago times and RFC 4180 quot
     registrationsCsv(rows, { eligibleOnly: true }),
     `\uFEFF${[header, mei, lin].join('\r\n')}\r\n`,
   );
+});
+
+// ---------- families: founder, seats, invitations, activity ----------
+const HOSTILE = '<img src=x onerror=alert(1)>';
+const FAMILY = {
+  id: 'h1',
+  name: `Lin ${HOSTILE}`,
+  status: 'active',
+  tier_id: 'family',
+  expires_at: null,
+  notes: null,
+  founder_member_id: 'a1',
+  founder: { id: 'a1', full_name: 'Mei Lin', email: 'mei@x.com' },
+  accounts: [
+    { id: 'a1', full_name: 'Mei Lin', email: 'mei@x.com', status: 'active', tier_id: 'family' },
+    { id: 'a2', full_name: '<b>Jun</b>', email: 'jun@x.com', status: 'active', tier_id: 'family' },
+  ],
+  people: [
+    {
+      id: 'p-a2',
+      member_id: 'a2',
+      full_name: '<b>Jun</b>',
+      relationship: 'spouse',
+      email: 'jun@x.com',
+      phone: null,
+      is_primary: false,
+    },
+    {
+      id: 'p1',
+      member_id: null,
+      full_name: `Kai ${HOSTILE}`,
+      relationship: 'child',
+      email: null,
+      phone: null,
+      is_primary: false,
+    },
+  ],
+  invites: [
+    {
+      id: 'i1',
+      email: `ann${HOSTILE}@x.com`,
+      full_name: 'Ann',
+      relationship: 'parent',
+      created_at: '2026-09-10T00:00:00Z',
+      expires_at: '2026-09-24T00:00:00Z',
+      person_id: null,
+    },
+  ],
+  events: [
+    {
+      type: 'invite_sent',
+      actor_email: 'mei@x.com',
+      subject_email: `ann${HOSTILE}@x.com`,
+      subject_name: null,
+      created_at: '2026-09-10T00:00:00Z',
+    },
+    {
+      type: 'person_added',
+      actor_email: 'mei@x.com',
+      subject_email: null,
+      subject_name: `Kai ${HOSTILE}`,
+      created_at: '2026-09-09T00:00:00Z',
+    },
+    {
+      type: 'member_removed',
+      actor_email: null,
+      subject_email: 'zed@x.com',
+      subject_name: null,
+      created_at: '2026-09-08T00:00:00Z',
+    },
+  ],
+  seats_used: 3,
+  seats_limit: 3,
+};
+const familiesAvailable = () => ({ body: { rows: [FAMILY], invites_available: true } });
+let familiesReply = familiesAvailable;
+const familyRoutes = (u) =>
+  u.includes('/api/admin/households') ? familiesReply() : { body: { ok: true } };
+const familyCardEl = () => document.querySelector('#caaci-families-list section.card');
+const openFamilies = async () => {
+  document.querySelector('[data-tab="families"]').click();
+  await tick();
+};
+const day = (iso) => new Date(iso).toLocaleDateString();
+
+test('admin families: founder and not-linked badges, seats, pending invitations and activity, all escaped', async () => {
+  familiesReply = familiesAvailable;
+  const fetch = mockFetch(familyRoutes);
+  try {
+    await openFamilies();
+    const c = familyCardEl();
+    assert.ok(c, 'family card rendered');
+    assert.equal(c.querySelector('img, b'), null, 'hostile text never becomes markup');
+    assert.equal(c.querySelector('.card-title').textContent, FAMILY.name);
+
+    // Founder badge on the founder's account only.
+    const accts = [...c.querySelectorAll('[data-accounts] li')];
+    assert.equal(accts.length, 2);
+    assert.match(accts[0].textContent, /Mei Lin[\s\S]*Founder/);
+    assert.doesNotMatch(accts[1].textContent, /Founder/);
+    assert.match(accts[1].textContent, /<b>Jun<\/b>/);
+
+    // Not-linked badge on name-only people only.
+    const people = [...c.querySelectorAll('tbody tr')];
+    assert.equal(people.length, 2);
+    assert.doesNotMatch(people[0].textContent, /Not linked/);
+    assert.match(
+      people[1].cells[0].textContent,
+      /^Kai <img src=x onerror=alert\(1\)>\s*Not linked to an account$/,
+    );
+
+    assert.equal(c.querySelector('[data-seats]').textContent.trim(), 'Seats: 3 / 3');
+
+    const inv = [...c.querySelectorAll('[data-invites] li')];
+    assert.equal(inv.length, 1);
+    assert.ok(inv[0].textContent.includes(`ann${HOSTILE}@x.com`));
+    assert.match(inv[0].textContent, /Parent/);
+    assert.ok(inv[0].textContent.includes(`expires ${day('2026-09-24T00:00:00Z')}`));
+    assert.equal(c.querySelector('[data-invites-unavailable]'), null);
+    assert.equal(c.querySelector('[data-founder-outside]'), null, 'founder is a linked account');
+
+    const act = c.querySelector('details[data-activity]');
+    assert.ok(act, 'activity is collapsible');
+    assert.equal(act.open, false, 'collapsed by default');
+    assert.match(act.querySelector('summary').textContent, /Activity/);
+    const items = [...act.querySelectorAll('li')].map((li) => li.textContent);
+    assert.equal(items.length, 3);
+    assert.ok(items[0].includes(day('2026-09-10T00:00:00Z')));
+    assert.match(items[0], /Invitation sent/);
+    assert.ok(items[0].includes(`ann${HOSTILE}@x.com`));
+    assert.match(items[0], /by mei@x\.com/);
+    assert.match(items[1], /Person added/);
+    assert.ok(items[1].includes(`Kai ${HOSTILE}`));
+    assert.match(items[2], /Removed from the family[\s\S]*zed@x\.com/);
+    assert.doesNotMatch(items[2], /by /, 'no actor, no "by"');
+
+    // Chinese labels after switching language and reloading the tab.
+    document.querySelector('#caaci-lang').click();
+    await openFamilies();
+    const zh = familyCardEl().textContent;
+    for (const label of [
+      '\u521B\u59CB\u4EBA',
+      '\u672A\u5173\u8054\u8D26\u53F7',
+      '\u540D\u989D',
+      '\u5F85\u63A5\u53D7\u7684\u9080\u8BF7',
+      '\u7236\u6BCD',
+      '\u52A8\u6001',
+      '\u5DF2\u53D1\u9001\u9080\u8BF7',
+    ])
+      assert.ok(zh.includes(label), `zh label ${label}`);
+    document.querySelector('#caaci-lang').click();
+    await tick();
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin families: an unavailable invitations feed shows a note, and the family and person editors still work', async () => {
+  familiesReply = () => ({
+    body: {
+      rows: [{ ...FAMILY, founder: null, invites: [], events: [] }],
+      invites_available: false,
+    },
+  });
+  const fetch = mockFetch(familyRoutes);
+  const realConfirm = window.confirm;
+  try {
+    await openFamilies();
+    let c = familyCardEl();
+    assert.match(
+      c.querySelector('[data-invites-unavailable]').textContent,
+      /Invitations and activity are unavailable/,
+    );
+    assert.equal(c.querySelector('[data-invites]'), null);
+    assert.equal(c.querySelector('details[data-activity]'), null);
+    assert.equal(c.querySelector('[data-seats]').textContent.trim(), 'Seats: 3 / 3');
+    assert.match(
+      c.querySelector('[data-accounts] li').textContent,
+      /Founder/,
+      'from founder_member_id',
+    );
+
+    // Edit family: opens prefilled with the literal name and saves by POST.
+    c.querySelector('[data-act="edit"]').click();
+    const form = c.querySelector('[data-edit-host] form');
+    assert.equal(form.querySelector('[data-f="name"]').value, FAMILY.name);
+    form.querySelector('[type="submit"]').click();
+    await tick();
+    const post = fetch.calls.find(
+      (x) => x.url.includes('/api/admin/households') && x.options.method === 'POST',
+    );
+    assert.equal(JSON.parse(post.options.body).id, 'h1');
+
+    // Person editor opens for the name-only person; delete sends its id.
+    c = familyCardEl();
+    c.querySelector('[data-act="edit-person"][data-person="p1"]').click();
+    assert.equal(
+      c.querySelector('[data-person-host] [data-f="full_name"]').value,
+      FAMILY.people[1].full_name,
+    );
+    window.confirm = () => true;
+    c.querySelector('[data-act="del-person"][data-person="p1"]').click();
+    await tick();
+    const del = fetch.calls.find(
+      (x) => x.url.includes('/api/admin/household-members') && x.options.method === 'DELETE',
+    );
+    assert.deepEqual(JSON.parse(del.options.body), { id: 'p1' });
+  } finally {
+    window.confirm = realConfirm;
+    familiesReply = familiesAvailable;
+    fetch.restore();
+  }
+});
+
+test('admin families: a founder outside the family, hostile actors, unknown event types and relationships render as text', async () => {
+  familiesReply = () => ({
+    body: {
+      invites_available: true,
+      rows: [
+        {
+          ...FAMILY,
+          founder_member_id: 'a9',
+          founder: { id: 'a9', full_name: `Wen ${HOSTILE}`, email: `wen${HOSTILE}@x.com` },
+          invites: [{ ...FAMILY.invites[0], email: 'ann@x.com', relationship: '<u>cousin</u>' }],
+          events: [
+            {
+              type: 'invite_sent',
+              actor_email: '<b>boss</b>@x.com',
+              subject_email: 'ann@x.com',
+              subject_name: null,
+              created_at: '2026-09-10T00:00:00Z',
+            },
+            {
+              type: '<i>mystery</i>',
+              actor_email: null,
+              subject_email: null,
+              subject_name: null,
+              created_at: '2026-09-09T00:00:00Z',
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const fetch = mockFetch(familyRoutes);
+  try {
+    await openFamilies();
+    let c = familyCardEl();
+    assert.equal(c.querySelector('img, b, i, u'), null, 'nothing hostile becomes markup');
+
+    // The founder was moved out of the family: still named, clearly marked.
+    assert.equal(
+      c.querySelector('[data-founder-outside]').textContent.trim(),
+      `Founder: Wen ${HOSTILE} — wen${HOSTILE}@x.com (not in this family)`,
+    );
+    assert.doesNotMatch(c.querySelector('[data-accounts]').textContent, /Founder/);
+
+    const inv = c.querySelector('[data-invites] li').textContent;
+    assert.ok(inv.includes('ann@x.com · <u>cousin</u> · expires'), inv);
+
+    const items = [...c.querySelectorAll('details[data-activity] li')].map((li) => li.textContent);
+    assert.match(items[0], /Invitation sent[\s\S]*by <b>boss<\/b>@x\.com/);
+    assert.ok(items[1].includes(' · <i>mystery</i>'), 'unknown type shown raw, not blank');
+
+    document.querySelector('#caaci-lang').click();
+    await openFamilies();
+    c = familyCardEl();
+    assert.equal(
+      c.querySelector('[data-founder-outside]').textContent.trim(),
+      `创始人：Wen ${HOSTILE} — wen${HOSTILE}@x.com（不在此家庭）`,
+    );
+    document.querySelector('#caaci-lang').click();
+    await tick();
+  } finally {
+    familiesReply = familiesAvailable;
+    fetch.restore();
+  }
+});
+
+test('admin members: once families load, the member editor offers them and saves the chosen family', async () => {
+  familiesReply = familiesAvailable;
+  const fetch = mockFetch((u, o) =>
+    u.includes('/api/admin/households') ? familiesReply() : apiRoutes(u, o),
+  );
+  try {
+    await openFamilies();
+    document.querySelector('[data-tab="members"]').click();
+    await tick();
+    const row = () => document.querySelector('tr[data-edit-row]');
+    document.querySelector('#caaci-members-body tr button').click();
+    const select = row().querySelector('[data-f="household_id"]');
+    assert.equal(select.disabled, false);
+    assert.equal(row().querySelector('[data-household-unavailable]'), null);
+    select.value = 'h1';
+    row().querySelector('[data-act="save"]').click();
+    await tick();
+    const post = fetch.calls
+      .filter((c) => c.url.includes('/api/admin/members') && c.options.method === 'POST')
+      .at(-1);
+    assert.equal(JSON.parse(post.options.body).household_id, 'h1');
+  } finally {
+    fetch.restore();
+  }
 });

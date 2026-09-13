@@ -454,7 +454,12 @@ visit `/admin/` while logged in. The panel provides:
 - **Families** — manage family memberships. A household groups several people under one
   membership: link login accounts via a member's _Family_ field, and add family members who
   **don't** have their own login (children, a spouse) directly on the family card. Create,
-  edit, and delete families and their members.
+  edit, and delete families and their members. Each card also shows the family's **founder**,
+  which people are **not linked to an account**, **seats in use** (linked accounts + name-only
+  people + pending invitations, out of the self-service limit of 3 — admins aren't capped),
+  **pending invitations**, and a collapsible **activity** log (latest 20 events). Until
+  migration `0017_family_invites.sql` is applied, the card says invitations and activity are
+  unavailable and everything else works as before.
 - **Compose News** — email an announcement to members (active-only or all) via Resend.
   Recipients are read server-side and never exposed to the browser; each member gets their
   own message. Sends are throttled (one per minute) and require an explicit confirm.
