@@ -165,14 +165,21 @@ export function authAdmin(env) {
         .trim()
         .toLowerCase();
       if (!target) return null;
-      const r = await fetch(
-        `${base}/auth/v1/admin/users?filter=${encodeURIComponent(target)}&per_page=50`,
-        { headers },
-      );
-      if (!r.ok) throw new Error(`find user: ${r.status}`);
-      const data = await r.json();
-      const users = Array.isArray(data?.users) ? data.users : [];
-      return users.find((u) => String(u.email || '').toLowerCase() === target) || null;
+      // Page through the substring hits (bounded) until the exact address turns up.
+      const PER_PAGE = 50;
+      for (let page = 1; page <= 20; page++) {
+        const r = await fetch(
+          `${base}/auth/v1/admin/users?filter=${encodeURIComponent(target)}&page=${page}&per_page=${PER_PAGE}`,
+          { headers },
+        );
+        if (!r.ok) throw new Error(`find user: ${r.status}`);
+        const data = await r.json();
+        const users = Array.isArray(data?.users) ? data.users : [];
+        const hit = users.find((u) => String(u.email || '').toLowerCase() === target);
+        if (hit) return hit;
+        if (users.length < PER_PAGE) return null;
+      }
+      return null;
     },
     // Merge keys into user_metadata. GoTrue merges (a null value deletes the
     // key) rather than replacing the whole object, so other keys survive.
@@ -325,6 +332,48 @@ export function stripe(env) {
     return data;
   };
   return { call, get };
+}
+
+// The plan a member's card stands for: their own membership when it is active,
+// otherwise — for a member who joined a family — the family plan. That is the
+// founder's members row (family tier, active, unexpired), or the households row
+// for a legacy admin-made family with no founder. Separate lookups, not a
+// members<->households embed, which is ambiguous once 0017 adds
+// households.founder_member_id; households is read with `*` so this also works
+// before 0017 is applied (legacy families only). Returns
+// { member, tier_id, expires_at }, or null when there is no valid plan.
+const MEMBERSHIP_COLS = 'id,full_name,email,tier_id,status,expires_at,household_id';
+const liveUntil = (row) => !row.expires_at || new Date(row.expires_at) > new Date();
+export async function effectiveMembership(DB, memberId) {
+  const m = await DB.selectOne('members', { id: memberId }, MEMBERSHIP_COLS);
+  if (!m) return null;
+  if (m.tier_id && m.status === 'active' && liveUntil(m))
+    return { member: m, tier_id: m.tier_id, expires_at: m.expires_at };
+  if (!m.household_id) return null;
+  // Before 0017 is applied a family lookup can fail (a PostgREST error on a
+  // column or table it adds). The member's own plan, not valid above, decides:
+  // a failed lookup is never a valid card.
+  try {
+    return await familyPlan(DB, m);
+  } catch {
+    return null;
+  }
+}
+
+async function familyPlan(DB, m) {
+  const h = await DB.selectOne('households', { id: m.household_id }, '*');
+  if (!h || h.status === 'cancelled') return null;
+  if (h.founder_member_id) {
+    const f = await DB.selectOne(
+      'members',
+      { id: h.founder_member_id },
+      'id,tier_id,status,expires_at',
+    );
+    if (!f || f.tier_id !== 'family' || f.status !== 'active' || !liveUntil(f)) return null;
+    return { member: m, tier_id: 'family', expires_at: f.expires_at };
+  }
+  if (!h.tier_id || h.status !== 'active' || !liveUntil(h)) return null;
+  return { member: m, tier_id: h.tier_id, expires_at: h.expires_at };
 }
 
 // ~3.5% card fee on top of the tier's base price, matching the live site.

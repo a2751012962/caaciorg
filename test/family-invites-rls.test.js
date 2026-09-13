@@ -14,6 +14,13 @@ import { readFile, readdir } from 'node:fs/promises';
 const DIR = new URL('../supabase/migrations/', import.meta.url);
 const TABLES = ['household_invites', 'household_events'];
 const SEAT_FUNCTIONS = ['family_create_invite', 'family_add_person', 'family_accept_invite'];
+// Each seat-claiming function's exact cap check, so `> 3` cannot pass for `>= 3`.
+const CAP_CHECK = {
+  family_create_invite: /elsif public\.family_seats_used\(p_household\) >= 3 then/,
+  family_add_person: /if public\.family_seats_used\(p_household\) >= 3 then/,
+  family_accept_invite:
+    /if public\.family_seats_used\(v_household, p_invite\) \+ \(case when v_person is null then 1 else 0 end\) > 3 then/,
+};
 const BROWSER = ['anon', 'authenticated'];
 
 const stripComments = (sql) => sql.replace(/--[^\n]*/g, '');
@@ -96,7 +103,7 @@ for (const table of TABLES) {
 }
 
 test('every family_* function is security definer with search_path = public, pg_temp', () => {
-  assert.ok(FUNCTIONS.size >= 5, `found only ${[...FUNCTIONS.keys()].join(', ')}`);
+  assert.ok(FUNCTIONS.size >= 7, `found only ${[...FUNCTIONS.keys()].join(', ')}`);
   for (const [name, { header }] of FUNCTIONS) {
     assert.match(header, /security definer/, `${name} is not security definer`);
     // pg_temp last: left implicit, Postgres searches it FIRST for relations.
@@ -117,7 +124,7 @@ test('seat-claiming functions lock the household row and enforce the 3-person ca
       /from public\.households where id = \w+ and status <> 'cancelled' for update/,
       `${name} does not lock the household row`,
     );
-    assert.match(fn.body, /family_seats_used\([^)]*\)[^;]*>=? 3/, `${name} does not check the cap`);
+    assert.match(fn.body, CAP_CHECK[name], `${name} does not check the cap exactly`);
     assert.match(fn.body, /'family_full'/, `${name} never refuses a full family`);
   }
   // The count covers accounts, name-only people and live pending invitations,
@@ -150,10 +157,10 @@ test('inviting a name-only person is checked under the household lock and takes 
     /where person_id = p_person_id and status = 'pending'\) then return jsonb_build_object\('ok', false, 'reason', 'person_already_invited'\)/,
   );
   // Stale invitations are expired before any duplicate check runs.
-  assert.ok(
-    body.indexOf("set status = 'expired'") < body.indexOf("'person_already_invited'"),
-    'stale invitations must be expired before the person check',
-  );
+  const expire = body.indexOf("set status = 'expired'");
+  const personCheck = body.indexOf("'person_already_invited'");
+  assert.ok(expire >= 0 && personCheck >= 0, 'expiry update or person check missing');
+  assert.ok(expire < personCheck, 'stale invitations must be expired before the person check');
 });
 
 test('accepting links the name-only row it rides on and counts the invitation once', () => {
@@ -170,6 +177,57 @@ test('accepting links the name-only row it rides on and counts the invitation on
     body,
     /if v_person is not null then update public\.household_members set member_id = p_member, email = lower\(p_email\) where id = v_person; else insert into public\.household_members/,
   );
+});
+
+test('accepting checks the invite email, NULL included, and locks the member before linking', () => {
+  const body = FUNCTIONS.get('family_accept_invite').body;
+  assert.match(
+    body,
+    /if p_email is null or lower\(v_invite\.email\) is distinct from lower\(p_email\) then return jsonb_build_object\('ok', false, 'reason', 'wrong_email'\)/,
+  );
+  assert.match(
+    body,
+    /select household_id into v_current from public\.members where id = p_member for update; if not found then return jsonb_build_object\('ok', false, 'reason', 'no_member'\); end if; if v_current is not null then return jsonb_build_object\('ok', false, 'reason', 'already_in_household'\)/,
+  );
+  const memberLock = body.indexOf('from public.members where id = p_member for update');
+  const link = body.indexOf('update public.members set household_id = v_household');
+  assert.ok(memberLock >= 0 && link >= 0, 'member lock or link missing');
+  assert.ok(memberLock < link, 'the member must be locked before it is linked');
+});
+
+test('removing a person and leaving recheck the family under the household lock', () => {
+  for (const name of ['family_remove_person', 'family_leave']) {
+    const fn = FUNCTIONS.get(name);
+    assert.ok(fn, `missing function ${name}`);
+    assert.match(
+      fn.body,
+      /from public\.households where id = p_household and status <> 'cancelled' for update/,
+      `${name} does not lock the household row`,
+    );
+  }
+  const remove = FUNCTIONS.get('family_remove_person').body;
+  const at = {
+    lock: remove.indexOf("status <> 'cancelled' for update"),
+    rule: remove.indexOf("'last_person'"),
+    unlink: remove.indexOf('update public.members set household_id = null'),
+    del: remove.indexOf('delete from public.household_members'),
+  };
+  for (const [what, i] of Object.entries(at)) assert.ok(i >= 0, `family_remove_person: ${what}`);
+  assert.ok(
+    at.lock < at.rule && at.rule < at.unlink && at.rule < at.del,
+    'the last-person rule must be checked under the lock, before any change',
+  );
+  // Other people = linked accounts except the founder + name-only people; invitations are not people.
+  assert.match(
+    remove,
+    /\(select count\(\*\) from public\.members where household_id = p_household and id is distinct from v_founder\) \+ \(select count\(\*\) from public\.household_members where household_id = p_household and member_id is null\)/,
+  );
+  const leave = FUNCTIONS.get('family_leave').body;
+  const lock = leave.indexOf("status <> 'cancelled' for update");
+  const unlink = leave.indexOf(
+    'update public.members set household_id = null where id = p_member and household_id = p_household',
+  );
+  assert.ok(lock >= 0 && unlink >= 0 && lock < unlink, 'family_leave must unlink under the lock');
 });
 
 test('only service_role may execute the family_* functions', () => {

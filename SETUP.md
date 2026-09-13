@@ -393,17 +393,25 @@ active (families an admin made by hand, with no founder, keep using the
   through Resend (`RESEND_API_KEY` + `NOTIFY_FROM`). Without them the action still
   succeeds and answers `notified: false`. They carry fixed bilingual copy and login
   email addresses only, never a typed name.
+- **The founder's plan** must be the `family` tier, `active` and unexpired for
+  them to invite, resend, add people or start a family, and for an invitation to
+  be accepted. Removing a person and leaving run in locked `family_*` functions
+  too, so two changes at once cannot leave the founder alone by accident.
+- **Membership cards** (`/api/verify`, Apple Wallet) of a joined member with no
+  plan of their own show the family plan: the founder's tier and expiry, or the
+  `households` row's for a legacy family.
 - **Deploy order:**
-  1. Paste `0017_family_invites.sql` into the Supabase SQL editor **before**
-     deploying this code; `/api/family` fails with a 502 until its tables and
-     functions exist.
-  2. Push the templates: `npm run auth:emails` (dry run), then
-     `npm run auth:emails -- --apply`. Do it right before or after the deploy:
+  1. Deploy this code. It is safe before `0017`: the account page hides the family
+     card while `/api/family` errors, and cards keep working for members with
+     their own plan (and legacy families).
+  2. Paste `0017_family_invites.sql` into the Supabase SQL editor. The family
+     card and invitations work from then on.
+  3. Push the templates: `npm run auth:emails` (dry run), then
+     `npm run auth:emails -- --apply`, close to the deploy:
      `test/auth-config.test.js` compares the repo templates with the live project
      exactly, so the two must not drift apart.
-  3. For founder emails, set the `RESEND_API_KEY` and `NOTIFY_FROM` secrets in
+  4. For founder emails, set the `RESEND_API_KEY` and `NOTIFY_FROM` secrets in
      Cloudflare Pages.
-  4. Deploy.
 
 ## Admin / back-office panel (`/admin/`)
 
