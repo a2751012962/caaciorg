@@ -418,8 +418,13 @@ size/MIME limits, behind the **Media** tab), and `0010_refunds.sql` (adds the
   "Send invitation" (`POST /api/admin/member-email`). They go to the member's
   **login** email in Supabase Auth, never the editable profile email, and land on
   `/account/?recovery=1` — so every deploy origin must be on the Supabase redirect
-  allow list. Invitations only work for logins whose email was never confirmed;
-  members created in this panel are created confirmed, so send them a reset instead.
+  allow list. "Send invitation" works for any member: a login that was never
+  confirmed or signed in gets Supabase's `invite` email; an existing account
+  (confirmed or signed in, which includes every member created in this panel) gets
+  the `recovery` (set-password) email instead, since Supabase refuses to invite a
+  confirmed user. If Supabase refuses an invite as already registered, the endpoint
+  falls back to the `recovery` email once. The response's `delivered` (`invite` /
+  `password_setup`) says which went out, and the admin notice tells the admin.
 - **Auth email delivery & templates**: Supabase Auth sends through custom SMTP on
   Resend (`smtp.resend.com:465`, user `resend`, sender `CAACI <no-reply@caaciorg.com>`,
   60 s minimum interval per user). The six bilingual templates and their subjects live
