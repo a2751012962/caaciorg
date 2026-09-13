@@ -155,7 +155,7 @@ test('main --apply: creates the endpoint and saves the signing secret', async ()
 
 test('main --apply: an already-healthy account is left untouched', async () => {
   const route = stripeRoute({
-    endpoints: [{ ...healthy, url: 'https://caaci.pages.dev/api/stripe-webhook' }],
+    endpoints: [{ ...healthy, url: 'https://caaci-8s2.pages.dev/api/stripe-webhook' }],
     configs: [{ id: 'bpc_1', active: true, is_default: true }],
   });
   const fetch = mockFetch(route);
@@ -176,7 +176,7 @@ test('main --apply: repairs an endpoint that is missing events', async () => {
     endpoints: [
       {
         id: 'we_2',
-        url: 'https://caaci.pages.dev/api/stripe-webhook',
+        url: 'https://caaci-8s2.pages.dev/api/stripe-webhook',
         status: 'enabled',
         enabled_events: ['checkout.session.completed'],
       },

@@ -13,7 +13,7 @@
 //   STRIPE_SECRET_KEY=sk_... node stripe-connect.mjs --apply     # create/repair
 //
 // Options:
-//   --site-url=<origin>   site the webhook should call (default https://caaci.pages.dev)
+//   --site-url=<origin>   site the webhook should call (default https://caaci-8s2.pages.dev)
 //   --account=<acct_...>  account the key must belong to; refuses to touch any other
 //   --env-file=<path>     where to write STRIPE_WEBHOOK_SECRET on create (default .env)
 //   --print-secret        also echo the new signing secret to stdout
@@ -30,7 +30,9 @@ export const WEBHOOK_EVENTS = [
   'charge.refunded',
 ];
 
-export const DEFAULT_SITE_URL = 'https://caaci.pages.dev';
+// The production pages.dev host: same deployment as caaciorg.com, independent of DNS,
+// and outside Cloudflare Access.
+export const DEFAULT_SITE_URL = 'https://caaci-8s2.pages.dev';
 export const DEFAULT_ACCOUNT = 'acct_1PfYMiJ3oYxWrRWD';
 
 export const webhookUrl = (siteUrl) => `${siteUrl.replace(/\/+$/, '')}/api/stripe-webhook`;
