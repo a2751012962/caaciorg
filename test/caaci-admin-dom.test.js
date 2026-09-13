@@ -31,8 +31,13 @@ const supaStub = {
   }),
 };
 
+// What /api/admin/member-email answers; each step of the test swaps it.
+let memberEmailReply = () => ({ body: { ok: true } });
+
 // The admin APIs the panel calls on boot and on tab clicks.
-function apiRoutes(u) {
+function apiRoutes(u, options = {}) {
+  if (u.includes('/api/admin/member-email'))
+    return memberEmailReply(JSON.parse(options.body || '{}'));
   if (u.includes('/api/admin/members'))
     return {
       body: {
@@ -89,6 +94,7 @@ test('admin page: module boots against the real Tabler markup', async () => {
   dom.window.CAACI_CONFIG = { SUPABASE_URL: 'https://db.example', SUPABASE_ANON_KEY: 'anon' };
   dom.window.supabase = supaStub;
   const fetch = mockFetch(apiRoutes);
+  let restoreTimers = () => {};
   try {
     await import('../src/caaci-admin.js'); // boot IIFE runs on import
     await tick();
@@ -102,6 +108,103 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.ok(badge, 'member status badge rendered');
     assert.ok(badge.classList.contains('bg-success-lt'), 'active → bg-success-lt');
     assert.match(document.querySelector('#caaci-page-info').textContent, /1–1 of 1/);
+
+    // Member editor: auth-email buttons confirm, POST member_id + action with the
+    // session token, report every outcome inline, and cool down after a send.
+    const editBtn = () => document.querySelector('#caaci-members-body tr button');
+    const editRow = () => document.querySelector('tr[data-edit-row]');
+    const btnFor = (action) => editRow().querySelector(`[data-act="send-${action}"]`);
+    const editMsg = () => editRow().querySelector('[data-msg]');
+    const emailPosts = () => fetch.calls.filter((c) => c.url.includes('/api/admin/member-email'));
+    const click = async (action, reply) => {
+      if (reply) memberEmailReply = reply;
+      btnFor(action).click();
+      await tick();
+    };
+
+    editBtn().click();
+    assert.ok(btnFor('reset') && btnFor('invite'), 'reset + invite buttons rendered');
+    assert.match(btnFor('reset').textContent, /Send password reset/);
+    assert.match(btnFor('invite').textContent, /Send invitation/);
+    assert.match(editRow().textContent, /never confirmed/, 'hint matches the server rule');
+
+    dom.window.confirm = () => false; // declining sends nothing
+    await click('reset');
+    assert.equal(emailPosts().length, 0);
+    dom.window.confirm = () => true;
+
+    // 502: the server's safe message, and the button is usable again.
+    await click('reset', () => ({
+      status: 502,
+      body: { error: 'The email could not be sent right now.' },
+    }));
+    assert.equal(emailPosts().length, 1);
+    assert.ok(editMsg().classList.contains('alert-danger'));
+    assert.match(editMsg().textContent, /could not be sent right now/);
+    assert.equal(btnFor('reset').disabled, false);
+
+    // A thrown fetch: generic message, button not stuck disabled.
+    await click('reset', () => {
+      throw new TypeError('Failed to fetch');
+    });
+    assert.match(editMsg().textContent, /Could not send the email/);
+    assert.equal(btnFor('reset').disabled, false);
+
+    // 409: the login is already confirmed, so point at reset; invite usable again.
+    await click('invite', () => ({ status: 409, body: { error: 'x' } }));
+    assert.match(editMsg().textContent, /Send password reset/);
+    assert.equal(btnFor('invite').disabled, false);
+
+    // From here on, track live intervals to prove the editor clears its own.
+    const live = new Set();
+    const { setInterval: realSet, clearInterval: realClear } = globalThis;
+    globalThis.setInterval = (fn, ms) => {
+      const id = realSet(fn, ms);
+      live.add(id);
+      return id;
+    };
+    globalThis.clearInterval = (id) => {
+      live.delete(id);
+      realClear(id);
+    };
+    restoreTimers = () =>
+      Object.assign(globalThis, { setInterval: realSet, clearInterval: realClear });
+
+    // Success: bearer token sent, success shown, 60s countdown.
+    await click('reset', ({ action }) => ({ body: { ok: true, action } }));
+    const okPost = emailPosts().at(-1);
+    assert.equal(okPost.options.method, 'POST');
+    assert.equal(okPost.options.headers.authorization, 'Bearer tok');
+    assert.deepEqual(JSON.parse(okPost.options.body), { member_id: 'm1', action: 'reset' });
+    assert.ok(editMsg().classList.contains('alert-success'));
+    assert.equal(btnFor('reset').disabled, true);
+    assert.match(btnFor('reset').textContent, /\(60s\)/);
+
+    // A 429 also starts the countdown.
+    await click('invite', () => ({ status: 429, body: { error: 'wait' } }));
+    assert.ok(editMsg().classList.contains('alert-danger'));
+    assert.equal(btnFor('invite').disabled, true);
+    assert.match(btnFor('invite').textContent, /\(\d+s\)/);
+    assert.equal(live.size, 2, 'one countdown per cooling button');
+
+    // Closing the editor clears its intervals; reopening resumes the countdown.
+    editBtn().click();
+    assert.equal(editRow(), null);
+    assert.equal(live.size, 0, 'closing the editor clears its intervals');
+    editBtn().click();
+    assert.equal(btnFor('reset').disabled, true, 'cooldown survives close/reopen');
+    assert.match(btnFor('reset').textContent, /\(\d+s\)/);
+    assert.equal(btnFor('invite').disabled, true);
+
+    // Save re-renders the table (editor gone); the cooldown survives that too.
+    editRow().querySelector('[data-act="save"]').click();
+    await tick();
+    assert.equal(editRow(), null);
+    assert.equal(live.size, 0, 're-rendering the table clears the intervals');
+    editBtn().click();
+    assert.equal(btnFor('reset').disabled, true, 'cooldown survives a re-render');
+    editBtn().click();
+    assert.equal(live.size, 0);
 
     // Tab switching: click Events → active class moves, panels toggle, rows load.
     const evTab = document.querySelector('[data-tab="events"]');
@@ -139,6 +242,7 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.equal(document.documentElement.lang, 'zh');
     document.querySelector('#caaci-lang').click(); // back to EN for cleanliness
   } finally {
+    restoreTimers();
     fetch.restore();
   }
 });
