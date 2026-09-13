@@ -127,6 +127,7 @@ test('admin page: module boots against the real Tabler markup', async () => {
         'https://resend.com/emails',
         'https://dash.cloudflare.com/60fc7d5394f94e7cbe99e82e34cfc640/pages/view/caaci',
         'https://dashboard.stripe.com/acct_1PfYMiJ3oYxWrRWD/dashboard',
+        'https://claude.ai/code/artifact/01c18fa5-6e1e-4a79-be06-7f6556eaf7b9',
       ],
     );
     for (const a of consoles) {
