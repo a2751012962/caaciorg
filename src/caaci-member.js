@@ -1556,6 +1556,13 @@ function renderMemberCard(host, { user, member, tierName }) {
   }
 }
 
+// ---------- /account/ Family card ----------
+// ?family_invite=<id> comes from the invitation email. It is only ever compared
+// against ids the server returned, or URL-encoded into a link — never rendered.
+function familyInviteParam() {
+  return new URLSearchParams(location.search || '').get('family_invite') || '';
+}
+
 export async function wireAccountPage() {
   const host = $('#caaci-account-host');
   if (!supa) {
@@ -1581,10 +1588,18 @@ export async function wireAccountPage() {
         <div class="card-body text-center py-5">
           <h3>${t('You are not signed in', '您尚未登录')}</h3>
           <p class="text-secondary">${t('Sign in to see your membership, payments, and card.', '登录后即可查看会员资格、付款记录和会员卡。')}</p>
-          <a href="/login-3/" class="btn btn-primary">${t('Sign in', '登录')}</a>
+          <a href="/login-3/" class="btn btn-primary" data-signin>${t('Sign in', '登录')}</a>
           <a href="/membership/" class="btn ms-2">${t('Join a membership', '加入会员')}</a>
         </div>
       </div>`;
+    // A family invitation link opened while signed out: come back to it after
+    // signing in. The id only ever reaches the page URL-encoded, via setAttribute.
+    const inviteId = familyInviteParam();
+    if (inviteId)
+      $('[data-signin]', host).setAttribute(
+        'href',
+        `/login-3/?next=${encodeURIComponent(`/account/?family_invite=${encodeURIComponent(inviteId)}`)}`,
+      );
     return;
   }
 
