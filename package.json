@@ -15,6 +15,7 @@
     "stripe:catalog": "node stripe-catalog.mjs",
     "db:push": "supabase db push",
     "db:seed": "supabase db execute --file supabase/seed.sql",
+    "auth:emails": "node push-auth-emails.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
