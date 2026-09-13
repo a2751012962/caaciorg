@@ -1103,9 +1103,12 @@ test('admin events: only events open for registration offer the registration lin
     assert.deepEqual(offers('Draft Fair'), [false, false], 'not published');
     assert.deepEqual(offers('Old Fair'), [false, false], 'already over');
 
-    // Copy uses the clipboard…
+    // Copy uses the clipboard… The admin code reads the global navigator, which
+    // Node 21+ has and Node 20 (CI) does not, so lend it jsdom's there.
     const copied = [];
-    Object.defineProperty(navigator, 'clipboard', {
+    const ownNavigator = !('navigator' in globalThis);
+    if (ownNavigator) globalThis.navigator = window.navigator;
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
       configurable: true,
       value: { writeText: async (text) => copied.push(text) },
     });
@@ -1113,7 +1116,8 @@ test('admin events: only events open for registration offer the registration lin
       eventRow('Spring Fair').querySelector('[data-act="reg-link"]').click();
       await tick();
     } finally {
-      delete navigator.clipboard;
+      delete globalThis.navigator.clipboard;
+      if (ownNavigator) delete globalThis.navigator;
     }
     assert.deepEqual(copied, [url]);
     const notb = document.querySelector('#caaci-events-notice');
