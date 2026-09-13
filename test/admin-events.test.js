@@ -198,6 +198,191 @@ test('admin events: perk_deadline is normalised to ISO, cleared to null, or refu
   }
 });
 
+// ---------------------------------------------------- registration forms ----
+
+const patchBodies = (fetch) =>
+  fetch.calls.filter((c) => c.options.method === 'PATCH').map((c) => JSON.parse(c.options.body));
+const postPatch = (body) =>
+  onRequestPost({ request: authed({ body: { id: 'e1', ...body } }), env: fakeEnv() });
+
+const QUESTION = {
+  id: 'heard_from',
+  type: 'single',
+  label_en: 'How did you hear?',
+  label_zh: '您是从哪里得知的？',
+  required: false,
+  options: [{ id: 'website', label_en: 'Website', label_zh: '网站' }],
+  other: true,
+};
+
+test('admin events: lists and re-reads the Chinese title, questions and gift names', async () => {
+  const fetch = mockFetch(route());
+  try {
+    await onRequestGet({ request: authed(), env: fakeEnv() });
+    await postPatch({ title: 'Gala' });
+    const selects = fetch.calls.filter(
+      (c) => c.url.includes('/rest/v1/events') && c.url.includes('select='),
+    );
+    assert.equal(selects.length, 2);
+    for (const c of selects) {
+      const columns = new URL(c.url).searchParams.get('select').split(',');
+      for (const col of ['title_zh', 'registration_questions', 'perk_item_zh', 'perk_item_en'])
+        assert.ok(columns.includes(col), col);
+    }
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: each listed event carries its registration_count, from one read', async () => {
+  const fetch = mockFetch((u, o) =>
+    u.includes('/rest/v1/event_registrations')
+      ? { body: [{ event_id: 'e1' }, { event_id: 'e1' }, { event_id: 'other' }] }
+      : route()(u, o),
+  );
+  try {
+    const r = await onRequestGet({ request: authed(), env: fakeEnv() });
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.deepEqual(
+      data.rows.map((x) => [x.id, x.registration_count]),
+      [
+        ['e1', 2],
+        ['e2', 0],
+      ],
+    );
+    assert.equal(data.total, 2);
+    const reads = fetch.calls.filter((c) => c.url.includes('/rest/v1/event_registrations'));
+    assert.equal(reads.length, 1);
+    assert.match(reads[0].url, /\?select=event_id&event_id=in\.\(e1,e2\)&limit=10000/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: an empty page reads no registrations; a failed count read is a 500', async () => {
+  let fetch = mockFetch((u, o) =>
+    u.includes('/rest/v1/events') && !o.method ? { body: [] } : route()(u, o),
+  );
+  try {
+    const r = await onRequestGet({ request: authed(), env: fakeEnv() });
+    assert.deepEqual((await r.json()).rows, []);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('/rest/v1/event_registrations')),
+      false,
+    );
+  } finally {
+    fetch.restore();
+  }
+  fetch = mockFetch((u, o) =>
+    u.includes('/rest/v1/event_registrations') ? { status: 503, body: 'down' } : route()(u, o),
+  );
+  try {
+    const r = await onRequestGet({ request: authed(), env: fakeEnv() });
+    assert.equal(r.status, 500);
+    assert.match((await r.json()).error, /event_registrations: 503/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: registration_questions are validated and stored normalized, or cleared with null', async () => {
+  const fetch = mockFetch(route());
+  try {
+    const set = await postPatch({
+      registration_questions: [{ ...QUESTION, label_en: '  How did you hear?  ', color: 'red' }],
+    });
+    assert.equal(set.status, 200);
+    assert.deepEqual(patchBodies(fetch).at(-1), { registration_questions: [QUESTION] });
+
+    const open = await postPatch({ registration_questions: [] });
+    assert.equal(open.status, 200);
+    assert.deepEqual(patchBodies(fetch).at(-1), { registration_questions: [] });
+
+    const off = await postPatch({ registration_questions: null });
+    assert.equal(off.status, 200);
+    assert.deepEqual(patchBodies(fetch).at(-1), { registration_questions: null });
+
+    const patches = patchBodies(fetch).length;
+    for (const [bad, error] of [
+      [[{ ...QUESTION, id: 'Heard From' }], /^Question 1 has an invalid id/],
+      [[QUESTION, QUESTION], /^Question 2 repeats the id "heard_from"\.$/],
+      [{ heard_from: QUESTION }, /^Registration questions must be a list\.$/],
+      ['', /^Registration questions must be a list\.$/],
+    ]) {
+      const r = await postPatch({ registration_questions: bad });
+      assert.equal(r.status, 400, JSON.stringify(bad));
+      assert.match((await r.json()).error, error);
+    }
+    assert.equal(patchBodies(fetch).length, patches, 'nothing written for an invalid form');
+
+    // Create accepts a form too.
+    const created = await onRequestPut({
+      request: authed({
+        body: {
+          title: 'Picnic',
+          starts_at: '2026-10-01T18:00:00Z',
+          registration_questions: [QUESTION],
+        },
+      }),
+      env: fakeEnv(),
+    });
+    assert.equal(created.status, 200);
+    assert.deepEqual((await created.json()).event.registration_questions, [QUESTION]);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: title_zh is trimmed, and blank clears it', async () => {
+  const fetch = mockFetch(route());
+  try {
+    await postPatch({ title_zh: '  中秋节 ' });
+    assert.deepEqual(patchBodies(fetch).at(-1), { title_zh: '中秋节' });
+    for (const empty of ['', '   ', null]) {
+      await postPatch({ title_zh: empty });
+      assert.deepEqual(patchBodies(fetch).at(-1), { title_zh: null });
+    }
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: the gift name is set in both languages or neither', async () => {
+  const fetch = mockFetch(route());
+  try {
+    const both = await postPatch({ perk_item_zh: ' 月饼 ', perk_item_en: ' mooncake ' });
+    assert.equal(both.status, 200);
+    assert.deepEqual(patchBodies(fetch).at(-1), { perk_item_zh: '月饼', perk_item_en: 'mooncake' });
+
+    for (const neither of [
+      { perk_item_zh: '', perk_item_en: '' },
+      { perk_item_zh: null, perk_item_en: ' ' },
+    ]) {
+      const r = await postPatch(neither);
+      assert.equal(r.status, 200);
+      assert.deepEqual(patchBodies(fetch).at(-1), { perk_item_zh: null, perk_item_en: null });
+    }
+
+    const patches = patchBodies(fetch).length;
+    for (const one of [
+      { perk_item_zh: '月饼', perk_item_en: '' },
+      { perk_item_zh: '  ', perk_item_en: 'mooncake' },
+      { perk_item_zh: '月饼' },
+      { perk_item_en: 'mooncake' },
+    ]) {
+      const r = await postPatch(one);
+      assert.equal(r.status, 400, JSON.stringify(one));
+      assert.deepEqual(await r.json(), {
+        error: 'Enter the gift name in both languages, or neither.',
+      });
+    }
+    assert.equal(patchBodies(fetch).length, patches);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('admin events: delete needs an id', async () => {
   const fetch = mockFetch(route());
   try {

@@ -7,30 +7,82 @@ const API = 'https://beta.caaciorg.com/api/event-register';
 const FIRST_AT = '2026-09-14T15:04:05.123456+00:00';
 const EARLIER_AT = '2026-09-02T08:30:12.5+00:00';
 
-// 2:00–6:00 PM in Champaign (CDT = UTC-5). The mooncake deadline is far in the
-// future so the "create an account" offer is open whenever the suite runs.
+// The Mid-Autumn form as 0018 stores it. The event and its free-gift deadline
+// are far in the future so registration and the account offer are open
+// whenever the suite runs.
+const QUESTIONS = [
+  {
+    id: 'attending',
+    type: 'single',
+    required: true,
+    label_en: 'Can you attend?',
+    label_zh: '您能参加吗？',
+    options: [
+      { id: 'yes', label_en: "Yes, I'll be there", label_zh: '能，我会参加' },
+      { id: 'no', label_en: "Sorry, can't make it", label_zh: '抱歉，无法参加' },
+    ],
+    other: false,
+  },
+  {
+    id: 'names',
+    type: 'textarea',
+    required: true,
+    label_en: 'What are the names of people attending?',
+    label_zh: '参加者的姓名是？',
+  },
+  {
+    id: 'heard_from',
+    type: 'single',
+    required: false,
+    label_en: 'How did you hear about this event?',
+    label_zh: '您是从哪里得知本次活动的？',
+    options: [
+      { id: 'website', label_en: 'Website', label_zh: '网站' },
+      { id: 'friend', label_en: 'Friend', label_zh: '朋友' },
+      { id: 'newsletter', label_en: 'Newsletter', label_zh: '简报' },
+      { id: 'social', label_en: 'Social Media', label_zh: '社交媒体' },
+    ],
+    other: true,
+  },
+  {
+    id: 'meal',
+    type: 'single',
+    required: false,
+    label_en: 'Would you like to purchase a meal?',
+    label_zh: '您想购买餐食吗？',
+    options: [
+      { id: 'yes', label_en: 'Yes', label_zh: '是' },
+      { id: 'no', label_en: 'No', label_zh: '否' },
+    ],
+    other: false,
+  },
+];
+
 const EVENT = {
   id: 'e1',
   slug: 'mid-autumn-festival',
   title: 'Mid-Autumn Festival 中秋节',
+  title_zh: '中秋节',
   description: 'Mooncakes and lanterns',
-  starts_at: '2026-09-27T19:00:00+00:00',
-  ends_at: '2026-09-27T23:00:00+00:00',
+  starts_at: '2099-09-27T19:00:00+00:00',
+  ends_at: '2099-09-27T23:00:00+00:00',
   location: 'Siebel Center for Design, 1208 S Fourth St, Champaign, IL',
   perk_deadline: '2099-09-20T04:59:59+00:00',
+  perk_item_zh: '月饼',
+  perk_item_en: 'mooncake',
+  registration_questions: QUESTIONS,
   published: true,
 };
+const PERK = { item_en: 'mooncake', item_zh: '月饼', deadline: EVENT.perk_deadline };
+const PAST = { starts_at: '2000-01-01T19:00:00+00:00', ends_at: '2000-01-01T23:00:00+00:00' };
 
-const VALID = {
-  event: 'mid-autumn-festival',
-  email: 'pat@example.com',
-  attending: 'yes',
+const ANSWERS = {
+  attending: { option: 'yes' },
   names: 'Pat Lee, Sam Lee',
-  heard_from: 'friend',
-  heard_from_other: '',
-  wants_meal: 'yes',
-  _hp: '',
+  heard_from: { option: 'friend' },
+  meal: { option: 'yes' },
 };
+const VALID = { event: 'mid-autumn-festival', email: 'pat@example.com', answers: ANSWERS, _hp: '' };
 
 const resendEnv = () =>
   fakeEnv({
@@ -79,7 +131,11 @@ const regSelects = (fetch) =>
   callsTo(fetch, '/rest/v1/event_registrations').filter((c) => c.options.method !== 'POST');
 const upsertCall = (fetch) =>
   callsTo(fetch, '/rest/v1/event_registrations').find((c) => c.options.method === 'POST');
+const upsertBody = (fetch) => JSON.parse(upsertCall(fetch).options.body);
 const emails = (fetch) => callsTo(fetch, 'api.resend.com').map((c) => JSON.parse(c.options.body));
+
+const EVENT_SELECT =
+  /\?select=id,slug,title,title_zh,description,starts_at,ends_at,location,perk_deadline,perk_item_zh,perk_item_en,registration_questions,published&slug=eq\.mid-autumn-festival&limit=1$/;
 
 // ---------------------------------------------------------------- POST ----
 
@@ -115,7 +171,8 @@ test('event-register POST: honeypot is silently accepted with no DB call and no 
   }
 });
 
-const INVALID = [
+// Checked before the event is looked up: no request of any kind.
+for (const [label, patch, error] of [
   ['event missing', { event: undefined }, 'event required'],
   ['event blank', { event: '   ' }, 'event required'],
   ['email missing', { email: undefined }, 'Enter a valid email address.'],
@@ -127,49 +184,14 @@ const INVALID = [
     { email: `${'a'.repeat(243)}@example.com` },
     'Enter a valid email address.',
   ],
-  ['attending missing', { attending: undefined }, 'Tell us whether you can attend.'],
-  ['attending not yes/no', { attending: 'Yes' }, 'Tell us whether you can attend.'],
-  ['attending boolean', { attending: true }, 'Tell us whether you can attend.'],
-  ['names over 1000 chars', { names: 'x'.repeat(1001) }, 'Names are too long.'],
-  [
-    'names over 1000 chars when not attending',
-    { attending: 'no', names: 'x'.repeat(1001) },
-    'Names are too long.',
-  ],
-  ['names blank when attending', { names: '  \n ' }, 'List the names of the people attending.'],
-  ['names missing when attending', { names: undefined }, 'List the names of the people attending.'],
-  ['heard_from unknown', { heard_from: 'tv' }, 'Invalid answer for how you heard about the event.'],
-  [
-    'heard_from display value instead of key',
-    { heard_from: 'Website' },
-    'Invalid answer for how you heard about the event.',
-  ],
-  [
-    'heard_from_other over 200 chars',
-    { heard_from: 'other', heard_from_other: 'x'.repeat(201) },
-    'Invalid answer for how you heard about the event.',
-  ],
-  // The checks run in the contract's order: the first failing one answers.
   ['order: event before email', { event: '', email: 'bad' }, 'event required'],
   [
-    'order: email before attending',
-    { email: 'bad', attending: 'maybe' },
+    'order: email before answers',
+    { email: 'bad', answers: { attending: { option: 'maybe' } } },
     'Enter a valid email address.',
   ],
-  [
-    'order: attending before names',
-    { attending: 'maybe', names: 'x'.repeat(1001) },
-    'Tell us whether you can attend.',
-  ],
-  [
-    'order: names before heard_from',
-    { names: '', heard_from: 'tv' },
-    'List the names of the people attending.',
-  ],
-];
-
-for (const [label, patch, error] of INVALID) {
-  test(`event-register POST: ${label} -> 400 with no DB write`, async () => {
+]) {
+  test(`event-register POST: ${label} -> 400 with no fetch`, async () => {
     const fetch = mockFetch(route());
     try {
       const r = await post({ ...VALID, ...patch });
@@ -182,34 +204,59 @@ for (const [label, patch, error] of INVALID) {
   });
 }
 
-test('event-register POST: the length limits are inclusive (254-char email, 1000-char names)', async () => {
-  const fetch = mockFetch(route());
-  try {
-    const email = `${'a'.repeat(242)}@example.com`;
-    assert.equal(email.length, 254);
-    const r = await post({ ...VALID, email, names: 'n'.repeat(1000) });
-    assert.equal(r.status, 200);
-    assert.equal(JSON.parse(upsertCall(fetch).options.body).attendee_names.length, 1000);
-  } finally {
-    fetch.restore();
-  }
-});
-
-for (const [label, event] of [
-  ['unpublished event', { ...EVENT, published: false }],
-  ['nonexistent event', null],
+// Checked against the event's own questions, so after the event lookup — but
+// still before any auth call, registration read or write, or email.
+for (const [label, answers, error] of [
+  ['answers missing', undefined, 'Answer the question: Can you attend?'],
+  ['answers not an object', 'yes', 'Invalid answers.'],
+  [
+    'required choice missing',
+    { ...ANSWERS, attending: undefined },
+    'Answer the question: Can you attend?',
+  ],
+  [
+    'required names blank',
+    { ...ANSWERS, names: '  \n ' },
+    'Answer the question: What are the names of people attending?',
+  ],
+  [
+    'names over 2000 chars',
+    { ...ANSWERS, names: 'x'.repeat(2001) },
+    'Invalid answer for: What are the names of people attending?',
+  ],
+  [
+    'unknown option',
+    { ...ANSWERS, heard_from: { option: 'tv' } },
+    'Invalid answer for: How did you hear about this event?',
+  ],
+  [
+    'display label instead of the option id',
+    { ...ANSWERS, heard_from: { option: 'Website' } },
+    'Invalid answer for: How did you hear about this event?',
+  ],
+  [
+    'Other over 200 chars',
+    { ...ANSWERS, heard_from: { other: 'x'.repeat(201) } },
+    'Invalid answer for: How did you hear about this event?',
+  ],
+  [
+    'Other where the question has none',
+    { ...ANSWERS, meal: { other: 'dinner' } },
+    'Invalid answer for: Would you like to purchase a meal?',
+  ],
+  [
+    'the old flat fields',
+    { attending: 'yes', names: 'Pat' },
+    'Invalid answer for: Can you attend?',
+  ],
 ]) {
-  test(`event-register POST: ${label} -> 404 with no registration write, auth call or email`, async () => {
-    const fetch = mockFetch(route({ event, user: { id: 'u1', email: 'pat@example.com' } }));
+  test(`event-register POST: ${label} -> 400 with no registration write, auth call or email`, async () => {
+    const fetch = mockFetch(route({ user: { id: 'u1', email: 'pat@example.com' } }));
     try {
-      const r = await post(VALID, { headers: { authorization: 'Bearer good' } });
-      assert.equal(r.status, 404);
-      assert.deepEqual(await r.json(), { error: 'Event not found.' });
-      const lookup = callsTo(fetch, '/rest/v1/events')[0];
-      assert.match(
-        lookup.url,
-        /\?select=id,title,starts_at,ends_at,location,perk_deadline,published&slug=eq\.mid-autumn-festival&limit=1$/,
-      );
+      const r = await post({ ...VALID, answers }, { headers: { authorization: 'Bearer good' } });
+      assert.equal(r.status, 400);
+      assert.deepEqual(await r.json(), { error });
+      assert.equal(callsTo(fetch, '/rest/v1/events').length, 1);
       assert.equal(callsTo(fetch, '/rest/v1/event_registrations').length, 0);
       assert.equal(callsTo(fetch, '/auth/v1/user').length, 0);
       assert.equal(emails(fetch).length, 0);
@@ -219,11 +266,76 @@ for (const [label, event] of [
   });
 }
 
-test('event-register POST: anonymous first registration upserts on (event_id, email) without created_at or member_id', async () => {
+for (const [label, event] of [
+  ['unpublished event', { ...EVENT, published: false }],
+  ['nonexistent event', null],
+  ['event that takes no registrations', { ...EVENT, registration_questions: null }],
+]) {
+  test(`event-register POST: ${label} -> 404 with no registration write, auth call or email`, async () => {
+    const fetch = mockFetch(route({ event, user: { id: 'u1', email: 'pat@example.com' } }));
+    try {
+      const r = await post(VALID, { headers: { authorization: 'Bearer good' } });
+      assert.equal(r.status, 404);
+      assert.deepEqual(await r.json(), { error: 'Event not found.' });
+      assert.match(callsTo(fetch, '/rest/v1/events')[0].url, EVENT_SELECT);
+      assert.equal(callsTo(fetch, '/rest/v1/event_registrations').length, 0);
+      assert.equal(callsTo(fetch, '/auth/v1/user').length, 0);
+      assert.equal(emails(fetch).length, 0);
+    } finally {
+      fetch.restore();
+    }
+  });
+}
+
+test('event-register POST: after the event ends -> 409, checked before the answers', async () => {
+  for (const [label, event, answers] of [
+    ['ended', { ...EVENT, ...PAST }, ANSWERS],
+    ['no end, started', { ...EVENT, ...PAST, ends_at: null }, ANSWERS],
+    ['ended, with invalid answers', { ...EVENT, ...PAST }, { attending: { option: 'maybe' } }],
+  ]) {
+    const fetch = mockFetch(route({ event, user: { id: 'u1', email: 'pat@example.com' } }));
+    try {
+      const r = await post({ ...VALID, answers }, { headers: { authorization: 'Bearer good' } });
+      assert.equal(r.status, 409, label);
+      assert.deepEqual(await r.json(), { error: 'Registration for this event has closed.' });
+      assert.equal(callsTo(fetch, '/rest/v1/event_registrations').length, 0, label);
+      assert.equal(callsTo(fetch, '/auth/v1/user').length, 0, label);
+      assert.equal(emails(fetch).length, 0, label);
+    } finally {
+      fetch.restore();
+    }
+  }
+});
+
+test('event-register POST: a hand-edited, invalid question list is a 500, not a registration', async () => {
+  const fetch = mockFetch(route({ event: { ...EVENT, registration_questions: [{ id: 'X' }] } }));
+  try {
+    const r = await post(VALID);
+    assert.equal(r.status, 500);
+    assert.match(
+      (await r.json()).error,
+      /registration form is invalid: Question 1 has an invalid id/,
+    );
+    assert.equal(callsTo(fetch, '/rest/v1/event_registrations').length, 0);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event-register POST: anonymous first registration upserts answers on (event_id, email) and nothing else', async () => {
   const fetch = mockFetch(route());
   try {
     const before = Date.now();
-    const r = await post({ ...VALID, email: '  Pat@Example.COM ', names: '  Pat Lee, Sam Lee \n' });
+    const r = await post({
+      ...VALID,
+      email: '  Pat@Example.COM ',
+      answers: {
+        ...ANSWERS,
+        names: '  Pat Lee, Sam Lee \n',
+        heard_from: { other: '  Poster at the library  ' },
+        not_a_question: 'dropped',
+      },
+    });
     assert.equal(r.status, 200);
     assert.deepEqual(await r.json(), {
       ok: true,
@@ -231,7 +343,7 @@ test('event-register POST: anonymous first registration upserts on (event_id, em
       registered_at: FIRST_AT,
       signed_in: false,
       linked: false,
-      deadline: EVENT.perk_deadline,
+      perk: PERK,
     });
 
     const existing = regSelects(fetch);
@@ -248,13 +360,22 @@ test('event-register POST: anonymous first registration upserts on (event_id, em
     assert.deepEqual(row, {
       event_id: 'e1',
       email: 'pat@example.com',
-      attending: true,
-      attendee_names: 'Pat Lee, Sam Lee',
-      heard_from: 'Friend',
-      wants_meal: true,
+      answers: {
+        attending: { option: 'yes' },
+        names: 'Pat Lee, Sam Lee',
+        heard_from: { other: 'Poster at the library' },
+        meal: { option: 'yes' },
+      },
     });
-    assert.equal('created_at' in row, false, 'created_at is never sent');
-    assert.equal('member_id' in row, false, 'member_id is never sent as null');
+    for (const key of [
+      'created_at',
+      'member_id',
+      'attending',
+      'attendee_names',
+      'heard_from',
+      'wants_meal',
+    ])
+      assert.equal(key in row, false, `${key} is never sent`);
     assert.ok(Date.parse(updated_at) >= before - 1000 && Date.parse(updated_at) <= Date.now());
     assert.equal(callsTo(fetch, '/auth/v1/user').length, 0, 'no token, no auth lookup');
   } finally {
@@ -262,67 +383,36 @@ test('event-register POST: anonymous first registration upserts on (event_id, em
   }
 });
 
-for (const [label, patch, expected] of [
-  ['website', { heard_from: 'website' }, 'Website'],
-  ['friend', { heard_from: 'friend' }, 'Friend'],
-  ['newsletter', { heard_from: 'newsletter' }, 'Newsletter'],
-  ['social', { heard_from: 'social' }, 'Social Media'],
-  [
-    'other with text (trimmed)',
-    { heard_from: 'other', heard_from_other: '  Poster at the library  ' },
-    'Poster at the library',
-  ],
-  [
-    'other with 200 chars',
-    { heard_from: 'other', heard_from_other: 'y'.repeat(200) },
-    'y'.repeat(200),
-  ],
-  ['other with blank text', { heard_from: 'other', heard_from_other: '   ' }, 'Other'],
-  ['other with no text', { heard_from: 'other', heard_from_other: undefined }, 'Other'],
-  ['empty', { heard_from: '' }, null],
-  ['absent', { heard_from: undefined }, null],
-  ['null', { heard_from: null }, null],
-  ['empty, ignoring a leftover other text', { heard_from: '', heard_from_other: 'TV' }, null],
-]) {
-  test(`event-register POST: heard_from ${label} -> ${JSON.stringify(expected)}`, async () => {
-    const fetch = mockFetch(route());
-    try {
-      const r = await post({ ...VALID, ...patch });
-      assert.equal(r.status, 200);
-      assert.equal(JSON.parse(upsertCall(fetch).options.body).heard_from, expected);
-    } finally {
-      fetch.restore();
-    }
-  });
-}
-
-for (const [value, expected] of [
-  ['yes', true],
-  ['no', false],
-  ['', null],
-  [undefined, null],
-  ['maybe', null],
-]) {
-  test(`event-register POST: wants_meal ${JSON.stringify(value)} -> ${expected}`, async () => {
-    const fetch = mockFetch(route());
-    try {
-      const r = await post({ ...VALID, wants_meal: value });
-      assert.equal(r.status, 200);
-      assert.equal(JSON.parse(upsertCall(fetch).options.body).wants_meal, expected);
-    } finally {
-      fetch.restore();
-    }
-  });
-}
-
-test('event-register POST: not attending needs no names and stores attending=false, names null', async () => {
+test('event-register POST: optional questions may be left out, and the length limits are inclusive', async () => {
   const fetch = mockFetch(route());
   try {
-    const r = await post({ ...VALID, attending: 'no', names: '' });
+    const email = `${'a'.repeat(242)}@example.com`;
+    assert.equal(email.length, 254);
+    const r = await post({
+      ...VALID,
+      email,
+      answers: { attending: { option: 'no' }, names: 'n'.repeat(2000) },
+    });
     assert.equal(r.status, 200);
-    const row = JSON.parse(upsertCall(fetch).options.body);
-    assert.equal(row.attending, false);
-    assert.equal(row.attendee_names, null);
+    assert.deepEqual(upsertBody(fetch).answers, {
+      attending: { option: 'no' },
+      names: 'n'.repeat(2000),
+    });
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event-register POST: an event with no gift answers perk null; with no perk_deadline the deadline is the start', async () => {
+  let fetch = mockFetch(route({ event: { ...EVENT, perk_item_en: null } }));
+  try {
+    assert.equal((await (await post(VALID)).json()).perk, null);
+  } finally {
+    fetch.restore();
+  }
+  fetch = mockFetch(route({ event: { ...EVENT, perk_deadline: null } }));
+  try {
+    assert.equal((await (await post(VALID)).json()).perk.deadline, EVENT.starts_at);
   } finally {
     fetch.restore();
   }
@@ -351,7 +441,7 @@ for (const [label, loginEmail, formEmail, linked] of [
       const auth = callsTo(fetch, '/auth/v1/user')[0];
       assert.equal(auth.options.headers.authorization, 'Bearer good-token');
       assert.equal(auth.options.headers.apikey, 'anon-key');
-      const row = JSON.parse(upsertCall(fetch).options.body);
+      const row = upsertBody(fetch);
       assert.equal(row.email, 'pat@example.com', 'the form email is stored, not the login email');
       assert.equal('member_id' in row, linked);
       assert.equal(row.member_id, linked ? 'u1' : undefined);
@@ -371,7 +461,7 @@ test('event-register POST: an invalid token is treated as anonymous, not an erro
     assert.equal(out.signed_in, false);
     assert.equal(out.linked, false);
     assert.equal(callsTo(fetch, '/auth/v1/user').length, 1);
-    assert.equal('member_id' in JSON.parse(upsertCall(fetch).options.body), false);
+    assert.equal('member_id' in upsertBody(fetch), false);
     assert.equal(emails(fetch).length, 1, 'still a first registration');
   } finally {
     fetch.restore();
@@ -383,7 +473,7 @@ test('event-register POST: resubmission -> already=true, keeps the first created
   // test can tell which one the response reports.
   const fetch = mockFetch(route({ byEmail: { id: 'r1', created_at: EARLIER_AT } }));
   try {
-    const r = await post({ ...VALID, attending: 'no', names: '' });
+    const r = await post({ ...VALID, answers: { attending: { option: 'no' }, names: 'Pat' } });
     assert.equal(r.status, 200);
     assert.deepEqual(await r.json(), {
       ok: true,
@@ -391,34 +481,22 @@ test('event-register POST: resubmission -> already=true, keeps the first created
       registered_at: EARLIER_AT,
       signed_in: false,
       linked: false,
-      deadline: EVENT.perk_deadline,
+      perk: PERK,
     });
-    const row = JSON.parse(upsertCall(fetch).options.body);
+    const row = upsertBody(fetch);
     assert.equal('created_at' in row, false);
-    assert.equal(row.attending, false, 'the new answers are still written');
+    assert.deepEqual(row.answers.attending, { option: 'no' }, 'the new answers are still written');
     assert.equal(emails(fetch).length, 0);
   } finally {
     fetch.restore();
   }
 });
 
-test('event-register POST: with no perk_deadline, the deadline is the event start', async () => {
-  const fetch = mockFetch(route({ event: { ...EVENT, perk_deadline: null } }));
-  try {
-    const r = await post(VALID);
-    assert.equal((await r.json()).deadline, EVENT.starts_at);
-  } finally {
-    fetch.restore();
-  }
-});
-
-test('event-register POST: first registration emails the registrant Chicago times, escaped event fields and the account link', async () => {
-  const fetch = mockFetch(
-    route({ event: { ...EVENT, title: 'Moon & <Lantern> Night', location: 'Hall "A" <b>' } }),
-  );
+test('event-register POST: first registration emails the registrant with links from the request origin', async () => {
+  const fetch = mockFetch(route());
   try {
     const r = await post(
-      { ...VALID, email: 'Pat@Example.com', wants_meal: 'no' },
+      { ...VALID, email: 'Pat@Example.com' },
       { url: 'https://caaciorg.com/api/event-register' },
     );
     assert.equal(r.status, 200);
@@ -429,22 +507,29 @@ test('event-register POST: first registration emails the registrant Chicago time
     assert.equal(mail.to, 'pat@example.com', 'to the registrant, lower-cased');
     assert.equal(mail.from, 'events@caaci.example');
     assert.equal(mail.reply_to, 'staff@caaci.example');
-    assert.match(mail.subject, /Moon & <Lantern> Night/);
+    assert.equal(mail.subject, '中秋节 · 报名确认 / Registration confirmed');
 
     const { html } = mail;
-    assert.equal(html.includes('<Lantern>'), false);
-    assert.match(html, /Moon &amp; &lt;Lantern&gt; Night/);
-    assert.match(html, /Hall &quot;A&quot; &lt;b&gt;/);
-
-    // 19:00–23:00 UTC is 2:00–6:00 PM in Champaign, not 7:00 PM.
-    assert.match(html, /Sunday, September 27, 2026 at 2:00\sPM – 6:00\sPM/);
-    assert.match(html, /2026年9月27日星期日 14:00 – 18:00/);
-    assert.equal(/7:00\sPM/.test(html), false);
-
+    assert.match(
+      html,
+      /src="https:\/\/db\.example\/storage\/v1\/object\/public\/media\/email\/caaci-logo\.png"/,
+    );
     // Links are built from the request's origin, so they follow a domain move.
     assert.match(html, /href="https:\/\/caaciorg\.com\/login-3\/"/);
     assert.equal(html.includes('beta.caaciorg.com'), false);
-    assert.match(html, /Create a free CAACI account with this email before .*2099/);
+    assert.match(
+      html,
+      /Create a free CAACI website account with this email by September 19, 11:59 PM Central Time/,
+    );
+    assert.match(html, /9月19日晚上11点59分（美国中部时间）前用此邮箱免费注册/);
+    assert.match(
+      html,
+      /您能参加吗？ · Can you attend\?<\/td><td[^>]*>能，我会参加 · Yes, I&#39;ll be there<\/td>/,
+    );
+    assert.match(
+      html,
+      /购买餐食吗？ · Would you like to purchase a meal\?<\/td><td[^>]*>是 · Yes<\/td>/,
+    );
   } finally {
     fetch.restore();
   }
@@ -452,22 +537,24 @@ test('event-register POST: first registration emails the registrant Chicago time
 
 // Anyone can make the endpoint mail any address from CAACI, so nothing the
 // registrant typed may reach the email: it would be branded phishing copy.
-test('event-register POST: the email carries no registrant-typed text, only structured answers', async () => {
+test('event-register POST: the email carries no registrant-typed text, only option labels', async () => {
   const fetch = mockFetch(route());
   try {
     const r = await post({
       ...VALID,
       email: 'victim+verify-at-evil.example@gmail.com',
-      names:
-        'Your account is suspended, verify at https://evil.example/login <a href="https://evil.example">here</a>',
-      heard_from: 'other',
-      heard_from_other: 'Call now: http://evil.example <b>urgent</b>',
-      wants_meal: 'yes',
+      answers: {
+        attending: { option: 'yes' },
+        names:
+          'Your account is suspended, verify at https://evil.example/login <a href="https://evil.example">here</a>',
+        heard_from: { other: 'Call now: http://evil.example <b>urgent</b>' },
+        meal: { option: 'yes' },
+      },
     });
     assert.equal(r.status, 200);
-    const row = JSON.parse(upsertCall(fetch).options.body);
-    assert.match(row.attendee_names, /suspended/, 'the answers are still stored');
-    assert.match(row.heard_from, /Call now/);
+    const row = upsertBody(fetch);
+    assert.match(row.answers.names, /suspended/, 'the answers are still stored');
+    assert.match(row.answers.heard_from.other, /Call now/);
 
     const [mail] = emails(fetch);
     assert.equal(mail.to, 'victim+verify-at-evil.example@gmail.com');
@@ -483,52 +570,14 @@ test('event-register POST: the email carries no registrant-typed text, only stru
       assert.equal(mail.html.includes(typed), false, `email body contains "${typed}"`);
       assert.equal(mail.subject.includes(typed), false, `subject contains "${typed}"`);
     }
-    assert.match(mail.html, /我会参加 · Yes, I’ll be there/);
     assert.match(
       mail.html,
-      /了解渠道 · How you heard about this event<\/td><td[^>]*>其他 · Other<\/td>/,
+      /您是从哪里得知本次活动的？ · How did you hear about this event\?<\/td><td[^>]*>其他 · Other<\/td>/,
     );
-    assert.match(mail.html, /购买餐食 · Purchase a meal\?<\/td><td[^>]*>是 · Yes<\/td>/);
   } finally {
     fetch.restore();
   }
 });
-
-for (const [label, patch, heard, meal] of [
-  ['website, no meal', { heard_from: 'website', wants_meal: 'no' }, '网站 · Website', '否 · No'],
-  ['friend', { heard_from: 'friend' }, '朋友 · Friend', '是 · Yes'],
-  ['newsletter', { heard_from: 'newsletter' }, '电子报 · Newsletter', '是 · Yes'],
-  ['social', { heard_from: 'social' }, '社交媒体 · Social Media', '是 · Yes'],
-  ['not answered', { heard_from: '', wants_meal: '' }, '—', '—'],
-  [
-    'Other typed as a prototype key',
-    { heard_from: 'other', heard_from_other: 'constructor' },
-    '其他 · Other',
-    '是 · Yes',
-  ],
-  ['not attending', { attending: 'no', names: '' }, '朋友 · Friend', '是 · Yes'],
-]) {
-  test(`event-register POST: email structured answers, ${label}`, async () => {
-    const fetch = mockFetch(route());
-    try {
-      const r = await post({ ...VALID, ...patch });
-      assert.equal(r.status, 200);
-      const { html } = emails(fetch)[0];
-      const cell = (name, value) =>
-        new RegExp(`${name}</td><td[^>]*>${value.replace(/[?]/g, '\\?')}</td>`);
-      assert.match(html, cell('了解渠道 · How you heard about this event', heard));
-      assert.match(html, cell('购买餐食 · Purchase a meal\\?', meal));
-      assert.match(
-        html,
-        patch.attending === 'no'
-          ? /无法参加 · Sorry, can’t make it/
-          : /我会参加 · Yes, I’ll be there/,
-      );
-    } finally {
-      fetch.restore();
-    }
-  });
-}
 
 test('event-register POST: a linked first registration is told it counts, with no sign-up link', async () => {
   const fetch = mockFetch(route({ user: { id: 'u1', email: 'pat@example.com' } }));
@@ -556,19 +605,26 @@ test('event-register POST: signed in but registering another address, the email 
   }
 });
 
-test('event-register POST: after the deadline the confirmation offers no mooncake', async () => {
-  const fetch = mockFetch(
-    route({ event: { ...EVENT, perk_deadline: '2000-01-01T00:00:00+00:00' } }),
-  );
-  try {
-    const r = await post(VALID);
-    assert.equal(r.status, 200);
-    const { html } = emails(fetch)[0];
-    assert.equal(/mooncake|月饼/.test(html), false);
-    assert.equal(html.includes('/login-3/'), false);
-    assert.match(html, /我会参加 · Yes, I’ll be there/, 'the answers are still confirmed');
-  } finally {
-    fetch.restore();
+test('event-register POST: after the gift deadline, or with no gift, the confirmation offers none', async () => {
+  for (const event of [
+    { ...EVENT, perk_deadline: '2000-01-01T00:00:00+00:00' },
+    { ...EVENT, perk_item_zh: null, perk_item_en: null },
+  ]) {
+    const fetch = mockFetch(route({ event }));
+    try {
+      const r = await post(VALID);
+      assert.equal(r.status, 200);
+      const { html } = emails(fetch)[0];
+      assert.equal(/mooncake|月饼/.test(html), false);
+      assert.equal(html.includes('/login-3/'), false);
+      assert.match(
+        html,
+        /能，我会参加 · Yes, I&#39;ll be there/,
+        'the answers are still confirmed',
+      );
+    } finally {
+      fetch.restore();
+    }
   }
 });
 
@@ -609,12 +665,14 @@ test('event-register POST: a DB error -> 500 with the message, and no email', as
 const PUBLIC_EVENT = {
   slug: EVENT.slug,
   title: EVENT.title,
+  title_zh: EVENT.title_zh,
   description: EVENT.description,
   starts_at: EVENT.starts_at,
   ends_at: EVENT.ends_at,
   location: EVENT.location,
-  perk_deadline: EVENT.perk_deadline,
-  deadline: EVENT.perk_deadline,
+  perk: PERK,
+  questions: QUESTIONS,
+  open: true,
 };
 
 test('event-register GET: no slug -> 400 with no fetch', async () => {
@@ -634,6 +692,7 @@ test('event-register GET: no slug -> 400 with no fetch', async () => {
 for (const [label, event] of [
   ['unpublished event', { ...EVENT, published: false }],
   ['nonexistent event', null],
+  ['event that takes no registrations', { ...EVENT, registration_questions: null }],
 ]) {
   test(`event-register GET: ${label} -> 404`, async () => {
     const fetch = mockFetch(route({ event, user: { id: 'u1', email: 'pat@example.com' } }));
@@ -650,16 +709,16 @@ for (const [label, event] of [
   });
 }
 
-test('event-register GET: anonymous -> public event fields and signed_in=false, nothing else', async () => {
+test('event-register GET: anonymous -> public event, gift, questions, open, and signed_in=false', async () => {
   const fetch = mockFetch(route());
   try {
     const r = await get('?event=mid-autumn-festival');
     assert.equal(r.status, 200);
-    assert.deepEqual(await r.json(), { event: PUBLIC_EVENT, signed_in: false });
-    assert.match(
-      callsTo(fetch, '/rest/v1/events')[0].url,
-      /&slug=eq\.mid-autumn-festival&limit=1$/,
-    );
+    const out = await r.json();
+    assert.deepEqual(out, { event: PUBLIC_EVENT, signed_in: false });
+    assert.equal('id' in out.event, false, 'the event id is not exposed');
+    assert.equal('published' in out.event, false);
+    assert.match(callsTo(fetch, '/rest/v1/events')[0].url, EVENT_SELECT);
     assert.equal(callsTo(fetch, '/auth/v1/user').length, 0);
     assert.equal(callsTo(fetch, '/rest/v1/event_registrations').length, 0);
   } finally {
@@ -667,14 +726,53 @@ test('event-register GET: anonymous -> public event fields and signed_in=false, 
   }
 });
 
-test('event-register GET: with no perk_deadline, deadline is the event start', async () => {
-  const fetch = mockFetch(route({ event: { ...EVENT, perk_deadline: null } }));
+test('event-register GET: questions come back normalized; an empty list is an open form', async () => {
+  const messy = [{ ...QUESTIONS[1], label_en: '  Names?  ', extra: 'x' }];
+  let fetch = mockFetch(route({ event: { ...EVENT, registration_questions: messy } }));
   try {
     const { event } = await (await get('?event=mid-autumn-festival')).json();
-    assert.equal(event.perk_deadline, null);
-    assert.equal(event.deadline, EVENT.starts_at);
+    assert.deepEqual(event.questions, [{ ...QUESTIONS[1], label_en: 'Names?' }]);
   } finally {
     fetch.restore();
+  }
+  fetch = mockFetch(route({ event: { ...EVENT, registration_questions: [] } }));
+  try {
+    const r = await get('?event=mid-autumn-festival');
+    assert.equal(r.status, 200);
+    assert.deepEqual((await r.json()).event.questions, []);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event-register GET: a past event is still shown, with open=false', async () => {
+  const fetch = mockFetch(route({ event: { ...EVENT, ...PAST } }));
+  try {
+    const r = await get('?event=mid-autumn-festival');
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).event.open, false);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event-register GET: gift null without both names; deadline is the start with no perk_deadline', async () => {
+  for (const [event, perk] of [
+    [{ ...EVENT, perk_item_zh: '' }, null],
+    [
+      { ...EVENT, perk_deadline: null },
+      { ...PERK, deadline: EVENT.starts_at },
+    ],
+    [{ ...EVENT, title_zh: undefined }, PERK],
+  ]) {
+    const fetch = mockFetch(route({ event }));
+    try {
+      const out = await (await get('?event=mid-autumn-festival')).json();
+      assert.deepEqual(out.event.perk, perk);
+      assert.equal(out.event.title_zh, event.title_zh ?? null);
+    } finally {
+      fetch.restore();
+    }
   }
 });
 
@@ -694,8 +792,8 @@ test('event-register GET: signed in, registration found by lower-cased login ema
   const fetch = mockFetch(
     route({
       user: { id: 'u1', email: 'Pat@Example.com' },
-      byEmail: { created_at: FIRST_AT, attending: true, updated_at: '2026-09-15T00:00:00+00:00' },
-      byMember: { created_at: EARLIER_AT, attending: false, updated_at: EARLIER_AT },
+      byEmail: { created_at: FIRST_AT, updated_at: '2026-09-15T00:00:00+00:00' },
+      byMember: { created_at: EARLIER_AT, updated_at: EARLIER_AT },
     }),
   );
   try {
@@ -707,17 +805,13 @@ test('event-register GET: signed in, registration found by lower-cased login ema
       event: PUBLIC_EVENT,
       signed_in: true,
       email: 'Pat@Example.com',
-      registration: {
-        registered_at: FIRST_AT,
-        attending: true,
-        updated_at: '2026-09-15T00:00:00+00:00',
-      },
+      registration: { registered_at: FIRST_AT, updated_at: '2026-09-15T00:00:00+00:00' },
     });
     const lookups = regSelects(fetch);
     assert.equal(lookups.length, 1, 'no member_id lookup once the email matched');
     assert.match(
       lookups[0].url,
-      /\?select=created_at,attending,updated_at&event_id=eq\.e1&email=eq\.pat%40example\.com&limit=1$/,
+      /\?select=created_at,updated_at&event_id=eq\.e1&email=eq\.pat%40example\.com&limit=1$/,
     );
   } finally {
     fetch.restore();
@@ -728,7 +822,7 @@ test('event-register GET: signed in, falls back to member_id with a separate eq 
   const fetch = mockFetch(
     route({
       user: { id: 'u1', email: 'a,b(c)@example.com' },
-      byMember: { created_at: EARLIER_AT, attending: false, updated_at: FIRST_AT },
+      byMember: { created_at: EARLIER_AT, updated_at: FIRST_AT },
     }),
   );
   try {
@@ -738,7 +832,6 @@ test('event-register GET: signed in, falls back to member_id with a separate eq 
     assert.equal(r.status, 200);
     assert.deepEqual((await r.json()).registration, {
       registered_at: EARLIER_AT,
-      attending: false,
       updated_at: FIRST_AT,
     });
     const lookups = regSelects(fetch);
