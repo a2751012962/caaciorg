@@ -783,7 +783,16 @@
                       >I understand this emails real members.</span
                     >
                   </label>
-                  <div class="mt-3">
+                  <div class="mt-3 btn-list">
+                    <button
+                      type="button"
+                      class="btn"
+                      id="caaci-news-preview-btn"
+                      data-en="Preview"
+                      data-zh="预览"
+                    >
+                      Preview
+                    </button>
                     <button
                       type="button"
                       class="btn btn-primary"
@@ -794,6 +803,8 @@
                       Send news email
                     </button>
                   </div>
+                  <!-- The message rendered in a sandboxed frame (no scripts) by caaci-admin.js. -->
+                  <div class="mt-3" id="caaci-news-preview" hidden></div>
                   <p class="alert mt-3" id="caaci-news-notice" hidden></p>
                 </div>
               </section>

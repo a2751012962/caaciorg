@@ -1010,3 +1010,63 @@ test('admin members: once families load, the member editor offers them and saves
     fetch.restore();
   }
 });
+
+// ---------- news: preview ----------
+test('admin news: Preview shows the message in a sandboxed frame and sends nothing', async () => {
+  const fetch = mockFetch((u) =>
+    u === '/api/admin/news' ? { body: { ok: true, sent: 2, failed: 0, total: 2 } } : { body: {} },
+  );
+  const $ = (s) => document.querySelector(s);
+  const body = $('#caaci-news-body');
+  const preview = $('#caaci-news-preview');
+  const frame = () => preview.querySelector('iframe');
+  const newsPosts = () => fetch.calls.filter((c) => c.url === '/api/admin/news');
+  try {
+    $('[data-tab="news"]').click();
+    await tick();
+
+    // Nothing to preview yet: no frame, and the notice says why.
+    $('#caaci-news-preview-btn').click();
+    assert.equal(preview.hidden, true);
+    assert.equal(frame(), null);
+    assert.match($('#caaci-news-notice').textContent, /Write a message to preview/);
+
+    // Exactly what is in the box, in a frame sandboxed with no allow-* at all.
+    const html = '<h1>中秋节</h1><script>parent.hacked = true</script><p>See you there!</p>';
+    body.value = html;
+    $('#caaci-news-preview-btn').click();
+    assert.equal(preview.hidden, false);
+    assert.equal(frame().getAttribute('sandbox'), '');
+    assert.equal(frame().getAttribute('srcdoc'), html);
+    assert.equal(frame().getAttribute('title'), 'Message preview');
+
+    // Previewing again replaces the frame with the edited message.
+    body.value += '<p>Edited</p>';
+    $('#caaci-news-preview-btn').click();
+    assert.equal(preview.querySelectorAll('iframe').length, 1);
+    assert.equal(frame().getAttribute('srcdoc'), `${html}<p>Edited</p>`);
+
+    // A cleared message closes the preview.
+    body.value = '   ';
+    $('#caaci-news-preview-btn').click();
+    assert.equal(preview.hidden, true);
+    assert.equal(frame(), null);
+
+    // Previewing never emails anyone; Send still posts the message as typed.
+    assert.equal(newsPosts().length, 0);
+    $('#caaci-news-subject').value = 'Hello';
+    body.value = html;
+    $('#caaci-news-confirm').checked = true;
+    $('#caaci-news-send').click();
+    await tick();
+    assert.equal(newsPosts().length, 1);
+    assert.deepEqual(JSON.parse(newsPosts()[0].options.body), {
+      subject: 'Hello',
+      body_html: html,
+      audience: 'active',
+      confirm: true,
+    });
+  } finally {
+    fetch.restore();
+  }
+});

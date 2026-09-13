@@ -873,7 +873,34 @@ function wireDiscounts() {
 }
 
 // ---------- news composer ----------
+// The message as the email will render, in a frame sandboxed with no allow-* at
+// all (so no scripts and no same-origin access to this admin session). The
+// sandbox attribute is set before srcdoc so the content never loads unsandboxed.
+function showNewsPreview() {
+  const host = $('#caaci-news-preview');
+  const html = $('#caaci-news-body').value;
+  if (!html.trim()) {
+    host.hidden = true;
+    host.innerHTML = '';
+    return notice(
+      $('#caaci-news-notice'),
+      t('Write a message to preview.', '请先填写正文再预览。'),
+      false,
+    );
+  }
+  const frame = document.createElement('iframe');
+  frame.setAttribute('sandbox', '');
+  frame.setAttribute('title', t('Message preview', '正文预览'));
+  frame.setAttribute('srcdoc', html);
+  const box = document.createElement('div');
+  box.className = 'ratio ratio-4x3 border';
+  box.appendChild(frame);
+  host.replaceChildren(box);
+  host.hidden = false;
+}
+
 function wireNews() {
+  $('#caaci-news-preview-btn').addEventListener('click', showNewsPreview);
   $('#caaci-news-send').addEventListener('click', async () => {
     const notb = $('#caaci-news-notice');
     const btn = $('#caaci-news-send');
