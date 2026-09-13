@@ -68,7 +68,8 @@ function apiRoutes(u, options = {}) {
         total: 2,
       },
     };
-  if (u.includes('/api/admin/households')) return { body: { rows: [] } };
+  // Families fail to load at boot: the member editor must not unlink anyone.
+  if (u.includes('/api/admin/households')) return { status: 500, body: { error: 'down' } };
   if (u.includes('/api/admin/payments'))
     return {
       body: {
@@ -216,9 +217,26 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.match(btnFor('reset').textContent, /\(\d+s\)/);
     assert.equal(btnFor('invite').disabled, true);
 
+    // Families never loaded, so the Family field is locked and saving leaves the
+    // member's family alone (an empty household_id would unlink them).
+    assert.equal(editRow().querySelector('[data-f="household_id"]').disabled, true);
+    assert.match(
+      editRow().querySelector('[data-household-unavailable]').textContent,
+      /Families couldn't be loaded, so family is unchanged/,
+    );
+
     // Save re-renders the table (editor gone); the cooldown survives that too.
     editRow().querySelector('[data-act="save"]').click();
     await tick();
+    const memberSave = fetch.calls
+      .filter((c) => c.url.includes('/api/admin/members') && c.options.method === 'POST')
+      .at(-1);
+    assert.ok(memberSave, 'member saved');
+    assert.equal(
+      'household_id' in JSON.parse(memberSave.options.body),
+      false,
+      'no household_id when families failed to load',
+    );
     assert.equal(editRow(), null);
     assert.equal(live.size, 0, 're-rendering the table clears the intervals');
     editBtn().click();
@@ -789,6 +807,7 @@ test('admin families: founder and not-linked badges, seats, pending invitations 
     assert.match(inv[0].textContent, /Parent/);
     assert.ok(inv[0].textContent.includes(`expires ${day('2026-09-24T00:00:00Z')}`));
     assert.equal(c.querySelector('[data-invites-unavailable]'), null);
+    assert.equal(c.querySelector('[data-founder-outside]'), null, 'founder is a linked account');
 
     const act = c.querySelector('details[data-activity]');
     assert.ok(act, 'activity is collapsible');
@@ -879,6 +898,97 @@ test('admin families: an unavailable invitations feed shows a note, and the fami
   } finally {
     window.confirm = realConfirm;
     familiesReply = familiesAvailable;
+    fetch.restore();
+  }
+});
+
+test('admin families: a founder outside the family, hostile actors, unknown event types and relationships render as text', async () => {
+  familiesReply = () => ({
+    body: {
+      invites_available: true,
+      rows: [
+        {
+          ...FAMILY,
+          founder_member_id: 'a9',
+          founder: { id: 'a9', full_name: `Wen ${HOSTILE}`, email: `wen${HOSTILE}@x.com` },
+          invites: [{ ...FAMILY.invites[0], email: 'ann@x.com', relationship: '<u>cousin</u>' }],
+          events: [
+            {
+              type: 'invite_sent',
+              actor_email: '<b>boss</b>@x.com',
+              subject_email: 'ann@x.com',
+              subject_name: null,
+              created_at: '2026-09-10T00:00:00Z',
+            },
+            {
+              type: '<i>mystery</i>',
+              actor_email: null,
+              subject_email: null,
+              subject_name: null,
+              created_at: '2026-09-09T00:00:00Z',
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const fetch = mockFetch(familyRoutes);
+  try {
+    await openFamilies();
+    let c = familyCardEl();
+    assert.equal(c.querySelector('img, b, i, u'), null, 'nothing hostile becomes markup');
+
+    // The founder was moved out of the family: still named, clearly marked.
+    assert.equal(
+      c.querySelector('[data-founder-outside]').textContent.trim(),
+      `Founder: Wen ${HOSTILE} — wen${HOSTILE}@x.com (not in this family)`,
+    );
+    assert.doesNotMatch(c.querySelector('[data-accounts]').textContent, /Founder/);
+
+    const inv = c.querySelector('[data-invites] li').textContent;
+    assert.ok(inv.includes('ann@x.com · <u>cousin</u> · expires'), inv);
+
+    const items = [...c.querySelectorAll('details[data-activity] li')].map((li) => li.textContent);
+    assert.match(items[0], /Invitation sent[\s\S]*by <b>boss<\/b>@x\.com/);
+    assert.ok(items[1].includes(' · <i>mystery</i>'), 'unknown type shown raw, not blank');
+
+    document.querySelector('#caaci-lang').click();
+    await openFamilies();
+    c = familyCardEl();
+    assert.equal(
+      c.querySelector('[data-founder-outside]').textContent.trim(),
+      `创始人：Wen ${HOSTILE} — wen${HOSTILE}@x.com（不在此家庭）`,
+    );
+    document.querySelector('#caaci-lang').click();
+    await tick();
+  } finally {
+    familiesReply = familiesAvailable;
+    fetch.restore();
+  }
+});
+
+test('admin members: once families load, the member editor offers them and saves the chosen family', async () => {
+  familiesReply = familiesAvailable;
+  const fetch = mockFetch((u, o) =>
+    u.includes('/api/admin/households') ? familiesReply() : apiRoutes(u, o),
+  );
+  try {
+    await openFamilies();
+    document.querySelector('[data-tab="members"]').click();
+    await tick();
+    const row = () => document.querySelector('tr[data-edit-row]');
+    document.querySelector('#caaci-members-body tr button').click();
+    const select = row().querySelector('[data-f="household_id"]');
+    assert.equal(select.disabled, false);
+    assert.equal(row().querySelector('[data-household-unavailable]'), null);
+    select.value = 'h1';
+    row().querySelector('[data-act="save"]').click();
+    await tick();
+    const post = fetch.calls
+      .filter((c) => c.url.includes('/api/admin/members') && c.options.method === 'POST')
+      .at(-1);
+    assert.equal(JSON.parse(post.options.body).household_id, 'h1');
+  } finally {
     fetch.restore();
   }
 });

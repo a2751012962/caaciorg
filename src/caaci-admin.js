@@ -376,11 +376,7 @@ function toggleEditor(tr, m) {
         `<input type="date" class="form-control" data-f="expires_at" value="${exp}">`,
         'col-sm-6 col-lg',
       )}
-      ${field(
-        t('Family', '家庭'),
-        `<select class="form-select" data-f="household_id">${householdOptionsHtml(m.household_id)}</select>`,
-        'col-sm-6 col-lg',
-      )}
+      ${field(t('Family', '家庭'), householdFieldHtml(m.household_id), 'col-sm-6 col-lg')}
       <div class="col-auto btn-list">
         <button type="button" class="btn btn-primary" data-act="save">${t('Save', '保存')}</button>
         <button type="button" class="btn btn-outline-danger" data-act="delete">${t('Delete', '删除')}</button>
@@ -398,16 +394,15 @@ function toggleEditor(tr, m) {
   row.querySelector('[data-act="save"]').addEventListener('click', async () => {
     const get = (f) => row.querySelector(`[data-f="${f}"]`).value;
     const msg = row.querySelector('[data-msg]');
-    const { ok, data } = await api('/api/admin/members', {
-      method: 'POST',
-      body: {
-        id: m.id,
-        status: get('status'),
-        tier_id: get('tier_id'),
-        expires_at: get('expires_at'),
-        household_id: get('household_id'),
-      },
-    });
+    const body = {
+      id: m.id,
+      status: get('status'),
+      tier_id: get('tier_id'),
+      expires_at: get('expires_at'),
+    };
+    // Left out, the API keeps the member's family as it is.
+    if (householdsLoaded) body.household_id = get('household_id');
+    const { ok, data } = await api('/api/admin/members', { method: 'POST', body });
     if (!ok) {
       notice(msg, data.error || t('Update failed.', '更新失败。'), false);
       return;
@@ -946,9 +941,19 @@ function householdOptionsHtml(selected) {
   }
   return opts.join('');
 }
+// False until the families list has loaded once. Until then the Family dropdown
+// only offers "— none —", so the member editor must not send it (it would unlink).
+let householdsLoaded = false;
+function householdFieldHtml(selected) {
+  const select = `<select class="form-select" data-f="household_id"${householdsLoaded ? '' : ' disabled'}>${householdOptionsHtml(selected)}</select>`;
+  if (householdsLoaded) return select;
+  return `${select}<div class="form-hint" data-household-unavailable>${t("Families couldn't be loaded, so family is unchanged", '家庭列表加载失败，家庭不会被修改')}</div>`;
+}
 async function loadHouseholds() {
   const { ok, data } = await api('/api/admin/households');
-  if (ok) households = data.rows || [];
+  if (!ok) return;
+  households = data.rows || [];
+  householdsLoaded = true;
 }
 
 // ---------- add a member (creates a login account) ----------
@@ -1027,6 +1032,7 @@ async function loadFamilies() {
   }
   notb.hidden = true;
   households = data.rows || [];
+  householdsLoaded = true;
   const host = $('#caaci-families-list');
   host.innerHTML = '';
   if (!households.length) {
@@ -1045,15 +1051,13 @@ const RELATIONSHIP_LABEL = {
   parent: () => t('Parent', '父母'),
   other: () => t('Other', '其他'),
 };
-const removedLabel = () => t('Removed from the family', '被移出家庭');
 const FAMILY_EVENT_LABEL = {
   invite_sent: () => t('Invitation sent', '已发送邀请'),
   invite_cancelled: () => t('Invitation cancelled', '邀请已取消'),
   invite_declined: () => t('Invitation declined', '邀请被拒绝'),
   joined: () => t('Joined the family', '加入家庭'),
   left: () => t('Left the family', '退出家庭'),
-  member_removed: removedLabel,
-  removed: removedLabel,
+  member_removed: () => t('Removed from the family', '被移出家庭'),
   person_added: () => t('Person added', '已添加成员'),
   person_removed: () => t('Person removed', '已移除成员'),
   dissolved: () => t('Family dissolved', '家庭已解散'),
@@ -1116,6 +1120,15 @@ function familyCard(h, invitesAvailable = true) {
     founderId && a.id === founderId
       ? ` <span class="badge bg-primary-lt">${t('Founder', '创始人')}</span>`
       : '';
+  // A founder an admin moved out of the family is still named, marked as outside.
+  const f = h.founder;
+  const founderOutside =
+    f && !accounts.some((a) => a.id === f.id)
+      ? `<div class="text-secondary small mt-2" data-founder-outside>${t(
+          `Founder: ${esc(f.full_name || '—')} — ${esc(f.email || '')} (not in this family)`,
+          `创始人：${esc(f.full_name || '—')} — ${esc(f.email || '')}（不在此家庭）`,
+        )}</div>`
+      : '';
   const seatsTxt = `${t('Seats', '名额')}: ${esc(h.seats_used ?? '—')} / ${esc(h.seats_limit ?? '—')}`;
   const acctList = accounts.length
     ? `<ul class="list-unstyled mb-0" data-accounts>${accounts
@@ -1150,6 +1163,7 @@ function familyCard(h, invitesAvailable = true) {
         <div class="text-secondary small" data-seats>${seatsTxt}</div>
       </div>
       ${acctList}
+      ${founderOutside}
     </div>
     <div class="card-body border-top">
       <div class="d-flex align-items-center justify-content-between mb-2">
