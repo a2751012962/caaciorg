@@ -298,3 +298,308 @@ test('family: add a name-only person; a server error shows and nothing reloads',
     api.restore();
   }
 });
+
+// ---------- founder ----------
+const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const P_FOUNDER = {
+  id: 'p1',
+  kind: 'account',
+  member_id: 'u1',
+  full_name: 'Mei Lin',
+  relationship: 'head',
+  is_founder: true,
+  linked: true,
+};
+const P_SPOUSE = {
+  id: 'p2',
+  kind: 'account',
+  member_id: 'u2',
+  full_name: 'Wei Lin',
+  relationship: 'spouse',
+  is_founder: false,
+  linked: true,
+};
+const P_CHILD = {
+  id: 'p3',
+  kind: 'name_only',
+  member_id: null,
+  full_name: 'Baby Lin',
+  relationship: 'child',
+  is_founder: false,
+  linked: false,
+};
+const INV_DAD = {
+  id: 'i1',
+  email: 'dad@x.com',
+  full_name: 'Lao Lin',
+  relationship: 'parent',
+  status: 'pending',
+  created_at: '2026-09-01T12:00:00Z',
+  expires_at: '2026-09-15T12:00:00Z',
+};
+const founderFam = (over = {}) => ({
+  ...NONE,
+  role: 'founder',
+  household: { id: 'h1', name: 'Lin family', status: 'active' },
+  plan: { tier_id: 'family', status: 'active', expires_at: '2027-03-01T00:00:00Z' },
+  founder: { member_id: 'u1', email: 'mei@x.com' },
+  seats: { used: 2, limit: 3 },
+  people: [P_FOUNDER, P_CHILD],
+  ...over,
+});
+const settle = async () => {
+  await tick();
+  await tick();
+};
+
+test('family founder: name, plan, seats, badges, activity, and the not-linked hint that prefills the invite', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(
+    founderFam({
+      events: [
+        {
+          type: 'invite_sent',
+          actor_email: 'mei@x.com',
+          subject_email: 'dad@x.com',
+          created_at: '2026-09-01T12:00:00Z',
+        },
+        {
+          type: 'person_added',
+          actor_email: 'mei@x.com',
+          subject_email: null,
+          created_at: '2026-09-02T12:00:00Z',
+        },
+      ],
+    }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const fam = q('#caaci-family-host');
+    assert.equal(fam.hidden, false);
+    assert.equal(q('[data-fam-name]').textContent, 'Lin family');
+    assert.match(q('[data-fam-plan-status]').textContent, /active/i);
+    assert.match(
+      fam.textContent,
+      new RegExp(escRe(new Date('2027-03-01T00:00:00Z').toLocaleDateString())),
+    );
+    assert.match(q('[data-fam-seats]').textContent, /2\s*\/\s*3/);
+
+    const [founder, child] = qa('[data-fam-person]');
+    assert.ok(founder.querySelector('[data-fam-founder]'), 'founder badge');
+    assert.match(founder.textContent, /Linked account/);
+    assert.equal(founder.querySelector('[data-fam-remove]'), null, 'no Remove on the founder');
+    assert.equal(child.querySelector('[data-fam-founder]'), null);
+    assert.match(child.textContent, /Not linked to an account/);
+    assert.match(child.textContent, /Once they have an email/);
+    // The last non-founder person can't be removed — dissolving is the way out.
+    assert.equal(child.querySelector('[data-fam-remove]').disabled, true);
+    assert.match(child.textContent, /dissolve/i);
+
+    child.querySelector('[data-fam-prefill]').click();
+    const form = q('form[data-fam-invite]');
+    assert.equal(form.querySelector('[name="full_name"]').value, 'Baby Lin');
+    assert.equal(form.querySelector('[name="relationship"]').value, 'child');
+    assert.equal(document.activeElement, form.querySelector('[name="email"]'));
+    assert.equal(api.posts().length, 0, 'prefilling sends nothing');
+
+    assert.equal(q('[data-fam-full]'), null);
+    assert.equal(form.querySelector('button[type="submit"]').disabled, false);
+
+    const events = qa('[data-fam-events] li');
+    assert.equal(events.length, 2);
+    assert.match(events[0].textContent, /mei@x\.com.*sent an invitation.*dad@x\.com/);
+    assert.match(
+      events[0].textContent,
+      new RegExp(escRe(new Date('2026-09-01T12:00:00Z').toLocaleDateString())),
+    );
+    assert.match(events[1].textContent, /added a person/);
+    assert.ok(q('[data-fam-dissolve]').classList.contains('btn-danger'));
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: a full family disables both forms; Remove confirms, posts, and reloads', async () => {
+  const { confirms } = setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(
+    founderFam({ seats: { used: 3, limit: 3 }, people: [P_FOUNDER, P_SPOUSE, P_CHILD] }),
+    (body, state) => {
+      state.fam = founderFam({ people: [P_FOUNDER, P_SPOUSE] });
+      return { body: { ok: true } };
+    },
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.match(q('[data-fam-full]').textContent, /Family is full \(3 people\)/);
+    for (const sel of ['form[data-fam-invite]', 'form[data-fam-add]'])
+      for (const el of q(sel).querySelectorAll('input, select, button'))
+        assert.equal(el.disabled, true, `${sel} ${el.name || el.tagName} disabled`);
+    const add = q('form[data-fam-add]');
+    add.querySelector('[name="full_name"]').value = 'Sneaky';
+    submit(add);
+    await tick();
+    assert.equal(api.posts().length, 0, 'a full family posts nothing');
+
+    const child = qa('[data-fam-person]')[2];
+    assert.equal(child.querySelector('[data-fam-prefill]').disabled, true);
+    const remove = child.querySelector('[data-fam-remove]');
+    assert.equal(remove.disabled, false);
+    remove.click();
+    assert.equal(remove.disabled, true, 'busy while removing');
+    remove.click();
+    await settle();
+    assert.equal(confirms.length, 1);
+    assert.match(confirms[0], /Baby Lin/);
+    assert.deepEqual(api.posts(), [{ action: 'remove_person', person_id: 'p3' }]);
+    assert.match(q('[data-fam-notice]').textContent, /Baby Lin/);
+    assert.equal(api.gets().length, 2);
+    assert.equal(qa('[data-fam-person]').length, 2);
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: pending invites with Cancel; Dissolve spells out the consequences', async () => {
+  const { confirms } = setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(
+    founderFam({
+      seats: { used: 3, limit: 3 },
+      invites: [INV_DAD, { ...INV_DAD, id: 'i2', email: 'old@x.com', status: 'cancelled' }],
+    }),
+    (body, state) => {
+      if (body.action === 'dissolve') state.fam = NONE;
+      return { body: { ok: true } };
+    },
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const pending = qa('[data-fam-pending]');
+    assert.equal(pending.length, 1, 'only pending invitations are listed');
+    assert.match(pending[0].textContent, /dad@x\.com/);
+    assert.match(pending[0].textContent, /Lao Lin/);
+    assert.match(pending[0].textContent, /Parent/);
+    assert.doesNotMatch(q('#caaci-family-host').textContent, /old@x\.com/);
+
+    pending[0].querySelector('[data-fam-cancel]').click();
+    await settle();
+    assert.match(confirms[0], /dad@x\.com/);
+    assert.deepEqual(api.posts(), [{ action: 'cancel_invite', invite_id: 'i1' }]);
+    assert.ok(q('[data-fam-notice]').classList.contains('alert-success'));
+
+    q('[data-fam-dissolve]').click();
+    await settle();
+    assert.match(confirms[1], /membership card/);
+    assert.match(confirms[1], /cannot be undone/);
+    assert.deepEqual(api.posts()[1], { action: 'dissolve' });
+    assert.match(q('[data-fam-notice]').textContent, /dissolved/);
+    assert.match(q('#caaci-family-host').textContent, /Invite your family/, 'back to role none');
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: answering No to a confirm sends nothing', async () => {
+  const { confirms } = setup({ answer: false });
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(founderFam({ people: [P_FOUNDER, P_SPOUSE, P_CHILD], invites: [INV_DAD] }));
+  try {
+    await member.wireAccountPage();
+    await tick();
+    qa('[data-fam-person]')[1].querySelector('[data-fam-remove]').click();
+    q('[data-fam-cancel]').click();
+    q('[data-fam-dissolve]').click();
+    await settle();
+    assert.equal(confirms.length, 3);
+    assert.equal(api.posts().length, 0);
+    assert.equal(q('[data-fam-dissolve]').disabled, false);
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: Resend counts down 60s after sending, and a 429 starts the countdown too', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  let status = 200;
+  const api = familyApi(founderFam({ invites: [INV_DAD] }), () =>
+    status === 429
+      ? { status: 429, body: { error: 'Please wait before resending.' } }
+      : { body: { ok: true } },
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    let btn = q('[data-fam-resend]');
+    assert.equal(btn.textContent, 'Resend');
+    btn.click();
+    await settle();
+    assert.deepEqual(api.posts(), [{ action: 'resend_invite', invite_id: 'i1' }]);
+    assert.match(q('[data-fam-notice]').textContent, /dad@x\.com/);
+    assert.equal(api.gets().length, 2, 'reloaded');
+    btn = q('[data-fam-resend]'); // the re-rendered button resumes the countdown
+    assert.equal(btn.disabled, true);
+    assert.equal(btn.textContent, 'Resend in 60s');
+    t.mock.timers.tick(30_000);
+    assert.equal(btn.textContent, 'Resend in 30s');
+    btn.dispatchEvent(new window.Event('click'));
+    await settle();
+    assert.equal(api.posts().length, 1, 'nothing sent while cooling down');
+    t.mock.timers.tick(30_000);
+    assert.equal(btn.disabled, false);
+    assert.equal(btn.textContent, 'Resend');
+
+    status = 429;
+    btn.click();
+    await settle();
+    assert.equal(api.posts().length, 2);
+    const note = q('[data-fam-notice]');
+    assert.equal(note.textContent, 'Please wait before resending.');
+    assert.ok(note.classList.contains('alert-danger'));
+    assert.equal(btn.disabled, true);
+    assert.equal(btn.textContent, 'Resend in 60s');
+    assert.equal(api.gets().length, 2, 'no reload after a 429');
+  } finally {
+    api.restore();
+  }
+});
+
+test('family: hostile family names, full names and emails render as text, never elements', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const evil = '<img src=x onerror="globalThis.pwned=1"><x-evil></x-evil>"\'';
+  const api = familyApi(
+    founderFam({
+      household: { id: 'h1', name: evil, status: 'active' },
+      founder: { member_id: 'u1', email: evil },
+      people: [
+        { ...P_FOUNDER, full_name: evil },
+        { ...P_CHILD, full_name: evil },
+      ],
+      invites: [{ ...INV_DAD, email: evil, full_name: evil }],
+      events: [
+        { type: 'joined', actor_email: evil, subject_email: evil, created_at: '2026-09-01' },
+        { type: evil, actor_email: 'a@x.com', subject_email: null, created_at: '2026-09-01' },
+      ],
+    }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const fam = q('#caaci-family-host');
+    assert.equal(fam.hidden, false);
+    assert.equal(fam.querySelector('img, x-evil'), null);
+    assert.equal(q('[data-fam-name]').textContent, evil);
+    assert.ok(fam.textContent.split(evil).length > 5, 'every hostile value shows as text');
+    qa('[data-fam-person]')[1].querySelector('[data-fam-prefill]').click();
+    assert.equal(q('form[data-fam-invite] [name="full_name"]').value, evil);
+  } finally {
+    api.restore();
+  }
+});

@@ -1574,6 +1574,125 @@ const relLabel = (r) =>
     other: t('Other', '其他'),
   })[r] || '';
 
+const STATUS_BADGE = {
+  active: 'bg-success-lt',
+  pending: 'bg-warning-lt',
+  past_due: 'bg-orange-lt',
+  expired: 'bg-secondary-lt',
+  cancelled: 'bg-danger-lt',
+};
+
+// A date from the server, or a dash — never the raw string.
+const fmtDate = (iso) => {
+  const d = iso ? new Date(iso) : null;
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString() : '—';
+};
+
+const EVENT_LABEL = {
+  invite_sent: ['sent an invitation', '发送了邀请'],
+  invite_cancelled: ['cancelled an invitation', '取消了邀请'],
+  invite_declined: ['declined the invitation', '拒绝了邀请'],
+  joined: ['joined the family', '加入了家庭'],
+  left: ['left the family', '退出了家庭'],
+  removed: ['removed a member', '移除了成员'],
+  person_added: ['added a person without an account', '添加了未关联账号的成员'],
+  person_removed: ['removed a person without an account', '移除了未关联账号的成员'],
+  dissolved: ['dissolved the family', '解散了家庭'],
+};
+
+// Seats as the server counts them; the plan holder is always one of them.
+const seatCount = (seats) => ({
+  used: Math.max(1, Number(seats?.used) || 0),
+  limit: Number(seats?.limit) || 3,
+});
+
+const pendingInvites = (fam) =>
+  (Array.isArray(fam.invites) ? fam.invites : []).filter(
+    (i) => (i.status || 'pending') === 'pending',
+  );
+
+// Family name, plan status and expiry, plus any extra datagrid items.
+function familySummary(fam, extra = '') {
+  const plan = fam.plan || {};
+  return `
+    <h4 class="mb-2" data-fam-name>${esc(fam.household?.name || t('Your family', '你的家庭'))}</h4>
+    <div class="datagrid mb-3">
+      <div class="datagrid-item"><div class="datagrid-title">${t('Family plan', '家庭会员')}</div>
+        <div class="datagrid-content"><span class="badge ${STATUS_BADGE[plan.status] || 'bg-secondary-lt'}" data-fam-plan-status>${esc(statusLabel(plan.status, lang) || '—')}</span></div></div>
+      <div class="datagrid-item"><div class="datagrid-title">${plan.status === 'active' ? t('Valid through', '有效期至') : t('Expires', '到期日期')}</div>
+        <div class="datagrid-content">${fmtDate(plan.expires_at)}</div></div>
+      ${extra}
+    </div>`;
+}
+
+// Rows point back at fam.people by index, so no server text reaches an attribute.
+function familyPeople(people, full) {
+  const others = people.filter((p) => !p.is_founder).length;
+  return `
+    <h4 class="mb-2">${t('People', '成员')}</h4>
+    <div class="list-group mb-3">${people
+      .map((p, i) => {
+        const rel = relLabel(p.relationship);
+        const last = !p.is_founder && others <= 1;
+        return `
+      <div class="list-group-item" data-fam-person>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span class="fw-bold">${esc(p.full_name || '—')}</span>
+          ${rel ? `<span class="text-secondary">${rel}</span>` : ''}
+          ${p.is_founder ? `<span class="badge bg-primary-lt" data-fam-founder>${t('Founder', '创建人')}</span>` : ''}
+          ${
+            p.linked
+              ? `<span class="badge bg-green-lt">${t('Linked account', '已关联账号')}</span>`
+              : `<span class="badge bg-secondary-lt">${t('Not linked to an account', '未关联账号')}</span>`
+          }
+          ${p.is_founder ? '' : `<button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-fam-remove="${i}"${last ? ' disabled' : ''}>${t('Remove', '移除')}</button>`}
+        </div>
+        ${last ? `<div class="text-secondary small mt-1">${t('The last person besides you can’t be removed. Dissolve the family instead.', '除你之外的最后一位成员无法移除，请改为解散家庭。')}</div>` : ''}
+        ${
+          p.linked
+            ? ''
+            : `<div class="small mt-2">${t(
+                'Once they have an email address, you can invite them so they can sign in.',
+                '等 TA 有了邮箱，你可以邀请 TA，这样 TA 就能登录。',
+              )} <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-fam-prefill="${i}"${full ? ' disabled' : ''}>${t('Invite by email', '用邮箱邀请')}</button></div>`
+        }
+      </div>`;
+      })
+      .join('')}</div>`;
+}
+
+function familyPending(pending) {
+  if (!pending.length) return '';
+  return `
+    <h4 class="mb-2">${t('Pending invitations', '待接受的邀请')}</h4>
+    <div class="list-group mb-3">${pending
+      .map((inv) => {
+        const rel = relLabel(inv.relationship);
+        return `
+      <div class="list-group-item" data-fam-pending>
+        <div><span class="fw-bold">${esc(inv.email)}</span>${inv.full_name ? ` · ${esc(inv.full_name)}` : ''}${rel ? ` · ${rel}` : ''}</div>
+        <div class="text-secondary small">${t('Sent', '发送于')} ${fmtDate(inv.created_at)} · ${t('Expires', '过期时间')} ${fmtDate(inv.expires_at)}</div>
+        <div class="btn-list mt-2">
+          <button type="button" class="btn btn-sm" data-fam-resend>${t('Resend', '重新发送')}</button>
+          <button type="button" class="btn btn-sm btn-outline-danger" data-fam-cancel>${t('Cancel invitation', '取消邀请')}</button>
+        </div>
+      </div>`;
+      })
+      .join('')}</div>`;
+}
+
+function familyEvents(events) {
+  if (!Array.isArray(events) || !events.length) return '';
+  return `
+    <h4 class="mt-3 mb-2">${t('Activity', '动态')}</h4>
+    <ul class="list-unstyled small mb-0" data-fam-events>${events
+      .map((e) => {
+        const label = Object.hasOwn(EVENT_LABEL, e.type) ? EVENT_LABEL[e.type] : null;
+        return `<li class="mb-1"><span class="text-secondary">${fmtDate(e.created_at)}</span> · ${esc(e.actor_email || '')} ${label ? t(label[0], label[1]) : esc(e.type)}${e.subject_email ? ` · ${esc(e.subject_email)}` : ''}</li>`;
+      })
+      .join('')}</ul>`;
+}
+
 async function sessionBearer() {
   const { data: { session } = { session: null } } = (await supa.auth.getSession?.()) || {};
   return session ? { authorization: `Bearer ${session.access_token}` } : {};
@@ -1668,6 +1787,12 @@ async function wireFamily(host, { member }) {
   // One change on `btn`: optional confirm, busy while in flight (a second
   // click or submit meanwhile does nothing), the server's error or `success`,
   // then a reload.
+  const failNote = (res) =>
+    notice(
+      note,
+      String(res.data.error || t('Something went wrong — please try again.', '出错了，请重试。')),
+      false,
+    );
   const run = async (btn, payload, { ask, success }) => {
     if (btn.getAttribute('aria-busy')) return null;
     if (ask && !window.confirm(ask)) return null;
@@ -1675,11 +1800,7 @@ async function wireFamily(host, { member }) {
     const res = await familyRequest(payload);
     if (!res.ok) {
       done();
-      notice(
-        note,
-        String(res.data.error || t('Something went wrong — please try again.', '出错了，请重试。')),
-        false,
-      );
+      failNote(res);
       return res;
     }
     notice(note, success(res.data), true);
@@ -1725,26 +1846,140 @@ async function wireFamily(host, { member }) {
     });
   };
 
+  const wireFounder = (fam) => {
+    const people = Array.isArray(fam.people) ? fam.people : [];
+    for (const btn of $$('[data-fam-remove]', body)) {
+      const p = people[Number(btn.dataset.famRemove)];
+      const name = p.full_name || '';
+      btn.addEventListener('click', () =>
+        run(
+          btn,
+          { action: 'remove_person', person_id: p.id },
+          {
+            ask: t(
+              `Remove ${name} from your family? They will no longer be covered by your family plan.`,
+              `确定将 ${name} 移出家庭？TA 将不再享有你的家庭会员权益。`,
+            ),
+            success: () => t(`${name} was removed from your family.`, `已将 ${name} 移出家庭。`),
+          },
+        ),
+      );
+    }
+    // "Invite by email" next to someone without an account fills the invite form.
+    for (const btn of $$('[data-fam-prefill]', body)) {
+      const p = people[Number(btn.dataset.famPrefill)];
+      btn.addEventListener('click', () => {
+        const form = $('form[data-fam-invite]', body);
+        $('[name="full_name"]', form).value = p.full_name || '';
+        $('[name="relationship"]', form).value = RELATIONSHIPS.includes(p.relationship)
+          ? p.relationship
+          : '';
+        const email = $('[name="email"]', form);
+        email.scrollIntoView?.({ block: 'center' });
+        email.focus();
+      });
+    }
+    const pending = pendingInvites(fam);
+    $$('[data-fam-pending]', body).forEach((row, i) => {
+      const inv = pending[i];
+      const cancel = $('[data-fam-cancel]', row);
+      cancel.addEventListener('click', () =>
+        run(
+          cancel,
+          { action: 'cancel_invite', invite_id: inv.id },
+          {
+            ask: t(`Cancel the invitation to ${inv.email}?`, `确定取消发给 ${inv.email} 的邀请？`),
+            success: () =>
+              t(
+                `The invitation to ${inv.email} was cancelled.`,
+                `已取消发给 ${inv.email} 的邀请。`,
+              ),
+          },
+        ),
+      );
+      // Resend shares the email cooldown: 60 s per invited address, kept across
+      // reloads, and a 429 from the server starts it too.
+      const resend = $('[data-fam-resend]', row);
+      const cd = { action: 'family_invite', email: inv.email, label: resend.textContent };
+      cooldown(resend, cd);
+      resend.addEventListener('click', async () => {
+        if (resend.getAttribute('aria-busy') || cooldownTimers.has(resend)) return;
+        const done = busy(resend, t('Sending…', '发送中…'));
+        const res = await familyRequest({ action: 'resend_invite', invite_id: inv.id });
+        done();
+        if (!res.ok) {
+          failNote(res);
+          if (res.status === 429) cooldown(resend, { ...cd, seconds: EMAIL_COOLDOWN_S });
+          return;
+        }
+        cooldown(resend, { ...cd, seconds: EMAIL_COOLDOWN_S });
+        notice(
+          note,
+          t(`Invitation sent again to ${inv.email}.`, `已再次向 ${inv.email} 发送邀请。`),
+          true,
+        );
+        await load();
+      });
+    });
+    const dissolve = $('[data-fam-dissolve]', body);
+    dissolve.addEventListener('click', () =>
+      run(
+        dissolve,
+        { action: 'dissolve' },
+        {
+          ask: t(
+            'Dissolve your family? Everyone else loses the family plan benefits, including their digital membership card. Pending invitations are cancelled and people without an account are removed. This cannot be undone.',
+            '确定解散家庭？其他所有成员都将失去家庭会员权益，包括电子会员卡；待接受的邀请会被取消，未关联账号的成员会被移除。此操作无法撤销。',
+          ),
+          success: () => t('Your family was dissolved.', '家庭已解散。'),
+        },
+      ),
+    );
+  };
+
   const render = (fam) => {
+    // Old Resend buttons are about to be replaced; their countdowns resume on
+    // the new ones from the stored end time.
+    for (const b of $$('[data-fam-resend]', body)) stopCooldown(b);
     let html = '';
     let full = false;
-    if (fam?.role === 'none' && ownFamilyTier) {
-      const limit = Number(fam.seats?.limit) || 3;
+    if (fam?.role === 'founder') {
+      const seats = seatCount(fam.seats);
+      full = seats.used >= seats.limit;
+      html = `
+        ${familySummary(
+          fam,
+          `<div class="datagrid-item"><div class="datagrid-title">${t('People', '人数')}</div>
+            <div class="datagrid-content"><strong data-fam-seats>${seats.used} / ${seats.limit}</strong></div></div>`,
+        )}
+        ${familyPeople(Array.isArray(fam.people) ? fam.people : [], full)}
+        ${familyPending(pendingInvites(fam))}
+        ${familyForms(full)}
+        <div class="border-top pt-3 mt-3">
+          <button type="button" class="btn btn-danger" data-fam-dissolve>${t('Dissolve family', '解散家庭')}</button>
+          <p class="text-secondary small mt-2 mb-0">${t(
+            'Ends the family. Everyone else loses the family plan benefits.',
+            '解散后，其他所有成员都将失去家庭会员权益。',
+          )}</p>
+        </div>
+        ${familyEvents(fam.events)}`;
+    } else if (fam?.role === 'none' && ownFamilyTier) {
       // Before a household exists the plan holder is the only person: 1 of 3.
-      const used = Math.max(1, Number(fam.seats?.used) || 0);
-      full = used >= limit;
-      html += `
+      const seats = seatCount(fam.seats);
+      full = seats.used >= seats.limit;
+      html = `
         <h4 class="mb-1">${t('Invite your family', '邀请家人')}</h4>
         <p class="text-secondary">${t(
           'Your family plan covers up to 3 people, you included. Invite family members by email, or add someone who has no account.',
           '家庭会员最多包含 3 人（含你本人）。可以通过邮箱邀请家人，也可以添加没有账号的家人。',
         )}</p>
-        <p>${t('People', '人数')}: <strong data-fam-seats>${used} / ${limit}</strong></p>
+        <p>${t('People', '人数')}: <strong data-fam-seats>${seats.used} / ${seats.limit}</strong></p>
         ${familyForms(full)}`;
     }
     body.innerHTML = html;
     host.hidden = !html && note.hidden;
     wireForms(full);
+    if (fam?.role === 'founder') wireFounder(fam);
   };
 
   await load();
@@ -1799,13 +2034,7 @@ export async function wireAccountPage() {
   const member = m || {};
   const tier = tiers.find((x) => x.id === member.tier_id);
   const tierName = tier ? tierText(tier, 'name') : '';
-  const stBadge = {
-    active: 'bg-success-lt',
-    pending: 'bg-warning-lt',
-    past_due: 'bg-orange-lt',
-    expired: 'bg-secondary-lt',
-    cancelled: 'bg-danger-lt',
-  };
+  const stBadge = STATUS_BADGE;
 
   const subRows = tier
     ? `
