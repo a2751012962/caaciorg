@@ -850,13 +850,103 @@
                     <input type="text" id="caaci-news-subject" class="form-control" />
                   </div>
                   <div class="mb-3">
-                    <label
-                      class="form-label"
-                      data-en="Message (HTML allowed)"
-                      data-zh="正文（支持 HTML）"
-                      >Message (HTML allowed)</label
-                    >
-                    <textarea id="caaci-news-body" class="form-control" rows="10"></textarea>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                      <span class="form-label mb-0" data-en="Message" data-zh="正文">Message</span>
+                      <button
+                        type="button"
+                        class="btn btn-sm"
+                        id="caaci-news-source-btn"
+                        aria-pressed="false"
+                        data-en="View source"
+                        data-zh="查看源代码"
+                      >
+                        View source
+                      </button>
+                    </div>
+                    <!-- Visual editing: the toolbar, and the message as it will look in a
+                         sandboxed, editable frame that caaci-admin.js draws. -->
+                    <div id="caaci-news-visual">
+                      <div
+                        class="btn-list mb-2"
+                        id="caaci-news-toolbar"
+                        role="toolbar"
+                        aria-label="Formatting"
+                      >
+                        <button
+                          type="button"
+                          class="btn btn-sm"
+                          data-cmd="bold"
+                          data-en="Bold"
+                          data-zh="加粗"
+                        >
+                          Bold
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm"
+                          data-cmd="italic"
+                          data-en="Italic"
+                          data-zh="斜体"
+                        >
+                          Italic
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm"
+                          data-cmd="formatBlock"
+                          data-arg="h2"
+                          data-en="Heading"
+                          data-zh="标题"
+                        >
+                          Heading
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm"
+                          data-cmd="formatBlock"
+                          data-arg="p"
+                          data-en="Paragraph"
+                          data-zh="正文段落"
+                        >
+                          Paragraph
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm"
+                          data-cmd="insertUnorderedList"
+                          data-en="List"
+                          data-zh="列表"
+                        >
+                          List
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm"
+                          data-cmd="createLink"
+                          data-en="Link"
+                          data-zh="链接"
+                        >
+                          Link
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm"
+                          data-cmd="unlink"
+                          data-en="Remove link"
+                          data-zh="取消链接"
+                        >
+                          Remove link
+                        </button>
+                      </div>
+                      <div id="caaci-news-editor"></div>
+                    </div>
+                    <textarea
+                      id="caaci-news-body"
+                      class="form-control font-monospace"
+                      rows="14"
+                      aria-label="Message HTML source"
+                      hidden
+                    ></textarea>
                   </div>
                   <div class="mb-3">
                     <label
@@ -894,15 +984,6 @@
                     <button
                       type="button"
                       class="btn"
-                      id="caaci-news-preview-btn"
-                      data-en="Preview"
-                      data-zh="预览"
-                    >
-                      Preview
-                    </button>
-                    <button
-                      type="button"
-                      class="btn"
                       id="caaci-news-test-btn"
                       data-en="Send test email"
                       data-zh="发送测试邮件"
@@ -919,8 +1000,6 @@
                       Send news email
                     </button>
                   </div>
-                  <!-- The message rendered in a sandboxed frame (no scripts) by caaci-admin.js. -->
-                  <div class="mt-3" id="caaci-news-preview" hidden></div>
                   <p class="alert mt-3" id="caaci-news-notice" hidden></p>
                 </div>
               </section>
