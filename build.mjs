@@ -123,22 +123,43 @@ await copyFile(join(ROOT, 'src', 'caaci-member.js'), join(DIST, 'assets', 'caaci
 // already drifted from the Divi menu on the mirrored pages (different items,
 // no submenus), so the navigation changed as you moved through the site.
 const navPartial = await readFile(join(ROOT, 'member-src', '_nav.html'), 'utf8');
-for (const [src, route] of [
+// [source, route, event slug fixed on <body> (optional)]
+for (const [src, route, event] of [
   ['login.html', 'login-3'],
   ['membership.html', 'membership'],
   ['account.html', 'account'],
   ['privacy.html', 'privacy'],
-  // Public event registration (replaced a Google Form); the underscored route
-  // is the URL already printed on the festival's QR codes.
-  ['mid-autumn-form.html', 'mid_autumn_festival_form'],
+  // Public event registration (replaced a Google Form), one page for every
+  // event: /events/<slug>/register/ is rewritten onto it (_redirects below)
+  // and the page reads the slug from that path, or from ?event=.
+  ['event-register.html', 'event-register'],
+  // The URL already printed on the Mid-Autumn Festival's QR codes. Its path
+  // names no event, so this copy carries the slug on <body>.
+  ['event-register.html', 'mid_autumn_festival_form', 'mid-autumn-festival'],
 ]) {
   await mkdir(join(DIST, route), { recursive: true });
   let page = await readFile(join(ROOT, 'member-src', src), 'utf8');
   if (!page.includes('<!--CAACI_NAV-->'))
     throw new Error(`${src}: missing <!--CAACI_NAV--> marker`);
   page = page.replace('<!--CAACI_NAV-->', navPartial);
+  if (event) {
+    if (!/<body[\s>]/.test(page)) throw new Error(`${src}: no <body> to carry data-event`);
+    page = page.replace(/<body(?=[\s>])/, `<body data-event="${event}"`);
+  }
   await writeFile(join(DIST, route, 'index.html'), page);
 }
+// Cloudflare Pages rules, applied before static assets. Status 200 on a
+// same-site path is a rewrite: /event-register/ is served while the address bar
+// keeps /events/<slug>/register/, which is where the page reads its slug from.
+// Both spellings, since the link may be shared with or without the slash.
+await writeFile(
+  join(DIST, '_redirects'),
+  [
+    '/events/:slug/register /event-register/ 200',
+    '/events/:slug/register/ /event-register/ 200',
+    '',
+  ].join('\n'),
+);
 
 // The mirror layer needs no Supabase client or runtime config any more: it wires
 // the contact form, the donation checkout and accessibility fixes, all of which
