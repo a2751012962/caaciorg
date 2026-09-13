@@ -136,8 +136,9 @@ export async function onRequestPost({ request, env }) {
     );
     // Never send created_at: the first submission time must survive a
     // resubmission. Never send member_id: null: a signed-out resubmission must
-    // not unlink the account an earlier signed-in one recorded. Never send the
-    // legacy columns (attending, attendee_names, heard_from, wants_meal).
+    // not unlink the account an earlier signed-in one recorded. The Mid-Autumn
+    // form's legacy columns (attending, attendee_names, heard_from, wants_meal)
+    // are gone once 0019 is applied; everything is in answers.
     const [row] = await DB.upsert(
       'event_registrations',
       {
