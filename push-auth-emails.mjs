@@ -135,6 +135,11 @@ function summarize(live, repo) {
   return `live ${a.length} lines / ${live.length} chars, repo ${b.length} lines / ${repo.length} chars, first difference on line ${line + 1}`;
 }
 
+// Replaces every occurrence of the token, so nothing printed can carry it.
+function scrub(text, token) {
+  return token ? String(text).split(token).join('[token]') : String(text);
+}
+
 export async function main(argv = process.argv.slice(2), env = process.env) {
   let apply = false;
   for (const arg of argv) {
@@ -147,13 +152,23 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
     console.error('  SUPABASE_ACCESS_TOKEN=sbp_… npm run auth:emails [-- --apply]');
     return 1;
   }
+  // Printable ASCII only. Anything else — a pasted newline, a space, a NUL —
+  // makes Node's header validation throw with the whole token in its message.
+  if (!/^[!-~]+$/.test(token)) {
+    console.error(
+      'SUPABASE_ACCESS_TOKEN contains characters an HTTP header cannot carry ' +
+        '(a pasted newline or space?). Copy the token again.',
+    );
+    return 1;
+  }
   const ref = env.SB_REF || 'wslzeqhipvibeflmxznh';
   const url = `${API}/projects/${ref}/config/auth`;
   const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
 
-  // Error bodies are printed for diagnosis; scrub the token in case one echoes it.
+  // Error bodies are printed for diagnosis. Scrubbed before truncating, so a
+  // token echoed across the cut-off cannot leave a fragment behind.
   const failed = async (what, res) => {
-    const text = (await res.text()).slice(0, 400).split(token).join('[token]');
+    const text = scrub(await res.text(), token).slice(0, 400);
     console.error(`✗ ${what}: HTTP ${res.status} ${text}`);
   };
   const readConfig = async () => {
@@ -237,7 +252,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       process.exitCode = code;
     },
     (err) => {
-      console.error(`✗ ${err.message}`);
+      // A thrown error can quote a request header, so this path is scrubbed too.
+      console.error(
+        `✗ ${scrub(err.message, process.env.SUPABASE_ACCESS_TOKEN || process.env.SBP)}`,
+      );
       process.exitCode = 1;
     },
   );

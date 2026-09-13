@@ -8,6 +8,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { mockFetch } from './helpers.js';
 import {
   TEMPLATE_TYPES,
@@ -371,4 +373,63 @@ test('an HTTP error exits non-zero, writes nothing and does not echo the token',
   const text = out.join('\n');
   assert.match(text, /401/);
   assert.equal(text.includes(TOKEN), false, 'the token was printed');
+});
+
+test('a token straddling the error-body cut-off is still scrubbed', async (t) => {
+  const out = capture(t);
+  // Truncating before scrubbing would leave the token's first characters behind.
+  const stub = mockFetch(() => ({ status: 500, body: 'x'.repeat(390) + TOKEN + ' more' }));
+  try {
+    assert.equal(await main([], { SUPABASE_ACCESS_TOKEN: TOKEN }), 1);
+  } finally {
+    stub.restore();
+  }
+  assert.equal(out.join('\n').includes(TOKEN.slice(0, 8)), false, 'part of the token was printed');
+});
+
+test('a token an HTTP header cannot carry is refused before any request', async (t) => {
+  const out = capture(t);
+  // Node's own header validation would throw with the whole token in its message.
+  const cr = String.fromCharCode(13, 10);
+  const nul = String.fromCharCode(0);
+  const stub = mockFetch(() => ({ body: {} }));
+  try {
+    for (const bad of [TOKEN + cr, TOKEN + nul + 'x', 'Bearer ' + TOKEN]) {
+      assert.equal(await main([], { SUPABASE_ACCESS_TOKEN: bad }), 1);
+    }
+  } finally {
+    stub.restore();
+  }
+  assert.equal(stub.calls.length, 0);
+  const text = out.join('\n');
+  assert.match(text, /SUPABASE_ACCESS_TOKEN/);
+  assert.equal(text.includes(TOKEN), false, 'the token was printed');
+});
+
+// Runs the real CLI in a child process with no token in its environment unless
+// given one. `preload` is module source run before the script — used to swap
+// out fetch, so the child never reaches the network.
+function runCli(args, { env = {}, preload } = {}) {
+  const base = { ...process.env };
+  for (const name of ['SUPABASE_ACCESS_TOKEN', 'SBP', 'SB_REF', 'NODE_TEST_CONTEXT']) {
+    delete base[name];
+  }
+  const flags = preload ? ['--import', `data:text/javascript,${encodeURIComponent(preload)}`] : [];
+  const script = fileURLToPath(new URL('../push-auth-emails.mjs', import.meta.url));
+  return spawnSync(process.execPath, [...flags, script, ...args], {
+    env: { ...base, ...env },
+    encoding: 'utf8',
+  });
+}
+
+test('an unexpected error reaching the CLI is printed without the token', () => {
+  const run = runCli([], {
+    env: { SUPABASE_ACCESS_TOKEN: TOKEN },
+    preload:
+      'globalThis.fetch = async (url, options) => { ' +
+      "throw new TypeError('rejected header ' + options.headers.authorization); };",
+  });
+  assert.equal(run.status, 1, run.stderr);
+  assert.match(run.stderr, /rejected header/);
+  assert.equal((run.stdout + run.stderr).includes(TOKEN), false, 'the token was printed');
 });
