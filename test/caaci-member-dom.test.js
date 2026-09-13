@@ -1121,3 +1121,106 @@ test('membership checkout: the reset-link countdown follows the typed email, sur
   assert.equal(forgot.disabled, false);
   assert.equal(forgot.textContent, 'Resend reset email');
 });
+
+test('account security: any email identity means the current-password path, even alongside Google', async () => {
+  for (const [identities, providers] of [
+    [
+      ['google', 'email'],
+      ['google', 'email'],
+    ],
+    [['google', 'email'], ['google']], // identities alone say email
+    [['google'], ['google', 'email']], // app_metadata alone says email
+  ]) {
+    const stub = await accountWith({
+      id: 'u3',
+      email: 'lin@x.com',
+      identities: identities.map((provider) => ({ provider })),
+      app_metadata: { provider: 'google', providers },
+    });
+    const label = JSON.stringify({ identities, providers });
+    assert.match(q('#caaci-security').textContent, /Change password/, label);
+    fillPasswords('oldpassword1', 'newpassword1');
+    await clickAndWait('#caaci-pw-save');
+    assert.deepEqual(
+      callsTo(stub, 'updateUser'),
+      [[{ password: 'newpassword1', current_password: 'oldpassword1' }]],
+      label,
+    );
+  }
+});
+
+test('cooldowns: a reset email and a confirmation resend to the same address count down separately', async (t) => {
+  mockClock(t);
+  setup('login');
+  const stub = supaStub({
+    auth: {
+      signInWithPassword: async () => ({
+        data: { user: null },
+        error: { code: 'email_not_confirmed', message: 'Email not confirmed' },
+      }),
+    },
+  });
+  member.__setSupa(stub);
+  await member.wireAuthPage();
+  q('#caaci-li-email').value = 'mei@x.com';
+  q('#caaci-forgot').dispatchEvent(new Event('click'));
+  q('#caaci-reset-form').dispatchEvent(new Event('submit'));
+  await tick();
+  assert.equal(q('#caaci-reset-send').disabled, true, 'reset is cooling down');
+
+  q('#caaci-li-pwd').value = 'password123';
+  q('#caaci-login-form').dispatchEvent(new Event('submit'));
+  await tick();
+  const resend = q('#caaci-li-resend');
+  assert.equal(resend.disabled, false, 'the reset countdown does not hold back confirmation');
+  resend.click();
+  await tick();
+  assert.equal(callsTo(stub, 'resend').length, 1);
+});
+
+test('cooldowns: a rate limit without "after N seconds" falls back to 60s; other errors do not cool down', async (t) => {
+  mockClock(t);
+  for (const [error, disabled, label] of [
+    [{ status: 429, message: 'Too many requests' }, true, 'Resend in 60s'],
+    [
+      { code: 'over_email_send_rate_limit', message: 'Email rate limit exceeded' },
+      true,
+      'Resend in 60s',
+    ],
+    [{ status: 500, message: 'Error sending recovery email' }, false, 'Send reset link'],
+  ]) {
+    setup('login');
+    member.__setSupa(
+      supaStub({ auth: { resetPasswordForEmail: async () => ({ data: null, error }) } }),
+    );
+    await member.wireAuthPage();
+    q('#caaci-forgot').dispatchEvent(new Event('click'));
+    q('#caaci-reset-email').value = 'mei@x.com';
+    q('#caaci-reset-form').dispatchEvent(new Event('submit'));
+    await tick();
+    const send = q('#caaci-reset-send');
+    assert.equal(q('#caaci-reset-notice').textContent, error.message);
+    assert.equal(send.disabled, disabled, error.message);
+    assert.equal(send.textContent, label, error.message);
+  }
+});
+
+test('login page: the confirmation resend hides again when sign-in fails for another reason', async () => {
+  setup('login');
+  let error = { code: 'email_not_confirmed', message: 'Email not confirmed' };
+  member.__setSupa(
+    supaStub({ auth: { signInWithPassword: async () => ({ data: { user: null }, error }) } }),
+  );
+  await member.wireAuthPage();
+  q('#caaci-li-email').value = 'mei@x.com';
+  q('#caaci-li-pwd').value = 'password123';
+  q('#caaci-login-form').dispatchEvent(new Event('submit'));
+  await tick();
+  assert.equal(q('#caaci-li-resend').hidden, false);
+
+  error = { code: 'invalid_credentials', message: 'Invalid login credentials' };
+  q('#caaci-login-form').dispatchEvent(new Event('submit'));
+  await tick();
+  assert.equal(q('#caaci-li-resend').hidden, true);
+  assert.equal(q('#caaci-login-notice').textContent, 'Invalid login credentials');
+});
