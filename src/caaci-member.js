@@ -1626,7 +1626,9 @@ function familySummary(fam, extra = '') {
 }
 
 // Rows point back at fam.people by index, so no server text reaches an attribute.
-function familyPeople(people) {
+// `pending` are the pending invites; one whose person_id matches a name-only
+// row is that person's invitation, so the row shows it instead of offering another.
+function familyPeople(people, pending) {
   const others = people.filter((p) => !p.is_founder).length;
   return `
     <h4 class="mb-2">${t('People', '成员')}</h4>
@@ -1634,6 +1636,8 @@ function familyPeople(people) {
       .map((p, i) => {
         const rel = relLabel(p.relationship);
         const last = !p.is_founder && others <= 1;
+        const invited =
+          !p.linked && p.id ? pending.find((inv) => inv.person_id && inv.person_id === p.id) : null;
         return `
       <div class="list-group-item" data-fam-person>
         <div class="d-flex flex-wrap align-items-center gap-2">
@@ -1654,7 +1658,15 @@ function familyPeople(people) {
             : `<div class="small mt-2">${t(
                 'Once they have an email address, you can invite them so they can sign in.',
                 '等 TA 有了邮箱，你可以邀请 TA，这样 TA 就能登录。',
-              )} <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-fam-link-invite="${i}">${t('Invite by email', '用邮箱邀请')}</button></div>
+              )} <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-fam-link-invite="${i}"${invited ? ' disabled' : ''}>${t('Invite by email', '用邮箱邀请')}</button></div>
+        ${
+          invited
+            ? `<div class="text-secondary small mt-1" data-fam-row-pending>${t(
+                `Invitation pending to ${esc(invited.email)}`,
+                `已向 ${esc(invited.email)} 发送邀请，等待接受`,
+              )}</div>`
+            : ''
+        }
         <form class="mt-2" data-fam-row-invite novalidate hidden>
           <div class="input-group input-group-sm">
             <input class="form-control" type="email" name="email" required autocomplete="off" placeholder="${t('Email address', '邮箱地址')}" aria-label="${t('Email address', '邮箱地址')}">
@@ -2031,7 +2043,7 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
           `<div class="datagrid-item"><div class="datagrid-title">${t('People', '人数')}</div>
             <div class="datagrid-content"><strong data-fam-seats>${seats.used} / ${seats.limit}</strong></div></div>`,
         )}
-        ${familyPeople(Array.isArray(fam.people) ? fam.people : [])}
+        ${familyPeople(Array.isArray(fam.people) ? fam.people : [], pendingInvites(fam))}
         ${familyPending(pendingInvites(fam))}
         ${familyForms(full)}
         <div class="border-top pt-3 mt-3">

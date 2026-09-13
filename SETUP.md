@@ -314,7 +314,10 @@ The server enforces every rule; the card mirrors them and shows its errors.
 - **Inviting a name-only person**: **Invite by email** on their row opens an
   email field in that row and sends `invite` with their `person_id`. Accepting
   links the existing row instead of taking a seat, so this works even when the
-  family is full (3 / 3) and the general forms are disabled.
+  family is full (3 / 3) and the general forms are disabled. While a pending
+  invite carries that row's `person_id`, the row says "Invitation pending to
+  \<email\>" and its button is disabled; cancel or resend it from the pending
+  list. A second invite for the same person gets the server's 409 as the notice.
 - **Member**: family name, founder email, plan status and expiry, **Leave family**.
 - **Membership card**: a member or founder without an active tier of their own
   gets the digital card from an active family plan (tier named by

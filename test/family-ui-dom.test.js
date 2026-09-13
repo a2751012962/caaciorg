@@ -987,3 +987,92 @@ test('membership card: plan.tier_id names the tier; missing or unknown falls bac
     }
   }
 });
+
+test('family founder: a name-only row with a pending invite says so and disables Invite by email', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const P_GRANNY = { ...P_CHILD, id: 'p4', full_name: 'Granny Lin', relationship: 'parent' };
+  const api = familyApi(
+    founderFam({
+      seats: { used: 3, limit: 3 },
+      people: [P_FOUNDER, P_CHILD, P_GRANNY],
+      invites: [
+        { ...INV_DAD, id: 'i5', email: 'kid@x.com', person_id: 'p3' },
+        { ...INV_DAD, person_id: null }, // not tied to any row
+        { ...INV_DAD, id: 'i6', email: 'old@x.com', person_id: 'p4', status: 'cancelled' },
+      ],
+    }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const [, child, granny] = qa('[data-fam-person]');
+    const childBtn = child.querySelector('[data-fam-link-invite]');
+    assert.equal(childBtn.disabled, true);
+    assert.equal(
+      child.querySelector('[data-fam-row-pending]').textContent,
+      'Invitation pending to kid@x.com',
+    );
+    childBtn.click();
+    assert.equal(child.querySelector('form[data-fam-row-invite]').hidden, true);
+
+    // Only a cancelled invite points at Granny, and dad's invite has no person_id.
+    assert.equal(granny.querySelector('[data-fam-link-invite]').disabled, false);
+    assert.equal(granny.querySelector('[data-fam-row-pending]'), null);
+
+    // That invite is still cancelled or resent from the pending list.
+    const pending = qa('[data-fam-pending]');
+    assert.equal(pending.length, 2);
+    assert.match(pending[0].textContent, /kid@x\.com/);
+    assert.ok(pending[0].querySelector('[data-fam-cancel]'));
+    assert.ok(pending[0].querySelector('[data-fam-resend]'));
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: the pending-invite note escapes the email, in Chinese too', async () => {
+  setup();
+  member.__setLang('zh');
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const evil = '<img src=x><x-evil></x-evil>';
+  const api = familyApi(founderFam({ invites: [{ ...INV_DAD, email: evil, person_id: 'p3' }] }));
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const note = q('[data-fam-row-pending]');
+    assert.equal(note.querySelector('img, x-evil'), null);
+    assert.equal(note.textContent, `已向 ${evil} 发送邀请，等待接受`);
+  } finally {
+    api.restore();
+    member.__setLang('en');
+  }
+});
+
+test('family founder: a 409 for a second invite on the same person shows the server error', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(founderFam(), () => ({
+    status: 409,
+    body: { error: 'This person already has a pending invitation' },
+  }));
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const child = qa('[data-fam-person]')[1];
+    child.querySelector('[data-fam-link-invite]').click();
+    const rowForm = child.querySelector('form[data-fam-row-invite]');
+    rowForm.querySelector('[name="email"]').value = 'kid@x.com';
+    submit(rowForm);
+    await settle();
+    assert.deepEqual(api.posts(), [{ action: 'invite', email: 'kid@x.com', person_id: 'p3' }]);
+    const note = q('[data-fam-notice]');
+    assert.equal(note.textContent, 'This person already has a pending invitation');
+    assert.ok(note.classList.contains('alert-danger'));
+    assert.equal(api.gets().length, 1, 'no reload after an error');
+    assert.equal(rowForm.querySelector('button[type="submit"]').disabled, false);
+    assert.equal(rowForm.querySelector('[name="email"]').value, 'kid@x.com', 'typed email kept');
+  } finally {
+    api.restore();
+  }
+});
