@@ -136,6 +136,24 @@ function summarize(live, repo) {
   return `live ${a.length} lines / ${live.length} chars, repo ${b.length} lines / ${repo.length} chars, first difference on line ${line + 1}`;
 }
 
+// The password is never sent, so SMTP settings are only safe to write onto a
+// project that already sends through Resend. Anywhere else — no custom SMTP, or
+// another provider — Resend's host and user would be paired with a password
+// that is not a Resend key, and every auth email would fail. Returns null when
+// nothing needs refusing, otherwise the refused keys and the reason.
+function smtpRefusal(drift, live) {
+  const keys = drift.map((d) => d.key).filter((key) => key.startsWith('smtp_'));
+  const host = normalizeValue(live.smtp_host);
+  if (!keys.length || host === SMTP_SETTINGS.smtp_host) return null;
+  return {
+    keys,
+    reason:
+      `this project's SMTP host is ${host ? JSON.stringify(host) : 'not set'}, ` +
+      `not ${SMTP_SETTINGS.smtp_host}, and this script never sends a password. Switch SMTP to ` +
+      'Resend (with the Resend API key) under Authentication → SMTP in the dashboard, then rerun.',
+  };
+}
+
 // Replaces every occurrence of the token, so nothing printed can carry it.
 function scrub(text, token) {
   return token ? String(text).split(token).join('[token]') : String(text);
@@ -198,36 +216,39 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   console.log(`\n${drift.length} setting(s) differ:`);
   for (const d of drift) console.log(`  ${d.key}: ${d.summary}`);
 
+  // The same guard in both modes, so the dry run never offers what --apply refuses.
+  const refusal = smtpRefusal(drift, live);
+  const send = refusal ? drift.filter((d) => !d.key.startsWith('smtp_')) : drift;
+  if (refusal) {
+    const verb = apply ? 'Not writing' : '--apply will not write';
+    console.error(`\n✗ ${verb} ${refusal.keys.join(', ')}: ${refusal.reason}`);
+  }
+
   if (!apply) {
-    console.log('\nDry run — nothing was changed. To push these: npm run auth:emails -- --apply');
+    if (!send.length) {
+      console.log(
+        '\nDry run — nothing was changed, and --apply has nothing it can push until SMTP is on Resend.',
+      );
+    } else {
+      console.log(
+        `\nDry run — nothing was changed. --apply would push ${send.length} setting(s): ` +
+          send.map((d) => d.key).join(', '),
+      );
+      console.log('To push them: npm run auth:emails -- --apply');
+    }
     return 0;
   }
-
-  // The password is never sent, so SMTP settings are only safe to write onto a
-  // project that already sends through Resend. Anywhere else — no custom SMTP,
-  // or another provider — Resend's host and user would be paired with a
-  // password that is not a Resend key, and every auth email would fail.
-  let send = drift;
-  const liveHost = normalizeValue(live.smtp_host);
-  const smtpRefused =
-    drift.some((d) => d.key.startsWith('smtp_')) && liveHost !== SMTP_SETTINGS.smtp_host;
-  if (smtpRefused) {
-    console.error(
-      `\n✗ Not writing SMTP settings: this project's SMTP host is ` +
-        `${liveHost ? JSON.stringify(liveHost) : 'not set'}, not ${SMTP_SETTINGS.smtp_host}, ` +
-        'and this script never sends a password. Switch SMTP to Resend (with the Resend API ' +
-        'key) under Authentication → SMTP in the dashboard, then rerun.',
-    );
-    send = drift.filter((d) => !d.key.startsWith('smtp_'));
-    if (!send.length) return 1;
-    console.error('Applying the template and subject changes only.');
-  }
+  if (!send.length) return 1;
+  if (refusal) console.error('Applying the template and subject changes only.');
 
   const patch = Object.fromEntries(send.map((d) => [d.key, desired[d.key]]));
-  console.log(
-    `\n⚠ PATCHing ${send.length} setting(s). smtp_pass is NOT sent — the SMTP password stays ` +
-      'as set in the dashboard. If auth emails stop arriving afterwards, re-enter it there.',
-  );
+  if (send.some((d) => d.key.startsWith('smtp_'))) {
+    console.log(
+      '\n⚠ smtp_pass is NOT sent — the SMTP password stays as set in the dashboard. ' +
+        'If auth emails stop arriving afterwards, re-enter it there.',
+    );
+  }
+  console.log(`\nPATCHing ${send.length} setting(s)…`);
   const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
   if (!res.ok) {
     await failed(`PATCH ${url}`, res);
@@ -237,14 +258,14 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
   const after = await readConfig();
   if (!after) return 1;
   const remaining = diffAuthConfig(desired, after).filter(
-    (d) => !(smtpRefused && d.key.startsWith('smtp_')),
+    (d) => !(refusal && d.key.startsWith('smtp_')),
   );
   if (remaining.length) {
     console.error(`✗ PATCH accepted, but ${remaining.length} setting(s) still differ:`);
     for (const d of remaining) console.error(`  ${d.key}: ${d.summary}`);
     return 1;
   }
-  if (smtpRefused) {
+  if (refusal) {
     console.error('✗ Templates and subjects applied; SMTP settings left unchanged (see above).');
     return 1;
   }

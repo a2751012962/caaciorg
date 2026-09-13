@@ -288,6 +288,61 @@ test('the dry run only reads, and lists the drifted keys', async (t) => {
   assert.equal(text.includes(TOKEN), false, 'the token was printed');
 });
 
+test('the dry run warns that --apply will refuse SMTP on a project not on Resend', async (t) => {
+  const out = capture(t);
+  const desired = buildAuthPatch(await loadTemplates());
+  const live = {
+    ...desired,
+    smtp_host: 'smtp.sendgrid.net',
+    smtp_user: 'apikey',
+    mailer_subjects_invite: 'old subject',
+  };
+  const stub = mockFetch(() => ({ body: live }));
+  try {
+    assert.equal(await main([], { SUPABASE_ACCESS_TOKEN: TOKEN }), 0);
+  } finally {
+    stub.restore();
+  }
+  assert.deepEqual(methods(stub), ['GET']);
+  const text = out.join('\n');
+  assert.match(text, /--apply will not write smtp_host, smtp_user: .*smtp\.sendgrid\.net/);
+  // Only what --apply would actually send is offered as pushable.
+  assert.match(text, /--apply would push 1 setting\(s\): mailer_subjects_invite$/m);
+  assert.equal(text.includes(TOKEN), false, 'the token was printed');
+});
+
+test('the dry run says there is nothing to push when only refused SMTP settings differ', async (t) => {
+  const out = capture(t);
+  const desired = buildAuthPatch(await loadTemplates());
+  const stub = mockFetch(() => ({ body: { ...desired, smtp_host: null } }));
+  try {
+    assert.equal(await main([], { SUPABASE_ACCESS_TOKEN: TOKEN }), 0);
+  } finally {
+    stub.restore();
+  }
+  const text = out.join('\n');
+  assert.match(text, /--apply will not write smtp_host: this project's SMTP host is not set/);
+  assert.match(text, /nothing it can push/);
+  assert.doesNotMatch(text, /--apply would push/);
+});
+
+test('--apply mentions the SMTP password only when it sends SMTP settings', async (t) => {
+  const out = capture(t);
+  const desired = buildAuthPatch(await loadTemplates());
+  let live = { ...desired, mailer_subjects_recovery: 'old subject' };
+  const stub = mockFetch((url, options) => {
+    if (options.method === 'PATCH') live = { ...live, ...JSON.parse(options.body) };
+    return { body: live };
+  });
+  try {
+    assert.equal(await main(['--apply'], { SUPABASE_ACCESS_TOKEN: TOKEN }), 0);
+  } finally {
+    stub.restore();
+  }
+  assert.deepEqual(methods(stub), ['GET', 'PATCH', 'GET']);
+  assert.doesNotMatch(out.join('\n'), /smtp_pass/);
+});
+
 test('SBP and SB_REF work as they do for apply-supabase.mjs', async (t) => {
   capture(t);
   const desired = buildAuthPatch(await loadTemplates());
