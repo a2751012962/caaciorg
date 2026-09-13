@@ -1073,8 +1073,227 @@ function recoveryCard(host) {
     const { error } = await supa.auth.updateUser({ password: pwd });
     btn.disabled = false;
     if (error) return notice(msg, error.message, false);
-    notice(msg, t('Password updated — you are signed in.', '密码已更新，您已登录。'), true);
+    clearRecoveryMarker();
+    host.innerHTML = `<div class="alert alert-success mb-3" role="status">${t('Password updated — you are signed in.', '密码已更新，您已登录。')}</div>`;
   });
+}
+
+// Supabase reports a dead email link (otp_expired, access_denied…) through
+// error_code / error_description in the hash or the query string.
+function recoveryLinkFailed() {
+  return [location.hash, location.search].some((part) => {
+    const p = new URLSearchParams(String(part || '').replace(/^[#?]/, ''));
+    return p.has('error_code') || p.has('error_description');
+  });
+}
+
+// The error text itself is not shown: it comes from the URL, so anyone could
+// put words there.
+function recoveryFailedCard(host) {
+  host.innerHTML = `
+    <div class="alert alert-warning mb-3" role="alert">
+      <h4 class="alert-title">${t('This password reset link no longer works', '此重置密码链接已失效')}</h4>
+      <div>
+        ${t('The link has expired or has already been used — each link works once, for a limited time.', '该链接已过期或已被使用——每个链接只能使用一次，且有时效。')}
+        <a href="/login-3/">${t('Request a new reset link', '重新申请重置链接')}</a>
+      </div>
+    </div>`;
+}
+
+// Drop ?recovery=1 (and the spent hash) once the password is saved, so a reload
+// or a bookmark does not bring the set-password form back.
+function clearRecoveryMarker() {
+  const params = new URLSearchParams(location.search || '');
+  params.delete('recovery');
+  const qs = params.toString();
+  try {
+    window.history?.replaceState?.(null, '', location.pathname + (qs ? `?${qs}` : ''));
+  } catch {
+    /* no history API — the marker just stays */
+  }
+}
+
+// ---------- account security (change password · change email) ----------
+// A member with an email/password identity changes the password and confirms
+// the current one; a Google/Microsoft-only member can add a password. Supabase
+// checks current_password only when "Require current password when updating"
+// is on, and may instead demand a reauthentication code (a nonce it emails).
+const hasPasswordLogin = (user) =>
+  (user.identities || []).some((i) => i.provider === 'email') ||
+  (user.app_metadata?.providers || []).includes('email');
+
+const needsReauth = (error) =>
+  !!error &&
+  (error.code === 'reauthentication_needed' || /reauthenticat/i.test(error.message || ''));
+
+function securityCard(host, user) {
+  const hasPassword = hasPasswordLogin(user);
+  const field = (id, label, type, autocomplete, extra = '') => `
+        <div class="mb-3">
+          <label class="form-label" for="${id}">${label}</label>
+          <input type="${type}" id="${id}" class="form-control" autocomplete="${autocomplete}"${extra}>
+        </div>`;
+  host.innerHTML = `
+    <div class="card mb-3" id="caaci-security">
+      <div class="card-header"><h3 class="card-title mb-0">${t('Account security', '账户安全')}</h3></div>
+      <div class="card-body">
+        <h4 class="mb-2">${hasPassword ? t('Change password', '修改密码') : t('Set a password', '设置密码')}</h4>
+        ${
+          hasPassword
+            ? field(
+                'caaci-pw-current',
+                t('Current password', '当前密码'),
+                'password',
+                'current-password',
+              )
+            : `<p class="text-secondary">${t('You sign in with Google or Microsoft. Set a password to also sign in with your email address.', '您目前通过 Google 或 Microsoft 登录。设置密码后也可以使用邮箱登录。')}</p>`
+        }
+        ${field('caaci-pw-new', t('New password (at least 8 characters)', '新密码（至少 8 位）'), 'password', 'new-password', ' minlength="8"')}
+        ${field('caaci-pw-new2', t('Confirm new password', '确认新密码'), 'password', 'new-password')}
+        <button type="button" class="btn btn-primary" id="caaci-pw-save">${hasPassword ? t('Change password', '修改密码') : t('Set password', '设置密码')}</button>
+        <div class="mt-3" id="caaci-pw-reauth" hidden>
+          <p class="mb-2" id="caaci-pw-reauth-msg"></p>
+          ${field('caaci-pw-code', t('Verification code', '验证码'), 'text', 'one-time-code', ' inputmode="numeric"')}
+          <div class="btn-list">
+            <button type="button" class="btn btn-primary" id="caaci-pw-confirm">${t('Confirm', '确认')}</button>
+            <button type="button" class="btn" id="caaci-pw-code-resend">${t('Resend code', '重新发送验证码')}</button>
+          </div>
+        </div>
+        <p class="alert mt-3 mb-0" id="caaci-pw-notice" hidden></p>
+        <hr class="my-4">
+        <h4 class="mb-2">${t('Change email', '修改邮箱')}</h4>
+        ${field('caaci-em-new', t('New email address', '新邮箱地址'), 'email', 'email')}
+        <button type="button" class="btn" id="caaci-em-save">${t('Change email', '修改邮箱')}</button>
+        <p class="alert mt-3 mb-0" id="caaci-em-notice" hidden></p>
+        <button type="button" class="btn w-100 mt-2" id="caaci-em-resend" hidden>${t('Resend confirmation email', '重新发送确认邮件')}</button>
+      </div>
+    </div>`;
+  const el = (id) => host.querySelector(`#${id}`);
+
+  // --- password ---
+  const pwNote = el('caaci-pw-notice');
+  const reauth = el('caaci-pw-reauth');
+  const codeResend = el('caaci-pw-code-resend');
+  let pending = null; // the update waiting on a reauthentication code
+
+  const sendCode = () =>
+    sendEmail(codeResend, pwNote, {
+      action: 'reauth',
+      email: user.email,
+      label: t('Resend code', '重新发送验证码'),
+      send: () => supa.auth.reauthenticate(),
+      sent: t('Verification code sent — check your inbox.', '验证码已发送，请查收。'),
+    });
+
+  const saved = () => {
+    pending = null;
+    reauth.hidden = true;
+    for (const id of ['caaci-pw-current', 'caaci-pw-new', 'caaci-pw-new2', 'caaci-pw-code']) {
+      const input = el(id);
+      if (input) input.value = '';
+    }
+    notice(
+      pwNote,
+      hasPassword
+        ? t('Password updated.', '密码已更新。')
+        : t(
+            'Password set — you can now also sign in with your email address.',
+            '密码已设置，现在也可以使用邮箱登录。',
+          ),
+      true,
+    );
+  };
+
+  const saveBtn = el('caaci-pw-save');
+  saveBtn.addEventListener('click', async () => {
+    const current = hasPassword ? el('caaci-pw-current').value : '';
+    const password = el('caaci-pw-new').value;
+    if (hasPassword && !current)
+      return notice(pwNote, t('Enter your current password.', '请输入当前密码。'), false);
+    if (password.length < 8)
+      return notice(pwNote, t('Password must be at least 8 characters.', '密码至少 8 位。'), false);
+    if (password !== el('caaci-pw-new2').value)
+      return notice(pwNote, t('Passwords do not match.', '两次输入的密码不一致。'), false);
+    const attrs = hasPassword ? { password, current_password: current } : { password };
+    const done = busy(saveBtn, t('Saving…', '保存中…'));
+    const { error } = await supa.auth.updateUser(attrs);
+    done();
+    if (needsReauth(error)) {
+      pending = attrs;
+      reauth.hidden = false;
+      el('caaci-pw-reauth-msg').textContent = t(
+        `We emailed a verification code to ${user.email}. Enter it below to finish.`,
+        `我们已向 ${user.email} 发送验证码，请在下方输入以完成修改。`,
+      );
+      return sendCode();
+    }
+    if (error) return notice(pwNote, error.message, false);
+    saved();
+  });
+
+  const confirmBtn = el('caaci-pw-confirm');
+  confirmBtn.addEventListener('click', async () => {
+    const nonce = el('caaci-pw-code').value.trim();
+    if (!pending) return;
+    if (!nonce)
+      return notice(pwNote, t('Enter the code from the email.', '请输入邮件中的验证码。'), false);
+    const done = busy(confirmBtn, t('Confirming…', '确认中…'));
+    const { error } = await supa.auth.updateUser({ ...pending, nonce });
+    done();
+    if (error) return notice(pwNote, error.message, false);
+    saved();
+  });
+  codeResend.addEventListener('click', sendCode);
+
+  // --- email ---
+  const emNote = el('caaci-em-notice');
+  const emResend = el('caaci-em-resend');
+  const emLabel = t('Resend confirmation email', '重新发送确认邮件');
+  let newEmail = '';
+  const emSave = el('caaci-em-save');
+  emSave.addEventListener('click', async () => {
+    const value = el('caaci-em-new').value.trim();
+    if (!EMAIL_RE.test(value))
+      return notice(emNote, t('Enter a valid email address.', '请填写有效邮箱。'), false);
+    if (value.toLowerCase() === String(user.email || '').toLowerCase())
+      return notice(
+        emNote,
+        t('That is already your email address.', '这已经是您当前的邮箱。'),
+        false,
+      );
+    const done = busy(emSave, t('Saving…', '保存中…'));
+    const { error } = await supa.auth.updateUser(
+      { email: value },
+      { emailRedirectTo: location.origin + '/account/' },
+    );
+    done();
+    if (error) return notice(emNote, error.message, false);
+    newEmail = value;
+    notice(
+      emNote,
+      t(
+        `Almost done — open the confirmation link we sent to ${value}. If ${user.email} gets a confirmation email too, open that link as well; the change finishes once both are confirmed.`,
+        `即将完成——请打开我们发送到 ${value} 的确认链接。如果 ${user.email} 也收到确认邮件，请一并确认；全部确认后才会完成更改。`,
+      ),
+      true,
+    );
+    emResend.hidden = false;
+    cooldown(emResend, {
+      action: 'email_change',
+      email: value,
+      seconds: EMAIL_COOLDOWN_S,
+      label: emLabel,
+    });
+  });
+  emResend.addEventListener('click', () =>
+    sendEmail(emResend, emNote, {
+      action: 'email_change',
+      email: newEmail,
+      label: emLabel,
+      send: () => supa.auth.resend({ type: 'email_change', email: newEmail }),
+      sent: t(`Confirmation email sent to ${newEmail}.`, `确认邮件已发送至 ${newEmail}。`),
+    }),
+  );
 }
 
 // Draw the card as a PNG for download (phones keep it in the photo album).
@@ -1227,9 +1446,14 @@ export async function wireAccountPage() {
     return;
   }
 
-  // Password recovery (reset-email link lands on /account/?recovery=1).
-  if (/type=recovery/.test(location.hash) || /[?&]recovery=/.test(location.search))
-    recoveryCard($('#caaci-recovery-host'));
+  // Password recovery (reset-email link lands on /account/?recovery=1). A link
+  // that expired or was already used comes back with error_code /
+  // error_description instead of a session, so it gets an explanation, not a
+  // form that could only fail.
+  const recoveryHost = $('#caaci-recovery-host');
+  if (recoveryLinkFailed()) recoveryFailedCard(recoveryHost);
+  else if (/type=recovery/.test(location.hash) || /[?&]recovery=/.test(location.search))
+    recoveryCard(recoveryHost);
 
   const { user } = await currentMember();
   if (!user) {
@@ -1306,6 +1530,7 @@ export async function wireAccountPage() {
             </div>
           </div>
         </div>
+        <div id="caaci-security-host"></div>
         <div class="card mb-3">
           <div class="card-header">
             <h3 class="card-title mb-0">${t('Subscription', '订阅')}</h3>
@@ -1339,6 +1564,8 @@ export async function wireAccountPage() {
         <div id="caaci-mcard-host"></div>
       </div>
     </div>`;
+
+  securityCard($('#caaci-security-host', host), user);
 
   // Billing portal (Stripe-hosted card update / invoices / cancel).
   const billing = $('#caaci-billing', host);

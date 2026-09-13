@@ -747,3 +747,194 @@ test('membership checkout: log-in mode has a forgot-password link that emails th
   q('#caaci-auth-toggle').click();
   assert.equal(wrap.hidden, true, 'hidden again back in signup mode');
 });
+
+// ---------- /account/: recovery links and account security ----------
+const EXPIRED =
+  'error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired';
+
+test('account page: an expired or already-used recovery link says so and points back to /login-3/', async () => {
+  for (const where of [{ hash: `#${EXPIRED}` }, { search: `?recovery=1&${EXPIRED}` }]) {
+    setup('account', where);
+    member.__setSupa(supaStub({ user: null }));
+    await member.wireAccountPage();
+    const rec = q('#caaci-recovery-host');
+    assert.match(rec.textContent, /expired or has already been used/i, JSON.stringify(where));
+    assert.ok(rec.querySelector('a[href="/login-3/"]'), 'link to request a new one');
+    assert.equal(q('#caaci-np'), null, 'no set-password form for a dead link');
+    assert.doesNotMatch(rec.innerHTML, /invalid\+or/, 'the raw URL text is not echoed');
+  }
+});
+
+test('account page: saving a password from a recovery link clears the marker and the form', async () => {
+  setup('account', { search: '?recovery=1' });
+  const user = { id: 'u1', email: 'mei@x.com', identities: [{ provider: 'email' }] };
+  const stub = supaStub({ user, memberRow: { id: 'u1' } });
+  member.__setSupa(stub);
+  const replaced = [];
+  window.history.replaceState = (...args) => replaced.push(args);
+  await member.wireAccountPage();
+
+  q('#caaci-np').value = 'newpassword1';
+  q('#caaci-np2').value = 'newpassword1';
+  q('#caaci-np-save').click();
+  await tick();
+  assert.deepEqual(callsTo(stub, 'updateUser'), [[{ password: 'newpassword1' }]]);
+  assert.match(q('#caaci-recovery-host').textContent, /Password updated/);
+  assert.equal(q('#caaci-np'), null, 'form replaced by the success message');
+  assert.deepEqual(replaced, [[null, '', '/account/']]);
+});
+
+const EMAIL_USER = {
+  id: 'u1',
+  email: 'mei@x.com',
+  identities: [{ provider: 'email' }],
+  app_metadata: { provider: 'email', providers: ['email'] },
+};
+const OAUTH_USER = {
+  id: 'u2',
+  email: 'ada@x.com',
+  identities: [{ provider: 'google' }],
+  app_metadata: { provider: 'google', providers: ['google'] },
+};
+
+async function accountWith(user, auth = {}) {
+  setup('account');
+  const stub = supaStub({ user, memberRow: { id: user.id }, auth });
+  member.__setSupa(stub);
+  await member.wireAccountPage();
+  return stub;
+}
+const fill = (sel, value) => {
+  q(sel).value = value;
+};
+const PASSWORD_FIELDS = ['#caaci-pw-current', '#caaci-pw-new', '#caaci-pw-new2'];
+
+test('account security: an email/password member confirms the current password to change it', async () => {
+  const stub = await accountWith(EMAIL_USER);
+  const card = q('#caaci-security');
+  assert.ok(card, 'security card renders');
+  assert.match(card.closest('.col-lg-6').textContent, /Profile/, 'in the Profile column');
+  assert.match(card.textContent, /Change password/);
+
+  q('#caaci-pw-save').click();
+  await tick();
+  assert.match(q('#caaci-pw-notice').textContent, /current password/i);
+  fill('#caaci-pw-current', 'oldpassword1');
+  fill('#caaci-pw-new', 'short');
+  fill('#caaci-pw-new2', 'short');
+  q('#caaci-pw-save').click();
+  await tick();
+  assert.match(q('#caaci-pw-notice').textContent, /at least 8 characters/);
+  fill('#caaci-pw-new', 'newpassword1');
+  fill('#caaci-pw-new2', 'different1');
+  q('#caaci-pw-save').click();
+  await tick();
+  assert.match(q('#caaci-pw-notice').textContent, /do not match/);
+  assert.equal(callsTo(stub, 'updateUser').length, 0);
+
+  fill('#caaci-pw-new2', 'newpassword1');
+  q('#caaci-pw-save').click();
+  await tick();
+  assert.deepEqual(callsTo(stub, 'updateUser'), [
+    [{ password: 'newpassword1', current_password: 'oldpassword1' }],
+  ]);
+  assert.match(q('#caaci-pw-notice').textContent, /Password updated/);
+  for (const s of PASSWORD_FIELDS) assert.equal(q(s).value, '', `${s} cleared`);
+});
+
+test('account security: an OAuth-only member sets a password with no current-password field', async () => {
+  const stub = await accountWith(OAUTH_USER);
+  assert.match(q('#caaci-security').textContent, /Set a password/);
+  assert.equal(q('#caaci-pw-current'), null);
+  fill('#caaci-pw-new', 'newpassword1');
+  fill('#caaci-pw-new2', 'newpassword1');
+  q('#caaci-pw-save').click();
+  await tick();
+  assert.deepEqual(callsTo(stub, 'updateUser'), [[{ password: 'newpassword1' }]]);
+  assert.match(q('#caaci-pw-notice').textContent, /Password (updated|set)/);
+});
+
+test('account security: when Supabase wants reauthentication, the emailed code completes the change', async (t) => {
+  mockClock(t);
+  const stub = await accountWith(EMAIL_USER, {
+    updateUser: async (attrs) => {
+      if (!attrs.nonce)
+        return {
+          data: { user: null },
+          error: {
+            code: 'reauthentication_needed',
+            message: 'Password update requires reauthentication',
+          },
+        };
+      return attrs.nonce === '123456'
+        ? { data: { user: EMAIL_USER }, error: null }
+        : { data: { user: null }, error: { message: 'Invalid nonce' } };
+    },
+  });
+  fill('#caaci-pw-current', 'oldpassword1');
+  fill('#caaci-pw-new', 'newpassword1');
+  fill('#caaci-pw-new2', 'newpassword1');
+  q('#caaci-pw-save').click();
+  await tick();
+
+  assert.equal(callsTo(stub, 'reauthenticate').length, 1);
+  const reauth = q('#caaci-pw-reauth');
+  assert.equal(reauth.hidden, false);
+  assert.match(reauth.textContent, /We emailed a verification code to mei@x\.com/);
+  const resend = q('#caaci-pw-code-resend');
+  assert.equal(resend.disabled, true);
+  assert.equal(resend.textContent, 'Resend in 60s');
+  t.mock.timers.tick(60000);
+  resend.click();
+  await tick();
+  assert.equal(callsTo(stub, 'reauthenticate').length, 2, 'resend asks for another code');
+  assert.equal(resend.textContent, 'Resend in 60s');
+
+  fill('#caaci-pw-code', '000000');
+  q('#caaci-pw-confirm').click();
+  await tick();
+  assert.match(q('#caaci-pw-notice').textContent, /Invalid nonce/);
+
+  fill('#caaci-pw-code', '123456');
+  q('#caaci-pw-confirm').click();
+  await tick();
+  assert.deepEqual(callsTo(stub, 'updateUser').at(-1), [
+    { password: 'newpassword1', current_password: 'oldpassword1', nonce: '123456' },
+  ]);
+  assert.match(q('#caaci-pw-notice').textContent, /Password updated/);
+  assert.equal(reauth.hidden, true);
+  for (const s of [...PASSWORD_FIELDS, '#caaci-pw-code'])
+    assert.equal(q(s).value, '', `${s} cleared`);
+});
+
+test('account security: changing email confirms via the new address, with a resend on cooldown', async (t) => {
+  mockClock(t);
+  const stub = await accountWith(EMAIL_USER);
+  fill('#caaci-em-new', 'MEI@x.com');
+  q('#caaci-em-save').click();
+  await tick();
+  assert.match(q('#caaci-em-notice').textContent, /already your email/i);
+  fill('#caaci-em-new', 'not-an-email');
+  q('#caaci-em-save').click();
+  await tick();
+  assert.match(q('#caaci-em-notice').textContent, /valid email/i);
+  assert.equal(callsTo(stub, 'updateUser').length, 0);
+
+  fill('#caaci-em-new', 'mei.lin@y.com');
+  q('#caaci-em-save').click();
+  await tick();
+  assert.deepEqual(callsTo(stub, 'updateUser'), [
+    [{ email: 'mei.lin@y.com' }, { emailRedirectTo: 'https://caaci.example/account/' }],
+  ]);
+  assert.match(q('#caaci-em-notice').textContent, /mei\.lin@y\.com/);
+  const resend = q('#caaci-em-resend');
+  assert.equal(resend.hidden, false);
+  assert.equal(resend.disabled, true);
+  assert.equal(resend.textContent, 'Resend in 60s');
+
+  t.mock.timers.tick(60000);
+  resend.click();
+  await tick();
+  assert.deepEqual(callsTo(stub, 'resend'), [[{ type: 'email_change', email: 'mei.lin@y.com' }]]);
+  assert.equal(resend.disabled, true);
+});
