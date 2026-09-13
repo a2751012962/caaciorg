@@ -207,19 +207,72 @@ test('member email: upstream rate limit -> 429 with a readable message', async (
   }
 });
 
-test('member email: other upstream failures -> 502 without echoing the upstream body', async () => {
-  const fetch = mockFetch(
-    route({ recover: { status: 500, body: 'smtp auth failed for key re_SECRET123' } }),
-  );
+// One admin request for member m1; returns the response and the GoTrue email calls.
+async function send(action, opts) {
+  const fetch = mockFetch(route(opts));
   try {
     const r = await onRequestPost({
-      request: adminReq({ member_id: 'm1', action: 'reset' }),
+      request: adminReq({ member_id: 'm1', action }),
       env: fakeEnv(),
     });
-    assert.equal(r.status, 502);
-    const text = JSON.stringify(await r.json());
-    assert.doesNotMatch(text, /SECRET|service-key|smtp/);
+    return { status: r.status, body: await r.json(), calls: emailCalls(fetch) };
   } finally {
     fetch.restore();
   }
+}
+
+test('member email: other upstream failures -> 502 without echoing the upstream body', async () => {
+  const { status, body } = await send('reset', {
+    recover: { status: 500, body: { code: 500, msg: 'boom re_SECRET123' } },
+  });
+  assert.equal(status, 502);
+  assert.doesNotMatch(JSON.stringify(body), /SECRET|boom/);
+});
+
+test('member email: both actions send to the login email, not the editable profile email', async () => {
+  const profileEdited = { id: 'm1', email: 'attacker@evil.com' };
+  for (const action of ['reset', 'invite']) {
+    const { status, calls } = await send(action, { member: profileEdited });
+    assert.equal(status, 200, action);
+    assert.equal(calls.length, 1, action);
+    assert.equal(JSON.parse(calls[0].options.body).email, 'mei@x.com', action);
+  }
+});
+
+test('member email: a member with no login account -> 404 for either action', async () => {
+  for (const action of ['reset', 'invite']) {
+    const { status, calls } = await send(action, { authUser: null });
+    assert.equal(status, 404, action);
+    assert.equal(calls.length, 0, action);
+  }
+});
+
+test('member email: a rate-limit code alone (non-429 status) -> 429', async () => {
+  const { status } = await send('reset', {
+    recover: { status: 400, body: { code: 'over_email_send_rate_limit', message: 'x' } },
+  });
+  assert.equal(status, 429);
+});
+
+test('member email: a new-shape email_exists code alone -> 409', async () => {
+  const { status, body } = await send('invite', {
+    invite: { status: 422, body: { code: 'email_exists', message: 'x' } },
+  });
+  assert.equal(status, 409);
+  assert.match(body.error, /reset/i);
+});
+
+test('member email: an "already been registered" message alone -> 409', async () => {
+  const { status } = await send('invite', {
+    invite: {
+      status: 400,
+      body: { msg: 'A user with this email address has already been registered' },
+    },
+  });
+  assert.equal(status, 409);
+});
+
+test('member email: a JSON null error body is mapped, not thrown', async () => {
+  const { status } = await send('reset', { recover: { status: 429, body: 'null' } });
+  assert.equal(status, 429);
 });

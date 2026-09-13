@@ -117,7 +117,8 @@ export function authAdmin(env) {
       body: JSON.stringify({ email }),
     });
     if (r.ok) return { ok: true, status: r.status, code: '', message: '' };
-    const data = await r.json().catch(() => ({}));
+    // `|| {}`: a JSON `null` body parses fine but has no properties to read.
+    const data = (await r.json().catch(() => null)) || {};
     const code = data.error_code || (typeof data.code === 'string' ? data.code : '');
     return { ok: false, status: r.status, code, message: data.msg || data.message || '' };
   };
