@@ -8,9 +8,13 @@
 --     admin made by hand before this; those keep using the households row's plan.
 --   * household_invites — one row per invitation. The email is stored
 --     lower-cased (checked), and at most one PENDING invitation per address per
---     family (partial unique index).
+--     family (partial unique index). person_id names a name-only person the
+--     invitation would give a login to: that person already holds a seat, so
+--     the invitation takes no extra one, and accepting links their existing row.
 --   * household_events — join / leave / remove / invite / dissolve history, kept
 --     when a family is dissolved (only deleting the household removes it).
+--     subject_name is the typed name of a name-only person added or removed; it
+--     is shown on the site only and never put in an email.
 --   * family_* functions — the 3-person cap is enforced here, not in the Worker:
 --     each one locks the households row (select ... for update) before counting,
 --     so two concurrent invitations cannot both take the last seat. They return
@@ -39,11 +43,14 @@ create table if not exists public.household_invites (
   created_at    timestamptz not null default now(),
   expires_at    timestamptz not null default now() + interval '14 days',
   responded_at  timestamptz,
-  member_id     uuid references public.members(id) on delete set null  -- the invitee's account, once known
+  member_id     uuid references public.members(id) on delete set null,  -- the invitee's account, once known
+  person_id     uuid references public.household_members(id) on delete set null  -- name-only person being given a login
 );
 
 create unique index if not exists household_invites_one_pending
   on public.household_invites (household_id, lower(email)) where status = 'pending';
+create unique index if not exists household_invites_one_pending_person
+  on public.household_invites (person_id) where status = 'pending' and person_id is not null;
 create index if not exists household_invites_household_idx on public.household_invites (household_id);
 create index if not exists household_invites_email_idx on public.household_invites (email);
 
@@ -56,6 +63,7 @@ create table if not exists public.household_events (
   actor_member_id   uuid references public.members(id) on delete set null,
   subject_member_id uuid references public.members(id) on delete set null,
   subject_email     text,
+  subject_name      text,  -- name-only person added/removed; on-site only, never emailed
   created_at        timestamptz not null default now()
 );
 
@@ -70,8 +78,9 @@ revoke all on table public.household_events  from anon, authenticated;
 
 -- ============================================================
 -- Seats in use: linked login accounts + name-only people + pending, unexpired
--- invitations. p_except_invite leaves out the invitation being accepted, so it
--- does not count twice once its invitee is linked.
+-- invitations. An invitation for a name-only person who is still in the family
+-- rides on the seat that person already holds, so it is not counted again.
+-- p_except_invite leaves out the invitation being accepted.
 -- ============================================================
 create or replace function public.family_seats_used(p_household uuid, p_except_invite uuid default null)
 returns integer language sql stable security definer set search_path = public, pg_temp as $$
@@ -79,9 +88,12 @@ returns integer language sql stable security definer set search_path = public, p
       (select count(*) from public.members where household_id = p_household)
     + (select count(*) from public.household_members
          where household_id = p_household and member_id is null)
-    + (select count(*) from public.household_invites
-         where household_id = p_household and status = 'pending' and expires_at > now()
-           and (p_except_invite is null or id <> p_except_invite))
+    + (select count(*) from public.household_invites i
+         where i.household_id = p_household and i.status = 'pending' and i.expires_at > now()
+           and (p_except_invite is null or i.id <> p_except_invite)
+           and not exists (select 1 from public.household_members p
+                             where p.id = i.person_id and p.household_id = i.household_id
+                               and p.member_id is null))
   )::integer;
 $$;
 
@@ -111,10 +123,15 @@ begin
 end;
 $$;
 
--- Claim a seat with a new pending invitation.
+-- An earlier draft of this file had no p_person_id; drop that overload so /rpc
+-- is never ambiguous.
+drop function if exists public.family_create_invite(uuid, text, text, text, uuid, uuid);
+
+-- Claim a seat with a new pending invitation, or, with p_person_id, invite a
+-- name-only person who already holds one.
 create or replace function public.family_create_invite(
   p_household uuid, p_email text, p_full_name text, p_relationship text,
-  p_invited_by uuid, p_member_id uuid)
+  p_invited_by uuid, p_member_id uuid, p_person_id uuid default null)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_invite public.household_invites;
@@ -132,11 +149,24 @@ begin
                  and lower(email) = lower(p_email)) then
     return jsonb_build_object('ok', false, 'reason', 'duplicate_invite');
   end if;
-  if public.family_seats_used(p_household) >= 3 then
+  if p_person_id is not null then
+    perform 1 from public.household_members
+      where id = p_person_id and household_id = p_household and member_id is null for update;
+    if not found then
+      return jsonb_build_object('ok', false, 'reason', 'person_not_found');
+    end if;
+    -- Stale ones were expired above, so this is a live invitation. The partial
+    -- unique index household_invites_one_pending_person backs this check.
+    if exists (select 1 from public.household_invites
+                 where person_id = p_person_id and status = 'pending') then
+      return jsonb_build_object('ok', false, 'reason', 'person_already_invited');
+    end if;
+  elsif public.family_seats_used(p_household) >= 3 then
     return jsonb_build_object('ok', false, 'reason', 'family_full');
   end if;
-  insert into public.household_invites (household_id, email, full_name, relationship, invited_by, member_id)
-    values (p_household, lower(p_email), p_full_name, p_relationship, p_invited_by, p_member_id)
+  insert into public.household_invites
+      (household_id, email, full_name, relationship, invited_by, member_id, person_id)
+    values (p_household, lower(p_email), p_full_name, p_relationship, p_invited_by, p_member_id, p_person_id)
     returning * into v_invite;
   return jsonb_build_object('ok', true, 'invite', to_jsonb(v_invite));
 end;
@@ -167,8 +197,10 @@ end;
 $$;
 
 -- Turn a pending invitation into a linked account. The invitation already holds
--- a seat, so the cap check leaves it out; everything else that took a seat since
--- it was sent still counts.
+-- a seat (or rides on its name-only person), so the cap check leaves it out.
+-- For a name-only person still in the family, the account joins (+1) and that
+-- row stops counting as name-only (-1): the row is linked, not duplicated. If
+-- the row is gone, the account needs a seat of its own, under the cap.
 create or replace function public.family_accept_invite(
   p_invite uuid, p_member uuid, p_email text, p_full_name text)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
@@ -176,6 +208,7 @@ declare
   v_household uuid;
   v_invite    public.household_invites;
   v_current   uuid;
+  v_person    uuid;
 begin
   select household_id into v_household from public.household_invites where id = p_invite;
   if v_household is null then
@@ -204,13 +237,23 @@ begin
   if v_current is not null then
     return jsonb_build_object('ok', false, 'reason', 'already_in_household');
   end if;
-  if public.family_seats_used(v_household, p_invite) >= 3 then
+  if v_invite.person_id is not null then
+    select id into v_person from public.household_members
+      where id = v_invite.person_id and household_id = v_household and member_id is null
+      for update;
+  end if;
+  if public.family_seats_used(v_household, p_invite) + (case when v_person is null then 1 else 0 end) > 3 then
     return jsonb_build_object('ok', false, 'reason', 'family_full');
   end if;
   update public.members set household_id = v_household where id = p_member;
-  insert into public.household_members (household_id, member_id, full_name, relationship, email)
-    values (v_household, p_member, coalesce(nullif(v_invite.full_name, ''), p_full_name, lower(p_email)),
-            v_invite.relationship, lower(p_email));
+  if v_person is not null then
+    update public.household_members set member_id = p_member, email = lower(p_email)
+      where id = v_person;
+  else
+    insert into public.household_members (household_id, member_id, full_name, relationship, email)
+      values (v_household, p_member, coalesce(nullif(v_invite.full_name, ''), p_full_name, lower(p_email)),
+              v_invite.relationship, lower(p_email));
+  end if;
   update public.household_invites
     set status = 'accepted', responded_at = now(), member_id = p_member
     where id = p_invite;
@@ -221,11 +264,11 @@ $$;
 -- ---- server-only: only the service role (the Pages Functions) may call these ----
 revoke execute on function public.family_seats_used(uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.family_create_household(uuid, text, text, text) from public, anon, authenticated;
-revoke execute on function public.family_create_invite(uuid, text, text, text, uuid, uuid) from public, anon, authenticated;
+revoke execute on function public.family_create_invite(uuid, text, text, text, uuid, uuid, uuid) from public, anon, authenticated;
 revoke execute on function public.family_add_person(uuid, text, text) from public, anon, authenticated;
 revoke execute on function public.family_accept_invite(uuid, uuid, text, text) from public, anon, authenticated;
 grant execute on function public.family_seats_used(uuid, uuid) to service_role;
 grant execute on function public.family_create_household(uuid, text, text, text) to service_role;
-grant execute on function public.family_create_invite(uuid, text, text, text, uuid, uuid) to service_role;
+grant execute on function public.family_create_invite(uuid, text, text, text, uuid, uuid, uuid) to service_role;
 grant execute on function public.family_add_person(uuid, text, text) to service_role;
 grant execute on function public.family_accept_invite(uuid, uuid, text, text) to service_role;

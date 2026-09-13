@@ -1,7 +1,8 @@
 // /api/family against an in-memory stand-in for PostgREST, GoTrue and Resend.
 // The family_* RPCs are faked here with the same counting rule as 0017's SQL
 // functions (accounts + name-only people + pending unexpired invitations, the
-// accepted invitation left out); the real lock and cap are pinned by
+// accepted invitation left out, an invitation for a name-only person riding on
+// that person's seat); the real lock and cap are pinned by
 // family-invites-rls.test.js. What these tests pin is the Worker: who may do
 // what, which Supabase/Resend calls it makes and in what order, that seat-taking
 // inserts only ever happen through the RPCs, and what reaches an inbox.
@@ -100,11 +101,15 @@ const invite = (s, extra = {}) => {
     expires_at: FUTURE,
     responded_at: null,
     member_id: null,
+    person_id: null,
     ...extra,
   };
   s.household_invites.push(row);
   return row;
 };
+
+const nameOnlyRow = (s, hid, id) =>
+  s.household_members.find((p) => p.id === id && p.household_id === hid && !p.member_id);
 
 const seatsUsed = (s, hid, except) =>
   s.members.filter((m) => m.household_id === hid).length +
@@ -114,7 +119,8 @@ const seatsUsed = (s, hid, except) =>
       i.household_id === hid &&
       i.status === 'pending' &&
       new Date(i.expires_at) > new Date() &&
-      i.id !== except,
+      i.id !== except &&
+      !nameOnlyRow(s, hid, i.person_id),
   ).length;
 
 // Mirrors the SQL functions in 0017, minus the row lock.
@@ -152,7 +158,11 @@ const RPC = {
     for (const i of live) if (new Date(i.expires_at) <= new Date()) i.status = 'expired';
     if (live.some((i) => i.status === 'pending' && i.email === a.p_email.toLowerCase()))
       return { ok: false, reason: 'duplicate_invite' };
-    if (seatsUsed(s, h.id) >= 3) return { ok: false, reason: 'family_full' };
+    if (a.p_person_id) {
+      if (!nameOnlyRow(s, h.id, a.p_person_id)) return { ok: false, reason: 'person_not_found' };
+      if (s.household_invites.some((i) => i.person_id === a.p_person_id && i.status === 'pending'))
+        return { ok: false, reason: 'person_already_invited' };
+    } else if (seatsUsed(s, h.id) >= 3) return { ok: false, reason: 'family_full' };
     const row = invite(s, {
       household_id: h.id,
       email: a.p_email,
@@ -160,6 +170,7 @@ const RPC = {
       relationship: a.p_relationship,
       invited_by: a.p_invited_by,
       member_id: a.p_member_id,
+      person_id: a.p_person_id ?? null,
     });
     return { ok: true, invite: { ...row } };
   },
@@ -185,17 +196,21 @@ const RPC = {
     if (inv.status !== 'pending') return { ok: false, reason: 'not_pending' };
     const m = s.members.find((x) => x.id === a.p_member);
     if (m.household_id) return { ok: false, reason: 'already_in_household' };
-    if (seatsUsed(s, inv.household_id, inv.id) >= 3) return { ok: false, reason: 'family_full' };
+    const person = inv.person_id ? nameOnlyRow(s, inv.household_id, inv.person_id) : null;
+    if (seatsUsed(s, inv.household_id, inv.id) + (person ? 0 : 1) > 3)
+      return { ok: false, reason: 'family_full' };
     m.household_id = inv.household_id;
-    s.household_members.push({
-      id: uid(++s.seq),
-      household_id: inv.household_id,
-      member_id: m.id,
-      full_name: inv.full_name || a.p_full_name,
-      relationship: inv.relationship,
-      email: a.p_email,
-      created_at: '9',
-    });
+    if (person) Object.assign(person, { member_id: m.id, email: a.p_email });
+    else
+      s.household_members.push({
+        id: uid(++s.seq),
+        household_id: inv.household_id,
+        member_id: m.id,
+        full_name: inv.full_name || a.p_full_name,
+        relationship: inv.relationship,
+        email: a.p_email,
+        created_at: '9',
+      });
     Object.assign(inv, { status: 'accepted', member_id: m.id, responded_at: 'now' });
     return { ok: true, household_id: inv.household_id };
   },
@@ -219,6 +234,13 @@ function matches(row, params) {
     } else throw new Error(`fake PostgREST does not understand ${k}=${v}`);
   }
   return true;
+}
+
+// Deleting a household_members row: household_invites.person_id is ON DELETE SET NULL.
+function deletePeople(s, rows) {
+  s.household_members = s.household_members.filter((r) => !rows.includes(r));
+  for (const inv of s.household_invites)
+    if (rows.some((r) => r.id === inv.person_id)) inv.person_id = null;
 }
 
 function backend(s) {
@@ -292,7 +314,8 @@ function backend(s) {
       return { body: '' };
     }
     if (method === 'DELETE') {
-      s[table] = s[table].filter((r) => !hit.includes(r));
+      if (table === 'household_members') deletePeople(s, hit);
+      else s[table] = s[table].filter((r) => !hit.includes(r));
       return { body: '' };
     }
     const select = u.searchParams.get('select') || '';
@@ -321,7 +344,7 @@ function backend(s) {
   };
 }
 
-// One request against world `s`. Returns { status, body }.
+// One request against world `s`. Returns { status, body, headers }.
 async function call(s, { method = 'POST', body, env = {}, token = 'tok' } = {}) {
   const fetch = mockFetch(backend(s));
   try {
@@ -332,7 +355,7 @@ async function call(s, { method = 'POST', body, env = {}, token = 'tok' } = {}) 
     });
     const handler = method === 'GET' ? onRequestGet : onRequestPost;
     const r = await handler({ request, env: fakeEnv(env) });
-    return { status: r.status, body: await r.json() };
+    return { status: r.status, body: await r.json(), headers: r.headers };
   } finally {
     fetch.restore();
   }
@@ -343,16 +366,29 @@ const as = (s, id) => {
 };
 const ofKind = (s, kind) => s.log.filter((c) => c.kind === kind);
 const eventsOf = (s, type) => s.household_events.filter((e) => e.type === type);
-const nameOnly = (s, n = 1) => {
-  for (let i = 0; i < n; i++)
-    s.household_members.push({
+const nameOnly = (s, n = 1, extra = {}) => {
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    const row = {
       id: uid(++s.seq),
       household_id: H,
       member_id: null,
       full_name: HOSTILE,
       relationship: 'child',
       created_at: '3',
-    });
+      ...extra,
+    };
+    s.household_members.push(row);
+    rows.push(row);
+  }
+  return rows;
+};
+// Founder plus name-only people only: the joined member M is taken out.
+const founderWithKids = (n) => {
+  const s = world();
+  s.members.find((m) => m.id === M).household_id = null;
+  s.household_members = s.household_members.filter((p) => p.member_id !== M);
+  return { s, kids: nameOnly(s, n) };
 };
 
 // ---------------------------------------------------------------- GET
@@ -369,6 +405,7 @@ test('GET: a member with no family and no invitations gets nulls and empty array
   assert.equal(status, 200);
   assert.deepEqual(body, {
     role: 'none',
+    can_start_family: false,
     household: null,
     plan: null,
     founder: null,
@@ -380,11 +417,36 @@ test('GET: a member with no family and no invitations gets nulls and empty array
   });
 });
 
-test('GET: the founder sees seats, people, invitations and history', async () => {
+test('GET: can_start_family for an active family-plan member with no family, who holds seat 1', async () => {
+  const cases = [
+    [{ tier_id: 'family', status: 'active' }, true, 1],
+    [{ tier_id: 'family', status: 'past_due' }, false, 0],
+    [{ tier_id: 'family', status: 'active', expires_at: PAST }, false, 0],
+    [{ tier_id: 'individual', status: 'active' }, false, 0],
+  ];
+  for (const [patch, can, used] of cases) {
+    const s = as(world(), I);
+    Object.assign(
+      s.members.find((m) => m.id === I),
+      patch,
+    );
+    const { body } = await call(s, { method: 'GET' });
+    assert.equal(body.role, 'none', JSON.stringify(patch));
+    assert.equal(body.can_start_family, can, JSON.stringify(patch));
+    assert.deepEqual(body.seats, { used, limit: 3 }, JSON.stringify(patch));
+  }
+  // founders and joined members never get it
+  assert.equal((await call(world(), { method: 'GET' })).body.can_start_family, false);
+  assert.equal((await call(as(world(), M), { method: 'GET' })).body.can_start_family, false);
+});
+
+test('GET: the founder sees seats, people, pending invitations and history', async () => {
   const s = world();
   nameOnly(s);
   const pending = invite(s, { email: 'new@x.com' });
   invite(s, { email: 'old@x.com', expires_at: PAST, member_id: I });
+  invite(s, { email: 'done@x.com', status: 'accepted' });
+  invite(s, { email: 'no@x.com', status: 'declined' });
   s.household_events.push({
     id: uid(900),
     household_id: H,
@@ -396,6 +458,7 @@ test('GET: the founder sees seats, people, invitations and history', async () =>
   const { status, body } = await call(s, { method: 'GET' });
   assert.equal(status, 200);
   assert.equal(body.role, 'founder');
+  assert.equal(body.can_start_family, false);
   assert.deepEqual(body.household, { id: H, name: HOSTILE, status: 'active' });
   assert.deepEqual(body.plan, { tier_id: 'family', status: 'active', expires_at: FUTURE });
   assert.deepEqual(body.founder, { member_id: F, email: 'founder@x.com' });
@@ -409,14 +472,18 @@ test('GET: the founder sees seats, people, invitations and history', async () =>
       ['name_only', null, false, false],
     ],
   );
-  const statuses = Object.fromEntries(body.invites.map((i) => [i.email, i.status]));
-  assert.deepEqual(statuses, { 'new@x.com': 'pending', 'old@x.com': 'expired' });
+  // only pending, unexpired invitations are listed
+  assert.deepEqual(
+    body.invites.map((i) => [i.email, i.status]),
+    [['new@x.com', 'pending']],
+  );
   assert.deepEqual(Object.keys(body.invites.find((i) => i.id === pending.id)).sort(), [
     'created_at',
     'email',
     'expires_at',
     'full_name',
     'id',
+    'person_id',
     'relationship',
     'status',
   ]);
@@ -425,6 +492,7 @@ test('GET: the founder sees seats, people, invitations and history', async () =>
       type: 'joined',
       actor_email: 'member@x.com',
       subject_email: 'member@x.com',
+      subject_name: null,
       created_at: '2026-01-01',
     },
   ]);
@@ -487,6 +555,7 @@ test('invite: a new address gets a GoTrue invite carrying only the founder login
   assert.equal(body.delivered, 'invite');
   assert.equal(body.invite.email, 'new@x.com');
   assert.equal(body.invite.status, 'pending');
+  assert.equal(body.invite.person_id, null);
 
   const [send] = ofKind(s, 'invite');
   assert.equal(ofKind(s, 'invite').length, 1);
@@ -636,6 +705,126 @@ test('invite: a member without the family plan cannot start a family', async () 
   assert.equal(s.households.length, 1);
 });
 
+// ---------------------------------------------------------------- invite a name-only person
+
+test('invite by person_id: a full family gives a name-only person a login without a new seat', async () => {
+  const { s, kids } = founderWithKids(2); // founder + 2 name-only = 3
+  const [kid] = kids;
+
+  const full = await call(s, { body: { action: 'invite', email: 'invitee@x.com' } });
+  assert.equal(full.status, 409, 'without person_id the same invitation needs a seat');
+  assert.match(full.body.error, /full/i);
+
+  const r = await call(s, {
+    body: { action: 'invite', email: 'invitee@x.com', person_id: kid.id },
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.invite.person_id, kid.id);
+  assert.equal(r.body.invite.full_name, HOSTILE, "defaults to the person's name");
+  assert.equal(ofKind(s, 'rpc').at(-1).args.p_person_id, kid.id);
+  assert.equal((await call(s, { method: 'GET' })).body.seats.used, 3);
+
+  as(s, I);
+  const accepted = await call(s, {
+    body: { action: 'accept_invite', invite_id: r.body.invite.id },
+  });
+  assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+  // the existing row is linked, not duplicated
+  assert.equal(s.household_members.filter((p) => p.household_id === H).length, 3);
+  assert.deepEqual(
+    [kid.member_id, kid.email, kid.full_name, kid.relationship],
+    [I, 'invitee@x.com', HOSTILE, 'child'],
+  );
+  assert.equal(s.members.find((m) => m.id === I).household_id, H);
+
+  as(s, F);
+  const after = (await call(s, { method: 'GET' })).body;
+  assert.equal(after.seats.used, 3);
+  assert.deepEqual(
+    after.people.filter((p) => p.id === kid.id).map((p) => [p.kind, p.member_id, p.linked]),
+    [['account', I, true]],
+  );
+});
+
+test('invite by person_id: refuses a person who is not name-only in this family', async () => {
+  const { s } = founderWithKids(1);
+  s.households.push({ id: uid(101), name: 'Other', status: 'active', founder_member_id: null });
+  const elsewhere = nameOnly(s, 1, { household_id: uid(101) })[0];
+  const cases = [
+    [uid(201), 400], // the founder's own linked row
+    [uid(999), 404], // no such person
+    [elsewhere.id, 404], // another family's person
+    ['not-a-uuid', 400],
+  ];
+  for (const [person_id, want] of cases) {
+    const { status } = await call(s, {
+      body: { action: 'invite', email: 'invitee@x.com', person_id },
+    });
+    assert.equal(status, want, person_id);
+  }
+  assert.equal(ofKind(s, 'rpc').length, 0);
+  assert.equal(ofKind(s, 'otp').length + ofKind(s, 'invite').length, 0);
+});
+
+test('invite by person_id: a person with a live pending invitation -> 409; an expired one does not block', async () => {
+  const { s, kids } = founderWithKids(2);
+  const first = invite(s, { email: 'first@x.com', person_id: kids[0].id });
+  const { status, body } = await call(s, {
+    body: { action: 'invite', email: 'invitee@x.com', person_id: kids[0].id },
+  });
+  assert.equal(status, 409);
+  assert.equal(body.error, 'This person already has a pending invitation.');
+  assert.equal(ofKind(s, 'otp').length + ofKind(s, 'invite').length, 0);
+
+  first.expires_at = PAST;
+  const again = await call(s, {
+    body: { action: 'invite', email: 'invitee@x.com', person_id: kids[0].id },
+  });
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.equal(first.status, 'expired');
+  // GET lists the live one, tied to its person
+  const { body: view } = await call(s, { method: 'GET' });
+  assert.deepEqual(
+    view.invites.map((i) => [i.email, i.person_id]),
+    [['invitee@x.com', kids[0].id]],
+  );
+});
+
+test('accept_invite: a person row removed since the invitation falls back to a seat of its own', async () => {
+  // Room: founder + one kid + the invitation (now seat-taking) = 3.
+  const { s, kids } = founderWithKids(2);
+  const inv = invite(s, { person_id: kids[0].id, full_name: null });
+  deletePeople(s, [kids[0]]);
+  as(s, I);
+  const ok = await call(s, { body: { action: 'accept_invite', invite_id: inv.id } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.equal(
+    s.household_members.filter((p) => p.member_id === I).length,
+    1,
+    'a new row was added',
+  );
+
+  // No room: founder + two kids, and the invitation's person is gone.
+  const full = founderWithKids(3);
+  const inv2 = invite(full.s, { person_id: full.kids[0].id });
+  deletePeople(full.s, [full.kids[0]]);
+  as(full.s, I);
+  const refused = await call(full.s, { body: { action: 'accept_invite', invite_id: inv2.id } });
+  assert.equal(refused.status, 409);
+  assert.equal(full.s.members.find((m) => m.id === I).household_id, null);
+});
+
+test('remove_person: removing a name-only person cancels the invitation riding on them', async () => {
+  const { s, kids } = founderWithKids(2);
+  const inv = invite(s, { person_id: kids[0].id, member_id: I });
+  s.auth.find((u) => u.id === I).user_metadata.family_invite_from = 'founder@x.com';
+  const { status } = await call(s, { body: { action: 'remove_person', person_id: kids[0].id } });
+  assert.equal(status, 200);
+  assert.equal(inv.status, 'cancelled');
+  assert.deepEqual(s.auth.find((u) => u.id === I).user_metadata, {});
+  assert.equal(eventsOf(s, 'invite_cancelled').length, 1);
+});
+
 test('founder-only actions refuse a joined member with 403', async () => {
   const s = world();
   const inv = invite(s, { email: 'new@x.com' });
@@ -643,6 +832,7 @@ test('founder-only actions refuse a joined member with 403', async () => {
   as(s, M);
   for (const body of [
     { action: 'invite', email: 'new2@x.com' },
+    { action: 'invite', email: 'new2@x.com', person_id: s.household_members.at(-1).id },
     { action: 'cancel_invite', invite_id: inv.id },
     { action: 'resend_invite', invite_id: inv.id },
     { action: 'add_person', full_name: 'Kid' },
@@ -676,19 +866,37 @@ test('cancel_invite: cancels, clears the invitee flag and logs it', async () => 
   assert.equal(eventsOf(s, 'invite_cancelled').length, 1);
 });
 
-test('resend_invite: a GoTrue rate limit -> 429', async () => {
+test('resend_invite: a GoTrue rate limit -> 429, with retry_after only when GoTrue says how long', async () => {
   const s = world();
   const inv = invite(s, { member_id: I });
-  s.responses.otp = { status: 429, body: { error_code: 'over_email_send_rate_limit', msg: 'x' } };
-  const { status, body } = await call(s, { body: { action: 'resend_invite', invite_id: inv.id } });
-  assert.equal(status, 429);
-  assert.match(body.error, /wait/i);
+  s.responses.otp = {
+    status: 429,
+    body: {
+      code: 429,
+      error_code: 'over_email_send_rate_limit',
+      msg: 'For security purposes, you can only request this after 42 seconds.',
+    },
+  };
+  const timed = await call(s, { body: { action: 'resend_invite', invite_id: inv.id } });
+  assert.equal(timed.status, 429);
+  assert.match(timed.body.error, /wait/i);
+  assert.equal(timed.body.retry_after, 42);
+  assert.equal(timed.headers.get('retry-after'), '42');
   assert.equal(inv.status, 'pending', 'a failed resend keeps the invitation');
   assert.deepEqual(
     s.auth.find((u) => u.id === I).user_metadata,
     {},
     'flag cleared after a failed send',
   );
+
+  s.responses.otp = {
+    status: 429,
+    body: { error_code: 'over_email_send_rate_limit', msg: 'Email rate limit exceeded' },
+  };
+  const untimed = await call(s, { body: { action: 'resend_invite', invite_id: inv.id } });
+  assert.equal(untimed.status, 429);
+  assert.equal('retry_after' in untimed.body, false);
+  assert.equal(untimed.headers.get('retry-after'), null);
 });
 
 test('invite: a failed first send frees the seat', async () => {
@@ -830,6 +1038,29 @@ test('add_person: a name-only person takes a seat through the RPC', async () => 
   assert.equal(again.status, 409);
 });
 
+test('events: name-only people added and removed carry subject_name in the on-site history', async () => {
+  const s = world();
+  const added = await call(s, { body: { action: 'add_person', full_name: 'Little One' } });
+  assert.equal(added.status, 200);
+  const removed = await call(s, {
+    body: { action: 'remove_person', person_id: added.body.person.id },
+  });
+  assert.equal(removed.status, 200);
+  assert.deepEqual(
+    s.household_events.map((e) => [e.type, e.subject_name]),
+    [
+      ['person_added', 'Little One'],
+      ['person_removed', 'Little One'],
+    ],
+  );
+  const { body } = await call(s, { method: 'GET' });
+  assert.deepEqual(body.events.map((e) => [e.type, e.subject_name]).sort(), [
+    ['person_added', 'Little One'],
+    ['person_removed', 'Little One'],
+  ]);
+  assert.equal(ofKind(s, 'resend').length, 0);
+});
+
 test('remove_person: the last non-founder person is refused with "dissolve instead"', async () => {
   const s = world();
   const { status, body } = await call(s, { body: { action: 'remove_person', person_id: M } });
@@ -840,10 +1071,34 @@ test('remove_person: the last non-founder person is refused with "dissolve inste
   assert.equal(self.status, 409);
 });
 
+test('remove_person: the last-person rule counts accounts and name-only people, never pending invitations', async () => {
+  // founder + one name-only person + a pending invitation: still the last person
+  const lone = founderWithKids(1);
+  invite(lone.s, { email: 'waiting@x.com' });
+  const refused = await call(lone.s, {
+    body: { action: 'remove_person', person_id: lone.kids[0].id },
+  });
+  assert.equal(refused.status, 409);
+  assert.match(refused.body.error, /dissolve/i);
+
+  // founder + a linked account + a name-only person: either may go
+  for (const pick of ['kid', 'member']) {
+    const s = world();
+    const [kid] = nameOnly(s);
+    const person_id = pick === 'kid' ? kid.id : M;
+    const { status } = await call(s, { body: { action: 'remove_person', person_id } });
+    assert.equal(status, 200, pick);
+  }
+
+  // founder + two name-only people: one may go
+  const two = founderWithKids(2);
+  const ok = await call(two.s, { body: { action: 'remove_person', person_id: two.kids[0].id } });
+  assert.equal(ok.status, 200);
+});
+
 test('remove_person: a name-only person is deleted and logged', async () => {
   const s = world();
-  nameOnly(s);
-  const kid = s.household_members.at(-1);
+  const [kid] = nameOnly(s);
   const { status } = await call(s, { body: { action: 'remove_person', person_id: kid.id } });
   assert.equal(status, 200);
   assert.equal(
@@ -949,7 +1204,8 @@ test('dissolve: unlinks everyone, deletes people, cancels invitations and keeps 
 
 test('notification emails carry fixed copy and login emails, never member-typed text', async () => {
   const s = world();
-  const inv = invite(s, { member_id: I });
+  const [kid] = nameOnly(s, 1, { full_name: HOSTILE });
+  const inv = invite(s, { member_id: I, person_id: kid.id });
   const statuses = [];
   as(s, I);
   statuses.push(

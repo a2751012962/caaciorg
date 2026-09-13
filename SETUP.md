@@ -333,6 +333,9 @@ active (families an admin made by hand, with no founder, keep using the
   remove the last other person; they dissolve the family instead (accounts are
   unlinked, name-only people deleted, pending invitations cancelled, the history
   in `household_events` kept).
+- **A name-only person can be given a login**: inviting with their `person_id`
+  takes no extra seat (they already hold one), and accepting links their existing
+  row. Removing that person cancels the invitation.
 - **Invitations** last 14 days, can only be sent while the founder's plan is
   `active`, and are accepted by signing in with the invited address. They are
   Supabase Auth emails through the project's SMTP: a new address gets the Invite

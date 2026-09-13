@@ -6,9 +6,10 @@
 //          leave | dissolve
 //
 // A family covers at most FAMILY_LIMIT people, founder included: linked login
-// accounts, name-only people and pending unexpired invitations. The cap is
-// enforced by the family_* SQL functions (0017), which lock the household row
-// before counting; this file never counts and then inserts on its own.
+// accounts, name-only people and pending unexpired invitations (an invitation
+// for a name-only person rides on that person's seat). The cap is enforced by
+// the family_* SQL functions (0017), which lock the household row before
+// counting; this file never counts and then inserts on its own.
 //
 // Invitations go out as Supabase Auth emails only: a GoTrue invite for a new
 // address, a magic link for an existing confirmed login, and a re-sent invite
@@ -20,7 +21,8 @@
 // Founder notifications (join, leave) and the removed member's email go through
 // Resend and are skipped when it isn't configured (`notified: false`). They
 // carry fixed bilingual copy plus login email addresses only — never a family
-// name or a typed full name, which could carry phishing text.
+// name or a typed full name, which could carry phishing text. Typed names do
+// appear in the on-site history (events[].subject_name), never in an email.
 import { json, bad, sb, authAdmin, requireUser, sendEmailBatch } from './_lib.js';
 
 export const FAMILY_LIMIT = 3;
@@ -28,7 +30,7 @@ const RELATIONSHIPS = ['head', 'spouse', 'child', 'parent', 'other'];
 const MEMBER_COLS = 'id,email,full_name,tier_id,status,expires_at,household_id';
 const HOUSEHOLD_COLS = 'id,name,status,tier_id,expires_at,founder_member_id';
 const INVITE_COLS =
-  'id,household_id,email,full_name,relationship,status,created_at,expires_at,member_id';
+  'id,household_id,email,full_name,relationship,status,created_at,expires_at,member_id,person_id';
 const RATE_LIMIT_CODES = ['over_email_send_rate_limit', 'over_request_rate_limit'];
 const ALREADY_REGISTERED_CODES = ['email_exists', 'user_already_exists'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -42,6 +44,7 @@ const RATE_LIMITED =
 const EMAIL_FAILED = 'The invitation email could not be sent right now. Please try again later.';
 const EXPIRED = 'This invitation has expired. Ask the family plan holder for a new one.';
 const NOT_OPEN = 'This invitation is no longer open.';
+const PERSON_NOT_FOUND = 'That person is not in your family.';
 const LAST_PERSON =
   'This is the last person in your family besides you. Dissolve the family instead of removing them.';
 
@@ -51,6 +54,7 @@ const REFUSALS = {
     409,
   ],
   duplicate_invite: ['That email address already has a pending invitation to this family.', 409],
+  person_already_invited: ['This person already has a pending invitation.', 409],
   already_in_household: ['That account is already in a family.', 409],
   not_pending: [NOT_OPEN, 409],
   expired: [EXPIRED, 409],
@@ -58,6 +62,7 @@ const REFUSALS = {
   no_household: ['This family no longer exists.', 404],
   not_found: ['Invitation not found.', 404],
   no_member: ['Member not found.', 404],
+  person_not_found: [PERSON_NOT_FOUND, 404],
 };
 const refusal = (reason) => {
   const [msg, status] = REFUSALS[reason] || ['That could not be done right now.', 502];
@@ -71,6 +76,7 @@ const lower = (s) =>
 const iso = () => new Date().toISOString();
 const isExpired = (inv) =>
   inv.status === 'pending' && new Date(inv.expires_at).getTime() <= Date.now();
+const isLive = (inv) => inv.status === 'pending' && !isExpired(inv);
 const planActive = (p) =>
   !!p && p.status === 'active' && (!p.expires_at || new Date(p.expires_at).getTime() > Date.now());
 const escapeHtml = (s) =>
@@ -130,7 +136,7 @@ async function logEvent(
   ctx,
   householdId,
   type,
-  { subjectMember = null, subjectEmail = null } = {},
+  { subjectMember = null, subjectEmail = null, subjectName = null } = {},
 ) {
   try {
     await ctx.DB.insert(
@@ -141,6 +147,7 @@ async function logEvent(
         actor_member_id: ctx.member?.id || null,
         subject_member_id: subjectMember,
         subject_email: subjectEmail,
+        subject_name: subjectName,
       },
       { returning: false },
     );
@@ -195,7 +202,7 @@ async function notify(env, origin, to, kind, who) {
   }
 }
 
-// Seat and people rows for one household (display only; the cap lives in SQL).
+// Seat and people rows for one household.
 async function householdRows(ctx, H) {
   const [linked, hm, invites] = await Promise.all([
     ctx.DB.select('members', {
@@ -217,6 +224,13 @@ async function householdRows(ctx, H) {
     }),
   ]);
   return { linked: linked.rows, hm: hm.rows, invites: invites.rows };
+}
+
+// Display copy of family_seats_used (0017); the cap itself is enforced there.
+function seatsUsed(linked, hm, invites) {
+  const nameOnly = new Set(hm.filter((p) => !p.member_id).map((p) => p.id));
+  const riding = (i) => !!i.person_id && nameOnly.has(i.person_id);
+  return linked.length + nameOnly.size + invites.filter((i) => isLive(i) && !riding(i)).length;
 }
 
 function buildPeople(H, linked, hm) {
@@ -251,6 +265,7 @@ const publicInvite = (inv) => ({
   email: inv.email,
   full_name: inv.full_name ?? null,
   relationship: inv.relationship ?? null,
+  person_id: inv.person_id ?? null,
   status: isExpired(inv) ? 'expired' : inv.status,
   created_at: inv.created_at,
   expires_at: inv.expires_at,
@@ -290,12 +305,17 @@ export async function onRequestGet({ request, env }) {
   if (gate.error) return gate.error;
   try {
     const ctx = await load(env, gate.user);
+    // A family-plan member with no family yet: /account/ offers to start one,
+    // and they would take the first seat themselves.
+    const canStart =
+      ctx.role === 'none' && ctx.member?.tier_id === 'family' && planActive(ctx.member);
     const out = {
       role: ctx.role,
+      can_start_family: canStart,
       household: null,
       plan: null,
       founder: null,
-      seats: { used: 0, limit: FAMILY_LIMIT },
+      seats: { used: canStart ? 1 : 0, limit: FAMILY_LIMIT },
       people: [],
       invites: [],
       events: [],
@@ -311,7 +331,6 @@ export async function onRequestGet({ request, env }) {
         : await ctx.DB.selectOne('members', { id: H.founder_member_id }, MEMBER_COLS);
     const planSrc = H.founder_member_id ? founderRow : H;
     const { linked, hm, invites } = await householdRows(ctx, H);
-    const pending = invites.filter((i) => i.status === 'pending' && !isExpired(i));
 
     out.household = { id: H.id, name: H.name, status: H.status };
     out.plan = planSrc
@@ -328,14 +347,14 @@ export async function onRequestGet({ request, env }) {
         }
       : null;
     out.people = buildPeople(H, linked, hm);
-    out.seats.used = linked.length + hm.filter((p) => !p.member_id).length + pending.length;
+    out.seats.used = seatsUsed(linked, hm, invites);
 
     if (ctx.role === 'founder') {
       for (const inv of invites.filter(isExpired)) await expireInvite(ctx, inv);
-      out.invites = invites.map(publicInvite);
+      out.invites = invites.filter(isLive).map(publicInvite);
       const { rows } = await ctx.DB.select('household_events', {
         columns:
-          'type,subject_email,created_at,actor:members!household_events_actor_member_id_fkey(email)',
+          'type,subject_email,subject_name,created_at,actor:members!household_events_actor_member_id_fkey(email)',
         filters: [`household_id=eq.${H.id}`],
         order: 'created_at.desc',
         limit: 50,
@@ -344,6 +363,7 @@ export async function onRequestGet({ request, env }) {
         type: e.type,
         actor_email: e.actor?.email ?? null,
         subject_email: e.subject_email ?? null,
+        subject_name: e.subject_name ?? null,
         created_at: e.created_at,
       }));
     }
@@ -404,6 +424,13 @@ async function findHouseholdInvite(ctx, id) {
   return inv ? { inv } : { error: bad('Invitation not found.', 404) };
 }
 
+// GoTrue sets no Retry-After header; only its per-address frequency error says
+// how long to wait ("...only request this after 42 seconds.").
+const retryAfterSeconds = (message) => {
+  const m = /(\d+)\s*seconds?/i.exec(String(message || ''));
+  return m ? Number(m[1]) : null;
+};
+
 // Send the Supabase Auth email for one invitation. Returns { delivered } or { error }.
 async function deliver(ctx, inv, user) {
   const A = authAdmin(ctx.env);
@@ -442,9 +469,37 @@ async function deliver(ctx, inv, user) {
     await clearInviteFlag(ctx.env, flagged);
   }
   if (res.ok) return { delivered, userId: flagged };
-  if (res.status === 429 || RATE_LIMIT_CODES.includes(res.code))
-    return { error: bad(RATE_LIMITED, 429) };
+  if (res.status === 429 || RATE_LIMIT_CODES.includes(res.code)) {
+    const wait = retryAfterSeconds(res.message);
+    return {
+      error: wait
+        ? json({ error: RATE_LIMITED, retry_after: wait }, 429, { 'retry-after': String(wait) })
+        : bad(RATE_LIMITED, 429),
+    };
+  }
   return { error: bad(EMAIL_FAILED, 502) };
+}
+
+// Cancel the pending invitations riding on a name-only person who is being removed.
+async function cancelPersonInvites(ctx, personId) {
+  const { rows } = await ctx.DB.select('household_invites', {
+    columns: 'id,email,member_id',
+    filters: [`person_id=eq.${personId}`, 'status=eq.pending'],
+    limit: 10,
+  });
+  if (!rows.length) return;
+  await ctx.DB.update(
+    'household_invites',
+    { person_id: personId, status: 'pending' },
+    { status: 'cancelled', responded_at: iso() },
+  );
+  for (const inv of rows) {
+    await clearInviteFlag(ctx.env, inv.member_id);
+    await logEvent(ctx, ctx.household.id, 'invite_cancelled', {
+      subjectMember: inv.member_id || null,
+      subjectEmail: inv.email,
+    });
+  }
 }
 
 const ACTIONS = {
@@ -453,11 +508,26 @@ const ACTIONS = {
     if (!EMAIL.test(email) || email.length > 254) return bad('Enter a valid email address.');
     const fields = personFields(b, { nameRequired: false });
     if (fields.error) return fields.error;
+    const personId = b.person_id == null || b.person_id === '' ? null : String(b.person_id);
+    if (personId && !UUID.test(personId)) return bad('person_id must be a person in your family.');
     if (ctx.role === 'member') return bad(FOUNDER_ONLY, 403);
     if (ctx.role === 'none' && ctx.member.tier_id !== 'family')
       return bad('Only a member on the family plan can invite people.', 403);
     if (!planActive(ctx.member)) return bad(PLAN_INACTIVE, 403);
     if (email === ctx.email) return bad("You can't invite your own email address.");
+
+    // Giving a name-only person a login: they must be one in this family.
+    let person = null;
+    if (personId) {
+      if (ctx.role !== 'founder') return bad(PERSON_NOT_FOUND, 404);
+      person = await ctx.DB.selectOne(
+        'household_members',
+        { id: personId, household_id: ctx.household.id },
+        'id,member_id,full_name,relationship',
+      );
+      if (!person) return bad(PERSON_NOT_FOUND, 404);
+      if (person.member_id) return bad('That person already has an account in this family.');
+    }
 
     const user = await authAdmin(ctx.env).findUserByEmail(email);
     if (user) {
@@ -470,10 +540,13 @@ const ACTIONS = {
     const res = await ctx.DB.rpc('family_create_invite', {
       p_household: house.id,
       p_email: email,
-      p_full_name: fields.full_name,
-      p_relationship: fields.relationship,
+      p_full_name: fields.full_name ?? person?.full_name ?? null,
+      p_relationship:
+        fields.relationship ??
+        (RELATIONSHIPS.includes(person?.relationship) ? person.relationship : null),
       p_invited_by: ctx.member.id,
       p_member_id: user?.id || null,
+      p_person_id: person?.id || null,
     });
     if (!res?.ok) return refusal(res?.reason);
     const inv = res.invite;
@@ -561,6 +634,7 @@ const ACTIONS = {
     if (ctx.member.household_id)
       return bad('You are already in a family. Leave it before accepting another.', 409);
 
+    // The RPC links the invitation's name-only person if it has one, else adds a row.
     const res = await ctx.DB.rpc('family_accept_invite', {
       p_invite: inv.id,
       p_member: ctx.member.id,
@@ -610,7 +684,7 @@ const ACTIONS = {
       p_relationship: fields.relationship,
     });
     if (!res?.ok) return refusal(res?.reason);
-    await logEvent(ctx, house.id, 'person_added');
+    await logEvent(ctx, house.id, 'person_added', { subjectName: fields.full_name });
     const p = res.person || {};
     return json({
       ok: true,
@@ -638,12 +712,15 @@ const ACTIONS = {
     if (!target) return bad('Person not found in your family.', 404);
     if (target.is_founder)
       return bad("You can't remove yourself. Dissolve the family instead.", 409);
+    // The last-person rule counts linked accounts and name-only people only;
+    // pending invitations are not people yet.
     const counts = (p) => !p.is_founder && (p.kind === 'name_only' || p.linked);
     if (counts(target) && people.filter(counts).length <= 1) return bad(LAST_PERSON, 409);
 
     if (target.kind === 'name_only') {
+      await cancelPersonInvites(ctx, target.id);
       await ctx.DB.del('household_members', { id: target.id, household_id: H.id });
-      await logEvent(ctx, H.id, 'person_removed');
+      await logEvent(ctx, H.id, 'person_removed', { subjectName: target.full_name });
       return json({ ok: true });
     }
     const mid = target.member_id;
