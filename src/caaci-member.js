@@ -1563,6 +1563,193 @@ function familyInviteParam() {
   return new URLSearchParams(location.search || '').get('family_invite') || '';
 }
 
+const FAMILY_ROLES = ['founder', 'member', 'none'];
+const RELATIONSHIPS = ['head', 'spouse', 'child', 'parent', 'other'];
+const relLabel = (r) =>
+  ({
+    head: t('Head of household', '户主'),
+    spouse: t('Spouse', '配偶'),
+    child: t('Child', '子女'),
+    parent: t('Parent', '父母'),
+    other: t('Other', '其他'),
+  })[r] || '';
+
+async function sessionBearer() {
+  const { data: { session } = { session: null } } = (await supa.auth.getSession?.()) || {};
+  return session ? { authorization: `Bearer ${session.access_token}` } : {};
+}
+
+// GET /api/family (no body) or POST { action, … }. Never throws: a network
+// failure comes back as a normal error result, like api().
+async function familyRequest(body) {
+  try {
+    const headers = await sessionBearer();
+    const res = await fetch(
+      '/api/family',
+      body
+        ? {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', ...headers },
+            body: JSON.stringify(body),
+          }
+        : { headers },
+    );
+    const data = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, data: data && typeof data === 'object' ? data : {} };
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      data: { error: t('Network error — please try again.', '网络错误，请重试。') },
+    };
+  }
+}
+
+// The invite-by-email and add-a-person forms. Values typed by the member are
+// read back from the inputs, never interpolated here.
+function familyForms(full) {
+  const dis = full ? ' disabled' : '';
+  const relSelect = `<select class="form-select" name="relationship" aria-label="${t('Relationship', '关系')}"${dis}>
+      <option value="">${t('Relationship (optional)', '关系（可选）')}</option>
+      ${RELATIONSHIPS.map((r) => `<option value="${r}">${relLabel(r)}</option>`).join('')}
+    </select>`;
+  return `
+    ${
+      full
+        ? `<div class="alert alert-warning" data-fam-full>${t(
+            'Family is full (3 people). Remove someone or cancel an invitation to add another person.',
+            '家庭已满（3 人）。请先移除成员或取消邀请，再添加其他人。',
+          )}</div>`
+        : ''
+    }
+    <form data-fam-invite class="mb-3" novalidate>
+      <h4 class="mb-2">${t('Invite by email', '通过邮箱邀请')}</h4>
+      <div class="row g-2">
+        <div class="col-12"><input class="form-control" type="email" name="email" required autocomplete="off" placeholder="${t('Email address', '邮箱地址')}" aria-label="${t('Email address', '邮箱地址')}"${dis}></div>
+        <div class="col-md-6"><input class="form-control" name="full_name" autocomplete="off" placeholder="${t('Name (optional)', '姓名（可选）')}" aria-label="${t('Name (optional)', '姓名（可选）')}"${dis}></div>
+        <div class="col-md-6">${relSelect}</div>
+      </div>
+      <button type="submit" class="btn btn-primary mt-2"${dis}>${t('Send invitation', '发送邀请')}</button>
+    </form>
+    <form data-fam-add novalidate>
+      <h4 class="mb-1">${t('Add someone without an account', '添加没有账号的家人')}</h4>
+      <p class="text-secondary small mb-2">${t(
+        'For example a young child with no email. They count toward the 3 people.',
+        '例如还没有邮箱的年幼孩子。同样计入 3 人名额。',
+      )}</p>
+      <div class="row g-2">
+        <div class="col-md-6"><input class="form-control" name="full_name" required autocomplete="off" placeholder="${t('Name', '姓名')}" aria-label="${t('Name', '姓名')}"${dis}></div>
+        <div class="col-md-6">${relSelect}</div>
+      </div>
+      <button type="submit" class="btn mt-2"${dis}>${t('Add person', '添加')}</button>
+    </form>`;
+}
+
+// The Family card. GET /api/family once, then again after every successful
+// change; any failure to load hides the card and leaves the page alone.
+async function wireFamily(host, { member }) {
+  host.innerHTML = `
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title mb-0">${t('Family', '家庭')}</h3></div>
+      <div class="card-body">
+        <div data-fam-body></div>
+        <p class="alert mt-3 mb-0" data-fam-notice hidden></p>
+      </div>
+    </div>`;
+  const body = $('[data-fam-body]', host);
+  const note = $('[data-fam-notice]', host);
+  const ownFamilyTier = member.tier_id === 'family' && member.status === 'active';
+
+  const load = async () => {
+    const { ok, data } = await familyRequest();
+    render(ok && FAMILY_ROLES.includes(data.role) ? data : null);
+  };
+
+  // One change on `btn`: optional confirm, busy while in flight (a second
+  // click or submit meanwhile does nothing), the server's error or `success`,
+  // then a reload.
+  const run = async (btn, payload, { ask, success }) => {
+    if (btn.getAttribute('aria-busy')) return null;
+    if (ask && !window.confirm(ask)) return null;
+    const done = busy(btn, t('Working…', '处理中…'));
+    const res = await familyRequest(payload);
+    if (!res.ok) {
+      done();
+      notice(
+        note,
+        String(res.data.error || t('Something went wrong — please try again.', '出错了，请重试。')),
+        false,
+      );
+      return res;
+    }
+    notice(note, success(res.data), true);
+    await load();
+    done();
+    return res;
+  };
+
+  const wireForms = (full) => {
+    const inv = $('form[data-fam-invite]', body);
+    inv?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (full) return;
+      const email = $('[name="email"]', inv).value.trim();
+      const fullName = $('[name="full_name"]', inv).value.trim();
+      const relationship = $('[name="relationship"]', inv).value;
+      if (!email) return void notice(note, t('Enter an email address.', '请输入邮箱地址。'), false);
+      const payload = { action: 'invite', email };
+      if (fullName) payload.full_name = fullName;
+      if (relationship) payload.relationship = relationship;
+      run($('button[type="submit"]', inv), payload, {
+        success: (d) =>
+          d.delivered === 'magic_link'
+            ? t(
+                `We emailed a sign-in link to ${email}. Once they sign in, they can accept your invitation on their account page.`,
+                `已向 ${email} 发送登录链接。TA 登录后即可在账户页面接受你的邀请。`,
+              )
+            : t(`Invitation email sent to ${email}.`, `邀请邮件已发送至 ${email}。`),
+      });
+    });
+    const add = $('form[data-fam-add]', body);
+    add?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (full) return;
+      const fullName = $('[name="full_name"]', add).value.trim();
+      const relationship = $('[name="relationship"]', add).value;
+      if (!fullName) return void notice(note, t('Enter a name.', '请输入姓名。'), false);
+      const payload = { action: 'add_person', full_name: fullName };
+      if (relationship) payload.relationship = relationship;
+      run($('button[type="submit"]', add), payload, {
+        success: () => t(`${fullName} was added to your family.`, `已将 ${fullName} 添加到家庭。`),
+      });
+    });
+  };
+
+  const render = (fam) => {
+    let html = '';
+    let full = false;
+    if (fam?.role === 'none' && ownFamilyTier) {
+      const limit = Number(fam.seats?.limit) || 3;
+      // Before a household exists the plan holder is the only person: 1 of 3.
+      const used = Math.max(1, Number(fam.seats?.used) || 0);
+      full = used >= limit;
+      html += `
+        <h4 class="mb-1">${t('Invite your family', '邀请家人')}</h4>
+        <p class="text-secondary">${t(
+          'Your family plan covers up to 3 people, you included. Invite family members by email, or add someone who has no account.',
+          '家庭会员最多包含 3 人（含你本人）。可以通过邮箱邀请家人，也可以添加没有账号的家人。',
+        )}</p>
+        <p>${t('People', '人数')}: <strong data-fam-seats>${used} / ${limit}</strong></p>
+        ${familyForms(full)}`;
+    }
+    body.innerHTML = html;
+    host.hidden = !html && note.hidden;
+    wireForms(full);
+  };
+
+  await load();
+}
+
 export async function wireAccountPage() {
   const host = $('#caaci-account-host');
   if (!supa) {
@@ -1695,7 +1882,8 @@ export async function wireAccountPage() {
         </div>
       </div>
       <div class="col-lg-6">
-        <div id="caaci-mcard-host"></div>
+        <div id="caaci-mcard-host" class="mb-3"></div>
+        <div id="caaci-family-host" hidden></div>
       </div>
     </div>`;
 
@@ -1760,6 +1948,8 @@ export async function wireAccountPage() {
   // Digital membership card — active members only.
   if (tier && member.status === 'active')
     renderMemberCard($('#caaci-mcard-host', host), { user, member, tierName });
+
+  await wireFamily($('#caaci-family-host', host), { user, member });
 }
 
 // ---------- /mid_autumn_festival_form/ (event registration) ----------
