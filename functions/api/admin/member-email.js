@@ -6,16 +6,22 @@
 // member's LOGIN email, read server-side from Supabase Auth by member_id (never
 // taken from the client or the editable profile), and the response carries no
 // member data.
+//
+// An invitation works for any member: a login nobody has confirmed or used gets
+// Supabase's invite email; a login that already exists gets the password-setup
+// (recovery) email instead, because GoTrue refuses to invite a confirmed user.
+// The response says which one went out: { ok, action: 'invite', delivered }.
 import { json, bad, sb, requireAdmin, authAdmin } from '../_lib.js';
 
 const ACTIONS = ['reset', 'invite'];
 const RATE_LIMIT_CODES = ['over_email_send_rate_limit', 'over_request_rate_limit'];
 const ALREADY_REGISTERED_CODES = ['email_exists', 'user_already_exists'];
-const USE_RESET =
-  'This member already has a confirmed login. Use "Send password reset" instead of an invitation.';
 const RATE_LIMITED =
   'An email was sent to this member very recently. Please wait a minute and try again.';
 const UPSTREAM = 'The email could not be sent right now. Please try again later.';
+
+const alreadyRegistered = (res) =>
+  ALREADY_REGISTERED_CODES.includes(res.code) || /already been registered/i.test(res.message);
 
 export async function onRequestPost({ request, env }) {
   const gate = await requireAdmin(request, env);
@@ -52,33 +58,36 @@ export async function onRequestPost({ request, env }) {
   }
   if (!user) return bad('This member has no login account.', 404);
 
-  // An invitation only makes sense for a login nobody has used yet. Admin-created
-  // members are created already confirmed, and GoTrue refuses to invite a
-  // confirmed user, so check first rather than depend on its error text.
-  if (action === 'invite' && (user.email_confirmed_at || user.confirmed_at || user.last_sign_in_at))
-    return bad(USE_RESET, 409);
-
   const email = (user.email || '').trim();
   if (!email) return bad('This login has no email address.', 422);
   const redirectTo = `${new URL(request.url).origin}/account/?recovery=1`;
 
+  // Admin-created members are created already confirmed, so decide up front
+  // rather than depend on GoTrue's refusal. The refusal still falls back once,
+  // for a login confirmed between the read and the send.
+  const existing = Boolean(user.email_confirmed_at || user.confirmed_at || user.last_sign_in_at);
   let res;
+  let delivered;
   try {
-    res =
-      action === 'reset'
-        ? await A.sendRecovery(email, redirectTo)
-        : await A.sendInvite(email, redirectTo);
+    if (action === 'reset') {
+      res = await A.sendRecovery(email, redirectTo);
+    } else if (existing) {
+      delivered = 'password_setup';
+      res = await A.sendRecovery(email, redirectTo);
+    } else {
+      delivered = 'invite';
+      res = await A.sendInvite(email, redirectTo);
+      if (!res.ok && alreadyRegistered(res)) {
+        delivered = 'password_setup';
+        res = await A.sendRecovery(email, redirectTo);
+      }
+    }
   } catch {
     return bad(UPSTREAM, 502);
   }
-  if (res.ok) return json({ ok: true, action });
+  if (res.ok) return json({ ok: true, action, ...(delivered ? { delivered } : {}) });
 
   if (res.status === 429 || RATE_LIMIT_CODES.includes(res.code)) return bad(RATE_LIMITED, 429);
-  if (
-    action === 'invite' &&
-    (ALREADY_REGISTERED_CODES.includes(res.code) || /already been registered/i.test(res.message))
-  )
-    return bad(USE_RESET, 409);
   // Surface GoTrue's machine code (e.g. email_address_not_authorized) for
   // debugging, but never its message or body.
   const code = /^[a-z_]{1,64}$/.test(res.code) ? res.code : undefined;
