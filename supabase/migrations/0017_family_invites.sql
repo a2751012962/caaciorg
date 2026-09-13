@@ -74,7 +74,7 @@ revoke all on table public.household_events  from anon, authenticated;
 -- does not count twice once its invitee is linked.
 -- ============================================================
 create or replace function public.family_seats_used(p_household uuid, p_except_invite uuid default null)
-returns integer language sql stable security definer set search_path = public as $$
+returns integer language sql stable security definer set search_path = public, pg_temp as $$
   select (
       (select count(*) from public.members where household_id = p_household)
     + (select count(*) from public.household_members
@@ -89,7 +89,7 @@ $$;
 -- their account linked to it, and a 'head' household_members row.
 create or replace function public.family_create_household(
   p_founder uuid, p_name text, p_full_name text, p_email text)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_current   uuid;
   v_household uuid;
@@ -115,7 +115,7 @@ $$;
 create or replace function public.family_create_invite(
   p_household uuid, p_email text, p_full_name text, p_relationship text,
   p_invited_by uuid, p_member_id uuid)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_invite public.household_invites;
 begin
@@ -145,7 +145,7 @@ $$;
 -- Claim a seat with a name-only person (no login account).
 create or replace function public.family_add_person(
   p_household uuid, p_full_name text, p_relationship text)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_person public.household_members;
 begin
@@ -171,7 +171,7 @@ $$;
 -- it was sent still counts.
 create or replace function public.family_accept_invite(
   p_invite uuid, p_member uuid, p_email text, p_full_name text)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_household uuid;
   v_invite    public.household_invites;

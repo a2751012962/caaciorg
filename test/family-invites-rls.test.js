@@ -86,11 +86,31 @@ for (const table of TABLES) {
   });
 }
 
-test('every family_* function is security definer with a pinned search_path', () => {
-  assert.ok(FUNCTIONS.size >= 4, `found only ${[...FUNCTIONS.keys()].join(', ')}`);
+test('every family_* function is security definer with search_path = public, pg_temp', () => {
+  assert.ok(FUNCTIONS.size >= 5, `found only ${[...FUNCTIONS.keys()].join(', ')}`);
   for (const [name, { header }] of FUNCTIONS) {
     assert.match(header, /security definer/, `${name} is not security definer`);
-    assert.match(header, /set search_path = public/, `${name} has no pinned search_path`);
+    // pg_temp last: left implicit, Postgres searches it FIRST for relations.
+    assert.match(
+      header,
+      /security definer set search_path = public, pg_temp as\s*$/,
+      `${name} must pin search_path = public, pg_temp`,
+    );
+  }
+});
+
+test('each family_* function has its own explicit revoke from public, anon, authenticated and grant to service_role', () => {
+  for (const name of FUNCTIONS.keys()) {
+    const fn = new RegExp(`^(grant|revoke) execute on function public\\.${name}\\s*\\([^)]*\\) `);
+    const own = ALL.filter((s) => fn.test(s));
+    assert.ok(
+      own.some((s) => s.endsWith(' from public, anon, authenticated')),
+      `${name}: no "revoke execute ... from public, anon, authenticated"`,
+    );
+    assert.ok(
+      own.some((s) => s.startsWith('grant ') && s.endsWith(' to service_role')),
+      `${name}: no "grant execute ... to service_role"`,
+    );
   }
 });
 
