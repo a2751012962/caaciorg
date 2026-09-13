@@ -117,6 +117,23 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.equal(document.querySelector('#caaci-admin-gate').hidden, true);
     assert.equal(document.querySelector('#caaci-admin-app').hidden, false);
 
+    // Service console shortcuts: inside the admin-only app, each opens the CAACI
+    // account's dashboard in a new tab without handing it window.opener.
+    const consoles = [...document.querySelectorAll('#caaci-admin-app #caaci-consoles a')];
+    assert.deepEqual(
+      consoles.map((a) => a.getAttribute('href')),
+      [
+        'https://supabase.com/dashboard/project/wslzeqhipvibeflmxznh',
+        'https://resend.com/emails',
+        'https://dash.cloudflare.com/60fc7d5394f94e7cbe99e82e34cfc640/pages/view/caaci',
+        'https://dashboard.stripe.com/acct_1PfYMiJ3oYxWrRWD/dashboard',
+      ],
+    );
+    for (const a of consoles) {
+      assert.equal(a.getAttribute('target'), '_blank');
+      assert.match(a.getAttribute('rel'), /noopener/);
+    }
+
     // Members loaded into the table with a Tabler soft badge.
     const badge = document.querySelector('#caaci-members-body .badge');
     assert.ok(badge, 'member status badge rendered');
