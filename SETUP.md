@@ -298,21 +298,28 @@ The server enforces every rule; the card mirrors them and shows its errors.
   signed-in email. The id is never rendered.
 - **Signed out** with `?family_invite`: the Sign in link carries
   `next=/account/?family_invite=<id>`, so the member lands back on it.
-- **No family yet, own `family` tier active**: "Invite your family" with the seat
-  counter (1 / 3), the invite form (email; name and relationship optional) and
-  the add-a-person form for someone without an account (e.g. a young child).
+- **No family yet** (`can_start_family: true`; a response without that field
+  falls back to the member's own active `family` tier): "Invite your family"
+  with the seat counter (1 / 3), the invite form (email; name and relationship
+  optional) and the add-a-person form for someone without an account (e.g. a
+  young child). Either one creates the household.
 - **Founder**: family name, plan status and expiry, seats used / limit; people
-  with a Founder badge and "Linked account" / "Not linked to an account" (with
-  an **Invite by email** button that prefills the invite form); **Remove** on
-  everyone but the founder (the last other person can't be removed, dissolve
-  instead); pending invitations with **Cancel** and **Resend** (60 s cooldown per
-  address, also started by a 429); both forms, disabled once the family is full;
-  **Dissolve family**; and the activity log. After an invite the notice says
-  whether an invitation or a sign-in-link email went out (`delivered`).
+  with a Founder badge and "Linked account" / "Not linked to an account";
+  **Remove** on everyone but the founder (the last other person can't be
+  removed, dissolve instead); pending invitations with **Cancel** and **Resend**
+  (60 s cooldown per address, also started by a 429); both forms, disabled once
+  the family is full; **Dissolve family**; and the activity log (name-only
+  people appear by `subject_name`). After an invite the notice says whether an
+  invitation or a sign-in-link email went out (`delivered`).
+- **Inviting a name-only person**: **Invite by email** on their row opens an
+  email field in that row and sends `invite` with their `person_id`. Accepting
+  links the existing row instead of taking a seat, so this works even when the
+  family is full (3 / 3) and the general forms are disabled.
 - **Member**: family name, founder email, plan status and expiry, **Leave family**.
 - **Membership card**: a member or founder without an active tier of their own
-  gets the digital card from an active family plan (family tier name, plan
-  expiry); it disappears when they leave or the plan lapses.
+  gets the digital card from an active family plan (tier named by
+  `plan.tier_id`, falling back to the family tier; plan expiry); it disappears
+  when they leave or the plan lapses.
 
 Source: `member-src/*.html` + `src/caaci-member.js` (+ `src/caaci-shared.js`,
 pure helpers shared with the mirror layer `caaci-app.js`). The rest of the site
