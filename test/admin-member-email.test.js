@@ -229,6 +229,24 @@ test('member email: invite keeps the 429 and 502 mapping on whichever email it s
   assert.equal(fallbackBroken.calls.length, 2, 'falls back once, never loops');
 });
 
+test(
+  'member email: invite and its recover fallback are both refused as already-registered -> one 502, no retry loop',
+  { timeout: 2000 },
+  async () => {
+    const alreadyRegistered = { status: 422, body: { code: 'email_exists' } };
+    const { status, calls } = await send('invite', {
+      invite: alreadyRegistered,
+      recover: alreadyRegistered,
+    });
+    assert.equal(status, 502);
+    assert.deepEqual(
+      calls.map((c) => new URL(c.url).pathname),
+      ['/auth/v1/invite', '/auth/v1/recover'],
+      'falls back once from invite to recover, then stops',
+    );
+  },
+);
+
 test('member email: upstream rate limit -> 429 with a readable message', async () => {
   const fetch = mockFetch(
     route({

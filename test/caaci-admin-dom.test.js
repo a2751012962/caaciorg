@@ -314,6 +314,24 @@ test('admin page: module boots against the real Tabler markup', async () => {
     await tick();
     assert.equal(document.querySelector('[data-tab="members"]').textContent.trim(), '会员与订阅');
     assert.equal(document.documentElement.lang, 'zh');
+
+    // The password_setup success notice must read correctly in Chinese too:
+    // it should mention the member already having an account (已有账户).
+    document.querySelector('[data-tab="members"]').click();
+    await tick();
+    const realNow = Date.now;
+    Date.now = () => realNow() + 120_000; // bypass cooldowns recorded earlier in this test
+    try {
+      editBtnOf(0).click();
+      await click('invite', ({ action }) => ({
+        body: { ok: true, action, delivered: 'password_setup' },
+      }));
+      assert.match(editMsg().textContent, /已有账户/);
+      editBtnOf(0).click();
+    } finally {
+      Date.now = realNow;
+    }
+
     document.querySelector('#caaci-lang').click(); // back to EN for cleanliness
   } finally {
     restoreTimers();
