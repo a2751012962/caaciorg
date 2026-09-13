@@ -10,3 +10,8 @@ node_modules/
 # after `supabase link`. Machine-local, and it names whichever project that
 # machine happens to be pointed at, so it must never be committed.
 supabase/.temp/
+
+# Member rosters: stripe-audit --csv and migrate-members --report write emails
+# and names of real people, so they stay on the machine that made them.
+*.csv
+migrate-report*.json

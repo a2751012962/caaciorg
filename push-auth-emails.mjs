@@ -85,7 +85,8 @@ const REQUIRED_VARIABLES = {
   confirmation: ['ConfirmationURL'],
   recovery: ['ConfirmationURL'],
   invite: ['ConfirmationURL'],
-  magic_link: ['ConfirmationURL'],
+  // signInWithOtp sends this one; a member may type the code instead of opening the link.
+  magic_link: ['ConfirmationURL', 'Token'],
   email_change: ['ConfirmationURL', 'NewEmail'],
   reauthentication: ['Token'],
 };

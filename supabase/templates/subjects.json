@@ -2,7 +2,7 @@
   "confirmation": "确认你的 CAACI 账号邮箱 / Confirm your CAACI email",
   "recovery": "设置或重置你的 CAACI 账号密码 / Set or reset your CAACI password",
   "invite": "CAACI 邀请你开通会员账号 / You're invited to join CAACI",
-  "magic_link": "你的 CAACI 登录链接 / Your CAACI sign-in link",
+  "magic_link": "你的 CAACI 登录链接与验证码 / Your CAACI sign-in link and code",
   "email_change": "确认你的 CAACI 新邮箱 / Confirm your new CAACI email",
   "reauthentication": "{{ .Token }} — CAACI 验证码 / Verification code"
 }

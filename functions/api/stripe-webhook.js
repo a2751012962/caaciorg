@@ -56,6 +56,16 @@ export async function onRequestPost({ request, env }) {
     );
   }
 
+  // The end (unix seconds) of the billing period an invoice pays for: the latest
+  // lines.data[].period.end, which every API version carries. null if no line
+  // has one.
+  function invoicePeriodEnd(inv) {
+    const ends = (inv.lines?.data || [])
+      .map((line) => line?.period?.end)
+      .filter((end) => typeof end === 'number' && Number.isFinite(end));
+    return ends.length ? Math.max(...ends) : null;
+  }
+
   // Find the member behind a subscription invoice/event. Match on the most
   // precise key first (subscription id), then fall back to customer id.
   async function findMember({ sub, cust }) {
@@ -162,12 +172,21 @@ export async function onRequestPost({ request, env }) {
         const sub = invoiceSub(inv);
         const m = await findMember({ sub, cust: inv.customer });
         if (m) {
-          // Extend from the current expiry if it's still in the future, else from now.
-          const base =
-            m.expires_at && new Date(m.expires_at) > new Date()
-              ? new Date(m.expires_at)
-              : new Date();
-          base.setFullYear(base.getFullYear() + 1);
+          // Expire when the billed period ends, so a late or retried payment
+          // doesn't drift the expiry to paid-time + 1 year.
+          const periodEnd = invoicePeriodEnd(inv);
+          let base;
+          if (periodEnd !== null) {
+            base = new Date(periodEnd * 1000);
+          } else {
+            // No line period: extend from the current expiry if it's still in
+            // the future, else from now.
+            base =
+              m.expires_at && new Date(m.expires_at) > new Date()
+                ? new Date(m.expires_at)
+                : new Date();
+            base.setFullYear(base.getFullYear() + 1);
+          }
           await DB.update(
             'members',
             { id: m.id },
