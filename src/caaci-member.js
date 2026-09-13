@@ -1459,6 +1459,7 @@ async function drawCardPng({ name, tierName, until, qrPng }) {
 function renderMemberCard(host, { user, member, tierName }) {
   const until = member.expires_at ? new Date(member.expires_at).toLocaleDateString() : '';
   const cardName = member.full_name || user.email;
+  host.classList.add('mb-3'); // the gap below the card exists only with a card
   host.innerHTML = `
     <div class="card">
       <div class="card-header"><h3 class="card-title mb-0">${t('Digital membership card', '电子会员卡')}</h3></div>
@@ -1565,14 +1566,17 @@ function familyInviteParam() {
 
 const FAMILY_ROLES = ['founder', 'member', 'none'];
 const RELATIONSHIPS = ['head', 'spouse', 'child', 'parent', 'other'];
-const relLabel = (r) =>
-  ({
+// Own keys only, so "constructor" or "__proto__" from the server gets no label.
+const relLabel = (r) => {
+  const labels = {
     head: t('Head of household', '户主'),
     spouse: t('Spouse', '配偶'),
     child: t('Child', '子女'),
     parent: t('Parent', '父母'),
     other: t('Other', '其他'),
-  })[r] || '';
+  };
+  return Object.hasOwn(labels, r) ? labels[r] : '';
+};
 
 const STATUS_BADGE = {
   active: 'bg-success-lt',
@@ -1618,7 +1622,7 @@ function familySummary(fam, extra = '') {
     <h4 class="mb-2" data-fam-name>${esc(fam.household?.name || t('Your family', '你的家庭'))}</h4>
     <div class="datagrid mb-3">
       <div class="datagrid-item"><div class="datagrid-title">${t('Family plan', '家庭会员')}</div>
-        <div class="datagrid-content"><span class="badge ${STATUS_BADGE[plan.status] || 'bg-secondary-lt'}" data-fam-plan-status>${esc(statusLabel(plan.status, lang) || '—')}</span></div></div>
+        <div class="datagrid-content"><span class="badge ${Object.hasOwn(STATUS_BADGE, plan.status) ? STATUS_BADGE[plan.status] : 'bg-secondary-lt'}" data-fam-plan-status>${esc(statusLabel(plan.status, lang) || '—')}</span></div></div>
       <div class="datagrid-item"><div class="datagrid-title">${plan.status === 'active' ? t('Valid through', '有效期至') : t('Expires', '到期日期')}</div>
         <div class="datagrid-content">${fmtDate(plan.expires_at)}</div></div>
       ${extra}
@@ -1769,7 +1773,7 @@ async function familyRequest(body) {
 
 // The invite-by-email and add-a-person forms. Values typed by the member are
 // read back from the inputs, never interpolated here.
-function familyForms(full) {
+function familyForms(full, limit) {
   const dis = full ? ' disabled' : '';
   const relSelect = `<select class="form-select" name="relationship" aria-label="${t('Relationship', '关系')}"${dis}>
       <option value="">${t('Relationship (optional)', '关系（可选）')}</option>
@@ -1779,8 +1783,8 @@ function familyForms(full) {
     ${
       full
         ? `<div class="alert alert-warning" data-fam-full>${t(
-            'Family is full (3 people). Remove someone or cancel an invitation to add another person.',
-            '家庭已满（3 人）。请先移除成员或取消邀请，再添加其他人。',
+            `Family is full (${limit} people). Remove someone or cancel an invitation to add another person.`,
+            `家庭已满（${limit} 人）。请先移除成员或取消邀请，再添加其他人。`,
           )}</div>`
         : ''
     }
@@ -1850,7 +1854,10 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
         member: { ...member, expires_at: fam.plan.expires_at },
         tierName: tier ? tierText(tier, 'name') : t('Family Membership', '家庭会员'),
       });
-    } else if (!eligible && planCard) cardHost.innerHTML = '';
+    } else if (!eligible && planCard) {
+      cardHost.innerHTML = '';
+      cardHost.classList.remove('mb-3');
+    }
     planCard = eligible;
   };
 
@@ -2087,7 +2094,7 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
         )}
         ${familyPeople(Array.isArray(fam.people) ? fam.people : [], pendingInvites(fam))}
         ${familyPending(pendingInvites(fam))}
-        ${familyForms(full)}
+        ${familyForms(full, seats.limit)}
         <div class="border-top pt-3 mt-3">
           <button type="button" class="btn btn-danger" data-fam-dissolve>${t('Dissolve family', '解散家庭')}</button>
           <p class="text-secondary small mt-2 mb-0">${t(
@@ -2124,7 +2131,7 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
           '家庭会员最多包含 3 人（含你本人）。可以通过邮箱邀请家人，也可以添加没有账号的家人。',
         )}</p>
         <p>${t('People', '人数')}: <strong data-fam-seats>${seats.used} / ${seats.limit}</strong></p>
-        ${familyForms(full)}`;
+        ${familyForms(full, seats.limit)}`;
     }
     body.innerHTML = html;
     host.hidden = !html && note.hidden;
@@ -2337,7 +2344,7 @@ export async function wireAccountPage() {
         </div>
       </div>
       <div class="col-lg-6">
-        <div id="caaci-mcard-host" class="mb-3"></div>
+        <div id="caaci-mcard-host"></div>
         <div id="caaci-family-host" hidden></div>
       </div>
     </div>`;

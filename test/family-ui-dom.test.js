@@ -1224,3 +1224,106 @@ test('invitations for me: while one answer is in flight, every other Accept and 
     api.restore();
   }
 });
+
+// ---------- own-key lookups, the seat limit in copy, card spacing ----------
+test('family founder: prototype keys as relationship or plan status get no label and the neutral badge', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(
+    founderFam({
+      plan: { tier_id: 'family', status: 'toString', expires_at: '2027-03-01T00:00:00Z' },
+      people: [P_FOUNDER, { ...P_CHILD, relationship: 'constructor' }],
+      invites: [{ ...INV_DAD, relationship: '__proto__' }],
+    }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const fam = q('#caaci-family-host');
+    assert.equal(fam.hidden, false);
+    const badge = q('[data-fam-plan-status]');
+    assert.equal(badge.className, 'badge bg-secondary-lt');
+    assert.equal(badge.textContent, 'toString');
+    assert.doesNotMatch(fam.textContent, /function|native code|\[object/);
+    assert.match(qa('[data-fam-person]')[1].textContent, /Baby Lin\s+Not linked/);
+    assert.match(q('[data-fam-pending]').textContent, /dad@x\.com · Lao Lin\s+Sent/);
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: the full-family alert names the seat limit the server sent', async () => {
+  const fam = founderFam({
+    seats: { used: 4, limit: 4 },
+    people: [P_FOUNDER, P_SPOUSE, P_CHILD, { ...P_CHILD, id: 'p4', full_name: 'Kid Two' }],
+  });
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  let api = familyApi(fam);
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.match(q('[data-fam-full]').textContent, /Family is full \(4 people\)/);
+  } finally {
+    api.restore();
+  }
+
+  setup();
+  member.__setLang('zh');
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  api = familyApi(fam);
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.match(q('[data-fam-full]').textContent, /家庭已满（4 人）/);
+  } finally {
+    api.restore();
+    member.__setLang('en');
+  }
+});
+
+test('membership card: the card host has its bottom gap only while a card is shown', async () => {
+  const gap = () => q('#caaci-mcard-host').classList.contains('mb-3');
+  setup();
+  member.__setSupa(supaStub({ memberRow: PLAIN_ROW }));
+  let api = familyApi(NONE);
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.equal(q('.caaci-mcard2'), null);
+    assert.equal(gap(), false, 'no card, no gap');
+  } finally {
+    api.restore();
+  }
+
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  api = familyApi(NONE);
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.ok(q('.caaci-mcard2'));
+    assert.equal(gap(), true, 'own card');
+  } finally {
+    api.restore();
+  }
+
+  setup();
+  member.__setSupa(supaStub({ memberRow: PLAIN_ROW }));
+  api = familyApi(memberFam(), (body, state) => {
+    state.fam = NONE;
+    return { body: { ok: true } };
+  });
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.ok(q('.caaci-mcard2'));
+    assert.equal(gap(), true, 'family plan card');
+    q('[data-fam-leave]').click();
+    await settle();
+    assert.equal(q('.caaci-mcard2'), null);
+    assert.equal(gap(), false, 'card gone after leaving, gap too');
+  } finally {
+    api.restore();
+  }
+});
