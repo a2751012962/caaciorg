@@ -1330,3 +1330,24 @@ test('membership checkout: closing the modal stops the reset countdown, even mid
     timers.restore();
   }
 });
+
+test('account page: a dead non-reset link asks visitors to sign in, but points a signed-in member to Account security', async () => {
+  setup('account', { hash: `#${EXPIRED}` });
+  member.__setSupa(supaStub({ user: null }));
+  await member.wireAccountPage();
+  let rec = q('#caaci-recovery-host');
+  assert.match(rec.textContent, /Sign in to continue/);
+  assert.ok(rec.querySelector('a[href="/login-3/"]'));
+  assert.equal(rec.querySelector('a[href="#caaci-security"]'), null);
+
+  setup('account', { hash: `#${EXPIRED}` });
+  member.__setSupa(supaStub({ user: EMAIL_USER, memberRow: { id: 'u1' } }));
+  await member.wireAccountPage();
+  rec = q('#caaci-recovery-host');
+  assert.match(rec.textContent, /This link no longer works/);
+  assert.doesNotMatch(rec.textContent, /sign in/i, 'they are already signed in');
+  assert.match(rec.textContent, /request the change again under Account security/);
+  assert.ok(rec.querySelector('a[href="#caaci-security"]'));
+  assert.equal(rec.querySelector('a[href="/login-3/"]'), null);
+  assert.ok(q('#caaci-security'), 'the account still renders below');
+});
