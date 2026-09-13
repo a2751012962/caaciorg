@@ -148,6 +148,18 @@ for (const [src, route, event] of [
   }
   await writeFile(join(DIST, route, 'index.html'), page);
 }
+// Cloudflare Pages rules, applied before static assets. Status 200 on a
+// same-site path is a rewrite: /event-register/ is served while the address bar
+// keeps /events/<slug>/register/, which is where the page reads its slug from.
+// Both spellings, since the link may be shared with or without the slash.
+await writeFile(
+  join(DIST, '_redirects'),
+  [
+    '/events/:slug/register /event-register/ 200',
+    '/events/:slug/register/ /event-register/ 200',
+    '',
+  ].join('\n'),
+);
 
 // The mirror layer needs no Supabase client or runtime config any more: it wires
 // the contact form, the donation checkout and accessibility fixes, all of which
