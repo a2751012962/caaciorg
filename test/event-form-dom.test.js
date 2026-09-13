@@ -218,6 +218,43 @@ test('event form: checks answers before sending, keeps the button busy, and show
   }
 });
 
+test('event form: the honeypot has a name autofill ignores, and an ok without a registration time is not shown as success', async () => {
+  setup();
+  member.__setSupa(supaWith(null));
+  // What the API answers a filled honeypot: ok, but nothing was saved.
+  const fetch = stubApi({ post: () => ({ body: { ok: true } }) });
+  try {
+    await member.wireEventFormPage();
+    const hidden = q('#caaci-ev-form').querySelectorAll('input.visually-hidden');
+    assert.equal(hidden.length, 1, 'one honeypot');
+    const [hp] = hidden;
+    assert.equal(hp.id, 'caaci_hp_field');
+    assert.equal(hp.name, 'caaci_hp_field');
+    // Nothing an autofill heuristic or password manager maps to an identity field.
+    assert.doesNotMatch(
+      `${hp.id} ${hp.name}`,
+      /web|site|url|name|mail|phone|tel|addr|company|org|city|zip/i,
+    );
+    assert.equal(hp.getAttribute('tabindex'), '-1');
+    assert.equal(hp.getAttribute('autocomplete'), 'off');
+    assert.equal(hp.getAttribute('aria-hidden'), 'true');
+
+    fillForm();
+    hp.value = 'https://bot.example';
+    await submit();
+    assert.equal(JSON.parse(posts(fetch)[0].options.body)._hp, 'https://bot.example');
+    const note = q('#caaci-ev-notice');
+    assert.equal(note.hidden, false);
+    assert.ok(note.classList.contains('alert-danger'));
+    assert.match(note.textContent, /could not confirm your registration/i);
+    assert.equal(q('#caaci-ev-done').hidden, true, 'no "You\'re registered" for an unsaved answer');
+    assert.equal(q('#caaci-ev-form-card').hidden, false);
+    assert.equal(q('#caaci-ev-submit').disabled, false);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('event form: a resubmission says the answers were updated and shows the original time', async () => {
   setup();
   member.__setSupa(supaWith(null));
@@ -338,6 +375,77 @@ test('event form: signed in but registered under another email, the mooncake ste
     q('#caaci-ev-login').click();
     await tick();
     assert.equal(signOuts.length, 2);
+    assert.equal(location.href, '/login-3/?next=%2Fmid_autumn_festival_form%2F');
+  } finally {
+    fetch.restore();
+  }
+});
+
+// Signed in as mei@x.com, registered as family@x.com: the success state offers
+// signup, which signs out first. `auth` overrides methods on the stub.
+async function registeredUnderAnotherEmail(auth) {
+  setup();
+  const supa = supaWith(USER); // getSession keeps answering with the session
+  Object.assign(supa.auth, auth);
+  member.__setSupa(supa);
+  const fetch = stubApi({
+    get: () => ({
+      body: { event: EVENT, signed_in: true, email: 'mei@x.com', registration: null },
+    }),
+    post: () => POST_OK({ signed_in: true, linked: false }),
+  });
+  await member.wireEventFormPage();
+  fillForm({ email: 'family@x.com' });
+  await submit();
+  return fetch;
+}
+// Settles pending promises without setTimeout, which the test below mocks.
+const flush = async () => {
+  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+};
+
+test('event form: a sign-out that never settles still clears the stored session, locally, before going to login', async (t) => {
+  const signOutArgs = [];
+  const fetch = await registeredUnderAnotherEmail({
+    storageKey: 'sb-test-auth-token',
+    signOut: (...args) => {
+      signOutArgs.push(args);
+      return new Promise(() => {}); // the logout request hangs
+    },
+  });
+  try {
+    localStorage.setItem('sb-test-auth-token', '{"access_token":"tok"}');
+    localStorage.setItem('unrelated-key', 'kept');
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+
+    q('#caaci-ev-signup').click();
+    await flush();
+    assert.deepEqual(signOutArgs, [[{ scope: 'local' }]], 'this device only');
+    assert.equal(location.href, '', 'still waiting on the sign-out');
+
+    t.mock.timers.tick(3500);
+    await flush();
+    assert.equal(localStorage.getItem('sb-test-auth-token'), null, 'the stored session is gone');
+    assert.equal(localStorage.getItem('unrelated-key'), 'kept');
+    assert.equal(location.href, '/login-3/?signup=1&next=%2Fmid_autumn_festival_form%2F');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event form: a sign-out that fails leaves no session behind, found by key pattern when the client names none', async () => {
+  const fetch = await registeredUnderAnotherEmail({
+    signOut: async () => ({
+      error: { name: 'AuthRetryableFetchError', message: 'Failed to fetch' },
+    }),
+  });
+  try {
+    localStorage.setItem('sb-abcdef-auth-token', '{"access_token":"tok"}');
+    localStorage.setItem('sb-abcdef-auth-token-code-verifier', 'kept');
+    q('#caaci-ev-login').click();
+    await tick();
+    assert.equal(localStorage.getItem('sb-abcdef-auth-token'), null);
+    assert.equal(localStorage.getItem('sb-abcdef-auth-token-code-verifier'), 'kept');
     assert.equal(location.href, '/login-3/?next=%2Fmid_autumn_festival_form%2F');
   } finally {
     fetch.restore();

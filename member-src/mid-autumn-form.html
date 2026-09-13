@@ -337,11 +337,13 @@
               </fieldset>
 
               <!-- Honeypot: invisible to people and skipped by the keyboard, so only a
-                   bot fills it; the API then answers ok without saving anything. -->
+                   bot fills it; the API then answers ok without saving anything. Its
+                   name means nothing to browser autofill or a password manager (a
+                   "website" field would get a real visitor's URL filled in). -->
               <input
                 type="text"
-                id="caaci-ev-hp"
-                name="website"
+                id="caaci_hp_field"
+                name="caaci_hp_field"
                 class="visually-hidden"
                 tabindex="-1"
                 autocomplete="off"

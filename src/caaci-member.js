@@ -1943,15 +1943,44 @@ export async function wireEventFormPage() {
     return title;
   };
 
+  // supabase-js keeps the stored session when the logout request fails, and a
+  // hung request is only abandoned by the timeout below; either way /login-3/
+  // would still find it. So if a session is still there — or getSession does
+  // not answer in time to say otherwise — delete it from storage ourselves.
+  // Removing a key that is already gone is harmless.
+  const dropStoredSession = async () => {
+    const stillSignedIn = await withTimeout(
+      Promise.resolve()
+        .then(() => supa.auth.getSession())
+        .then(({ data } = {}) => !!data?.session),
+      1000,
+      true,
+    ).catch(() => true);
+    if (!stillSignedIn) return;
+    try {
+      const key = supa.auth.storageKey;
+      const keys = key
+        ? [key]
+        : [...Array(localStorage.length).keys()]
+            .map((i) => localStorage.key(i))
+            .filter((k) => /^sb-.+-auth-token$/.test(k || ''));
+      for (const k of keys) localStorage.removeItem(k);
+    } catch {
+      /* storage blocked — nothing more we can do */
+    }
+  };
+
   // The login page sends a signed-in visitor straight back to ?next=, so
-  // someone who registered under another address is signed out on the way.
+  // someone who registered under another address is signed out on the way —
+  // on this device only; the default scope would end their other sessions too.
   const goToLogin = async (path) => {
     if (signOutFirst && supa) {
       try {
-        await withTimeout(supa.auth.signOut(), 3500, null);
+        await withTimeout(supa.auth.signOut({ scope: 'local' }), 3500, null);
       } catch {
-        /* go anyway */
+        /* checked below */
       }
+      await dropStoredSession();
     }
     location.href = path;
   };
@@ -1989,7 +2018,7 @@ export async function wireEventFormPage() {
       heard_from: heardFrom,
       heard_from_other: heardFrom === 'other' ? otherEl.value.trim() : '',
       wants_meal: choice('wants_meal'),
-      _hp: $('#caaci-ev-hp').value,
+      _hp: $('#caaci_hp_field').value,
     };
     // The API checks all of this again; asking here saves a round trip on a phone.
     const stop = (msg, field) => {
@@ -2015,6 +2044,18 @@ export async function wireEventFormPage() {
       return notice(
         note,
         data.error || t('Could not submit — please try again.', '提交失败，请重试。'),
+        false,
+      );
+    // A saved registration always has a time. An ok without one saved nothing
+    // (the honeypot answer, or a response we do not understand), so "You're
+    // registered" would be a lie.
+    if (!data.registered_at)
+      return notice(
+        note,
+        t(
+          'We could not confirm your registration. Please try again.',
+          '未能确认您的报名，请重试。',
+        ),
         false,
       );
     registeredEmail = body.email;
