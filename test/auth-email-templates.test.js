@@ -106,6 +106,55 @@ test('every image is served from Supabase Storage', async () => {
   }
 });
 
+// invite.html is also the admin "Send invitation" email and magic_link.html every
+// ordinary sign-in email, so the family line must live entirely inside one
+// {{ if .Data.family_invite_from }} branch. GoTrue renders .Data from the
+// user's user_metadata with html/template, which escapes the inserted value.
+const FAMILY_BLOCK = /\{\{\s*if\s+\.Data\.family_invite_from\s*\}\}([\s\S]*?)\{\{\s*end\s*\}\}/g;
+
+// Just enough of Go's template semantics for this one branch and variable.
+const renderFamily = (html, from) =>
+  html
+    .replace(FAMILY_BLOCK, (_, inner) => (from ? inner : ''))
+    .replace(/\{\{\s*\.Data\.family_invite_from\s*\}\}/g, from || '');
+
+for (const type of ['invite', 'magic_link']) {
+  test(`${type}.html: the family-invitation line sits entirely inside one if-block`, async () => {
+    const html = await read(`${type}.html`);
+    const blocks = [...html.matchAll(FAMILY_BLOCK)];
+    assert.equal(blocks.length, 1, `${type}.html should have exactly one family block`);
+    const inner = blocks[0][1];
+    // A nested action would make the non-greedy match end at the wrong {{ end }}.
+    assert.doesNotMatch(inner, /\{\{\s*(if|else|range|with|end)\b/);
+    assert.match(inner, /\{\{\s*\.Data\.family_invite_from\s*\}\}/);
+    assert.match(inner, /家庭会员/);
+    assert.match(inner, /family membership/);
+    const outside = html.replace(FAMILY_BLOCK, '');
+    // (`font-family` in the inline styles is fine; the invitation wording is not.)
+    assert.doesNotMatch(outside, /family_invite_from|家庭|family membership/i);
+  });
+
+  test(`${type}.html: renders the founder email only when family data is present`, async () => {
+    const html = await read(`${type}.html`);
+    const plain = renderFamily(html, '');
+    assert.doesNotMatch(plain, /家庭会员|family membership|\{\{\s*if\b/);
+    assert.match(plain, /\{\{\s*\.ConfirmationURL\s*\}\}/);
+    const family = renderFamily(html, 'founder@x.com');
+    assert.match(family, /founder@x\.com<\/strong> 邀请你加入 TA 在 CAACI 的家庭会员/);
+    assert.match(
+      family,
+      /founder@x\.com<\/strong> invited you to join their CAACI family membership/,
+    );
+    assert.match(family, /\{\{\s*\.ConfirmationURL\s*\}\}/);
+  });
+}
+
+test('only the invite and magic-link templates mention the family invitation', async () => {
+  for (const type of TYPES.filter((t) => !['invite', 'magic_link'].includes(t))) {
+    assert.doesNotMatch(await read(`${type}.html`), /family_invite_from/, type);
+  }
+});
+
 // ---------------------------------------------------------------- PATCH body
 
 test('the PATCH body has every subject and template, the exact SMTP settings, and no smtp_pass', async () => {

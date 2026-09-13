@@ -123,13 +123,18 @@ export function authAdmin(env) {
   // rate limit or an already-registered refusal into a readable answer. GoTrue
   // reads redirect_to from the query string; `code` covers both error shapes
   // ({ error_code, msg } and the newer { code: '<string>', message }).
-  const sendAuthEmail = async (path, email, redirectTo) => {
+  // `extra` adds body fields (/invite's `data`, /otp's `create_user`); a successful
+  // answer's JSON (the invited user, for /invite) comes back as `body`.
+  const sendAuthEmail = async (path, email, redirectTo, extra = {}) => {
     const r = await fetch(`${base}/auth/v1/${path}?redirect_to=${encodeURIComponent(redirectTo)}`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, ...extra }),
     });
-    if (r.ok) return { ok: true, status: r.status, code: '', message: '' };
+    if (r.ok) {
+      const body = await r.json().catch(() => null);
+      return { ok: true, status: r.status, code: '', message: '', body };
+    }
     // `|| {}`: a JSON `null` body parses fine but has no properties to read.
     const data = (await r.json().catch(() => null)) || {};
     const code = data.error_code || (typeof data.code === 'string' ? data.code : '');
@@ -144,7 +149,41 @@ export function authAdmin(env) {
       return r.json();
     },
     sendRecovery: (email, redirectTo) => sendAuthEmail('recover', email, redirectTo),
-    sendInvite: (email, redirectTo) => sendAuthEmail('invite', email, redirectTo),
+    // GoTrue stores `data` as user_metadata only when it CREATES the user; for an
+    // existing unconfirmed user it re-sends the invite without touching metadata.
+    sendInvite: (email, redirectTo, data) =>
+      sendAuthEmail('invite', email, redirectTo, data ? { data } : {}),
+    // Magic Link email for an EXISTING confirmed user. create_user:false makes
+    // GoTrue refuse (422 otp_disabled) rather than sign a stranger up; an
+    // unconfirmed user would get the signup confirmation email instead.
+    sendMagicLink: (email, redirectTo) =>
+      sendAuthEmail('otp', email, redirectTo, { create_user: false }),
+    // The auth user whose login email is exactly `email` (case-insensitive), or
+    // null. GoTrue's `filter` is a substring LIKE on email, so match exactly here.
+    async findUserByEmail(email) {
+      const target = String(email || '')
+        .trim()
+        .toLowerCase();
+      if (!target) return null;
+      const r = await fetch(
+        `${base}/auth/v1/admin/users?filter=${encodeURIComponent(target)}&per_page=50`,
+        { headers },
+      );
+      if (!r.ok) throw new Error(`find user: ${r.status}`);
+      const data = await r.json();
+      const users = Array.isArray(data?.users) ? data.users : [];
+      return users.find((u) => String(u.email || '').toLowerCase() === target) || null;
+    },
+    // Merge keys into user_metadata. GoTrue merges (a null value deletes the
+    // key) rather than replacing the whole object, so other keys survive.
+    async updateUserMetadata(id, patch) {
+      const r = await fetch(`${base}/auth/v1/admin/users/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ user_metadata: patch }),
+      });
+      if (!r.ok) throw new Error(`update user: ${r.status}`);
+    },
     async createUser(attrs) {
       const r = await fetch(`${base}/auth/v1/admin/users`, {
         method: 'POST',

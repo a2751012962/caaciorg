@@ -10,6 +10,9 @@
 
   <h2 style="margin:0 0 8px;color:#300200;font-size:20px;">Your sign-in link</h2>
   <p style="margin:0 0 24px;">Click the button below to sign in to your CAACI account <strong>{{ .Email }}</strong>. This link expires shortly and can only be used once.</p>
+{{ if .Data.family_invite_from }}
+  <p style="margin:0 0 24px;"><strong>{{ .Data.family_invite_from }}</strong> 邀请你加入 TA 在 CAACI 的家庭会员。登录后即可接受邀请。<br><strong>{{ .Data.family_invite_from }}</strong> invited you to join their CAACI family membership. Sign in to accept.</p>
+{{ end }}
 
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;"><tr>
     <td bgcolor="#8e2e11" style="border-radius:4px;">
