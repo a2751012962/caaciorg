@@ -481,18 +481,32 @@ export async function wireAuthPage() {
   const suToggle = $('#caaci-show-signup');
   suToggle.setAttribute('aria-controls', 'caaci-signup-card');
   suToggle.setAttribute('aria-expanded', 'false');
-  suToggle.addEventListener('click', (e) => {
-    e.preventDefault();
+  const showSignup = (open) => {
     const card = $('#caaci-signup-card');
-    card.hidden = !card.hidden;
-    suToggle.setAttribute('aria-expanded', String(!card.hidden));
-    if (!card.hidden) {
-      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    card.hidden = !open;
+    suToggle.setAttribute('aria-expanded', String(open));
+    if (open) {
+      card.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
       // Move focus into the revealed form; otherwise a keyboard user is left
       // on the toggle and has to tab past the whole sign-in card to reach it.
       $('#caaci-su-name').focus({ preventScroll: true });
     }
+  };
+  suToggle.addEventListener('click', (e) => {
+    e.preventDefault();
+    showSignup($('#caaci-signup-card').hidden);
   });
+  // An event form's "Create a free account" lands here with ?signup=1 and the
+  // address it registered with in sessionStorage (never in the URL, where it
+  // would end up in logs and history). Read it once, then drop it.
+  try {
+    const handedOver = sessionStorage.getItem('caaci-signup-email');
+    if (handedOver) $('#caaci-su-email').value = handedOver;
+    sessionStorage.removeItem('caaci-signup-email');
+  } catch {
+    /* storage blocked — the visitor types the address */
+  }
+  if (new URLSearchParams(location.search || '').get('signup') === '1') showSignup(true);
 
   const suNote = $('#caaci-signup-notice');
   $('#caaci-signup-form').addEventListener('submit', async (e) => {
