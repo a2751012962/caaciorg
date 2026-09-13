@@ -217,34 +217,72 @@ account, so **nothing moves inside Stripe**. Customers, saved cards, subscriptio
 and payment history stay exactly where they are; members are never asked to
 re-enter a card. What has to happen is that Supabase learns about them.
 
-Take inventory first — read-only, safe against live mode, prints no PII:
+`migrate-members.mjs` does that from the Stripe history. Every MemberPress charge,
+PaymentIntent and subscription carries `memberpress_product` metadata, so the
+script finds everyone who ever paid for a membership and creates or updates their
+login and `members` row. Stripe is only read (GET). Run it from the repo root with
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env` and the live Stripe key in
+`../stripe-live.env` (an env-style file or a bare `sk_live_…` / `rk_live_…` key;
+`--stripe-env` wins over any `STRIPE_SECRET_KEY` in `.env`).
 
-```
-$env:STRIPE_SECRET_KEY='sk_live_…'; npm run stripe:audit
-$env:STRIPE_SECRET_KEY='sk_live_…'; npm run stripe:audit -- --csv=subscribers.csv
-```
+1. **Dry run** — reads everything, writes nothing. It prints the account id and
+   LIVE/TEST mode, then a masked table (`a***@example.com`, no names) with each
+   person's action, tier, status and expiry, plus every warning and skip reason:
 
-The CSV carries the two columns the cutover hinges on — `stripe_customer_id` and
-`stripe_subscription_id`. For each still-billing subscriber, create a Supabase
-`auth.users` row and a `members` row with those ids, `tier_id` mapped from the
-MemberPress price, `status='active'` and `expires_at = current_period_end`. From
-then on the renewal invoice lands on `/api/stripe-webhook`, which looks members up
-by exactly those two ids (`findMember` in `functions/api/stripe-webhook.js`) and
-extends the year automatically.
+   ```
+   node --env-file=.env migrate-members.mjs --stripe-env=../stripe-live.env
+   ```
 
-Three things to know before starting:
+   Add `--report=migrate-report.json` for the full plan with emails and names; it
+   is gitignored because it is a roster, so delete it when done. If a payer's email
+   is mistyped in Stripe (the table flags domains like `gmai.com`), add
+   `--fix-email=<typed>=<correct>` (repeatable) and the account is created, or
+   matched, under the corrected address.
 
-- **Existing subscribers keep their old price.** Their subscription still points at
-  the MemberPress Price object; this site's catalogue Prices apply only to _new_
-  joins. They re-price only when they change plan. Keep those Price and Product
-  objects — deleting them breaks live subscriptions.
+2. **Canary** — apply one or two people you can check by hand in `/admin/`:
+
+   ```
+   node --env-file=.env migrate-members.mjs --stripe-env=../stripe-live.env --only=<email>,<email> --apply
+   ```
+
+3. **Everyone**:
+
+   ```
+   node --env-file=.env migrate-members.mjs --stripe-env=../stripe-live.env --apply
+   ```
+
+   It stops at the first error and says how far it got. Re-running is safe:
+   people already written plan as `unchanged`. After writing, it reads the rows
+   back and prints how many match the plan.
+
+What the import does, and does not do:
+
+- **No email is sent.** Accounts are created already confirmed through the Auth
+  admin API — no invite, magic link, recovery or confirmation mail. Members set a
+  password or use a one-time code the next time they sign in.
+- **One-time payers** (MemberPress "for 1 Year") get `expires_at` = their last
+  membership payment + 1 year: `active` while that is in the future, `expired`
+  after. The tier comes from the latest payment's product; a change of product
+  over the years is listed as a warning.
+- **Subscribers keep their old MemberPress price.** Their row gets the
+  subscription and customer ids and `expires_at = current_period_end`. Each
+  renewal then lands on `/api/stripe-webhook`, which finds them by those ids
+  (`findMember`) and sets the expiry to the paid invoice's billing period end.
+  They re-price only when they change plan. Keep the MemberPress Price and
+  Product objects — deleting them breaks live subscriptions.
+- **Existing accounts are matched by email.** A free member who paid on the old
+  site is upgraded to the paid tier and keeps the earlier `member_since`.
+  `is_admin`, household, phone and notes are never touched. Honorary members,
+  anyone whose membership here already runs longer, and conflicting subscription
+  ids are skipped with a reason for a human to handle. Family plans need no
+  `households` row up front.
 - **Both webhooks fire during the overlap.** The MemberPress endpoint
   (`caaciorg.com/mepr/notify/…`) keeps updating WordPress while the new endpoint
   updates Supabase. That is fine, and it is the safe order: stand the new one up
   first, retire the old one only after DNS moves.
-- **Logins do not carry over.** `members.id` references `auth.users(id)`, so each
-  migrated member needs an auth user; invite them by magic link rather than
-  inventing passwords.
+
+For an aggregate, PII-free inventory of the account first, `npm run stripe:audit`
+still works.
 
 ## Post-deploy checklist (remaining go-live steps)
 
