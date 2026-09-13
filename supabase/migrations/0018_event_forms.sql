@@ -14,8 +14,10 @@
 --     new code never writes them, so attending loses its not-null.
 -- The Mid-Autumn event gets its four questions and its mooncake, and its
 -- existing registrations get their answers built from the legacy columns.
--- Both backfills are guarded (questions still null / answers still '{}' on a
--- legacy row), so nothing an admin or a registrant changed is overwritten.
+-- Both backfills are guarded (the event's questions and Chinese title still
+-- null / answers still '{}' on a legacy row), so pasting this again never
+-- overrides an admin — not even one who turned registrations off — or a
+-- registrant.
 --
 -- The code live when this is pasted keeps writing ONLY the legacy columns,
 -- with upserts that merge them into an existing row, until this release is
@@ -115,7 +117,7 @@ grant execute on function public.event_registration_legacy_answers(boolean, text
 -- The Mid-Autumn questions, worded as on /mid_autumn_festival_form/. Ids are
 -- stable: the answers below and every later registration refer to them.
 update public.events
-set title_zh = coalesce(title_zh, '中秋节'),
+set title_zh = '中秋节',
     perk_item_zh = coalesce(perk_item_zh, '月饼'),
     perk_item_en = coalesce(perk_item_en, 'mooncake'),
     registration_questions = $questions$[
@@ -143,7 +145,8 @@ set title_zh = coalesce(title_zh, '中秋节'),
        ], "other": false}
     ]$questions$::jsonb
 where slug = 'mid-autumn-festival'
-  and registration_questions is null;
+  and registration_questions is null
+  and title_zh is null;
 
 -- Existing Mid-Autumn rows the old code wrote (attending is never null there)
 -- that have no answers yet.

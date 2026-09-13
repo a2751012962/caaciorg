@@ -79,12 +79,17 @@ test('0018 keeps the live code working: attending loses not-null, no legacy colu
   );
 });
 
-test('0018 only fills in the Mid-Autumn event while its questions are still null', () => {
+test('0018 only fills in the Mid-Autumn event while its questions and Chinese title are still null', () => {
   const updates = STATEMENTS.filter((s) => s.startsWith('update public.events'));
   assert.equal(updates.length, 1);
   const [u] = updates;
-  assert.match(u, /where slug = 'mid-autumn-festival' and registration_questions is null$/);
-  assert.match(u, /title_zh = coalesce\(title_zh, '中秋节'\)/);
+  // title_zh is set by the first paste, so a later paste cannot reopen a form
+  // an admin turned off (registration_questions back to null).
+  assert.match(
+    u,
+    /where slug = 'mid-autumn-festival' and registration_questions is null and title_zh is null$/,
+  );
+  assert.match(u, /set title_zh = '中秋节',/);
   assert.match(u, /perk_item_zh = coalesce\(perk_item_zh, '月饼'\)/);
   assert.match(u, /perk_item_en = coalesce\(perk_item_en, 'mooncake'\)/);
 });
