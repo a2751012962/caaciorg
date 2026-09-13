@@ -1536,12 +1536,273 @@ async function loadEvents() {
   $('#caaci-ev-next').disabled = evOffset + EV_LIMIT >= evTotal;
 }
 
+// ---------- event registration questions (the editor's question builder) ----------
+// Questions are plain state: typing only updates it (so focus stays put) and each
+// structural change (add, remove, move, type) re-renders the list from it. Ids are
+// minted once and never derived from a label, so answers already stored under an
+// id keep matching after a relabel or a reorder. The limits mirror the API's
+// validateQuestions (functions/api/_event-form.js), which has the last word.
+const Q_TYPES = ['single', 'multi', 'text', 'textarea'];
+const CHOICE_TYPES = new Set(['single', 'multi']);
+const MAX_QUESTIONS = 30;
+const MAX_OPTIONS = 30;
+const MAX_LABEL = 200;
+const QUESTION_ID = /^[a-z0-9_]{1,40}$/;
+
+// `prefix` + 6 random [a-z0-9], not already in `taken`.
+function newQuestionId(prefix, taken) {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  for (;;) {
+    const rnd = crypto.getRandomValues(new Uint8Array(6));
+    const id = prefix + [...rnd].map((b) => chars[b % chars.length]).join('');
+    if (!taken.includes(id)) return id;
+  }
+}
+const blankOption = (q) => ({
+  id: newQuestionId(
+    'o_',
+    q.options.map((o) => o.id),
+  ),
+  label_en: '',
+  label_zh: '',
+});
+function blankQuestion(qs) {
+  const q = {
+    id: newQuestionId(
+      'q_',
+      qs.map((x) => x.id),
+    ),
+    type: 'single',
+    label_en: '',
+    label_zh: '',
+    required: false,
+    options: [],
+    other: false,
+  };
+  q.options.push(blankOption(q));
+  return q;
+}
+
+// Editable copy of an event's registration_questions (null → no questions yet).
+const questionState = (raw) =>
+  (Array.isArray(raw) ? raw : []).map((q) => ({
+    id: String(q?.id ?? ''),
+    type: Q_TYPES.includes(q?.type) ? q.type : 'text',
+    label_en: String(q?.label_en ?? ''),
+    label_zh: String(q?.label_zh ?? ''),
+    required: !!q?.required,
+    options: (Array.isArray(q?.options) ? q.options : []).map((o) => ({
+      id: String(o?.id ?? ''),
+      label_en: String(o?.label_en ?? ''),
+      label_zh: String(o?.label_zh ?? ''),
+    })),
+    other: !!q?.other,
+  }));
+
+// What the API stores: labels trimmed; options and `other` on choice questions only.
+// A text question keeps its options in the editor state, so switching the type
+// back restores them, but they are not sent.
+const questionsPayload = (qs) =>
+  qs.map((q) => ({
+    id: q.id,
+    type: q.type,
+    label_en: q.label_en.trim(),
+    label_zh: q.label_zh.trim(),
+    required: q.required,
+    ...(CHOICE_TYPES.has(q.type)
+      ? {
+          options: q.options.map((o) => ({
+            id: o.id,
+            label_en: o.label_en.trim(),
+            label_zh: o.label_zh.trim(),
+          })),
+          other: q.other,
+        }
+      : {}),
+  }));
+
+// The first problem with the questions, for the admin; null when they look valid.
+function questionsError(qs) {
+  if (qs.length > MAX_QUESTIONS)
+    return t(`Use at most ${MAX_QUESTIONS} questions.`, `最多只能有 ${MAX_QUESTIONS} 个问题。`);
+  const labelled = (x) =>
+    [x.label_en.trim(), x.label_zh.trim()].every((s) => s.length >= 1 && s.length <= MAX_LABEL);
+  const ids = new Set();
+  for (const [i, q] of qs.entries()) {
+    const n = i + 1;
+    if (!QUESTION_ID.test(q.id) || ids.has(q.id))
+      return t(
+        `Question ${n} has an invalid id. Remove it and add it again.`,
+        `问题 ${n} 的编号无效，请删除后重新添加。`,
+      );
+    ids.add(q.id);
+    if (!labelled(q))
+      return t(
+        `Question ${n}: enter the question in both English and Chinese (up to ${MAX_LABEL} characters).`,
+        `问题 ${n}：请用英文和中文填写问题（最多 ${MAX_LABEL} 个字符）。`,
+      );
+    if (!CHOICE_TYPES.has(q.type)) continue;
+    if (q.options.length < 1 || q.options.length > MAX_OPTIONS)
+      return t(
+        `Question ${n}: give it 1 to ${MAX_OPTIONS} options.`,
+        `问题 ${n}：请设置 1 到 ${MAX_OPTIONS} 个选项。`,
+      );
+    const optionIds = new Set();
+    for (const [j, o] of q.options.entries()) {
+      if (!QUESTION_ID.test(o.id) || optionIds.has(o.id))
+        return t(
+          `Question ${n}, option ${j + 1} has an invalid id. Remove it and add it again.`,
+          `问题 ${n} 的选项 ${j + 1} 编号无效，请删除后重新添加。`,
+        );
+      optionIds.add(o.id);
+      if (!labelled(o))
+        return t(
+          `Question ${n}, option ${j + 1}: enter the option in both English and Chinese (up to ${MAX_LABEL} characters).`,
+          `问题 ${n} 的选项 ${j + 1}：请用英文和中文填写选项（最多 ${MAX_LABEL} 个字符）。`,
+        );
+    }
+  }
+  return null;
+}
+
+function renderQuestionBuilder(host, qs) {
+  const typeName = {
+    single: t('One choice', '单选'),
+    multi: t('Several choices', '多选'),
+    text: t('Short text', '简短文字'),
+    textarea: t('Long text', '长文字'),
+  };
+  // A small move/remove button; `label` is its accessible name.
+  const tool = (act, symbol, label, disabled, tone = 'btn-ghost-secondary') =>
+    `<button type="button" class="btn btn-sm btn-icon ${tone}" data-act="${act}" aria-label="${label}" title="${label}"${disabled ? ' disabled' : ''}>${symbol}</button>`;
+  const optionRow = (q, o, j) => `
+    <div class="row g-2 align-items-center mb-2" data-o="${j}">
+      <div class="col-sm"><input type="text" class="form-control form-control-sm" data-of="label_en" maxlength="${MAX_LABEL}" value="${esc(o.label_en)}" placeholder="English" aria-label="${t(`Option ${j + 1} (English)`, `选项 ${j + 1}（英文）`)}"></div>
+      <div class="col-sm"><input type="text" class="form-control form-control-sm" data-of="label_zh" maxlength="${MAX_LABEL}" value="${esc(o.label_zh)}" placeholder="中文" aria-label="${t(`Option ${j + 1} (Chinese)`, `选项 ${j + 1}（中文）`)}"></div>
+      <div class="col-auto btn-list flex-nowrap">
+        ${tool('opt-up', '↑', t('Move option up', '上移选项'), j === 0)}
+        ${tool('opt-down', '↓', t('Move option down', '下移选项'), j === q.options.length - 1)}
+        ${tool('opt-remove', '×', t('Remove option', '删除选项'), false, 'btn-ghost-danger')}
+      </div>
+    </div>`;
+  const choices = (q) => `
+    <div class="mt-3">
+      <div class="form-label">${t('Options', '选项')}</div>
+      ${q.options.map((o, j) => optionRow(q, o, j)).join('')}
+      <div class="d-flex flex-wrap align-items-center gap-3">
+        <button type="button" class="btn btn-sm" data-act="opt-add"${q.options.length >= MAX_OPTIONS ? ' disabled' : ''}>${t('+ Add option', '+ 添加选项')}</button>
+        <label class="form-check mb-0"><input type="checkbox" class="form-check-input" data-qf="other"${q.other ? ' checked' : ''} />
+          <span class="form-check-label">${t('Allow “Other” with a text box', '允许选“其他”并填写文字')}</span></label>
+      </div>
+    </div>`;
+  const card = (q, i) => `
+    <div class="card card-sm mb-2" data-q="${i}">
+      <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+          <span class="badge bg-secondary-lt">${t(`Question ${i + 1}`, `问题 ${i + 1}`)}</span>
+          <select class="form-select form-select-sm w-auto" data-qf="type" aria-label="${t('Answer type', '答题类型')}">
+            ${Q_TYPES.map((ty) => `<option value="${ty}"${ty === q.type ? ' selected' : ''}>${typeName[ty]}</option>`).join('')}
+          </select>
+          <label class="form-check mb-0"><input type="checkbox" class="form-check-input" data-qf="required"${q.required ? ' checked' : ''} />
+            <span class="form-check-label">${t('Required', '必填')}</span></label>
+          <div class="btn-list flex-nowrap ms-auto">
+            ${tool('q-up', '↑', t('Move question up', '上移问题'), i === 0)}
+            ${tool('q-down', '↓', t('Move question down', '下移问题'), i === qs.length - 1)}
+            ${tool('q-remove', '×', t('Remove question', '删除问题'), false, 'btn-ghost-danger')}
+          </div>
+        </div>
+        <div class="row g-2">
+          ${field(t('Question (English)', '问题（英文）'), `<input type="text" class="form-control" data-qf="label_en" maxlength="${MAX_LABEL}" value="${esc(q.label_en)}">`, 'col-md-6')}
+          ${field(t('Question (Chinese)', '问题（中文）'), `<input type="text" class="form-control" data-qf="label_zh" maxlength="${MAX_LABEL}" value="${esc(q.label_zh)}">`, 'col-md-6')}
+        </div>
+        ${CHOICE_TYPES.has(q.type) ? choices(q) : ''}
+      </div>
+    </div>`;
+  host.innerHTML = `
+    ${qs.length ? qs.map(card).join('') : `<p class="text-secondary">${t('No questions yet: the form asks only for an email address.', '暂无问题：表单只收集邮箱地址。')}</p>`}
+    <button type="button" class="btn btn-sm" data-act="q-add"${qs.length >= MAX_QUESTIONS ? ' disabled' : ''}>${t('+ Add question', '+ 添加问题')}</button>`;
+}
+
+// One set of listeners on the builder host; `qs` is mutated in place.
+function wireQuestionBuilder(host, qs) {
+  const render = (focus) => {
+    renderQuestionBuilder(host, qs);
+    if (focus) host.querySelector(focus)?.focus();
+  };
+  const at = (el) => {
+    const card = el.closest('[data-q]');
+    const row = el.closest('[data-o]');
+    return { qi: card ? Number(card.dataset.q) : -1, oi: row ? Number(row.dataset.o) : -1 };
+  };
+  // Moves list[from] to list[to]; false when `to` is out of range.
+  const move = (list, from, to) => {
+    if (to < 0 || to >= list.length) return false;
+    list.splice(to, 0, list.splice(from, 1)[0]);
+    return true;
+  };
+  host.addEventListener('input', (e) => {
+    const { qi, oi } = at(e.target);
+    const q = qs[qi];
+    if (!q) return;
+    const { qf, of: optionKey } = e.target.dataset;
+    if (optionKey && q.options[oi]) q.options[oi][optionKey] = e.target.value;
+    else if (qf === 'label_en' || qf === 'label_zh') q[qf] = e.target.value;
+  });
+  host.addEventListener('change', (e) => {
+    const { qi } = at(e.target);
+    const q = qs[qi];
+    if (!q) return;
+    const { qf } = e.target.dataset;
+    if (qf === 'required' || qf === 'other') q[qf] = e.target.checked;
+    if (qf !== 'type') return;
+    q.type = e.target.value;
+    if (CHOICE_TYPES.has(q.type) && !q.options.length) q.options.push(blankOption(q));
+    render(`[data-q="${qi}"] [data-qf="type"]`);
+  });
+  host.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const { qi, oi } = at(btn);
+    const q = qs[qi];
+    let focus = null;
+    if (act === 'q-add') {
+      if (qs.length >= MAX_QUESTIONS) return;
+      qs.push(blankQuestion(qs));
+      focus = `[data-q="${qs.length - 1}"] [data-qf="label_en"]`;
+    } else if (act === 'q-up' || act === 'q-down') {
+      const to = act === 'q-up' ? qi - 1 : qi + 1;
+      if (!move(qs, qi, to)) return;
+      focus = `[data-q="${to}"] [data-act="${act}"]`;
+    } else if (act === 'q-remove') {
+      qs.splice(qi, 1);
+    } else if (act === 'opt-add') {
+      if (q.options.length >= MAX_OPTIONS) return;
+      q.options.push(blankOption(q));
+      focus = `[data-q="${qi}"] [data-o="${q.options.length - 1}"] [data-of="label_en"]`;
+    } else if (act === 'opt-up' || act === 'opt-down') {
+      const to = act === 'opt-up' ? oi - 1 : oi + 1;
+      if (!move(q.options, oi, to)) return;
+      focus = `[data-q="${qi}"] [data-o="${to}"] [data-act="${act}"]`;
+    } else if (act === 'opt-remove') {
+      q.options.splice(oi, 1);
+    } else {
+      return;
+    }
+    render(focus);
+  });
+  render();
+}
+
 function eventForm(host, ev) {
   if (host.firstChild) {
     host.innerHTML = '';
     if (ev === undefined) return; // toggle: + New event closes an open form
   }
   const edit = !!ev;
+  // null registration_questions = the event takes no registrations.
+  const accepting = edit && Array.isArray(ev.registration_questions);
+  const regCount = (edit && Number(ev.registration_count)) || 0;
   host.innerHTML = `
     <form class="card card-body mb-3">
       <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
@@ -1558,6 +1819,14 @@ function eventForm(host, ev) {
       ${field(t('Description', '描述'), `<textarea class="form-control" data-f="description" rows="3">${edit ? esc(ev.description || '') : ''}</textarea>`, 'mb-3')}
       <label class="form-check"><input type="checkbox" class="form-check-input" data-f="published"${!edit || ev.published ? ' checked' : ''} />
         <span class="form-check-label">${t('Published (publicly visible)', '发布（公开可见）')}</span></label>
+      <div class="border-top pt-3 mb-3">
+        <div class="subheader mb-2">${t('Registration', '报名')}</div>
+        <label class="form-check form-switch"><input type="checkbox" class="form-check-input" data-f="accept_registrations"${accepting ? ' checked' : ''} />
+          <span class="form-check-label">${t('Accept registrations', '接受报名')}</span></label>
+        <p class="form-hint">${t('While the event is published and has not ended, people can register on its registration page. Email is always asked; add any other questions below.', '活动发布后、结束前，大家可以在活动报名页报名。报名表始终收集邮箱；其他问题请在下方添加。')}</p>
+        ${regCount ? `<div class="alert alert-warning" data-reg-count>${t(`${regCount} registration(s) so far. Changing the questions does not change the answers already given.`, `目前已有 ${regCount} 人报名。修改问题不会改变已提交的答案。`)}</div>` : ''}
+        <div data-questions${accepting ? '' : ' hidden'}></div>
+      </div>
       <p>
         <button type="submit" class="btn btn-primary">${edit ? t('Save', '保存') : t('Create event', '创建活动')}</button>
         <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
@@ -1567,6 +1836,12 @@ function eventForm(host, ev) {
   const form = host.querySelector('form');
   const msg = form.querySelector('[data-msg]');
   wireImageField(form);
+  const questions = questionState(edit ? ev.registration_questions : null);
+  const questionsHost = form.querySelector('[data-questions]');
+  wireQuestionBuilder(questionsHost, questions);
+  form.querySelector('[data-f="accept_registrations"]').addEventListener('change', (e) => {
+    questionsHost.hidden = !e.target.checked; // the questions are kept while it is off
+  });
   form.querySelector('[data-act="cancel"]').addEventListener('click', () => {
     host.innerHTML = '';
   });
@@ -1602,6 +1877,27 @@ function eventForm(host, ev) {
         ),
         false,
       );
+    // Switched off → null: no registration page, and the public API answers 404.
+    const open = val('accept_registrations').checked;
+    if (open) {
+      const problem = questionsError(questions);
+      if (problem) return notice(msg, problem, false);
+    }
+    body.registration_questions = open ? questionsPayload(questions) : null;
+    // Stored answers are keyed by question and option id and are never rewritten,
+    // so check before changing the form under people who already registered.
+    const saved = accepting ? questionsPayload(questionState(ev.registration_questions)) : null;
+    if (
+      regCount > 0 &&
+      JSON.stringify(body.registration_questions) !== JSON.stringify(saved) &&
+      !window.confirm(
+        t(
+          `${regCount} people have already registered for this event. Their answers stay as they are, so answers to changed or removed questions and options may no longer match the form. Save the new questions?`,
+          `已有 ${regCount} 人报名此活动。已提交的答案不会随之修改，修改或删除的问题和选项可能与已有答案对不上。确定保存新的问题吗？`,
+        ),
+      )
+    )
+      return;
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
     const { ok, data } = edit
