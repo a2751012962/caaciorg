@@ -3,8 +3,8 @@
 // Checkout uses inline `price_data`, so there is nothing to create in Stripe's
 // product catalogue. "Connecting" is exactly three things:
 //   1. a secret key belonging to the right account,
-//   2. a webhook endpoint on /api/stripe-webhook subscribed to the four events
-//      functions/api/stripe-webhook.js actually handles,
+//   2. a webhook endpoint on /api/stripe-webhook subscribed to exactly the events
+//      functions/api/stripe-webhook.js handles,
 //   3. an active Billing Portal configuration, because /api/portal mints portal
 //      sessions without naming one and Stripe then requires a default.
 //
@@ -27,6 +27,7 @@ export const WEBHOOK_EVENTS = [
   'invoice.paid',
   'invoice.payment_failed',
   'customer.subscription.deleted',
+  'charge.refunded',
 ];
 
 export const DEFAULT_SITE_URL = 'https://caaci.pages.dev';

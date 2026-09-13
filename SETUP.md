@@ -100,6 +100,10 @@ npm run stripe:catalog -- --apply   # create / re-price
    - `invoice.paid` — renewal: extends the membership another year
    - `invoice.payment_failed` — flags the member `past_due`
    - `customer.subscription.deleted` — flags the member `cancelled`
+   - `charge.refunded` — writes the charge's refunded total onto its `payments` row,
+     so a refund issued in the Stripe Dashboard shows on the Payments / Refunds tabs
+     just like one issued from the admin panel. An existing endpoint picks the new
+     event up on the next `stripe:connect -- --apply` (repaired in place, same secret).
 
    It also creates a Billing Portal configuration if the account has none —
    `/api/portal` mints portal sessions without naming one, so Stripe needs an

@@ -16,20 +16,31 @@ const STRIPE_REASONS = new Set(['duplicate', 'fraudulent', 'requested_by_custome
 // A Stripe field is sometimes a string id, sometimes an expanded object.
 const idOf = (v) => (v && typeof v === 'object' ? v.id : v) || null;
 
+// The payment_intent/charge that paid an invoice.
+async function fromInvoice(S, invoiceId) {
+  const inv = await S.get(`invoices/${invoiceId}`);
+  const pi = idOf(inv.payment_intent);
+  if (pi) return { payment_intent: pi };
+  const ch = idOf(inv.charge);
+  return ch ? { charge: ch } : null;
+}
+
 // Find the charge/payment_intent behind a ledger row so it can be refunded.
+// A first-year membership row stores its Checkout Session. Stripe sets a
+// session's payment_intent only in payment mode; a subscription-mode session
+// was paid through the invoice it created, so resolve that invoice instead.
 async function resolveTarget(S, payment) {
   if (payment.stripe_session_id) {
     const s = await S.get(`checkout/sessions/${payment.stripe_session_id}`);
     const pi = idOf(s.payment_intent);
     if (pi) return { payment_intent: pi };
+    const inv = idOf(s.invoice);
+    if (inv) {
+      const target = await fromInvoice(S, inv);
+      if (target) return target;
+    }
   }
-  if (payment.stripe_invoice_id) {
-    const inv = await S.get(`invoices/${payment.stripe_invoice_id}`);
-    const pi = idOf(inv.payment_intent);
-    if (pi) return { payment_intent: pi };
-    const ch = idOf(inv.charge);
-    if (ch) return { charge: ch };
-  }
+  if (payment.stripe_invoice_id) return fromInvoice(S, payment.stripe_invoice_id);
   return null;
 }
 
