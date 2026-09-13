@@ -166,7 +166,7 @@ test('validateAnswers: normalizes — trims text, drops unknown questions, empti
     answers: {
       attending: { option: 'no' },
       heard: { other: 'a poster' },
-      food: { options: ['a', 'c'], other: '' },
+      food: { options: ['a', 'c'] },
       names: 'Pat Lee',
     },
   });
@@ -186,15 +186,41 @@ test('validateAnswers: unanswered optional questions are simply absent', () => {
   }
 });
 
-test('validateAnswers: choosing Other with nothing typed still answers the question', () => {
-  const required = validateQuestions([q({ id: 'heard', required: true, other: true })]).questions;
-  assert.deepEqual(validateAnswers(required, { heard: { other: '' } }), {
-    answers: { heard: { other: '' } },
-  });
+test('validateAnswers: Other with nothing typed does not answer a required question', () => {
+  const single = validateQuestions([q({ id: 'heard', required: true, other: true })]).questions;
+  for (const other of ['', '   ', '\n\t']) {
+    assert.deepEqual(
+      validateAnswers(single, { heard: { other } }),
+      { error: 'Answer the question: Pick one' },
+      JSON.stringify(other),
+    );
+  }
   const multi = validateQuestions([q({ type: 'multi', required: true, other: true })]).questions;
-  assert.deepEqual(validateAnswers(multi, { q1: { other: '' } }), {
-    answers: { q1: { options: [], other: '' } },
-  });
+  for (const answer of [{ other: '' }, { options: [], other: '  ' }]) {
+    assert.deepEqual(
+      validateAnswers(multi, { q1: answer }),
+      { error: 'Answer the question: Pick one' },
+      JSON.stringify(answer),
+    );
+  }
+});
+
+test('validateAnswers: a blank Other is dropped; typed Other text is still an answer', () => {
+  const single = validateQuestions([q({ other: true })]).questions;
+  const multi = validateQuestions([q({ id: 'food', type: 'multi', other: true })]).questions;
+  const noOther = validateQuestions([q({ id: 'plain' })]).questions;
+  for (const [questions, given, answers] of [
+    [single, { q1: { other: '  ' } }, {}],
+    [single, { q1: { option: 'a', other: ' ' } }, { q1: { option: 'a' } }],
+    [single, { q1: { other: '  a poster ' } }, { q1: { other: 'a poster' } }],
+    [multi, { food: { options: ['b'], other: '   ' } }, { food: { options: ['b'] } }],
+    [multi, { food: { options: [], other: '' } }, {}],
+    [multi, { food: { options: [], other: ' tea ' } }, { food: { options: [], other: 'tea' } }],
+    // Nothing typed on a question without Other is simply no Other.
+    [noOther, { plain: { option: 'a', other: '' } }, { plain: { option: 'a' } }],
+  ]) {
+    assert.deepEqual(validateAnswers(questions, given), { answers }, JSON.stringify(given));
+  }
 });
 
 test('validateAnswers: the length limits are inclusive (500 text, 2000 textarea, 200 Other)', () => {

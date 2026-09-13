@@ -10,8 +10,8 @@
 //   text / textarea → the trimmed string
 //   single          → { option: '<optionId>' } or { other: '<typed text>' }
 //   multi           → { options: ['<optionId>', …], other?: '<typed text>' }
-// Picking Other counts as an answer even with nothing typed, as the Mid-Autumn
-// form did: `other` is present, possibly ''.
+// Other with nothing typed (blank after trimming) is not an answer: a single
+// question is then unanswered, a multi one keeps only its picked options.
 
 const ID_RE = /^[a-z0-9_]{1,40}$/;
 const TYPES = new Set(['single', 'multi', 'text', 'textarea']);
@@ -109,11 +109,16 @@ export function validateAnswers(questions, raw) {
       if (!isObject(value)) return invalid;
       const known = new Set(q.options.map((o) => o.id));
 
+      // The typed Other text. Blank after trimming is not an answer, so a
+      // required question is never satisfied by Other with nothing typed.
       let other;
       if (value.other !== undefined && value.other !== null) {
-        if (!q.other || typeof value.other !== 'string') return invalid;
-        other = value.other.trim();
-        if (other.length > MAX_OTHER) return invalid;
+        if (typeof value.other !== 'string') return invalid;
+        const typed = value.other.trim();
+        if (typed) {
+          if (!q.other || typed.length > MAX_OTHER) return invalid;
+          other = typed;
+        }
       }
 
       if (q.type === 'single') {
