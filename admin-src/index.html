@@ -444,6 +444,72 @@
                     Only published events are visible to the public and open for RSVPs.
                   </p>
                   <div id="caaci-event-form-host"></div>
+                  <!-- Registrations for one event — opened from its row, filled by caaci-admin.js. -->
+                  <div class="card mb-3" id="caaci-reg-panel" hidden>
+                    <div class="card-header">
+                      <div>
+                        <div class="subheader" data-en="Registrations" data-zh="报名">
+                          Registrations
+                        </div>
+                        <h3 class="card-title mb-0" id="caaci-reg-title"></h3>
+                        <div class="text-secondary small" id="caaci-reg-deadline"></div>
+                      </div>
+                      <div class="card-actions btn-list align-items-center">
+                        <label class="form-check form-switch mb-0">
+                          <input type="checkbox" class="form-check-input" id="caaci-reg-eligible" />
+                          <span
+                            class="form-check-label"
+                            data-en="Eligible only"
+                            data-zh="只看可领月饼"
+                          >
+                            Eligible only
+                          </span>
+                        </label>
+                        <button
+                          type="button"
+                          class="btn btn-sm"
+                          id="caaci-reg-csv"
+                          data-en="Download CSV"
+                          data-zh="导出 CSV"
+                        >
+                          Download CSV
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-ghost-secondary"
+                          id="caaci-reg-close"
+                          data-en="Close"
+                          data-zh="关闭"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                    <div class="card-body">
+                      <div class="row row-cards" id="caaci-reg-stats"></div>
+                    </div>
+                    <div class="table-responsive">
+                      <table class="table table-vcenter card-table" id="caaci-reg-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th data-en="Registered (Chicago)" data-zh="报名时间（芝加哥）">
+                              Registered (Chicago)
+                            </th>
+                            <th data-en="Email" data-zh="邮箱">Email</th>
+                            <th data-en="Attending" data-zh="参加">Attending</th>
+                            <th data-en="Names" data-zh="参加者姓名">Names</th>
+                            <th data-en="Heard from" data-zh="信息来源">Heard from</th>
+                            <th data-en="Meal" data-zh="订餐">Meal</th>
+                            <th data-en="Account" data-zh="账户">Account</th>
+                            <th data-en="Mooncake" data-zh="月饼">Mooncake</th>
+                          </tr>
+                        </thead>
+                        <tbody id="caaci-reg-body"></tbody>
+                      </table>
+                    </div>
+                    <p class="alert m-3" id="caaci-reg-notice" hidden></p>
+                  </div>
                   <div class="row g-2">
                     <div class="col-sm-6 col-md-4">
                       <input
