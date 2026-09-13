@@ -278,8 +278,51 @@ return URL keeps working:
   `?lang=zh` preselects Chinese).
 - **`/account/`** — profile, subscription status, Stripe billing portal
   (`/api/portal`), payment history (RLS self-read), the digital membership card
-  (live-verifying QR + PNG download + Apple Wallet when configured), and the
-  password-recovery form.
+  (live-verifying QR + PNG download + Apple Wallet when configured), the
+  password-recovery form, and the **Family** card.
+
+### Family card on `/account/`
+
+Self-service family invitations. A family is at most **3 people including the
+founder** (the family-plan holder); linked accounts, name-only people and
+pending invites all count. The page loads `GET /api/family` once (Bearer token,
+like the billing portal) and again after every successful change; if it fails
+(404, 500, network) the card stays hidden and the rest of the page is untouched.
+The server enforces every rule; the card mirrors them and shows its errors.
+
+- **Invitations for you** (any role): "\<founder email\> invited you to join their
+  CAACI family membership", expiry, **Accept** / **Decline** (decline confirms).
+  The invitation email links to `/account/?family_invite=<id>`, which highlights
+  and scrolls to that invitation; an id that isn't in the list gets an
+  explanation (expired, already used, or sent to another address) naming the
+  signed-in email. The id is never rendered.
+- **Signed out** with `?family_invite`: the Sign in link carries
+  `next=/account/?family_invite=<id>`, so the member lands back on it.
+- **No family yet** (`can_start_family: true`; a response without that field
+  falls back to the member's own active `family` tier): "Invite your family"
+  with the seat counter (1 / 3), the invite form (email; name and relationship
+  optional) and the add-a-person form for someone without an account (e.g. a
+  young child). Either one creates the household.
+- **Founder**: family name, plan status and expiry, seats used / limit; people
+  with a Founder badge and "Linked account" / "Not linked to an account";
+  **Remove** on everyone but the founder (the last other person can't be
+  removed, dissolve instead); pending invitations with **Cancel** and **Resend**
+  (60 s cooldown per address, also started by a 429); both forms, disabled once
+  the family is full; **Dissolve family**; and the activity log (name-only
+  people appear by `subject_name`). After an invite the notice says whether an
+  invitation or a sign-in-link email went out (`delivered`).
+- **Inviting a name-only person**: **Invite by email** on their row opens an
+  email field in that row and sends `invite` with their `person_id`. Accepting
+  links the existing row instead of taking a seat, so this works even when the
+  family is full (3 / 3) and the general forms are disabled. While a pending
+  invite carries that row's `person_id`, the row says "Invitation pending to
+  \<email\>" and its button is disabled; cancel or resend it from the pending
+  list. A second invite for the same person gets the server's 409 as the notice.
+- **Member**: family name, founder email, plan status and expiry, **Leave family**.
+- **Membership card**: a member or founder without an active tier of their own
+  gets the digital card from an active family plan (tier named by
+  `plan.tier_id`, falling back to the family tier; plan expiry); it disappears
+  when they leave or the plan lapses.
 
 Source: `member-src/*.html` + `src/caaci-member.js` (+ `src/caaci-shared.js`,
 pure helpers shared with the mirror layer `caaci-app.js`). The rest of the site
