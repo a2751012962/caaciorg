@@ -369,65 +369,145 @@ export function wireAuthNav() {
   }
 }
 
-// ---------- Festival registration card (homepage + events page) ----------
+// ---------- Festival registration promo (homepage + events page) ----------
 // The mirrored homepage and events calendar predate the Mid-Autumn Festival
-// registration form, so both get a card linking to it: right after the
-// homepage hero, and at the top of the calendar, which otherwise opens on
-// "There are no upcoming events". The card stops appearing once the festival
-// is over, so nothing has to be removed by hand.
+// registration form, so both link to it: a card right after the homepage
+// hero, and on the events page an "Upcoming Events" entry above "Latest Past
+// Events", in place of the calendar's "There are no upcoming events". Both
+// stop appearing once the festival is over, so nothing has to be removed by
+// hand.
 const FESTIVAL_PROMO = {
   path: '/mid_autumn_festival_form/',
   until: Date.parse('2026-09-27T23:00:00Z'), // 6:00 PM in Champaign, when the festival ends
+  date: '2026-09-27',
+  venue: 'Siebel Center for Design',
   en: {
     eyebrow: 'Sun, Sept 27 · 2–6 PM · Siebel Center for Design',
     title: 'Mid-Autumn Festival registration is open',
     text: 'Register for the festival, and create a free CAACI account by 2:00 PM Central Time on September 27 to pick up a free mooncake.',
     cta: 'Register now',
+    upcoming: 'Upcoming Events',
+    event: 'Mid-Autumn Festival',
+    month: 'Sep',
+    when: 'September 27, 2026 @ 2:00 pm - 6:00 pm',
   },
   zh: {
     eyebrow: '9月27日（周日）下午2点–6点 · Siebel Center for Design',
     title: '中秋节活动报名中',
     text: '欢迎报名参加中秋节活动。9月27日下午2点（美国中部时间）前报名并注册 CAACI 网站账户，现场免费领一份月饼。',
     cta: '立即报名',
+    upcoming: '即将举行的活动',
+    event: '中秋节活动',
+    month: '9 月',
+    // The same date format the calendar uses for the past events below.
+    when: '9 月 27, 2026 @ 2:00 下午 - 6:00 下午',
   },
 };
 
-export function wireFestivalPromo(now = Date.now()) {
-  if (now > FESTIVAL_PROMO.until || document.querySelector('.caaci-promo')) return;
-  const path = location.pathname;
-  let place;
-  if (/^\/(zh\/?)?$/.test(path)) {
-    const hero = document.querySelector('.et_pb_section_0');
-    if (hero) place = (card) => hero.after(card);
-  } else if (/^\/(zh\/)?events\/?$/.test(path)) {
-    const calendar = document.querySelector('.tribe-events-l-container');
-    if (calendar) place = (card) => calendar.prepend(card);
-  }
-  if (!place) return;
+function promoNode(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text) node.textContent = text;
+  // TranslatePress on the /zh/ pages blanks text it sees appear (see
+  // wireAuthNav); mark every node that carries copy, not just the outer one.
+  node.setAttribute('data-no-dynamic-translation', '');
+  return node;
+}
 
+function festivalCard(copy, href) {
+  const card = promoNode('aside', 'caaci-promo');
+  const body = promoNode('div', 'caaci-promo-body');
+  body.append(
+    promoNode('div', 'caaci-eyebrow', copy.eyebrow),
+    promoNode('h2', '', copy.title),
+    promoNode('p', '', copy.text),
+  );
+  const cta = promoNode('a', 'caaci-btn', `${copy.cta} →`);
+  cta.href = href;
+  card.append(body, cta);
+  return card;
+}
+
+// Built from the same markup and classes as the calendar's past-event rows,
+// so the calendar's own CSS gives it their look.
+function festivalUpcomingEvent(copy, href) {
+  const p = 'tribe-events-calendar-latest-past';
+  const section = promoNode('div', `caaci-promo-upcoming ${p}`);
+  const row = promoNode('div', `tribe-common-g-row ${p}__event-row`);
+
+  const tag = promoNode('div', `${p}__event-date-tag tribe-common-g-col`);
+  const tagTime = promoNode('time', `${p}__event-date-tag-datetime`);
+  tagTime.setAttribute('datetime', FESTIVAL_PROMO.date);
+  tagTime.setAttribute('aria-hidden', 'true');
+  tagTime.append(
+    promoNode('span', `${p}__event-date-tag-month`, copy.month),
+    promoNode(
+      'span',
+      `${p}__event-date-tag-daynum tribe-common-h5 tribe-common-h4--min-medium`,
+      '27',
+    ),
+    promoNode('span', `${p}__event-date-tag-year`, '2026'),
+  );
+  tag.append(tagTime);
+
+  const when = promoNode('time', `${p}__event-datetime`, copy.when);
+  when.setAttribute('datetime', FESTIVAL_PROMO.date);
+  const whenWrapper = promoNode('div', `${p}__event-datetime-wrapper tribe-common-b2`);
+  whenWrapper.append(when);
+  const titleLink = promoNode('a', `${p}__event-title-link tribe-common-anchor-thin`, copy.event);
+  titleLink.href = href;
+  const title = promoNode('h3', `${p}__event-title tribe-common-h6 tribe-common-h4--min-medium`);
+  title.append(titleLink);
+  const header = promoNode('header', `${p}__event-header`);
+  header.append(
+    whenWrapper,
+    title,
+    promoNode('div', 'tribe-common-b2 tribe-common-b2--bold', FESTIVAL_PROMO.venue),
+  );
+
+  // Unlike the past rows, no tribe-common-a11y-hidden: the calendar hides
+  // those descriptions on phones, and the mooncake rule has to stay readable.
+  const description = promoNode('div', `${p}__event-description tribe-common-b2`);
+  description.append(promoNode('p', '', copy.text));
+  const cta = promoNode('a', 'tribe-common-c-btn caaci-promo-upcoming-cta', `${copy.cta} →`);
+  cta.href = href;
+
+  const details = promoNode('div', `${p}__event-details tribe-common-g-col`);
+  details.append(header, description, cta);
+  const event = promoNode('article', `${p}__event tribe-common-g-row tribe-common-g-row--gutters`);
+  event.append(details);
+  const wrapper = promoNode('div', `${p}__event-wrapper tribe-common-g-col`);
+  wrapper.append(event);
+  row.append(tag, wrapper);
+
+  section.append(
+    promoNode('h2', `${p}__heading tribe-common-h5 tribe-common-h3--min-medium`, copy.upcoming),
+    row,
+  );
+  return section;
+}
+
+export function wireFestivalPromo(now = Date.now()) {
+  if (now > FESTIVAL_PROMO.until || document.querySelector('.caaci-promo, .caaci-promo-upcoming'))
+    return;
+  const path = location.pathname;
   const zh = /^\/zh(\/|$)/.test(path);
   const copy = FESTIVAL_PROMO[zh ? 'zh' : 'en'];
-  const el = (tag, className, text) => {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text) node.textContent = text;
-    // TranslatePress on the /zh/ pages blanks text it sees appear (see
-    // wireAuthNav); mark every node that carries copy, not just the card.
-    node.setAttribute('data-no-dynamic-translation', '');
-    return node;
-  };
-  const card = el('aside', 'caaci-promo');
-  const body = el('div', 'caaci-promo-body');
-  body.append(
-    el('div', 'caaci-eyebrow', copy.eyebrow),
-    el('h2', '', copy.title),
-    el('p', '', copy.text),
-  );
-  const cta = el('a', 'caaci-btn', `${copy.cta} →`);
   // Open the form in the language of the page the visitor is reading.
-  cta.href = `${FESTIVAL_PROMO.path}?lang=${zh ? 'zh' : 'en'}`;
-  card.append(body, cta);
-  place(card);
+  const href = `${FESTIVAL_PROMO.path}?lang=${zh ? 'zh' : 'en'}`;
+
+  if (/^\/(zh\/?)?$/.test(path)) {
+    const hero = document.querySelector('.et_pb_section_0');
+    if (hero) hero.after(festivalCard(copy, href));
+  } else if (/^\/(zh\/)?events\/?$/.test(path)) {
+    const past = document.querySelector('.tribe-events-calendar-latest-past');
+    if (!past) return;
+    past.before(festivalUpcomingEvent(copy, href));
+    // With an upcoming event listed, "There are no upcoming events" (the
+    // desktop and the mobile copy) would contradict it.
+    for (const notice of document.querySelectorAll('.tribe-events-header__messages'))
+      notice.style.display = 'none';
+  }
 }
 
 // ---------- Bootstrap ----------

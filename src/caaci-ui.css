@@ -172,26 +172,15 @@
   line-height: 1.6;
   color: var(--caaci-body);
 }
-/* On the events page the calendar's own container already sets the width, so
-   the card spans it like the calendar header does. The calendar also resets
-   everything inside .tribe-common (`.tribe-common aside` / `.tribe-common a`:
-   display, margin, padding, border, background), and those two-part selectors
-   outrank the single-class rules above — the card lost its layout and the
-   button went white-on-white. Restate what the reset takes away here. */
-.tribe-events-l-container .caaci-promo {
-  width: 100%;
-  max-width: none;
-  display: flex;
-  margin: var(--caaci-gap) auto;
-  padding: var(--caaci-gap);
-  border-left: 4px solid var(--caaci-brick);
-}
-.tribe-events-l-container .caaci-promo .caaci-btn {
-  padding: 0.5em 1.5em;
-  background: var(--caaci-brick);
-}
-.tribe-events-l-container .caaci-promo .caaci-btn:hover {
-  background: var(--caaci-brick-dark);
+/* On the events page the promo is not this card but an "Upcoming Events" row
+   built from the calendar's own past-event markup (wireFestivalPromo), so the
+   calendar's CSS styles it. Only the register button, which the past rows
+   don't have, is placed here; `.tribe-common` keeps this rule level with the
+   calendar's own `.tribe-common .tribe-common-c-btn`, and this file loads later. */
+.tribe-common .caaci-promo-upcoming-cta {
+  display: inline-block;
+  width: auto;
+  margin-top: var(--tec-spacer-3, 16px);
 }
 
 /* ================================================== Donation checkout === */

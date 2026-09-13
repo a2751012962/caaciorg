@@ -1,6 +1,7 @@
-// The Mid-Autumn Festival card src/caaci-app.js adds to the mirrored homepage
-// and events calendar, run against the real mirror pages: where it lands, its
-// language and link, and that it is gone once the festival is over.
+// The Mid-Autumn Festival promo src/caaci-app.js adds to the mirrored homepage
+// (a card) and events calendar (an upcoming-event row), run against the real
+// mirror pages: where it lands, its language and link, and that it is gone
+// once the festival is over.
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -58,23 +59,89 @@ test('festival promo: the Chinese homepage gets Chinese copy that TranslatePress
     assert.ok(node.hasAttribute('data-no-dynamic-translation'), node.tagName);
 });
 
-test('festival promo: on the events page it opens the calendar, above "no upcoming events"', () => {
-  for (const [file, path, title] of [
-    ['events/index.html', '/events/', 'Mid-Autumn Festival registration is open'],
-    ['zh/events/index.html', '/zh/events/', '中秋节活动报名中'],
+const upcoming = () => document.querySelectorAll('.caaci-promo-upcoming');
+const notices = () => document.querySelectorAll('.tribe-events-header__messages');
+
+test('festival promo: on the events page it is an upcoming event above, and built like, the past events', () => {
+  for (const [file, path, lang, heading, title, month, perk] of [
+    [
+      'events/index.html',
+      '/events/',
+      'en',
+      'Upcoming Events',
+      'Mid-Autumn Festival',
+      'Sep',
+      /free mooncake/,
+    ],
+    [
+      'zh/events/index.html',
+      '/zh/events/',
+      'zh',
+      '即将举行的活动',
+      '中秋节活动',
+      '9 月',
+      /免费领一份月饼/,
+    ],
   ]) {
     load(mirror(file), path);
     wireFestivalPromo(BEFORE);
-    assert.equal(cards().length, 1, path);
-    const [card] = cards();
-    const calendar = document.querySelector('.tribe-events-l-container');
-    assert.equal(calendar.firstElementChild, card, `${path}: first in the calendar`);
-    const header = calendar.querySelector('.tribe-events-header');
-    assert.ok(
-      card.compareDocumentPosition(header) & window.Node.DOCUMENT_POSITION_FOLLOWING,
-      `${path}: before the calendar header`,
+    assert.equal(cards().length, 0, `${path}: no card at the top of the calendar`);
+    assert.equal(upcoming().length, 1, path);
+    const [section] = upcoming();
+    const past = [...document.querySelectorAll('.tribe-events-calendar-latest-past')].find(
+      (n) => n !== section,
     );
-    assert.equal(card.querySelector('h2').textContent, title);
+    assert.equal(section.nextElementSibling, past, `${path}: directly above Latest Past Events`);
+
+    // The calendar's own CSS styles the row only if it carries the same
+    // classes as the past-event rows, so compare against a real one.
+    const p = '.tribe-events-calendar-latest-past';
+    const pastRow = past.querySelector(`${p}__event-row`);
+    const row = section.querySelector(`${p}__event-row`);
+    assert.equal(
+      section.querySelector(`${p}__heading`).className,
+      past.querySelector(`${p}__heading`).className,
+    );
+    assert.equal(row.className, pastRow.className, `${path}: row`);
+    for (const part of [
+      'date-tag',
+      'date-tag-month',
+      'date-tag-daynum',
+      'date-tag-year',
+      'datetime',
+      'title-link',
+    ])
+      assert.equal(
+        row.querySelector(`${p}__event-${part}`).className,
+        pastRow.querySelector(`${p}__event-${part}`).className,
+        `${path}: ${part}`,
+      );
+
+    assert.equal(section.querySelector(`${p}__heading`).textContent, heading);
+    assert.equal(row.querySelector(`${p}__event-date-tag-month`).textContent, month);
+    assert.equal(row.querySelector(`${p}__event-date-tag-daynum`).textContent, '27');
+    assert.equal(row.querySelector(`${p}__event-date-tag-year`).textContent, '2026');
+    const href = `/mid_autumn_festival_form/?lang=${lang}`;
+    const titleLink = row.querySelector(`${p}__event-title-link`);
+    assert.equal(titleLink.textContent, title);
+    assert.equal(titleLink.getAttribute('href'), href);
+    assert.equal(row.querySelector('a.tribe-common-c-btn').getAttribute('href'), href);
+    // The past rows' descriptions are hidden on phones; the mooncake rule must not be.
+    const description = row.querySelector(`${p}__event-description`);
+    assert.match(description.textContent, perk);
+    assert.ok(
+      !description.classList.contains('tribe-common-a11y-hidden'),
+      `${path}: description always visible`,
+    );
+
+    assert.ok(notices().length > 0, `${path}: the mirror has the notice`);
+    for (const notice of notices())
+      assert.equal(notice.style.display, 'none', `${path}: "no upcoming events" hidden`);
+    for (const node of [section, ...section.querySelectorAll('*')])
+      assert.ok(node.hasAttribute('data-no-dynamic-translation'), `${path}: ${node.tagName}`);
+
+    wireFestivalPromo(BEFORE);
+    assert.equal(upcoming().length, 1, `${path}: a second run adds nothing`);
   }
 });
 
@@ -86,12 +153,18 @@ test('festival promo: nowhere else, and not after the festival', () => {
   ]) {
     load(mirror(file), path);
     wireFestivalPromo(BEFORE);
-    assert.equal(cards().length, 0, `${file} at ${path}`);
+    assert.equal(cards().length + upcoming().length, 0, `${file} at ${path}`);
   }
 
   load(mirror('index.html'), '/');
   wireFestivalPromo(AFTER);
   assert.equal(cards().length, 0, 'gone once the festival is over');
+
+  load(mirror('events/index.html'), '/events/');
+  wireFestivalPromo(AFTER);
+  assert.equal(upcoming().length, 0, 'no upcoming event once the festival is over');
+  for (const notice of notices())
+    assert.notEqual(notice.style.display, 'none', 'the calendar notice is back');
 
   load('<!doctype html><body><p>no hero here</p></body>', '/');
   assert.doesNotThrow(() => wireFestivalPromo(BEFORE));
