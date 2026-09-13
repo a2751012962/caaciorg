@@ -50,8 +50,16 @@ function apiRoutes(u, options = {}) {
             status: 'active',
             expires_at: '2027-01-01T00:00:00Z',
           },
+          {
+            id: 'm2',
+            full_name: 'Jun Wu',
+            email: 'jun@x.com',
+            tier_id: 'individual',
+            status: 'active',
+            expires_at: '2027-01-01T00:00:00Z',
+          },
         ],
-        total: 1,
+        total: 2,
       },
     };
   if (u.includes('/api/admin/households')) return { body: { rows: [] } };
@@ -107,7 +115,7 @@ test('admin page: module boots against the real Tabler markup', async () => {
     const badge = document.querySelector('#caaci-members-body .badge');
     assert.ok(badge, 'member status badge rendered');
     assert.ok(badge.classList.contains('bg-success-lt'), 'active → bg-success-lt');
-    assert.match(document.querySelector('#caaci-page-info').textContent, /1–1 of 1/);
+    assert.match(document.querySelector('#caaci-page-info').textContent, /1–2 of 2/);
 
     // Member editor: auth-email buttons confirm, POST member_id + action with the
     // session token, report every outcome inline, and cool down after a send.
@@ -204,6 +212,51 @@ test('admin page: module boots against the real Tabler markup', async () => {
     editBtn().click();
     assert.equal(btnFor('reset').disabled, true, 'cooldown survives a re-render');
     editBtn().click();
+    assert.equal(live.size, 0);
+
+    // Cooldowns are per member: Mei (m1) is cooling, Jun (m2) is not.
+    const memberRows = () =>
+      document.querySelectorAll('#caaci-members-body tr:not([data-edit-row])');
+    const editBtnOf = (i) => memberRows().item(i).querySelector('button');
+    editBtnOf(1).click();
+    assert.equal(btnFor('reset').disabled, false, "Jun's reset is not cooling");
+    assert.equal(btnFor('invite').disabled, false, "Jun's invite is not cooling");
+    assert.equal(live.size, 0);
+    editBtnOf(0).click(); // opening Mei replaces Jun's editor
+    assert.equal(btnFor('reset').disabled, true, 'Mei is still cooling');
+    editBtnOf(0).click();
+    assert.equal(live.size, 0);
+
+    // A send whose editor is closed mid-flight: the cooldown is still recorded, but
+    // no interval is started on the removed button; reopening shows the countdown.
+    let release;
+    const pendingReply = ({ action }) =>
+      new Promise((resolve) => {
+        release = () => resolve({ body: { ok: true, action } });
+      });
+    editBtnOf(1).click();
+    await click('reset', pendingReply);
+    editBtnOf(1).click(); // close while the request is in flight
+    assert.equal(editRow(), null);
+    release();
+    await tick();
+    assert.equal(live.size, 0, 'no interval ticks for a removed button');
+    editBtnOf(1).click();
+    assert.equal(btnFor('reset').disabled, true, 'reopened editor shows the recorded cooldown');
+    assert.match(btnFor('reset').textContent, /\(\d+s\)/);
+    assert.equal(live.size, 1);
+
+    // Closed and reopened mid-flight: the result lands on the CURRENT editor.
+    await click('invite', pendingReply);
+    editBtnOf(1).click();
+    editBtnOf(1).click(); // reopen while still in flight
+    assert.equal(btnFor('invite').disabled, false);
+    release();
+    await tick();
+    assert.equal(btnFor('invite').disabled, true, 'countdown applied to the open editor');
+    assert.ok(editMsg().classList.contains('alert-success'), 'notice shown in the open editor');
+    assert.equal(live.size, 2, 'exactly one interval per cooling button, none stray');
+    editBtnOf(1).click();
     assert.equal(live.size, 0);
 
     // Tab switching: click Events → active class moves, panels toggle, rows load.

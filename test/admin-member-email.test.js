@@ -229,6 +229,22 @@ test('member email: other upstream failures -> 502 without echoing the upstream 
   assert.doesNotMatch(JSON.stringify(body), /SECRET|boom/);
 });
 
+test('member email: a 502 drops an upstream string code that is not a plain machine code', async () => {
+  const { status, body } = await send('reset', {
+    recover: { status: 500, body: { code: 'Bad Code <script>', msg: 'x' } },
+  });
+  assert.equal(status, 502);
+  assert.equal('code' in body, false);
+});
+
+test('member email: a 502 passes a plain GoTrue machine code through for debugging', async () => {
+  const { status, body } = await send('reset', {
+    recover: { status: 403, body: { error_code: 'email_address_not_authorized', msg: 'x' } },
+  });
+  assert.equal(status, 502);
+  assert.equal(body.code, 'email_address_not_authorized');
+});
+
 test('member email: both actions send to the login email, not the editable profile email', async () => {
   const profileEdited = { id: 'm1', email: 'attacker@evil.com' };
   for (const action of ['reset', 'invite']) {

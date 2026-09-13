@@ -226,6 +226,7 @@ function renderRows(rows) {
 const AUTH_EMAIL_COOLDOWN_MS = 60_000;
 const authEmailCooldownUntil = new Map(); // `${member.id}:${action}` → epoch ms
 const editorTimers = new Set();
+const ticking = new WeakSet(); // buttons that already have a countdown interval
 function clearEditorTimers() {
   for (const id of editorTimers) clearInterval(id);
   editorTimers.clear();
@@ -244,17 +245,34 @@ function showCooldown(btn, label, key) {
     btn.textContent = label;
     return false;
   };
-  if (!paint()) return;
+  // One interval per button, even if two sends for the same key resolve.
+  if (!paint() || ticking.has(btn)) return;
+  ticking.add(btn);
   const timer = setInterval(() => {
     if (paint()) return;
     clearInterval(timer);
     editorTimers.delete(timer);
+    ticking.delete(btn);
   }, 1000);
   editorTimers.add(timer);
 }
 
+// The send button and notice line for a member's action in whichever member
+// editor is open NOW. The editor that was clicked may have been closed (or
+// closed and reopened) while its request was in flight; null when none is open.
+function openEditorTarget(memberId, action) {
+  const row = [...$$('#caaci-members-body tr[data-edit-row]')].find(
+    (r) => r.dataset.memberId === memberId,
+  );
+  if (!row) return null;
+  return {
+    btn: row.querySelector(`[data-act="send-${action}"]`),
+    msg: row.querySelector('[data-msg]'),
+  };
+}
+
 function wireAuthEmails(row, m) {
-  const msg = row.querySelector('[data-msg]');
+  row.dataset.memberId = m.id; // lets a late response find this member's open editor
   const who = m.full_name || m.email;
   const kinds = {
     reset: {
@@ -274,48 +292,42 @@ function wireAuthEmails(row, m) {
   for (const [action, k] of Object.entries(kinds)) {
     const btn = row.querySelector(`[data-act="send-${action}"]`);
     const key = `${m.id}:${action}`;
-    const startCooldown = () => {
-      authEmailCooldownUntil.set(key, Date.now() + AUTH_EMAIL_COOLDOWN_MS);
-      showCooldown(btn, k.label, key);
-    };
     showCooldown(btn, k.label, key); // resume a countdown from an earlier editor
     btn.addEventListener('click', async () => {
       if (!window.confirm(k.ask)) return;
       btn.disabled = true;
-      let res;
+      let res = null;
       try {
         res = await api('/api/admin/member-email', {
           method: 'POST',
           body: { member_id: m.id, action },
         });
       } catch {
-        // Network failure: never leave the button stuck disabled without a word.
-        btn.disabled = false;
-        notice(msg, t('Could not send the email.', '邮件发送失败。'), false);
-        return;
+        // Network failure: reported below as an unsent email, button re-enabled.
       }
-      const { ok, status, data } = res;
-      if (ok) {
-        notice(msg, k.done, true);
-        startCooldown();
-        return;
-      }
-      if (status === 429) {
-        notice(
-          msg,
-          t(
-            'An email was sent to this member very recently. Please wait a minute and try again.',
-            '刚刚已向该会员发送过邮件，请等一分钟后再试。',
-          ),
-          false,
+      // Report into the member's editor that is open now (maybe none, maybe a
+      // rebuilt one), never into a detached button that would tick unseen.
+      const target = openEditorTarget(m.id, action);
+      const say = (text, good) => {
+        if (target) notice(target.msg, text, good);
+      };
+      if (res?.ok || res?.status === 429) {
+        authEmailCooldownUntil.set(key, Date.now() + AUTH_EMAIL_COOLDOWN_MS);
+        if (target) showCooldown(target.btn, k.label, key);
+        say(
+          res.ok
+            ? k.done
+            : t(
+                'An email was sent to this member very recently. Please wait a minute and try again.',
+                '刚刚已向该会员发送过邮件，请等一分钟后再试。',
+              ),
+          res.ok,
         );
-        startCooldown();
         return;
       }
-      btn.disabled = false;
-      if (status === 409) {
-        notice(
-          msg,
+      if (target) target.btn.disabled = false;
+      if (res?.status === 409) {
+        say(
           t(
             'This login email is already confirmed, so it cannot be invited. Use "Send password reset" instead.',
             '该登录邮箱已确认，无法发送邀请，请改用“发送重置密码邮件”。',
@@ -324,7 +336,7 @@ function wireAuthEmails(row, m) {
         );
         return;
       }
-      notice(msg, data.error || t('Could not send the email.', '邮件发送失败。'), false);
+      say(res?.data?.error || t('Could not send the email.', '邮件发送失败。'), false);
     });
   }
 }
