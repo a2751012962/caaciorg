@@ -514,8 +514,14 @@ wired by `wireEventFormPage` in `src/caaci-member.js`) serves every event.
 push`) **immediately before** deploying this code — the API and the admin
   events list read the new columns. 0018 only adds, so the previously deployed
   code keeps working once it is applied, and a temporary trigger keeps `answers`
-  in step with the legacy columns that code still writes, until a later cleanup
-  migration drops the trigger and those columns.
+  in step with the legacy columns that code still writes.
+- **Cleanup migration:** `0019_drop_legacy_event_registration_columns.sql` drops
+  that trigger, its two functions and the legacy `event_registrations` columns
+  (`attending`, `attendee_names`, `heard_from`, `wants_meal`). Paste it only
+  while production runs the 0018 code (main 1d6e8a5 or later). It first refuses
+  to drop anything if a registration has legacy values but empty `answers`.
+  After it, production can no longer roll back past 1d6e8a5: older code writes
+  those columns and could not save a registration.
 - **Testing on a preview deployment:** preview uses the live Supabase database and
   sends real email. Test registrations there against a separate, temporary
   published event — never the Mid-Autumn event, whose rows the production admin
