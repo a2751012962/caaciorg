@@ -61,16 +61,43 @@ export async function loadTemplates(dir = TEMPLATES_DIR) {
 // The full set of auth-config keys this script owns, with the values the repo
 // says they should have. Key names follow the Management API:
 // mailer_subjects_<type> and mailer_templates_<type>_content.
+// Templates are sent with LF line endings, so what reaches Supabase does not
+// depend on how git checked the files out.
 export function buildAuthPatch({ subjects, contents }) {
   const body = {};
   for (const type of TEMPLATE_TYPES) {
-    if (typeof subjects[type] !== 'string' || typeof contents[type] !== 'string') {
-      throw new Error(`missing subject or template for ${type}`);
+    body[`mailer_subjects_${type}`] = checkText(subjects[type], `subject for ${type}`);
+    const html = checkText(contents[type], `${type}.html`).replace(/\r\n/g, '\n');
+    for (const name of REQUIRED_VARIABLES[type]) {
+      if (!new RegExp(`\\{\\{\\s*\\.${name}\\s*\\}\\}`).test(html)) {
+        throw new Error(`${type}.html has no {{ .${name} }}`);
+      }
     }
-    body[`mailer_subjects_${type}`] = subjects[type];
-    body[`mailer_templates_${type}_content`] = contents[type];
+    body[`mailer_templates_${type}_content`] = html;
   }
   return { ...body, ...SMTP_SETTINGS };
+}
+
+// The variable each flow cannot work without: an email with no link or code in
+// it arrives, and nobody can act on it. Checked here so one is never pushed.
+const REQUIRED_VARIABLES = {
+  confirmation: ['ConfirmationURL'],
+  recovery: ['ConfirmationURL'],
+  invite: ['ConfirmationURL'],
+  magic_link: ['ConfirmationURL'],
+  email_change: ['ConfirmationURL', 'NewEmail'],
+  reauthentication: ['Token'],
+};
+
+// A byte-order mark would go out as an invisible character at the top of the
+// email or subject, and an empty value is never what was meant.
+function checkText(value, label) {
+  if (typeof value !== 'string') throw new Error(`${label} is missing`);
+  if (value.startsWith('\uFEFF')) {
+    throw new Error(`${label} starts with a byte-order mark — save it as UTF-8 without one`);
+  }
+  if (!value.trim()) throw new Error(`${label} is empty`);
+  return value;
 }
 
 // Line endings and trailing whitespace are not drift: git on Windows and the

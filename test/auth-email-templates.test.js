@@ -98,7 +98,10 @@ test('the PATCH body has every subject and template, the exact SMTP settings, an
 
   for (const type of TYPES) {
     assert.equal(body[`mailer_subjects_${type}`], subjects[type]);
-    assert.equal(body[`mailer_templates_${type}_content`], await read(`${type}.html`));
+    assert.equal(
+      body[`mailer_templates_${type}_content`],
+      (await read(`${type}.html`)).replace(/\r\n/g, '\n'),
+    );
   }
 
   // The password is a Resend API key: it lives in the dashboard and nowhere else.
@@ -116,6 +119,66 @@ test('the PATCH body has every subject and template, the exact SMTP settings, an
     },
   );
   assert.equal(Object.keys(body).length, TYPES.length * 2 + 6, 'unexpected extra keys');
+});
+
+// buildAuthPatch with some subjects or templates swapped out for broken ones.
+async function patchWith({ subjects = {}, contents = {} }) {
+  const good = await loadTemplates();
+  return buildAuthPatch({
+    subjects: { ...good.subjects, ...subjects },
+    contents: { ...good.contents, ...contents },
+  });
+}
+
+test('an empty or whitespace-only subject or template is refused', async () => {
+  await assert.rejects(patchWith({ subjects: { invite: '  \t ' } }), /subject for invite is empty/);
+  await assert.rejects(
+    patchWith({ contents: { recovery: ' \r\n\t ' } }),
+    /recovery\.html is empty/,
+  );
+});
+
+test('a template or subject starting with a byte-order mark is refused', async () => {
+  const { contents } = await loadTemplates();
+  await assert.rejects(
+    patchWith({ contents: { magic_link: '\uFEFF' + contents.magic_link } }),
+    /magic_link\.html starts with a byte-order mark/,
+  );
+  await assert.rejects(
+    patchWith({ subjects: { invite: '\uFEFFYou are invited' } }),
+    /subject for invite starts with a byte-order mark/,
+  );
+});
+
+test('a template missing the variable its flow needs is refused at push time', async () => {
+  const { contents } = await loadTemplates();
+  const without = (type, name) =>
+    contents[type].replace(new RegExp(`\\{\\{\\s*\\.${name}\\s*\\}\\}`, 'g'), '');
+  for (const type of ['confirmation', 'recovery', 'invite', 'magic_link', 'email_change']) {
+    await assert.rejects(
+      patchWith({ contents: { [type]: without(type, 'ConfirmationURL') } }),
+      new RegExp(`${type}\\.html has no \\{\\{ \\.ConfirmationURL \\}\\}`),
+    );
+  }
+  await assert.rejects(
+    patchWith({ contents: { reauthentication: without('reauthentication', 'Token') } }),
+    /reauthentication\.html has no \{\{ \.Token \}\}/,
+  );
+  await assert.rejects(
+    patchWith({ contents: { email_change: without('email_change', 'NewEmail') } }),
+    /email_change\.html has no \{\{ \.NewEmail \}\}/,
+  );
+});
+
+test('templates are sent with LF line endings whatever the checkout uses', async () => {
+  const { contents } = await loadTemplates();
+  const crlf = Object.fromEntries(
+    Object.entries(contents).map(([type, html]) => [type, html.replace(/\r?\n/g, '\r\n')]),
+  );
+  const body = await patchWith({ contents: crlf });
+  for (const type of TYPES) {
+    assert.equal(body[`mailer_templates_${type}_content`].includes('\r'), false, `${type} kept CR`);
+  }
 });
 
 // ---------------------------------------------------------------- diff
