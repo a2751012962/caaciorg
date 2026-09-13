@@ -412,20 +412,13 @@ test('event-register POST: with no perk_deadline, the deadline is the event star
   }
 });
 
-test('event-register POST: first registration emails the registrant an escaped copy with Chicago times and the account link', async () => {
+test('event-register POST: first registration emails the registrant Chicago times, escaped event fields and the account link', async () => {
   const fetch = mockFetch(
     route({ event: { ...EVENT, title: 'Moon & <Lantern> Night', location: 'Hall "A" <b>' } }),
   );
   try {
     const r = await post(
-      {
-        ...VALID,
-        email: 'O<b>Brien@Example.com',
-        names: '<script>alert(1)</script>\nAmy & "Bo"',
-        heard_from: 'other',
-        heard_from_other: '<img src=x onerror=alert(1)>',
-        wants_meal: 'no',
-      },
+      { ...VALID, email: 'Pat@Example.com', wants_meal: 'no' },
       { url: 'https://caaciorg.com/api/event-register' },
     );
     assert.equal(r.status, 200);
@@ -433,22 +426,15 @@ test('event-register POST: first registration emails the registrant an escaped c
     const sent = emails(fetch);
     assert.equal(sent.length, 1);
     const [mail] = sent;
-    assert.equal(mail.to, 'o<b>brien@example.com', 'to the registrant, lower-cased');
+    assert.equal(mail.to, 'pat@example.com', 'to the registrant, lower-cased');
     assert.equal(mail.from, 'events@caaci.example');
     assert.equal(mail.reply_to, 'staff@caaci.example');
     assert.match(mail.subject, /Moon & <Lantern> Night/);
 
     const { html } = mail;
-    assert.equal(html.includes('<script>'), false);
-    assert.equal(html.includes('<img src=x'), false);
     assert.equal(html.includes('<Lantern>'), false);
-    assert.equal(html.includes('o<b>brien'), false);
-    assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;<br>Amy &amp; &quot;Bo&quot;/);
-    assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
-    assert.match(html, /o&lt;b&gt;brien@example\.com/);
     assert.match(html, /Moon &amp; &lt;Lantern&gt; Night/);
     assert.match(html, /Hall &quot;A&quot; &lt;b&gt;/);
-    assert.match(html, /否 · No/);
 
     // 19:00–23:00 UTC is 2:00–6:00 PM in Champaign, not 7:00 PM.
     assert.match(html, /Sunday, September 27, 2026 at 2:00\sPM – 6:00\sPM/);
@@ -463,6 +449,86 @@ test('event-register POST: first registration emails the registrant an escaped c
     fetch.restore();
   }
 });
+
+// Anyone can make the endpoint mail any address from CAACI, so nothing the
+// registrant typed may reach the email: it would be branded phishing copy.
+test('event-register POST: the email carries no registrant-typed text, only structured answers', async () => {
+  const fetch = mockFetch(route());
+  try {
+    const r = await post({
+      ...VALID,
+      email: 'victim+verify-at-evil.example@gmail.com',
+      names:
+        'Your account is suspended, verify at https://evil.example/login <a href="https://evil.example">here</a>',
+      heard_from: 'other',
+      heard_from_other: 'Call now: http://evil.example <b>urgent</b>',
+      wants_meal: 'yes',
+    });
+    assert.equal(r.status, 200);
+    const row = JSON.parse(upsertCall(fetch).options.body);
+    assert.match(row.attendee_names, /suspended/, 'the answers are still stored');
+    assert.match(row.heard_from, /Call now/);
+
+    const [mail] = emails(fetch);
+    assert.equal(mail.to, 'victim+verify-at-evil.example@gmail.com');
+    for (const typed of [
+      'evil',
+      'suspended',
+      'verify',
+      'urgent',
+      'Call now',
+      'victim',
+      'here</a>',
+    ]) {
+      assert.equal(mail.html.includes(typed), false, `email body contains "${typed}"`);
+      assert.equal(mail.subject.includes(typed), false, `subject contains "${typed}"`);
+    }
+    assert.match(mail.html, /我会参加 · Yes, I’ll be there/);
+    assert.match(
+      mail.html,
+      /了解渠道 · How you heard about this event<\/td><td[^>]*>其他 · Other<\/td>/,
+    );
+    assert.match(mail.html, /购买餐食 · Purchase a meal\?<\/td><td[^>]*>是 · Yes<\/td>/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+for (const [label, patch, heard, meal] of [
+  ['website, no meal', { heard_from: 'website', wants_meal: 'no' }, '网站 · Website', '否 · No'],
+  ['friend', { heard_from: 'friend' }, '朋友 · Friend', '是 · Yes'],
+  ['newsletter', { heard_from: 'newsletter' }, '电子报 · Newsletter', '是 · Yes'],
+  ['social', { heard_from: 'social' }, '社交媒体 · Social Media', '是 · Yes'],
+  ['not answered', { heard_from: '', wants_meal: '' }, '—', '—'],
+  [
+    'Other typed as a prototype key',
+    { heard_from: 'other', heard_from_other: 'constructor' },
+    '其他 · Other',
+    '是 · Yes',
+  ],
+  ['not attending', { attending: 'no', names: '' }, '朋友 · Friend', '是 · Yes'],
+]) {
+  test(`event-register POST: email structured answers, ${label}`, async () => {
+    const fetch = mockFetch(route());
+    try {
+      const r = await post({ ...VALID, ...patch });
+      assert.equal(r.status, 200);
+      const { html } = emails(fetch)[0];
+      const cell = (name, value) =>
+        new RegExp(`${name}</td><td[^>]*>${value.replace(/[?]/g, '\\?')}</td>`);
+      assert.match(html, cell('了解渠道 · How you heard about this event', heard));
+      assert.match(html, cell('购买餐食 · Purchase a meal\\?', meal));
+      assert.match(
+        html,
+        patch.attending === 'no'
+          ? /无法参加 · Sorry, can’t make it/
+          : /我会参加 · Yes, I’ll be there/,
+      );
+    } finally {
+      fetch.restore();
+    }
+  });
+}
 
 test('event-register POST: a linked first registration is told it counts, with no sign-up link', async () => {
   const fetch = mockFetch(route({ user: { id: 'u1', email: 'pat@example.com' } }));
@@ -500,7 +566,7 @@ test('event-register POST: after the deadline the confirmation offers no mooncak
     const { html } = emails(fetch)[0];
     assert.equal(/mooncake|月饼/.test(html), false);
     assert.equal(html.includes('/login-3/'), false);
-    assert.match(html, /Pat Lee, Sam Lee/, 'the answers are still confirmed');
+    assert.match(html, /我会参加 · Yes, I’ll be there/, 'the answers are still confirmed');
   } finally {
     fetch.restore();
   }
