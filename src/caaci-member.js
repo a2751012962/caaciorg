@@ -1989,7 +1989,7 @@ export async function wireEventFormPage() {
       heard_from: heardFrom,
       heard_from_other: heardFrom === 'other' ? otherEl.value.trim() : '',
       wants_meal: choice('wants_meal'),
-      _hp: $('#caaci-ev-hp').value,
+      _hp: $('#caaci_hp_field').value,
     };
     // The API checks all of this again; asking here saves a round trip on a phone.
     const stop = (msg, field) => {
@@ -2015,6 +2015,18 @@ export async function wireEventFormPage() {
       return notice(
         note,
         data.error || t('Could not submit — please try again.', '提交失败，请重试。'),
+        false,
+      );
+    // A saved registration always has a time. An ok without one saved nothing
+    // (the honeypot answer, or a response we do not understand), so "You're
+    // registered" would be a lie.
+    if (!data.registered_at)
+      return notice(
+        note,
+        t(
+          'We could not confirm your registration. Please try again.',
+          '未能确认您的报名，请重试。',
+        ),
         false,
       );
     registeredEmail = body.email;

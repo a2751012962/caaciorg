@@ -218,6 +218,43 @@ test('event form: checks answers before sending, keeps the button busy, and show
   }
 });
 
+test('event form: the honeypot has a name autofill ignores, and an ok without a registration time is not shown as success', async () => {
+  setup();
+  member.__setSupa(supaWith(null));
+  // What the API answers a filled honeypot: ok, but nothing was saved.
+  const fetch = stubApi({ post: () => ({ body: { ok: true } }) });
+  try {
+    await member.wireEventFormPage();
+    const hidden = q('#caaci-ev-form').querySelectorAll('input.visually-hidden');
+    assert.equal(hidden.length, 1, 'one honeypot');
+    const [hp] = hidden;
+    assert.equal(hp.id, 'caaci_hp_field');
+    assert.equal(hp.name, 'caaci_hp_field');
+    // Nothing an autofill heuristic or password manager maps to an identity field.
+    assert.doesNotMatch(
+      `${hp.id} ${hp.name}`,
+      /web|site|url|name|mail|phone|tel|addr|company|org|city|zip/i,
+    );
+    assert.equal(hp.getAttribute('tabindex'), '-1');
+    assert.equal(hp.getAttribute('autocomplete'), 'off');
+    assert.equal(hp.getAttribute('aria-hidden'), 'true');
+
+    fillForm();
+    hp.value = 'https://bot.example';
+    await submit();
+    assert.equal(JSON.parse(posts(fetch)[0].options.body)._hp, 'https://bot.example');
+    const note = q('#caaci-ev-notice');
+    assert.equal(note.hidden, false);
+    assert.ok(note.classList.contains('alert-danger'));
+    assert.match(note.textContent, /could not confirm your registration/i);
+    assert.equal(q('#caaci-ev-done').hidden, true, 'no "You\'re registered" for an unsaved answer');
+    assert.equal(q('#caaci-ev-form-card').hidden, false);
+    assert.equal(q('#caaci-ev-submit').disabled, false);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('event form: a resubmission says the answers were updated and shows the original time', async () => {
   setup();
   member.__setSupa(supaWith(null));
