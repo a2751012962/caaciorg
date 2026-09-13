@@ -172,9 +172,11 @@
   line-height: 1.6;
   color: var(--caaci-body);
 }
-/* On the events page the calendar's own container already sets the width. */
+/* On the events page the calendar's own container already sets the width, so
+   the card spans it like the calendar header does. */
 .tribe-events-l-container .caaci-promo {
   width: 100%;
+  max-width: none;
 }
 
 /* ================================================== Donation checkout === */
