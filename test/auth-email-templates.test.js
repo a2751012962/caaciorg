@@ -221,6 +221,23 @@ test('diff: one edited template is reported by its key alone, without dumping th
   assert.doesNotMatch(drift[0].summary, /<div|<img/);
 });
 
+test('diff: whitespace inside a line is drift — only line ends are normalised', async () => {
+  const desired = buildAuthPatch(await loadTemplates());
+  const key = 'mailer_templates_confirmation_content';
+  const edits = {
+    'spacing inside a template variable': desired[key].replace('{{ .Email }}', '{{.Email}}'),
+    'a space inside a style attribute': desired[key].replace('style="', 'style=" '),
+  };
+  for (const [what, live] of Object.entries(edits)) {
+    assert.notEqual(live, desired[key], `fixture did not change: ${what}`);
+    assert.deepEqual(
+      diffAuthConfig(desired, { ...desired, [key]: live }).map((d) => d.key),
+      [key],
+      `${what} was not reported`,
+    );
+  }
+});
+
 // ---------------------------------------------------------------- CLI
 
 test('without a token it exits non-zero and makes no request', async (t) => {
@@ -313,6 +330,7 @@ test('--apply exits non-zero when the re-read config still differs', async (t) =
   }
   assert.deepEqual(methods(stub), ['GET', 'PATCH', 'GET']);
   assert.match(out.join('\n'), /mailer_subjects_magic_link/);
+  assert.equal(out.join('\n').includes(TOKEN), false, 'the token was printed');
 });
 
 test('--apply will not switch on SMTP it cannot give a password to', async (t) => {
@@ -431,5 +449,65 @@ test('an unexpected error reaching the CLI is printed without the token', () => 
   });
   assert.equal(run.status, 1, run.stderr);
   assert.match(run.stderr, /rejected header/);
+  assert.equal((run.stdout + run.stderr).includes(TOKEN), false, 'the token was printed');
+});
+
+test('--apply exits non-zero when the PATCH is refused', async (t) => {
+  const out = capture(t);
+  const desired = buildAuthPatch(await loadTemplates());
+  const stub = mockFetch((url, options) =>
+    options.method === 'PATCH'
+      ? { status: 422, body: 'invalid template' }
+      : { body: { ...desired, mailer_subjects_invite: 'old subject' } },
+  );
+  try {
+    assert.equal(await main(['--apply'], { SUPABASE_ACCESS_TOKEN: TOKEN }), 1);
+  } finally {
+    stub.restore();
+  }
+  assert.deepEqual(methods(stub), ['GET', 'PATCH']);
+  const text = out.join('\n');
+  assert.match(text, /422/);
+  assert.equal(text.includes(TOKEN), false, 'the token was printed');
+});
+
+test('--apply exits non-zero when the config cannot be read back', async (t) => {
+  const out = capture(t);
+  const desired = buildAuthPatch(await loadTemplates());
+  let reads = 0;
+  const stub = mockFetch((url, options) => {
+    if (options.method === 'PATCH') return { body: {} };
+    reads += 1;
+    return reads === 1
+      ? { body: { ...desired, mailer_subjects_invite: 'old subject' } }
+      : { status: 503, body: 'unavailable' };
+  });
+  try {
+    assert.equal(await main(['--apply'], { SUPABASE_ACCESS_TOKEN: TOKEN }), 1);
+  } finally {
+    stub.restore();
+  }
+  assert.deepEqual(methods(stub), ['GET', 'PATCH', 'GET']);
+  assert.match(out.join('\n'), /503/);
+});
+
+test('a mistyped flag exits non-zero before any request', async (t) => {
+  const out = capture(t);
+  const stub = mockFetch(() => ({ body: {} }));
+  try {
+    // --aply must fail loudly, not quietly run as a dry run.
+    assert.equal(await main(['--aply'], { SUPABASE_ACCESS_TOKEN: TOKEN }), 1);
+  } finally {
+    stub.restore();
+  }
+  assert.equal(stub.calls.length, 0);
+  assert.match(out.join('\n'), /unknown option: --aply/);
+});
+
+test('the CLI with no token exits non-zero without touching the network', () => {
+  // Any fetch at all would end the child with exit code 99.
+  const run = runCli([], { preload: 'globalThis.fetch = () => process.exit(99);' });
+  assert.equal(run.status, 1, run.stderr);
+  assert.match(run.stderr, /Missing SUPABASE_ACCESS_TOKEN/);
   assert.equal((run.stdout + run.stderr).includes(TOKEN), false, 'the token was printed');
 });

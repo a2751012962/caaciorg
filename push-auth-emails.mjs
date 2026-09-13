@@ -143,8 +143,13 @@ function scrub(text, token) {
 export async function main(argv = process.argv.slice(2), env = process.env) {
   let apply = false;
   for (const arg of argv) {
-    if (arg === '--apply') apply = true;
-    else throw new Error(`unknown option: ${arg}`);
+    if (arg === '--apply') {
+      apply = true;
+    } else {
+      // A typo such as --aply must not quietly run as a dry run.
+      console.error(`✗ unknown option: ${arg}. Usage: npm run auth:emails [-- --apply]`);
+      return 1;
+    }
   }
   const token = env.SUPABASE_ACCESS_TOKEN || env.SBP;
   if (!token) {
