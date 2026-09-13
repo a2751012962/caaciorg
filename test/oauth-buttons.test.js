@@ -98,7 +98,27 @@ test('login page: the Microsoft button carries the email/profile scopes', async 
     'openid email profile',
     'Microsoft returns no guaranteed email/name claim on the bare openid scope',
   );
-  assert.equal(spy.oauth[0].options.redirectTo, 'https://caaci.example/account/');
+  assert.equal(spy.oauth[0].options.redirectTo, 'https://caaci.example/login-3/');
+});
+
+// Returning to /account/ skipped destinationAfterSignIn, so an admin who signed
+// in with Microsoft never reached /admin/. Coming back to the login page runs its
+// already-signed-in check (covered in caaci-member-dom.test.js), which routes
+// admins to /admin/ and everyone else to `next` or /account/.
+test('login page: OAuth returns to the login page and keeps next', async () => {
+  mountDom(LOGIN_HTML);
+  location.search = `?next=${encodeURIComponent('/membership/?tier=family')}`;
+  const spy = spyClient();
+  member.__setSupa(spy.client);
+  await member.wireAuthPage();
+
+  btn(document.querySelector('#caaci-oauth-host'), 'azure').dispatchEvent(new Event('click'));
+  await tick();
+
+  assert.equal(
+    spy.oauth[0].options.redirectTo,
+    'https://caaci.example/login-3/?next=%2Fmembership%2F%3Ftier%3Dfamily',
+  );
 });
 
 test('login page: the Google button does not narrow Google to a custom scope set', async () => {
@@ -112,7 +132,7 @@ test('login page: the Google button does not narrow Google to a custom scope set
 
   assert.equal(spy.oauth.length, 1);
   assert.equal(spy.oauth[0].provider, 'google');
-  assert.equal(spy.oauth[0].options.redirectTo, 'https://caaci.example/account/');
+  assert.equal(spy.oauth[0].options.redirectTo, 'https://caaci.example/login-3/');
   assert.ok(
     !('scopes' in spy.oauth[0].options),
     'Google already returns email and profile on its defaults; overriding can only remove claims',
