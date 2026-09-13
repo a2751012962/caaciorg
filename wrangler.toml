@@ -16,6 +16,11 @@ pages_build_output_dir = "dist"
 [vars]
 SUPABASE_URL = "https://wslzeqhipvibeflmxznh.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbHplcWhpcHZpYmVmbG14em5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NTA2NDAsImV4cCI6MjEwNDMyNjY0MH0.kQ0LZ-O2jVxnPaW-S9cAIeYFFTgrbb_ddXDJSzfrkXc"
+# Sender for the site's own emails (registration confirmations, contact form,
+# news) — the same verified caaciorg.com sender Supabase Auth uses over Resend.
+# Not a secret. Without it (or without the RESEND_API_KEY secret) sendEmail in
+# functions/api/_lib.js silently sends nothing.
+NOTIFY_FROM = "CAACI <no-reply@caaciorg.com>"
 
 # Secrets are NOT stored here — set them with wrangler (targets production by default):
 #   npx wrangler pages secret put SUPABASE_SERVICE_ROLE_KEY --project-name=caaci-8s2
