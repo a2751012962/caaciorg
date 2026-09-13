@@ -1020,7 +1020,8 @@ test('admin news: Preview shows the message in a sandboxed frame and sends nothi
   const body = $('#caaci-news-body');
   const preview = $('#caaci-news-preview');
   const frame = () => preview.querySelector('iframe');
-  const newsPosts = () => fetch.calls.filter((c) => c.url === '/api/admin/news');
+  const newsPosts = () =>
+    fetch.calls.filter((c) => c.url === '/api/admin/news' && c.options.method === 'POST');
   try {
     $('[data-tab="news"]').click();
     await tick();

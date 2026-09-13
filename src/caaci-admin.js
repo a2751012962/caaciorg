@@ -968,7 +968,48 @@ function showNewsPreview() {
   host.hidden = false;
 }
 
+// Whether this environment refuses real sends (NEWS_TEST_ONLY): shows the banner
+// and turns the real send button off. The API refuses them either way.
+async function loadNewsMode() {
+  const { ok, data } = await api('/api/admin/news').catch(() => ({ ok: false, data: {} }));
+  const testOnly = ok && data.test_only === true;
+  $('#caaci-news-test-only').hidden = !testOnly;
+  $('#caaci-news-send').disabled = testOnly;
+}
+
+// A test email: to the signed-in admin, plus the extra addresses typed in, which
+// the API accepts only when they belong to admin accounts.
+async function sendNewsTest() {
+  const notb = $('#caaci-news-notice');
+  const btn = $('#caaci-news-test-btn');
+  const body = {
+    subject: $('#caaci-news-subject').value.trim(),
+    body_html: $('#caaci-news-body').value.trim(),
+    test: true,
+    test_to: $('#caaci-news-test-to')
+      .value.split(/[\s,;]+/)
+      .filter(Boolean),
+  };
+  if (!body.subject || !body.body_html)
+    return notice(notb, t('Subject and message are required.', '主题和正文为必填项。'), false);
+  btn.disabled = true;
+  try {
+    const { ok, data } = await api('/api/admin/news', { method: 'POST', body });
+    if (!ok)
+      return notice(notb, data.error || t('The test email failed.', '测试邮件发送失败。'), false);
+    const list = (data.recipients || []).join(', ');
+    notice(notb, t(`Test email sent to ${list}.`, `测试邮件已发送给：${list}。`), true);
+  } catch {
+    notice(notb, t('Could not send the test email.', '无法发送测试邮件。'), false);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function wireNews() {
+  const tab = $('[data-tab="news"]');
+  if (tab) tab.addEventListener('click', () => loadNewsMode());
+  $('#caaci-news-test-btn').addEventListener('click', sendNewsTest);
   $('#caaci-news-preview-btn').addEventListener('click', showNewsPreview);
   $('#caaci-news-send').addEventListener('click', async () => {
     const notb = $('#caaci-news-notice');
