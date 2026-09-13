@@ -313,8 +313,8 @@ const DEADLINE = '2026-09-21T04:59:00.000Z'; // 2026-09-20 23:59:00 in Chicago (
 const MAF = {
   id: 'ev-maf',
   title: 'Mid-Autumn Festival',
-  starts_at: '2026-09-27T19:00:00Z',
-  ends_at: null,
+  starts_at: '2026-09-27T19:00:00Z', // 2:00 PM Chicago (CDT)
+  ends_at: '2026-09-27T23:00:00Z', // 6:00 PM Chicago
   location: 'Siebel Center for Design',
   published: true,
   perk_deadline: DEADLINE,
@@ -433,6 +433,44 @@ test('admin events: the free-gift deadline round-trips through the event editor'
     eventRow('Picnic').querySelector('[data-act="edit"]').click();
     assert.equal(deadline().value, '');
     form().querySelector('[data-act="cancel"]').click();
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: saving an event sends its start and end as real instants, so it never drifts', async () => {
+  const fetch = mockFetch(eventRoutes);
+  try {
+    document.querySelector('[data-tab="events"]').click();
+    await tick();
+    const form = () => document.querySelector('#caaci-event-form-host form');
+    const input = (f) => form().querySelector(`[data-f="${f}"]`);
+    const save = async () => {
+      form().querySelector('[type="submit"]').click();
+      await tick();
+      const post = fetch.calls
+        .filter((c) => c.url.includes('/api/admin/events') && c.options.method === 'POST')
+        .at(-1);
+      return JSON.parse(post.options.body);
+    };
+
+    // Stored 19:00Z–23:00Z shows as this process's wall-clock (Asia/Shanghai, UTC+8).
+    eventRow('Mid-Autumn').querySelector('[data-act="edit"]').click();
+    assert.equal(input('starts_at').value, '2026-09-28T03:00');
+    assert.equal(input('ends_at').value, '2026-09-28T07:00');
+
+    // Saved unchanged → exactly the stored instants (not the wall-clock read as UTC).
+    let sent = await save();
+    assert.equal(sent.starts_at, '2026-09-27T19:00:00.000Z');
+    assert.equal(sent.ends_at, '2026-09-27T23:00:00.000Z');
+
+    // Newly typed local times → the matching instants; a cleared end → ''.
+    eventRow('Mid-Autumn').querySelector('[data-act="edit"]').click();
+    input('starts_at').value = '2026-09-28T03:30';
+    input('ends_at').value = '';
+    sent = await save();
+    assert.equal(sent.starts_at, '2026-09-27T19:30:00.000Z');
+    assert.equal(sent.ends_at, '');
   } finally {
     fetch.restore();
   }

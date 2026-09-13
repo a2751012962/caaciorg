@@ -1578,9 +1578,11 @@ function eventForm(host, ev) {
     const body = {
       title: val('title').value.trim(),
       location: val('location').value.trim(),
-      starts_at: val('starts_at').value,
-      ends_at: val('ends_at').value,
-      // The admin's wall-clock time as a real instant; '' clears it (→ event start).
+      // The admin's wall-clock times as real instants. A bare datetime-local value
+      // would be read as UTC by the Worker, shifting the event by the admin's
+      // offset on every save. '' clears an end (→ null) or a deadline (→ start).
+      starts_at: localToIso(val('starts_at').value),
+      ends_at: localToIso(val('ends_at').value),
       perk_deadline: localToIso(val('perk_deadline').value),
       description: val('description').value.trim(),
       image_url: val('image_url').value.trim(),
