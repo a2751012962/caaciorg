@@ -756,6 +756,17 @@
                   </div>
                 </div>
                 <div class="card-body">
+                  <!-- Shown by caaci-admin.js when GET /api/admin/news says test_only. -->
+                  <div
+                    class="alert alert-warning"
+                    id="caaci-news-test-only"
+                    hidden
+                    data-en="This site only sends test emails: it shares the real member list, so real sends are turned off here. Send the real email from caaciorg.com."
+                    data-zh="此站点只能发送测试邮件：它连接的是真实会员名单，所以这里关闭了正式群发。正式邮件请到 caaciorg.com 发送。"
+                  >
+                    This site only sends test emails: it shares the real member list, so real sends
+                    are turned off here. Send the real email from caaciorg.com.
+                  </div>
                   <div class="mb-3">
                     <label class="form-label" data-en="Audience" data-zh="收件对象">Audience</label>
                     <select id="caaci-news-audience" class="form-select">
@@ -847,6 +858,29 @@
                     >
                     <textarea id="caaci-news-body" class="form-control" rows="10"></textarea>
                   </div>
+                  <div class="mb-3">
+                    <label
+                      class="form-label"
+                      for="caaci-news-test-to"
+                      data-en="Test recipients (optional)"
+                      data-zh="测试收件人（可选）"
+                      >Test recipients (optional)</label
+                    >
+                    <input
+                      type="text"
+                      id="caaci-news-test-to"
+                      class="form-control"
+                      placeholder="admin@example.com, …"
+                    />
+                    <div
+                      class="form-hint"
+                      data-en="A test email always goes to you, plus these addresses (comma-separated). Only admin accounts are allowed."
+                      data-zh="测试邮件总会发给你自己，另外可填这些邮箱（逗号分隔），只允许管理员账号。"
+                    >
+                      A test email always goes to you, plus these addresses (comma-separated). Only
+                      admin accounts are allowed.
+                    </div>
+                  </div>
                   <label class="form-check">
                     <input type="checkbox" class="form-check-input" id="caaci-news-confirm" />
                     <span
@@ -865,6 +899,15 @@
                       data-zh="预览"
                     >
                       Preview
+                    </button>
+                    <button
+                      type="button"
+                      class="btn"
+                      id="caaci-news-test-btn"
+                      data-en="Send test email"
+                      data-zh="发送测试邮件"
+                    >
+                      Send test email
                     </button>
                     <button
                       type="button"

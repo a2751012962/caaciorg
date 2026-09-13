@@ -1,8 +1,19 @@
-// POST /api/admin/news  (admin only)
-// Compose-and-send a news email to the membership. Recipient emails are fetched
-// server-side (service role) and NEVER returned to the browser; each member gets
-// their own message (no shared to/cc) so the list isn't leaked. Throttled and
-// requires an explicit confirm to prevent accidental mass-sends.
+// /api/admin/news  (admin only)
+//   GET  — { test_only }: whether this environment refuses real sends, so
+//          Compose News can say so before anyone tries.
+//   POST { subject, body_html, audience, confirm } — the real send.
+//          Compose-and-send a news email to the membership. Recipient emails are
+//          fetched server-side (service role) and NEVER returned to the browser;
+//          each member gets their own message (no shared to/cc) so the list isn't
+//          leaked. Throttled and requires an explicit confirm to prevent
+//          accidental mass-sends.
+//   POST { subject, body_html, test: true, test_to } — a test send: only to the
+//          signed-in admin and to the addresses in test_to that belong to admin
+//          accounts, so it can never mail an arbitrary address from CAACI. The
+//          subject is prefixed 【测试 TEST】. No confirm, no audit row, no throttle.
+// NEWS_TEST_ONLY=1 (a secret on the Preview environment, which shares the live
+// member list and real Resend sending) refuses every real send with 403; test
+// sends still work.
 import { json, bad, sb, requireAdmin, sendEmailBatch } from '../_lib.js';
 import { PLACEHOLDER } from '../_event-emails.js';
 
@@ -10,6 +21,16 @@ const AUDIENCES = ['all', 'active']; // plus 'tier:<id>'
 const THROTTLE_MS = 60_000; // min gap between sends
 const BATCH = 100; // Resend batch max per call
 const MAX_BODY = 200_000; // ~200 KB HTML ceiling
+const TEST_EXTRA_MAX = 10; // extra test recipients besides the sender
+const TEST_PREFIX = '【测试 TEST】';
+
+const testOnly = (env) => env.NEWS_TEST_ONLY === '1' || env.NEWS_TEST_ONLY === 'true';
+
+export async function onRequestGet({ request, env }) {
+  const gate = await requireAdmin(request, env);
+  if (gate.error) return gate.error;
+  return json({ test_only: testOnly(env) });
+}
 
 export async function onRequestPost({ request, env }) {
   const gate = await requireAdmin(request, env);
@@ -24,16 +45,24 @@ export async function onRequestPost({ request, env }) {
 
   const subject = (b.subject || '').trim();
   const html = (b.body_html || '').trim();
-  const audience = (b.audience || 'active').trim();
   if (!subject) return bad('Subject is required.');
   if (!html) return bad('Message body is required.');
   if (html.length > MAX_BODY) return bad('Message body is too large.');
+  // A test send goes to admins only, so it may still carry template placeholders.
+  if (b.test === true) return sendTest({ env, gate, subject, html, testTo: b.test_to });
+
   // A Compose News template's 【待填写】 / [To fill in] text was never replaced.
   if (PLACEHOLDER.test(subject) || PLACEHOLDER.test(html))
     return bad('Replace the 【待填写】 / [To fill in] text before sending.');
+  const audience = (b.audience || 'active').trim();
   if (!b.confirm) return bad('Please confirm before sending.');
   const isTier = audience.startsWith('tier:');
   if (!AUDIENCES.includes(audience) && !isTier) return bad('Invalid audience.');
+  if (testOnly(env))
+    return bad(
+      'This site only sends test emails (NEWS_TEST_ONLY). Send the real email from the live site.',
+      403,
+    );
 
   // Fail fast with a clear error rather than reporting one failure per recipient.
   if (!env.RESEND_API_KEY || !env.NOTIFY_FROM) return bad('Email is not configured.', 503);
@@ -65,7 +94,7 @@ export async function onRequestPost({ request, env }) {
   let emails;
   try {
     const { rows } = await DB.select('members', { columns: 'email', filters, limit: 10000 });
-    emails = [...new Set(rows.map((r) => (r.email || '').trim().toLowerCase()).filter(Boolean))];
+    emails = [...new Set(rows.map((r) => normEmail(r.email)).filter(Boolean))];
   } catch (e) {
     return bad(e.message, 500);
   }
@@ -116,4 +145,50 @@ export async function onRequestPost({ request, env }) {
   }
 
   return json({ ok: true, sent, failed, total: emails.length });
+}
+
+const normEmail = (s) =>
+  String(s ?? '')
+    .trim()
+    .toLowerCase();
+
+// The test send: the signed-in admin plus extra addresses, each of which must
+// belong to an admin account. Nothing is read from or written to news_posts.
+async function sendTest({ env, gate, subject, html, testTo }) {
+  const self = normEmail(gate.member.email);
+  if (!self) return bad('Your admin account has no email address to send a test to.');
+  const raw = Array.isArray(testTo) ? testTo : String(testTo ?? '').split(/[\s,;]+/);
+  const extras = [...new Set(raw.map(normEmail).filter(Boolean))].filter((e) => e !== self);
+  if (extras.length > TEST_EXTRA_MAX)
+    return bad(`At most ${TEST_EXTRA_MAX} extra test recipients.`);
+  if (!env.RESEND_API_KEY || !env.NOTIFY_FROM) return bad('Email is not configured.', 503);
+
+  if (extras.length) {
+    let admins;
+    try {
+      const { rows } = await sb(env).select('members', {
+        columns: 'email',
+        filters: ['is_admin=eq.true', 'email=not.is.null'],
+        limit: 1000,
+      });
+      admins = new Set(rows.map((r) => normEmail(r.email)));
+    } catch (e) {
+      return bad(e.message, 500);
+    }
+    const outsiders = extras.filter((e) => !admins.has(e));
+    if (outsiders.length)
+      return bad(`Test emails can only go to admin accounts: ${outsiders.join(', ')}`);
+  }
+
+  const recipients = [self, ...extras];
+  let sent;
+  try {
+    sent = await sendEmailBatch(
+      env,
+      recipients.map((to) => ({ to, subject: `${TEST_PREFIX}${subject}`, html })),
+    );
+  } catch {
+    return bad('The test email could not be sent.', 502);
+  }
+  return json({ ok: true, test: true, sent, recipients });
 }

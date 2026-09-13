@@ -1419,7 +1419,9 @@ test('admin news: the event announcement template fills subject and message, sta
     $('#caaci-news-confirm').checked = true;
     $('#caaci-news-send').click();
     await tick();
-    const send = fetch.calls.find((c) => c.url === '/api/admin/news');
+    const send = fetch.calls.find(
+      (c) => c.url === '/api/admin/news' && c.options.method === 'POST',
+    );
     assert.equal(send.options.method, 'POST');
     assert.deepEqual(JSON.parse(send.options.body), {
       subject: rendered('ev-maf').subject,
@@ -1457,7 +1459,8 @@ test('admin news: general and renewal need no event, event templates send their 
   const body = $('#caaci-news-body');
   const lastTemplateUrl = () =>
     fetch.calls.filter((c) => c.url.includes('/api/admin/news-template')).at(-1)?.url;
-  const newsPosts = () => fetch.calls.filter((c) => c.url === '/api/admin/news');
+  const newsPosts = () =>
+    fetch.calls.filter((c) => c.url === '/api/admin/news' && c.options.method === 'POST');
   const send = async () => {
     $('#caaci-news-confirm').checked = true;
     $('#caaci-news-send').click();

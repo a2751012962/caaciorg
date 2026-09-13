@@ -33,6 +33,8 @@ NOTIFY_TO = "caaci.org@gmail.com"
 #   npx wrangler pages secret put STRIPE_SECRET_KEY         --project-name=caaci
 #   npx wrangler pages secret put STRIPE_WEBHOOK_SECRET     --project-name=caaci
 #   npx wrangler pages secret put RESEND_API_KEY            --project-name=caaci
+# Preview only (value 1): Compose News refuses real sends, test sends still work:
+#   npx wrangler pages secret put NEWS_TEST_ONLY --project-name=caaci --env preview
 # NOTE: SUPABASE_URL / SUPABASE_ANON_KEY must NOT also exist as secrets — a secret
 # shadows the [vars] value of the same name. They were removed as secrets so the
 # plaintext vars above are authoritative.

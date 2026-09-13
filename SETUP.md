@@ -153,6 +153,16 @@ Create an API key, verify the sending domain, set `NOTIFY_FROM` / `NOTIFY_TO`.
    and `SUPABASE_SERVICE_ROLE_KEY`; preview has the same four names with the Stripe
    **test** key.
 
+   **Preview only — `NEWS_TEST_ONLY`.** Preview shares the live member list and real
+   Resend sending, so set this secret to `1` there. Admin → Compose News then refuses
+   real sends on preview (the API answers 403), while **Send test email** still works:
+   it goes only to the signed-in admin and other admin-account addresses. Never set it
+   on production.
+
+   ```
+   npx wrangler pages secret put NEWS_TEST_ONLY --project-name=caaci --env preview
+   ```
+
    `SUPABASE_URL` / `SUPABASE_ANON_KEY` are public values; `build.mjs` also hardcodes
    them as defaults for the browser bundle (`dist/assets/caaci-config.js`), so the
    client works even without the runtime secrets — only the Pages **Functions**
