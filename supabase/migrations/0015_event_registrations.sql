@@ -18,7 +18,7 @@
 -- select, insert, update, delete, truncate (which ignores RLS entirely),
 -- references and trigger (and maintain, on Postgres 17).
 -- Idempotent (if not exists / revoke), so pasting it twice is safe.
--- Run via: supabase db push   (or paste into the Supabase SQL editor)
+-- Run via: paste into the Supabase SQL editor (never supabase db push on this project; see SETUP.md)
 
 alter table public.events add column if not exists perk_deadline timestamptz;
 
