@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { onRequestGet } from '../functions/api/admin/households.js';
+import { onRequestGet, onRequestPut } from '../functions/api/admin/households.js';
 import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
 
 const DAY = 86_400_000;
@@ -94,11 +94,27 @@ const EXTRAS = [
   { id: 'h2', founder: null, invites: [], events: [] },
 ];
 
-function route({ extras = () => ({ body: EXTRAS }) } = {}) {
+// Family-plan members with no family yet.
+const PLAN_MEMBERS = [
+  {
+    id: 'f1',
+    full_name: 'Zheng Liu',
+    email: 'zg@x.com',
+    status: 'active',
+    member_since: past,
+    expires_at: future,
+  },
+];
+
+function route({
+  extras = () => ({ body: EXTRAS }),
+  planMembers = () => ({ body: PLAN_MEMBERS }),
+} = {}) {
   return (u) => {
     if (u.includes('/auth/v1/user')) return { body: { id: 'admin-1' } };
     if (u.includes('/rest/v1/members') && u.includes('is_admin'))
       return { body: [{ id: 'admin-1', is_admin: true }] };
+    if (u.includes('/rest/v1/members') && u.includes('tier_id=eq.family')) return planMembers();
     if (u.includes('/rest/v1/households') && decodeURIComponent(u).includes('accounts:'))
       return { body: MAIN };
     if (u.includes('/rest/v1/households')) return extras();
@@ -226,6 +242,150 @@ test('admin households: families still load when the invitation tables are missi
     assert.deepEqual(h1.invites, []);
     assert.deepEqual(h1.events, []);
     assert.equal(h1.seats_used, 3, '2 accounts + name-only Kai');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin households: lists family-plan members who have no family yet', async () => {
+  const fetch = mockFetch(route());
+  try {
+    const data = await (await get()).json();
+    assert.deepEqual(data.family_plan_members, PLAN_MEMBERS);
+    const url = fetch.calls
+      .map((c) => decodeURIComponent(c.url))
+      .find((u) => u.includes('/rest/v1/members') && u.includes('tier_id='));
+    assert.match(url, /select=id,full_name,email,status,member_since,expires_at(&|$)/);
+    assert.match(url, /[?&]tier_id=eq\.family(&|$)/);
+    assert.match(url, /[?&]household_id=is\.null(&|$)/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin households: families still load when the family-plan members query fails', async () => {
+  const fetch = mockFetch(route({ planMembers: () => ({ status: 500, body: 'boom' }) }));
+  try {
+    const r = await get();
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.equal(data.family_plan_members, null);
+    assert.equal(data.rows.length, 2);
+  } finally {
+    fetch.restore();
+  }
+});
+
+// ---------- PUT { founder_member_id }: start a family for a family-plan member ----------
+const PLAN_MEMBER = {
+  id: 'f1',
+  full_name: 'Zheng Liu',
+  email: 'zg@x.com',
+  tier_id: 'family',
+  household_id: null,
+};
+
+function createRoute({
+  member = PLAN_MEMBER,
+  rpc = () => ({ body: { ok: true, household_id: 'h9' } }),
+} = {}) {
+  return (u) => {
+    if (u.includes('/auth/v1/user')) return { body: { id: 'admin-1' } };
+    if (u.includes('/rest/v1/members') && u.includes('is_admin'))
+      return { body: [{ id: 'admin-1', is_admin: true }] };
+    if (u.includes('/rest/v1/members')) return { body: member ? [member] : [] };
+    if (u.includes('/rest/v1/rpc/family_create_household')) return rpc();
+    return { body: [] };
+  };
+}
+
+const put = (body) =>
+  onRequestPut({
+    request: fakeRequest({
+      url: 'https://caaci.example/api/admin/households',
+      headers: { authorization: 'Bearer tok' },
+      body,
+    }),
+    env: fakeEnv(),
+  });
+
+const rpcCalls = (fetch) =>
+  fetch.calls.filter((c) => c.url.includes('/rpc/family_create_household'));
+const householdInserts = (fetch) =>
+  fetch.calls.filter((c) => c.url.includes('/rest/v1/households') && c.options.method === 'POST');
+
+test('admin households: a family-plan member gets a family through family_create_household, as its founder', async () => {
+  const fetch = mockFetch(createRoute());
+  try {
+    const r = await put({ founder_member_id: 'f1' });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { ok: true, household_id: 'h9' });
+    const [call] = rpcCalls(fetch);
+    assert.deepEqual(JSON.parse(call.options.body), {
+      p_founder: 'f1',
+      p_name: "zg@x.com's family",
+      p_full_name: 'Zheng Liu',
+      p_email: 'zg@x.com',
+    });
+    const lookup = fetch.calls.find(
+      (c) => c.url.includes('/rest/v1/members') && c.url.includes('id=eq.f1'),
+    );
+    assert.ok(lookup, 'member looked up by id');
+    assert.equal(householdInserts(fetch).length, 0, 'no plain households insert');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin households: creating a family for a member is refused when it cannot apply', async () => {
+  const cases = [
+    { name: 'no id', body: { founder_member_id: '' }, status: 400 },
+    { name: 'unknown member', route: { member: null }, status: 404 },
+    {
+      name: 'already in a family',
+      route: { member: { ...PLAN_MEMBER, household_id: 'h1' } },
+      status: 409,
+      error: 'That member is already in a family.',
+    },
+    {
+      name: 'not on the family plan',
+      route: { member: { ...PLAN_MEMBER, tier_id: 'individual' } },
+      status: 400,
+      error: 'That member is not on the family plan.',
+    },
+  ];
+  for (const c of cases) {
+    const fetch = mockFetch(createRoute(c.route));
+    try {
+      const r = await put(c.body || { founder_member_id: 'f1' });
+      assert.equal(r.status, c.status, c.name);
+      if (c.error) assert.equal((await r.json()).error, c.error, c.name);
+      assert.equal(rpcCalls(fetch).length, 0, `${c.name}: no rpc`);
+      assert.equal(householdInserts(fetch).length, 0, `${c.name}: no insert`);
+    } finally {
+      fetch.restore();
+    }
+  }
+});
+
+test('admin households: a refusal from family_create_household maps to a readable error', async () => {
+  const fetch = mockFetch(
+    createRoute({ rpc: () => ({ body: { ok: false, reason: 'already_in_household' } }) }),
+  );
+  try {
+    const r = await put({ founder_member_id: 'f1' });
+    assert.equal(r.status, 409);
+    assert.equal((await r.json()).error, 'That member is already in a family.');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin households: a failing family_create_household call is a 500', async () => {
+  const fetch = mockFetch(createRoute({ rpc: () => ({ status: 404, body: 'no such function' }) }));
+  try {
+    const r = await put({ founder_member_id: 'f1' });
+    assert.equal(r.status, 500);
   } finally {
     fetch.restore();
   }
