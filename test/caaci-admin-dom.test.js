@@ -140,7 +140,16 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.ok(btnFor('reset') && btnFor('invite'), 'reset + invite buttons rendered');
     assert.match(btnFor('reset').textContent, /Send password reset/);
     assert.match(btnFor('invite').textContent, /Send invitation/);
-    assert.match(editRow().textContent, /never confirmed/, 'hint matches the server rule');
+    assert.doesNotMatch(
+      editRow().textContent,
+      /never confirmed/,
+      'no invite-only-unconfirmed hint',
+    );
+    assert.match(
+      editRow().textContent,
+      /already have one get a link to set their password/,
+      'hint explains both invite outcomes',
+    );
 
     dom.window.confirm = () => false; // declining sends nothing
     await click('reset');
@@ -164,11 +173,6 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.match(editMsg().textContent, /Could not send the email/);
     assert.equal(btnFor('reset').disabled, false);
 
-    // 409: the login is already confirmed, so point at reset; invite usable again.
-    await click('invite', () => ({ status: 409, body: { error: 'x' } }));
-    assert.match(editMsg().textContent, /Send password reset/);
-    assert.equal(btnFor('invite').disabled, false);
-
     // From here on, track live intervals to prove the editor clears its own.
     const live = new Set();
     const { setInterval: realSet, clearInterval: realClear } = globalThis;
@@ -184,21 +188,23 @@ test('admin page: module boots against the real Tabler markup', async () => {
     restoreTimers = () =>
       Object.assign(globalThis, { setInterval: realSet, clearInterval: realClear });
 
-    // Success: bearer token sent, success shown, 60s countdown.
-    await click('reset', ({ action }) => ({ body: { ok: true, action } }));
+    // Success: bearer token sent, the notice names what was sent, 60s countdown.
+    await click('invite', ({ action }) => ({ body: { ok: true, action, delivered: 'invite' } }));
     const okPost = emailPosts().at(-1);
     assert.equal(okPost.options.method, 'POST');
     assert.equal(okPost.options.headers.authorization, 'Bearer tok');
-    assert.deepEqual(JSON.parse(okPost.options.body), { member_id: 'm1', action: 'reset' });
+    assert.deepEqual(JSON.parse(okPost.options.body), { member_id: 'm1', action: 'invite' });
     assert.ok(editMsg().classList.contains('alert-success'));
-    assert.equal(btnFor('reset').disabled, true);
-    assert.match(btnFor('reset').textContent, /\(60s\)/);
+    assert.match(editMsg().textContent, /Invitation sent to Mei Lin\./);
+    assert.doesNotMatch(editMsg().textContent, /already has an account/);
+    assert.equal(btnFor('invite').disabled, true);
+    assert.match(btnFor('invite').textContent, /\(60s\)/);
 
     // A 429 also starts the countdown.
-    await click('invite', () => ({ status: 429, body: { error: 'wait' } }));
+    await click('reset', () => ({ status: 429, body: { error: 'wait' } }));
     assert.ok(editMsg().classList.contains('alert-danger'));
-    assert.equal(btnFor('invite').disabled, true);
-    assert.match(btnFor('invite').textContent, /\(\d+s\)/);
+    assert.equal(btnFor('reset').disabled, true);
+    assert.match(btnFor('reset').textContent, /\(\d+s\)/);
     assert.equal(live.size, 2, 'one countdown per cooling button');
 
     // Closing the editor clears its intervals; reopening resumes the countdown.
@@ -236,12 +242,14 @@ test('admin page: module boots against the real Tabler markup', async () => {
     // A send whose editor is closed mid-flight: the cooldown is still recorded, but
     // no interval is started on the removed button; reopening shows the countdown.
     let release;
-    const pendingReply = ({ action }) =>
-      new Promise((resolve) => {
-        release = () => resolve({ body: { ok: true, action } });
-      });
+    const pendingReply =
+      (extra = {}) =>
+      ({ action }) =>
+        new Promise((resolve) => {
+          release = () => resolve({ body: { ok: true, action, ...extra } });
+        });
     editBtnOf(1).click();
-    await click('reset', pendingReply);
+    await click('reset', pendingReply());
     editBtnOf(1).click(); // close while the request is in flight
     assert.equal(editRow(), null);
     release();
@@ -253,7 +261,9 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.equal(live.size, 1);
 
     // Closed and reopened mid-flight: the result lands on the CURRENT editor.
-    await click('invite', pendingReply);
+    // The invite reached an existing account, so the notice says a password-setup
+    // link went out instead of an invitation.
+    await click('invite', pendingReply({ delivered: 'password_setup' }));
     editBtnOf(1).click();
     editBtnOf(1).click(); // reopen while still in flight
     assert.equal(btnFor('invite').disabled, false);
@@ -261,6 +271,11 @@ test('admin page: module boots against the real Tabler markup', async () => {
     await tick();
     assert.equal(btnFor('invite').disabled, true, 'countdown applied to the open editor');
     assert.ok(editMsg().classList.contains('alert-success'), 'notice shown in the open editor');
+    assert.match(
+      editMsg().textContent,
+      /Jun Wu already has an account, so they were emailed a link to set their password\./,
+    );
+    assert.doesNotMatch(editMsg().textContent, /Invitation sent/);
     assert.equal(live.size, 2, 'exactly one interval per cooling button, none stray');
     editBtnOf(1).click();
     assert.equal(live.size, 0);
