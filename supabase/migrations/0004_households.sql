@@ -3,7 +3,7 @@
 -- members who have their own login are linked via members.household_id; family
 -- members WITHOUT a login (children, a spouse who never signs in) live in
 -- household_members so admins can manage the whole family from one place.
--- Run via: supabase db push   (or paste into the Supabase SQL editor)
+-- Apply by pasting into the Supabase SQL editor, in filename order (see SETUP.md).
 
 -- ============================================================
 -- Households — one row per family membership

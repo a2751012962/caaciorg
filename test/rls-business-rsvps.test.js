@@ -4,7 +4,7 @@
 // which bypasses RLS and table grants, so the client roles need no write path.
 //
 // Static, like the rest of `npm test`: it replays supabase/migrations/*.sql in
-// file order (the order `supabase db push` and apply-supabase.mjs use) through
+// file order (the SQL-editor order, which apply-supabase.mjs also uses) through
 // a small model of the statements that decide who can write — create/drop
 // policy, grant/revoke, enable/disable row level security. It checks what the
 // migrations say, not what the live project holds; confirm that against

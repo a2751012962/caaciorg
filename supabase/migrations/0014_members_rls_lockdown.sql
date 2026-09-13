@@ -11,7 +11,7 @@
 -- these grants. So the update policy goes, and so does the table-level write
 -- privilege (truncate included: it ignores RLS entirely). Members still read
 -- their own row through members_self_read.
--- Run via: supabase db push   (or paste into the Supabase SQL editor)
+-- Apply by pasting into the Supabase SQL editor, in filename order (see SETUP.md).
 
 drop policy if exists members_self_update on public.members;
 revoke insert, update, delete, truncate on public.members from anon, authenticated;

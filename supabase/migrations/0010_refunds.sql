@@ -3,7 +3,7 @@
 -- A payment can be refunded in part and more than once, so we track a running
 -- `refunded_cents` total on the row (capped server-side at the amount paid)
 -- plus the last Stripe refund id / timestamp / reason for the audit trail.
--- Run via: supabase db push   (or paste into the Supabase SQL editor)
+-- Apply by pasting into the Supabase SQL editor, in filename order (see SETUP.md).
 
 alter table public.payments
   add column if not exists refunded_cents  integer not null default 0,

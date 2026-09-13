@@ -6,7 +6,7 @@
 -- serves without consulting RLS. The size and MIME limits below are enforced
 -- server-side by the Storage service itself (belt and braces on top of the
 -- checks in functions/api/admin/media.js).
--- Run via: supabase db push   (or paste into the Supabase SQL editor)
+-- Apply by pasting into the Supabase SQL editor, in filename order (see SETUP.md).
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (

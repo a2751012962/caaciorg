@@ -1,6 +1,6 @@
 -- CAACI backend schema (Supabase / Postgres)
 -- Replaces MemberPress + WooCommerce + Events Calendar data model.
--- Run via: supabase db push   (or paste into the Supabase SQL editor)
+-- Apply by pasting into the Supabase SQL editor, in filename order (see SETUP.md).
 
 -- ============================================================
 -- Membership tiers (public read). Prices in USD cents.

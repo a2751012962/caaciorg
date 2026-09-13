@@ -1,7 +1,7 @@
 -- Payment ledger — the in-system record of every membership charge, so staff
 -- can track who paid, when, and how much without opening the Stripe Dashboard.
 -- Written by the Stripe webhook (first purchase + yearly auto-renewals).
--- Run via: supabase db push   (or paste into the Supabase SQL editor)
+-- Apply by pasting into the Supabase SQL editor, in filename order (see SETUP.md).
 
 create table if not exists public.payments (
   id                 uuid primary key default gen_random_uuid(),

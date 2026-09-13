@@ -47,12 +47,10 @@ wrangler.toml           Cloudflare Pages config (output dir = dist)
 ### 1. Supabase
 
 1. Create a project at supabase.com → note **Project URL**, **anon key**, **service_role key**.
-2. Apply the schema (SQL editor → paste, or CLI):
-   ```
-   supabase link --project-ref <ref>
-   supabase db push                         # runs migrations/
-   supabase db execute --file supabase/seed.sql
-   ```
+2. Apply the schema: in the Supabase SQL editor, paste and run each file in
+   `supabase/migrations/` in filename order (`0001_init.sql` first), then
+   `supabase/seed.sql`. Apply every later migration the same way — see
+   [Applying migrations](#applying-migrations).
 3. Auth → Providers: enable **Email** (password + magic link as desired).
 4. Make yourself admin: in the SQL editor,
    `update members set is_admin = true where email = 'you@example.com';`
@@ -145,6 +143,27 @@ Create an API key, verify the sending domain, set `NOTIFY_FROM` / `NOTIFY_TO`.
    client works even without the runtime secrets — only the Pages **Functions**
    (`functions/api/_lib.js`, `rsvp.js`) read them at runtime. **Secret changes bind
    only on the next deployment**, so redeploy after changing one.
+
+## Applying migrations
+
+<!-- db-push-warning -->
+
+> **Never run `supabase db push` (or `npm run db:push`) against the live project
+> `wslzeqhipvibeflmxznh`.** Every migration there was applied by pasting it into the
+> SQL editor, so the project has no `supabase_migrations.schema_migrations` table and
+> the CLI believes none of them has run: a push would replay every file in
+> `supabase/migrations/`, from `0001_init.sql` onward, against production.
+> `npm run db:push` refuses and points here.
+
+<!-- /db-push-warning -->
+
+To apply a new migration, open the project's SQL editor, paste the new
+`supabase/migrations/NNNN_*.sql` file and run it. If several are pending, run them one
+at a time in filename order, each only after the one before it succeeded.
+
+Do not paste `supabase/seed.sql` into the live project: its `on conflict (id) do update`
+resets every membership tier's name, price, description, sort order and invite-only flag
+to the values in the file. `npm run db:seed` refuses for the same reason.
 
 ## Local development
 
@@ -326,7 +345,8 @@ visit `/admin/` while logged in. The panel provides:
   for the first year, Invoice for renewals), so staff never handle charge ids.
   Requires migration `0010_refunds.sql`.
 
-Apply the admin migrations before using the panel (`supabase db push` runs them all):
+Apply the admin migrations before using the panel (paste each into the SQL editor, in order —
+see [Applying migrations](#applying-migrations)):
 `0003_admin.sql` (adds the `past_due` status and the `news_posts` audit table),
 `0004_households.sql` + `0005_households_rls.sql` (the `households` / `household_members`
 tables and `members.household_id` that power the **Families** tab and member add/edit),

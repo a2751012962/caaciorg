@@ -2,7 +2,7 @@
 --   Staff create codes in the admin panel (each gets a shareable QR code that
 --   opens /membership/?code=XXX with the discount pre-applied). Validation and
 --   redemption counting happen server-side in the Pages Functions.
--- Run via: supabase db push   (or paste into the Supabase SQL editor)
+-- Apply by pasting into the Supabase SQL editor, in filename order (see SETUP.md).
 
 create table if not exists public.discount_codes (
   code             text primary key,                 -- what members type / the QR encodes (uppercase)

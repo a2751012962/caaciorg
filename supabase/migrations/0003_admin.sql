@@ -1,7 +1,7 @@
 -- Admin / back-office support.
 --   1. Allow a 'past_due' member status (Stripe invoice.payment_failed).
 --   2. Audit table for news emails sent to the membership.
--- Run via: supabase db push   (or paste into the Supabase SQL editor)
+-- Apply by pasting into the Supabase SQL editor, in filename order (see SETUP.md).
 
 -- ============================================================
 -- members.status now includes 'past_due'. The column was free-text;
