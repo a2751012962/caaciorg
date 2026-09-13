@@ -1375,15 +1375,8 @@ test('admin news: the event announcement template fills subject and message, whi
     assert.equal(body.value, rendered('ev-maf').html);
     assert.equal(asked.length, 0);
 
-    // The filled message is drawn into the editor, a frame that may not run
-    // scripts, and an edit there is written back to the message box.
-    const frame = () => $('#caaci-news-editor iframe');
-    assert.equal(frame().getAttribute('sandbox'), 'allow-same-origin');
-    assert.equal(frame().contentDocument.querySelector('h1').textContent, 'ev-maf');
-    frame().contentDocument.body.insertAdjacentHTML('beforeend', '<p>See you there!</p>');
-    const FrameEvent = frame().contentWindow.Event;
-    frame().contentDocument.dispatchEvent(new FrameEvent('input'));
-    assert.equal(body.value, `${rendered('ev-maf').html}<p>See you there!</p>`);
+    // The filled message stays editable.
+    body.value += '<p>See you there!</p>';
 
     // An edited message is not replaced unless the admin agrees.
     choose($('#caaci-news-event'), 'ev-fair');
@@ -1398,7 +1391,6 @@ test('admin news: the event announcement template fills subject and message, whi
     assert.equal(asked.length, 2);
     assert.equal(subject.value, rendered('ev-fair').subject);
     assert.equal(body.value, rendered('ev-fair').html);
-    assert.equal(frame().contentDocument.querySelector('h1').textContent, 'ev-fair', 'redrawn');
 
     // Untouched template text is swapped without asking.
     choose($('#caaci-news-event'), 'ev-maf');
@@ -2052,97 +2044,31 @@ test('admin members: once families load, the member editor offers them and saves
   }
 });
 
-// ---------- news: preview ----------
-test('admin news: the message is edited in a sandboxed frame, the toolbar formats it, and View source edits the same HTML', async () => {
+// ---------- news: message editor ----------
+test('admin news: without Jodit the message box itself is the editor, and sending reads it', async () => {
   const fetch = mockFetch((u) =>
     u === '/api/admin/news' ? { body: { ok: true, sent: 2, failed: 0, total: 2 } } : { body: {} },
   );
   const $ = (s) => document.querySelector(s);
   const body = $('#caaci-news-body');
-  const frame = () => $('#caaci-news-editor iframe');
-  const doc = () => frame().contentDocument;
-  const typeInFrame = (html) => {
-    doc().body.innerHTML = html;
-    const FrameEvent = frame().contentWindow.Event;
-    doc().dispatchEvent(new FrameEvent('input'));
-  };
-  const tool = (cmd) => $(`#caaci-news-toolbar [data-cmd="${cmd}"]`);
-  const sourceBtn = () => $('#caaci-news-source-btn');
   const newsPosts = () =>
     fetch.calls.filter((c) => c.url === '/api/admin/news' && c.options.method === 'POST');
-  const realPrompt = window.prompt;
   try {
     $('[data-tab="news"]').click();
     await tick();
-    // Start from an empty message: earlier news tests leave text in the box.
-    body.value = '';
-    sourceBtn().click();
-    sourceBtn().click();
 
-    // Visual editing by default: an editable frame that may not run scripts,
-    // with the HTML box hidden and still empty.
-    assert.equal($('#caaci-news-preview-btn'), null);
-    assert.equal($('#caaci-news-visual').hidden, false);
-    assert.equal(body.hidden, true);
-    assert.equal(frame().getAttribute('sandbox'), 'allow-same-origin');
-    assert.equal(frame().getAttribute('title'), 'Message editor');
-    assert.equal(doc().designMode, 'on');
-    assert.equal(body.value, '', 'an untouched editor leaves the message empty');
-
-    // Typing in the frame writes its HTML back to the box that sending reads.
-    typeInFrame('<h2>中秋节</h2><p>See you there!</p>');
-    assert.equal(body.value, '<h2>中秋节</h2><p>See you there!</p>');
-
-    // Toolbar buttons run their command in the frame, then sync.
-    const ran = [];
-    doc().execCommand = (...args) => {
-      ran.push(args);
-      doc().body.innerHTML = '<h2><b>中秋节</b></h2><p>See you there!</p>';
-      return true;
-    };
-    tool('bold').click();
-    assert.deepEqual(ran, [['bold', false, undefined]]);
-    assert.equal(body.value, '<h2><b>中秋节</b></h2><p>See you there!</p>');
-    tool('formatBlock').click();
-    assert.deepEqual(ran.at(-1), ['formatBlock', false, 'h2']);
-
-    // A link must be http(s) or mailto; a cancelled or javascript: link runs nothing.
-    window.prompt = () => null;
-    tool('createLink').click();
-    window.prompt = () => 'javascript:alert(1)';
-    tool('createLink').click();
-    assert.equal(ran.length, 2);
-    assert.match($('#caaci-news-notice').textContent, /must start with https:\/\//);
-    window.prompt = () => ' https://caaciorg.com/events/ ';
-    tool('createLink').click();
-    assert.deepEqual(ran.at(-1), ['createLink', false, 'https://caaciorg.com/events/']);
-
-    // View source shows the box; hand edits there are drawn into a fresh editable frame.
-    sourceBtn().click();
+    // No Jodit in jsdom: no editor chrome, and the box is shown and labelled.
+    assert.equal(window.Jodit, undefined);
     assert.equal(body.hidden, false);
-    assert.equal($('#caaci-news-visual').hidden, true);
-    assert.equal(sourceBtn().textContent, 'Back to visual editing');
-    body.value = '<div style="color:#8e2e11"><p>Edited by hand</p></div>';
-    sourceBtn().click();
-    assert.equal(body.hidden, true);
-    assert.equal(sourceBtn().textContent, 'View source');
-    assert.equal(doc().querySelector('p').textContent, 'Edited by hand');
-    assert.equal(doc().designMode, 'on');
-    assert.equal(body.value, '<div style="color:#8e2e11"><p>Edited by hand</p></div>');
+    assert.ok($('label[for="caaci-news-body"]'), 'the box is labelled');
+    for (const gone of [
+      '#caaci-news-preview-btn',
+      '#caaci-news-source-btn',
+      '#caaci-news-toolbar',
+      '#caaci-news-editor',
+    ])
+      assert.equal($(gone), null, gone);
 
-    // A whole HTML document keeps its <head> when edits are written back.
-    sourceBtn().click();
-    body.value =
-      '<!doctype html><html><head><style>p{color:red}</style></head><body><p>x</p></body></html>';
-    sourceBtn().click();
-    typeInFrame('<p>y</p>');
-    assert.equal(
-      body.value,
-      '<!doctype html>\n<html><head><style>p{color:red}</style></head><body><p>y</p></body></html>',
-    );
-
-    // Editing never emails anyone; Send posts what the box holds.
-    assert.equal(newsPosts().length, 0);
     const html = '<p>Hello members</p>';
     $('#caaci-news-subject').value = 'Hello';
     body.value = html;
@@ -2157,7 +2083,6 @@ test('admin news: the message is edited in a sandboxed frame, the toolbar format
       confirm: true,
     });
   } finally {
-    window.prompt = realPrompt;
     fetch.restore();
   }
 });

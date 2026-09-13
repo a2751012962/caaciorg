@@ -987,13 +987,12 @@ async function applyNewsTemplate() {
   const eventId = $('#caaci-news-event').value;
   if (!tpl || (tpl.event && !eventId)) return;
   const subject = $('#caaci-news-subject');
-  const body = $('#caaci-news-body');
   const notb = $('#caaci-news-notice');
   // Never silently replace something the admin wrote or edited.
-  const untouched =
-    newsFilled && subject.value === newsFilled.subject && body.value === newsFilled.html;
+  const html = newsHtml();
+  const untouched = newsFilled && subject.value === newsFilled.subject && html === newsFilled.html;
   if (
-    (subject.value.trim() || body.value.trim()) &&
+    (subject.value.trim() || html.trim()) &&
     !untouched &&
     !window.confirm(
       t(`Replace the subject and message with the ${tpl.en}?`, `用${tpl.zh}替换当前的主题和正文？`),
@@ -1008,98 +1007,103 @@ async function applyNewsTemplate() {
   if (!ok)
     return notice(notb, data.error || t('Could not load the template.', '无法加载模板。'), false);
   subject.value = data.subject || '';
-  body.value = data.html || '';
-  newsFilled = { subject: subject.value, html: body.value };
+  setNewsHtml(data.html || '');
+  newsFilled = { subject: subject.value, html: newsHtml() };
   notb.hidden = true;
-  // Draw the filled message into the editor (View source already shows the box).
-  if ($('#caaci-news-body').hidden) loadNewsEditor();
 }
 
-// The message is edited as the email will look: in a frame sandboxed with
-// allow-same-origin but no allow-scripts, so this page can make it editable
-// (designMode) and read it back while nothing in the message — a <script>, an
-// onerror=… — can run. The frame is sandboxed before it is attached, and its
-// document is written from this page. #caaci-news-body stays the one copy that
-// sending reads: every edit in the frame is written back to it, and View source
-// shows it for editing by hand.
-const NEWS_COMMANDS = [
+// The message editor is Jodit (MIT, xdan/jodit), self-hosted like FilePond
+// (assets/jodit.min.js). It edits inside an iframe sandboxed with
+// allow-same-origin but no allow-scripts, and cleans what is set or pasted: on
+// 4.15.1 in Chrome a <script>, an onerror= handler and a javascript: link in the
+// message all came out inert, while a pasted span kept its colour and font.
+// Pictures upload to the media library through /api/admin/media. Without
+// window.Jodit (the file did not load, or jsdom in the tests) the plain HTML box
+// is the editor; both read and write the message through newsHtml/setNewsHtml.
+const NEWS_BUTTONS = [
+  'undo',
+  'redo',
+  '|',
   'bold',
   'italic',
-  'formatBlock',
-  'insertUnorderedList',
-  'createLink',
-  'unlink',
+  'underline',
+  '|',
+  'font',
+  'fontsize',
+  'brush',
+  '|',
+  'copyformat',
+  'eraser',
+  '|',
+  'paragraph',
+  'ul',
+  'ol',
+  'align',
+  '|',
+  'link',
+  'image',
+  '|',
+  'source',
 ];
-let newsFrame = null;
-let newsWholeDocument = false; // the message is a whole <html> document, not a fragment
-
-// Draws what the HTML box holds into a fresh editing frame.
-function loadNewsEditor() {
-  const html = $('#caaci-news-body').value;
-  newsWholeDocument = /<(html|head|body)[\s>]/i.test(html);
-  const frame = document.createElement('iframe');
-  frame.setAttribute('sandbox', 'allow-same-origin');
-  frame.setAttribute('title', t('Message editor', '正文编辑区'));
-  const box = document.createElement('div');
-  box.className = 'ratio ratio-4x3 border';
-  box.appendChild(frame);
-  $('#caaci-news-editor').replaceChildren(box);
-  newsFrame = frame;
-  const doc = frame.contentDocument;
-  doc.open();
-  doc.write(html.trim() ? html : '<p><br></p>');
-  doc.close();
-  doc.designMode = 'on';
-  doc.addEventListener('input', syncNewsSource);
+// Email-safe font stacks, plus the Chinese system fonts members are likely to have.
+const NEWS_FONTS = {
+  '': 'Default',
+  'Arial,Helvetica,sans-serif': 'Arial',
+  'Georgia,serif': 'Georgia',
+  "'Times New Roman',Times,serif": 'Times New Roman',
+  'Verdana,Geneva,sans-serif': 'Verdana',
+  "'Microsoft YaHei','PingFang SC','Hiragino Sans GB',sans-serif": '微软雅黑 / 苹方',
+  "SimSun,'Songti SC',serif": '宋体',
+  "KaiTi,'Kaiti SC',serif": '楷体',
+};
+let newsEditor = null;
+// An empty Jodit editor still holds "<p><br></p>". Read that as no message, so
+// an untouched editor neither blocks a template with "Replace…?" nor passes as a
+// message body.
+const NEWS_EMPTY = /^(?:\s|&nbsp;|<br\s*\/?>|<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>)*$/i;
+const newsHtml = () => {
+  const html = newsEditor ? newsEditor.value : $('#caaci-news-body').value;
+  return NEWS_EMPTY.test(html) ? '' : html;
+};
+function setNewsHtml(html) {
+  if (newsEditor) newsEditor.value = html;
+  else $('#caaci-news-body').value = html;
 }
 
-// Writes the frame's HTML back to the box: the body for a fragment, the whole
-// document when the message was one or the browser moved something into <head>.
-function syncNewsSource() {
-  const doc = newsFrame?.contentDocument;
-  if (!doc?.body) return;
-  const whole = newsWholeDocument || doc.head.childElementCount > 0;
-  $('#caaci-news-body').value = whole
-    ? `<!doctype html>\n${doc.documentElement.outerHTML}`
-    : doc.body.innerHTML;
-}
-
-// A toolbar button runs its editing command in the frame. A link must be http(s)
-// or mailto, so a javascript: address never gets into an email.
-function runNewsCommand(btn) {
-  const doc = newsFrame?.contentDocument;
-  const cmd = btn.dataset.cmd;
-  if (!doc || !NEWS_COMMANDS.includes(cmd)) return;
-  let arg = btn.dataset.arg;
-  if (cmd === 'createLink') {
-    const typed = window.prompt(t('Link address', '链接地址'), 'https://');
-    if (typed == null || !typed.trim()) return;
-    arg = typed.trim();
-    if (!/^(https?:\/\/|mailto:)/i.test(arg))
-      return notice(
-        $('#caaci-news-notice'),
-        t(
-          'A link must start with https://, http:// or mailto:.',
-          '链接必须以 https://、http:// 或 mailto: 开头。',
-        ),
-        false,
-      );
-  }
-  newsFrame.contentWindow?.focus();
-  doc.execCommand(cmd, false, arg);
-  syncNewsSource();
-}
-
-// View source shows the HTML box; going back draws what it holds into the frame.
-function setNewsSourceMode(on) {
-  $('#caaci-news-visual').hidden = on;
-  $('#caaci-news-body').hidden = !on;
-  const btn = $('#caaci-news-source-btn');
-  btn.dataset.en = on ? 'Back to visual editing' : 'View source';
-  btn.dataset.zh = on ? '返回可视化编辑' : '查看源代码';
-  btn.textContent = t(btn.dataset.en, btn.dataset.zh);
-  btn.setAttribute('aria-pressed', String(on));
-  if (!on) loadNewsEditor();
+// Made when the news tab is first shown, so Jodit lays out its frame in a visible panel.
+function initNewsEditor() {
+  const Jodit = window.Jodit;
+  if (!Jodit || newsEditor) return;
+  newsEditor = Jodit.make('#caaci-news-body', {
+    language: lang === 'zh' ? 'zh_cn' : 'en',
+    buttons: NEWS_BUTTONS,
+    toolbarAdaptive: false,
+    height: 520,
+    iframe: true,
+    iframeSandbox: 'allow-same-origin',
+    askBeforePasteHTML: false,
+    askBeforePasteFromWord: false,
+    defaultActionOnPaste: 'insert_as_html',
+    hidePoweredByJodit: true,
+    controls: { font: { list: Jodit.atom(NEWS_FONTS) } },
+    uploader: {
+      url: '/api/admin/media',
+      method: 'PUT',
+      format: 'json',
+      headers: () => ({ authorization: `Bearer ${token}` }),
+      filesVariableName: () => 'file',
+      imagesExtensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+      insertImageAsBase64URI: false,
+      isSuccess: (resp) => resp.ok === true,
+      getMessage: (resp) => resp.error || '',
+      process: (resp) => ({
+        files: resp.file ? [resp.file.url] : [],
+        isImages: [true],
+        baseurl: '',
+        messages: [],
+      }),
+    },
+  });
 }
 
 // Whether this environment refuses real sends (NEWS_TEST_ONLY): shows the banner
@@ -1118,7 +1122,7 @@ async function sendNewsTest() {
   const btn = $('#caaci-news-test-btn');
   const body = {
     subject: $('#caaci-news-subject').value.trim(),
-    body_html: $('#caaci-news-body').value.trim(),
+    body_html: newsHtml().trim(),
     test: true,
     test_to: $('#caaci-news-test-to')
       .value.split(/[\s,;]+/)
@@ -1142,7 +1146,11 @@ async function sendNewsTest() {
 
 function wireNews() {
   const tab = $('[data-tab="news"]');
-  if (tab) tab.addEventListener('click', () => loadNewsMode());
+  if (tab)
+    tab.addEventListener('click', () => {
+      initNewsEditor();
+      loadNewsMode();
+    });
   $('#caaci-news-template').addEventListener('change', async () => {
     const tpl = newsTemplateOf($('#caaci-news-template').value);
     $('#caaci-news-event-wrap').hidden = !tpl?.event;
@@ -1155,23 +1163,12 @@ function wireNews() {
   });
   $('#caaci-news-event').addEventListener('change', applyNewsTemplate);
   $('#caaci-news-test-btn').addEventListener('click', sendNewsTest);
-  loadNewsEditor();
-  $('#caaci-news-source-btn').addEventListener('click', () =>
-    setNewsSourceMode($('#caaci-news-body').hidden),
-  );
-  const toolbar = $('#caaci-news-toolbar');
-  // A mousedown would move focus out of the frame and lose its selection.
-  toolbar.addEventListener('mousedown', (e) => e.preventDefault());
-  toolbar.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-cmd]');
-    if (btn) runNewsCommand(btn);
-  });
   $('#caaci-news-send').addEventListener('click', async () => {
     const notb = $('#caaci-news-notice');
     const btn = $('#caaci-news-send');
     const body = {
       subject: $('#caaci-news-subject').value.trim(),
-      body_html: $('#caaci-news-body').value.trim(),
+      body_html: newsHtml().trim(),
       audience: $('#caaci-news-audience').value,
       confirm: $('#caaci-news-confirm').checked,
     };
@@ -1203,7 +1200,6 @@ function wireNews() {
     $('#caaci-news-confirm').checked = false;
   });
 }
-
 // ---------- shared form helpers ----------
 // `wrap` is the wrapper class: 'col' inside a form row grid (default), 'mb-3'
 // for a standalone full-width field.

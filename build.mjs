@@ -115,6 +115,11 @@ for (const f of [
 for (const f of ['tabler.min.css', 'tabler.min.js']) {
   await copyFile(join(ROOT, 'src', 'vendor', f), join(DIST, 'assets', f));
 }
+// Self-hosted Jodit editor 4.15.1 (MIT, xdan/jodit; es2021 build with its
+// language files) — the admin Compose News message editor.
+for (const f of ['jodit.min.js', 'jodit.min.css', 'jodit.LICENSE.txt']) {
+  await copyFile(join(ROOT, 'src', 'vendor', f), join(DIST, 'assets', f));
+}
 
 // Standalone member pages (Tabler, like /admin/) — replace the mirrored
 // WordPress pages at the SAME routes, so every inbound link and Stripe
