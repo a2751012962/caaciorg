@@ -523,6 +523,48 @@ test('an unexpected error reaching the CLI is printed without the token', () => 
   assert.equal((run.stdout + run.stderr).includes(TOKEN), false, 'the token was printed');
 });
 
+test('a network error at or after the PATCH says it may already have been applied', async (t) => {
+  const out = capture(t);
+  const desired = buildAuthPatch(await loadTemplates());
+  const drifted = { ...desired, mailer_subjects_invite: 'old subject' };
+  for (const failOn of ['PATCH', 'read-back']) {
+    let reads = 0;
+    const stub = mockFetch((url, options) => {
+      const method = options.method || 'GET';
+      if (method === 'GET') reads += 1;
+      if (failOn === 'PATCH' ? method === 'PATCH' : reads === 2) {
+        throw new TypeError(`fetch failed (${failOn})`);
+      }
+      return { body: drifted };
+    });
+    try {
+      assert.equal(await main(['--apply'], { SUPABASE_ACCESS_TOKEN: TOKEN }), 1, failOn);
+    } finally {
+      stub.restore();
+    }
+  }
+  const text = out.join('\n');
+  assert.match(text, /fetch failed \(PATCH\)/);
+  assert.match(text, /fetch failed \(read-back\)/);
+  assert.equal(text.match(/may already have been applied/g)?.length, 2);
+  assert.match(text, /rerun the dry run \(npm run auth:emails\)/);
+  assert.equal(text.includes(TOKEN), false, 'the token was printed');
+});
+
+test('a network error before the PATCH does not claim anything was applied', async (t) => {
+  const out = capture(t);
+  const stub = mockFetch(() => {
+    throw new TypeError('fetch failed');
+  });
+  try {
+    await assert.rejects(main(['--apply'], { SUPABASE_ACCESS_TOKEN: TOKEN }), /fetch failed/);
+  } finally {
+    stub.restore();
+  }
+  assert.equal(stub.calls.length, 1);
+  assert.doesNotMatch(out.join('\n'), /may already have been applied/);
+});
+
 test('--apply exits non-zero when the PATCH is refused', async (t) => {
   const out = capture(t);
   const desired = buildAuthPatch(await loadTemplates());

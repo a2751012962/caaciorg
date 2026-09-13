@@ -249,13 +249,24 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
     );
   }
   console.log(`\nPATCHing ${send.length} setting(s)…`);
-  const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
-  if (!res.ok) {
-    await failed(`PATCH ${url}`, res);
+  // From the PATCH on, a network error does not mean nothing happened: the
+  // request may have reached Supabase before the connection dropped.
+  let after;
+  try {
+    const res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(patch) });
+    if (!res.ok) {
+      await failed(`PATCH ${url}`, res);
+      return 1;
+    }
+    after = await readConfig();
+  } catch (err) {
+    console.error(`✗ ${scrub(err.message, token)}`);
+    console.error(
+      'The PATCH may already have been applied — rerun the dry run (npm run auth:emails) ' +
+        'to see the live state.',
+    );
     return 1;
   }
-
-  const after = await readConfig();
   if (!after) return 1;
   const remaining = diffAuthConfig(desired, after).filter(
     (d) => !(refusal && d.key.startsWith('smtp_')),
