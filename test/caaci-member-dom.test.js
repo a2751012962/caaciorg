@@ -1224,3 +1224,287 @@ test('login page: the confirmation resend hides again when sign-in fails for ano
   assert.equal(q('#caaci-li-resend').hidden, true);
   assert.equal(q('#caaci-login-notice').textContent, 'Invalid login credentials');
 });
+
+test('account security: a second Save while the first code request is in flight sends no second code', async (t) => {
+  mockClock(t);
+  let release;
+  const stub = await accountWith(EMAIL_USER, {
+    updateUser: async () => REAUTH_NEEDED,
+    reauthenticate: () =>
+      new Promise((resolve) => {
+        release = () => resolve({ data: {}, error: null });
+      }),
+  });
+  fillPasswords('oldpassword1', 'newpassword1');
+  await clickAndWait('#caaci-pw-save');
+  assert.equal(callsTo(stub, 'reauthenticate').length, 1);
+  assert.equal(q('#caaci-pw-code-resend').getAttribute('aria-busy'), 'true', 'code on its way');
+  assert.equal(q('#caaci-pw-save').disabled, false, 'Save is usable again meanwhile');
+
+  await clickAndWait('#caaci-pw-save');
+  assert.equal(
+    callsTo(stub, 'reauthenticate').length,
+    1,
+    'no second code while the first is pending',
+  );
+
+  release();
+  await tick();
+  assert.equal(q('#caaci-pw-code-resend').textContent, 'Resend in 60s');
+});
+
+// Counts intervals still running. Install after mockClock(t) and restore in a
+// finally, so t.mock can put the real timers back afterwards.
+function trackIntervals() {
+  const live = new Set();
+  const { setInterval: realSet, clearInterval: realClear } = globalThis;
+  globalThis.setInterval = (...args) => {
+    const id = realSet(...args);
+    live.add(id);
+    return id;
+  };
+  globalThis.clearInterval = (id) => {
+    live.delete(id);
+    return realClear(id);
+  };
+  return {
+    live,
+    restore() {
+      globalThis.setInterval = realSet;
+      globalThis.clearInterval = realClear;
+    },
+  };
+}
+
+// Opens checkout for the Individual tier, types `email`, switches to log-in mode.
+async function openCheckoutLogin(email) {
+  q('[data-tier="individual"]').click();
+  await tick();
+  fill('#caaci-email', email);
+  q('#caaci-auth-toggle').click();
+  return q('#caaci-co-forgot');
+}
+
+test('membership checkout: closing the modal stops the reset countdown, even mid-request, and reopening resumes it', async (t) => {
+  mockClock(t);
+  const timers = trackIntervals();
+  try {
+    setup('membership');
+    let release;
+    const stub = supaStub({
+      auth: {
+        resetPasswordForEmail: () =>
+          new Promise((resolve) => {
+            release = () => resolve({ data: {}, error: null });
+          }),
+      },
+    });
+    member.__setSupa(stub);
+    await member.wireMembershipPage();
+
+    // Counting down, then closed.
+    let forgot = await openCheckoutLogin('mei@x.com');
+    forgot.click();
+    release();
+    await tick();
+    assert.equal(forgot.textContent, 'Resend in 60s');
+    assert.equal(timers.live.size, 1);
+    q('[data-act="close"]').click();
+    assert.equal(timers.live.size, 0, 'closing stops the countdown');
+
+    // Closed while the request is still in flight.
+    forgot = await openCheckoutLogin('ada@x.com');
+    forgot.click();
+    assert.equal(forgot.getAttribute('aria-busy'), 'true');
+    q('[data-act="close"]').click();
+    release();
+    await tick();
+    assert.equal(timers.live.size, 0, 'no countdown starts for a closed modal');
+
+    t.mock.timers.tick(5000);
+    forgot = await openCheckoutLogin('ada@x.com');
+    assert.equal(forgot.disabled, true, 'reopening resumes the stored countdown');
+    assert.equal(forgot.textContent, 'Resend in 55s');
+    assert.equal(callsTo(stub, 'resetPasswordForEmail').length, 2);
+  } finally {
+    timers.restore();
+  }
+});
+
+test('account page: a dead non-reset link asks visitors to sign in, but points a signed-in member to Account security', async () => {
+  setup('account', { hash: `#${EXPIRED}` });
+  member.__setSupa(supaStub({ user: null }));
+  await member.wireAccountPage();
+  let rec = q('#caaci-recovery-host');
+  assert.match(rec.textContent, /Sign in to continue/);
+  assert.ok(rec.querySelector('a[href="/login-3/"]'));
+  assert.equal(rec.querySelector('a[href="#caaci-security"]'), null);
+
+  setup('account', { hash: `#${EXPIRED}` });
+  member.__setSupa(supaStub({ user: EMAIL_USER, memberRow: { id: 'u1' } }));
+  await member.wireAccountPage();
+  rec = q('#caaci-recovery-host');
+  assert.match(rec.textContent, /This link no longer works/);
+  assert.doesNotMatch(rec.textContent, /sign in/i, 'they are already signed in');
+  assert.match(rec.textContent, /request the change again under Account security/);
+  assert.ok(rec.querySelector('a[href="#caaci-security"]'));
+  assert.equal(rec.querySelector('a[href="/login-3/"]'), null);
+  assert.ok(q('#caaci-security'), 'the account still renders below');
+});
+
+// ---------- guards: each test below fails when its guard is removed ----------
+const openResetForm = (email) => {
+  q('#caaci-forgot').dispatchEvent(new Event('click'));
+  q('#caaci-reset-email').value = email;
+};
+const submitReset = () => q('#caaci-reset-form').dispatchEvent(new Event('submit'));
+const typeResetEmail = (email) => {
+  q('#caaci-reset-email').value = email;
+  q('#caaci-reset-email').dispatchEvent(new Event('input'));
+};
+const heldSend = () => {
+  const held = {};
+  held.send = () =>
+    new Promise((resolve) => {
+      held.release = () => resolve({ data: {}, error: null });
+    });
+  return held;
+};
+
+test('cooldowns: switching the reset form to another address stops the old countdown for good', async (t) => {
+  mockClock(t);
+  setup('login');
+  member.__setSupa(supaStub());
+  await member.wireAuthPage();
+  openResetForm('mei@x.com');
+  submitReset();
+  await tick();
+  const send = q('#caaci-reset-send');
+  assert.equal(send.disabled, true);
+
+  typeResetEmail('ada@x.com');
+  t.mock.timers.tick(1500);
+  assert.equal(send.disabled, false, 'the old countdown does not tick back in');
+  assert.equal(send.textContent, 'Send reset link');
+});
+
+test('login page: a double submit of the reset form sends one email', async (t) => {
+  mockClock(t);
+  setup('login');
+  const stub = supaStub();
+  member.__setSupa(stub);
+  await member.wireAuthPage();
+  openResetForm('mei@x.com');
+  submitReset();
+  submitReset();
+  await tick();
+  assert.equal(callsTo(stub, 'resetPasswordForEmail').length, 1);
+});
+
+test('login page: typing another address while a reset is sending leaves the button busy', async (t) => {
+  mockClock(t);
+  setup('login');
+  const held = heldSend();
+  member.__setSupa(supaStub({ auth: { resetPasswordForEmail: held.send } }));
+  await member.wireAuthPage();
+  openResetForm('mei@x.com');
+  submitReset();
+  const send = q('#caaci-reset-send');
+  typeResetEmail('ada@x.com');
+  assert.equal(send.disabled, true);
+  assert.equal(send.textContent, 'Sending…');
+  held.release();
+  await tick();
+});
+
+test('cooldowns: a send that throws frees the button and says what went wrong', async (t) => {
+  mockClock(t);
+  for (const [thrown, message] of [
+    [new TypeError('Failed to fetch'), 'Failed to fetch'],
+    [{}, 'Network error — please try again.'],
+  ]) {
+    setup('login');
+    member.__setSupa(
+      supaStub({
+        auth: {
+          resetPasswordForEmail: async () => {
+            throw thrown;
+          },
+        },
+      }),
+    );
+    await member.wireAuthPage();
+    openResetForm('mei@x.com');
+    submitReset();
+    await tick();
+    const send = q('#caaci-reset-send');
+    assert.equal(q('#caaci-reset-notice').textContent, message);
+    assert.equal(send.disabled, false, message);
+    assert.equal(send.textContent, 'Send reset link', message);
+  }
+});
+
+test('account security: after a reload inside the code cooldown, Save shows the prompt without sending a code', async (t) => {
+  mockClock(t);
+  let stub = await accountWith(EMAIL_USER, { updateUser: async () => REAUTH_NEEDED });
+  fillPasswords('oldpassword1', 'newpassword1');
+  await clickAndWait('#caaci-pw-save');
+  assert.equal(callsTo(stub, 'reauthenticate').length, 1);
+  t.mock.timers.tick(20000);
+
+  // "Reload": a fresh page that inherits this origin's localStorage.
+  const saved = [];
+  for (let i = 0; i < localStorage.length; i++)
+    saved.push([localStorage.key(i), localStorage.getItem(localStorage.key(i))]);
+  stub = await accountWith(EMAIL_USER, { updateUser: async () => REAUTH_NEEDED });
+  for (const [k, v] of saved) localStorage.setItem(k, v);
+
+  fillPasswords('oldpassword1', 'newpassword1');
+  await clickAndWait('#caaci-pw-save');
+  assert.equal(callsTo(stub, 'reauthenticate').length, 0, 'the earlier code is still valid');
+  assert.equal(q('#caaci-pw-reauth').hidden, false);
+  assert.equal(q('#caaci-pw-code-resend').textContent, 'Resend in 40s');
+});
+
+test('membership checkout: a click event reaching the forgot button mid-countdown sends nothing', async (t) => {
+  mockClock(t);
+  setup('membership');
+  const stub = supaStub();
+  member.__setSupa(stub);
+  await member.wireMembershipPage();
+  const forgot = await openCheckoutLogin('mei@x.com');
+  forgot.click();
+  await tick();
+  assert.equal(forgot.disabled, true);
+  // Dispatched directly rather than via .click(), so only the handler's own
+  // guard stands between this event and a second email.
+  forgot.dispatchEvent(new Event('click'));
+  await tick();
+  assert.equal(callsTo(stub, 'resetPasswordForEmail').length, 1);
+});
+
+test('account page: a dead reset link points a signed-in member to Account security, not the sign-in page', async () => {
+  setup('account', { search: `?recovery=1&${EXPIRED}` });
+  member.__setSupa(supaStub({ user: null }));
+  await member.wireAccountPage();
+  let rec = q('#caaci-recovery-host');
+  assert.match(rec.textContent, /password reset link no longer works/);
+  assert.match(rec.querySelector('a[href="/login-3/"]').textContent, /Request a new reset link/);
+  assert.equal(rec.querySelector('a[href="#caaci-security"]'), null);
+
+  setup('account', { search: `?recovery=1&${EXPIRED}` });
+  member.__setSupa(supaStub({ user: EMAIL_USER, memberRow: { id: 'u1' } }));
+  await member.wireAccountPage();
+  rec = q('#caaci-recovery-host');
+  assert.match(rec.textContent, /password reset link no longer works/);
+  assert.equal(
+    rec.querySelector('a[href="#caaci-security"]')?.textContent,
+    "You're signed in — change your password under Account security below",
+  );
+  assert.equal(
+    rec.querySelector('a[href="/login-3/"]'),
+    null,
+    'the sign-in page would only bounce them back here',
+  );
+  assert.ok(q('#caaci-security'), 'the account still renders below');
+});

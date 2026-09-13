@@ -155,6 +155,9 @@ function cooldown(btn, { action, email, seconds, label }) {
     btn.disabled = false;
     return false;
   }
+  // The button is gone (the checkout modal closed mid-request): the stored end
+  // time lets a reopened modal resume, but no timer should tick for nobody.
+  if (!btn.isConnected) return true;
   const render = () => {
     const left = Math.ceil((end - Date.now()) / 1000);
     if (left > 0) {
@@ -1118,32 +1121,51 @@ function linkFailed() {
 }
 
 // The error text itself is never shown: it comes from the URL, so anyone could
-// put words (or markup) there. A reset link gets reset-specific copy; any other
-// dead link — signup confirmation, email change, OAuth — a generic next step.
-function failedLinkCard(host, recovery) {
-  const [title, body, action] = recovery
-    ? [
-        t('This password reset link no longer works', '此重置密码链接已失效'),
-        t(
-          'The link has expired or has already been used — each link works once, for a limited time.',
-          '该链接已过期或已被使用——每个链接只能使用一次，且有时效。',
-        ),
-        t('Request a new reset link', '重新申请重置链接'),
-      ]
-    : [
-        t('This link no longer works', '此链接已失效'),
-        t(
-          'It may have expired or already been used. Sign in to continue — if you still need the email, you can ask for a new one from there.',
-          '链接可能已过期或已被使用。请登录后继续——如仍需要该邮件，可在登录后重新申请。',
-        ),
-        t('Go to sign in', '前往登录'),
-      ];
+// put words (or markup) there. A reset link gets reset-specific copy. Any other
+// dead link — signup confirmation, email change, OAuth — sends a signed-out
+// visitor to sign in, and a signed-in member (who can only act on an email
+// change from here) to Account security.
+function failedLinkCard(host, { recovery, signedIn }) {
+  const link = (href, label) => `<a href="${href}">${label}</a>`;
+  let title = t('This link no longer works', '此链接已失效');
+  let body;
+  let action;
+  if (recovery) {
+    title = t('This password reset link no longer works', '此重置密码链接已失效');
+    body = t(
+      'The link has expired or has already been used — each link works once, for a limited time.',
+      '该链接已过期或已被使用——每个链接只能使用一次，且有时效。',
+    );
+    // /login-3/ sends a signed-in visitor straight back here, so point them at
+    // the password form on this page instead.
+    action = signedIn
+      ? link(
+          '#caaci-security',
+          t(
+            "You're signed in — change your password under Account security below",
+            '您已登录——请在下方“账户安全”中修改密码',
+          ),
+        )
+      : link('/login-3/', t('Request a new reset link', '重新申请重置链接'));
+  } else if (signedIn) {
+    body = t(
+      'It may have expired or already been used. If it was for changing your email address, request the change again under Account security below.',
+      '链接可能已过期或已被使用。如果这是修改邮箱的链接，请在下方“账户安全”中重新申请。',
+    );
+    action = link('#caaci-security', t('Go to Account security', '前往账户安全'));
+  } else {
+    body = t(
+      'It may have expired or already been used. Sign in to continue — if you still need the email, you can ask for a new one from there.',
+      '链接可能已过期或已被使用。请登录后继续——如仍需要该邮件，可在登录后重新申请。',
+    );
+    action = link('/login-3/', t('Go to sign in', '前往登录'));
+  }
   host.innerHTML = `
     <div class="alert alert-warning mb-3" role="alert">
       <h4 class="alert-title">${title}</h4>
       <div>
         ${body}
-        <a href="/login-3/">${action}</a>
+        ${action}
       </div>
     </div>`;
 }
@@ -1292,7 +1314,9 @@ function securityCard(host, user) {
       );
       // A code sent inside the cooldown is still valid; asking for another
       // here would slip past the Resend button's countdown.
-      if (cooldownTimers.has(codeResend)) return;
+      // A request still in flight counts too: Save is usable again before
+      // reauthenticate() answers, and only that answer starts the countdown.
+      if (codeResend.getAttribute('aria-busy') || cooldownTimers.has(codeResend)) return;
       if (storedCooldownEnd('reauth', user.email))
         return void cooldown(codeResend, { action: 'reauth', email: user.email, label: codeLabel });
       return sendCode();
@@ -1530,10 +1554,12 @@ export async function wireAccountPage() {
   // form that could only fail.
   const recoveryHost = $('#caaci-recovery-host');
   const recovery = /type=recovery/.test(location.hash) || /[?&]recovery=/.test(location.search);
-  if (linkFailed()) failedLinkCard(recoveryHost, recovery);
-  else if (recovery) recoveryCard(recoveryHost);
+  const failed = linkFailed();
+  if (!failed && recovery) recoveryCard(recoveryHost);
 
   const { user } = await currentMember();
+  // The next step for a dead link depends on whether they are signed in.
+  if (failed) failedLinkCard(recoveryHost, { recovery, signedIn: !!user });
   if (!user) {
     host.innerHTML = `
       <div class="card">
