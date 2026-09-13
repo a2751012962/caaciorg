@@ -8,6 +8,12 @@ import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 import { mockFetch } from './helpers.js';
 
+// Run far from Chicago (UTC+8, no DST) so the Chicago-time assertions below
+// prove the admin module sets the zone itself instead of inheriting it from a
+// machine that happens to be in Champaign. Set before the module is imported;
+// node --test gives each test file its own process, so this doesn't leak.
+process.env.TZ = 'Asia/Shanghai';
+
 const html = await readFile(new URL('../admin-src/index.html', import.meta.url), 'utf8');
 const tick = () => new Promise((r) => setTimeout(r, 20));
 
@@ -298,4 +304,307 @@ test('admin page: module boots against the real Tabler markup', async () => {
     restoreTimers();
     fetch.restore();
   }
+});
+
+// ---------- events: free-gift deadline + registrations ----------
+// These reuse the page the first test booted: the module's boot IIFE runs once
+// per process, on its first import.
+const DEADLINE = '2026-09-21T04:59:00.000Z'; // 2026-09-20 23:59:00 in Chicago (CDT)
+const MAF = {
+  id: 'ev-maf',
+  title: 'Mid-Autumn Festival',
+  starts_at: '2026-09-27T19:00:00Z', // 2:00 PM Chicago (CDT)
+  ends_at: '2026-09-27T23:00:00Z', // 6:00 PM Chicago
+  location: 'Siebel Center for Design',
+  published: true,
+  perk_deadline: DEADLINE,
+};
+const PICNIC = {
+  id: 'ev-picnic',
+  title: 'Picnic',
+  starts_at: '2026-08-01T17:00:00Z',
+  location: null,
+  published: true,
+  perk_deadline: null,
+};
+const REGISTRATIONS = {
+  event: {
+    id: 'ev-maf',
+    title: 'Mid-Autumn Festival',
+    starts_at: MAF.starts_at,
+    perk_deadline: DEADLINE,
+    deadline: DEADLINE,
+  },
+  rows: [
+    {
+      id: 'r1',
+      email: 'mei@example.com',
+      attending: true,
+      attendee_names: '<img src=x onerror=alert(1)>',
+      heard_from: 'Friend',
+      wants_meal: true,
+      created_at: '2026-09-13T15:05:07Z',
+      updated_at: '2026-09-13T15:05:07Z',
+      member_id: 'm1',
+      account: { id: 'm1', created_at: '2026-09-25T00:00:00Z', status: 'active', tier_id: 'free' },
+      perk_eligible: false,
+    },
+    {
+      id: 'r2',
+      email: 'jun@example.com',
+      attending: true,
+      attendee_names: 'Jun Wu',
+      heard_from: '<b>flyer</b>',
+      wants_meal: null,
+      created_at: '2026-09-14T16:00:00Z',
+      updated_at: '2026-09-14T16:00:00Z',
+      member_id: null,
+      account: { id: 'm2', created_at: '2026-09-01T12:00:00Z', status: 'active', tier_id: 'free' },
+      perk_eligible: true,
+    },
+    {
+      id: 'r3',
+      email: 'kai@example.com',
+      attending: false,
+      attendee_names: null,
+      heard_from: null,
+      wants_meal: false,
+      created_at: '2026-09-22T01:02:03Z',
+      updated_at: '2026-09-22T01:02:03Z',
+      member_id: null,
+      account: null,
+      perk_eligible: false,
+    },
+  ],
+  summary: { total: 3, attending: 2, not_attending: 1, meal: 1, with_account: 2, perk_eligible: 1 },
+};
+
+function eventRoutes(u, options = {}) {
+  if (u.includes('/api/admin/event-registrations')) return { body: REGISTRATIONS };
+  if (u.includes('/api/admin/events') && options.method === 'POST') return { body: { ok: true } };
+  if (u.includes('/api/admin/events')) return { body: { rows: [MAF, PICNIC], total: 2 } };
+  return { body: {} };
+}
+const eventRow = (title) =>
+  [...document.querySelectorAll('#caaci-events-body tr')].find((tr) =>
+    tr.cells[0].textContent.includes(title),
+  );
+
+test('admin events: the free-gift deadline round-trips through the event editor', async () => {
+  const fetch = mockFetch(eventRoutes);
+  try {
+    document.querySelector('[data-tab="events"]').click();
+    await tick();
+    const form = () => document.querySelector('#caaci-event-form-host form');
+    const deadline = () => form().querySelector('[data-f="perk_deadline"]');
+    const lastPost = () =>
+      JSON.parse(
+        fetch.calls
+          .filter((c) => c.url.includes('/api/admin/events') && c.options.method === 'POST')
+          .at(-1).options.body,
+      );
+
+    // Shown as the admin's own wall-clock time (whatever zone this runs in).
+    eventRow('Mid-Autumn').querySelector('[data-act="edit"]').click();
+    const d = new Date(DEADLINE);
+    const pad = (n) => String(n).padStart(2, '0');
+    const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    assert.equal(deadline().value, local);
+    assert.ok(form().querySelector(`label[for="${deadline().id}"]`), 'the field is labelled');
+    assert.match(
+      deadline().closest('.col').textContent,
+      /Free-gift deadline[\s\S]*Empty = event start/,
+    );
+
+    // Saved unchanged → the same instant goes back, as ISO.
+    form().querySelector('[type="submit"]').click();
+    await tick();
+    assert.equal(form(), null, 'editor closed after saving');
+    assert.equal(lastPost().perk_deadline, DEADLINE);
+
+    // Cleared → '' (the API stores null, i.e. "the event start").
+    eventRow('Mid-Autumn').querySelector('[data-act="edit"]').click();
+    deadline().value = '';
+    form().querySelector('[type="submit"]').click();
+    await tick();
+    assert.equal(lastPost().perk_deadline, '');
+
+    // An event without one opens with an empty field.
+    eventRow('Picnic').querySelector('[data-act="edit"]').click();
+    assert.equal(deadline().value, '');
+    form().querySelector('[data-act="cancel"]').click();
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: saving an event sends its start and end as real instants, so it never drifts', async () => {
+  const fetch = mockFetch(eventRoutes);
+  try {
+    document.querySelector('[data-tab="events"]').click();
+    await tick();
+    const form = () => document.querySelector('#caaci-event-form-host form');
+    const input = (f) => form().querySelector(`[data-f="${f}"]`);
+    const save = async () => {
+      form().querySelector('[type="submit"]').click();
+      await tick();
+      const post = fetch.calls
+        .filter((c) => c.url.includes('/api/admin/events') && c.options.method === 'POST')
+        .at(-1);
+      return JSON.parse(post.options.body);
+    };
+
+    // Stored 19:00Z–23:00Z shows as this process's wall-clock (Asia/Shanghai, UTC+8).
+    eventRow('Mid-Autumn').querySelector('[data-act="edit"]').click();
+    assert.equal(input('starts_at').value, '2026-09-28T03:00');
+    assert.equal(input('ends_at').value, '2026-09-28T07:00');
+
+    // Saved unchanged → exactly the stored instants (not the wall-clock read as UTC).
+    let sent = await save();
+    assert.equal(sent.starts_at, '2026-09-27T19:00:00.000Z');
+    assert.equal(sent.ends_at, '2026-09-27T23:00:00.000Z');
+
+    // Newly typed local times → the matching instants; a cleared end → ''.
+    eventRow('Mid-Autumn').querySelector('[data-act="edit"]').click();
+    input('starts_at').value = '2026-09-28T03:30';
+    input('ends_at').value = '';
+    sent = await save();
+    assert.equal(sent.starts_at, '2026-09-27T19:30:00.000Z');
+    assert.equal(sent.ends_at, '');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: registrations panel shows the summary, escaped rows and an eligible-only filter', async () => {
+  const fetch = mockFetch(eventRoutes);
+  window.HTMLElement.prototype.scrollIntoView = () => {}; // jsdom does no layout
+  try {
+    document.querySelector('[data-tab="events"]').click();
+    await tick();
+    eventRow('Mid-Autumn').querySelector('[data-act="registrations"]').click();
+    await tick();
+
+    const panel = document.querySelector('#caaci-reg-panel');
+    assert.equal(panel.hidden, false);
+    const call = fetch.calls.find((c) => c.url.includes('/api/admin/event-registrations'));
+    assert.equal(call.url, '/api/admin/event-registrations?event_id=ev-maf');
+    assert.equal(call.options.headers.authorization, 'Bearer tok');
+    assert.equal(document.querySelector('#caaci-reg-title').textContent, 'Mid-Autumn Festival');
+    assert.match(document.querySelector('#caaci-reg-deadline').textContent, /2026-09-20 23:59:00/);
+    assert.deepEqual(
+      [...document.querySelectorAll('#caaci-reg-stats .h1')].map((el) => el.textContent),
+      ['3', '2', '1', '1', '2', '1'],
+    );
+
+    const rows = () => [...document.querySelectorAll('#caaci-reg-body tr')];
+    const cells = (tr) => [...tr.cells].map((td) => td.textContent.trim());
+    assert.equal(rows().length, 3);
+    // Times in Chicago; registrant text shown literally, never parsed as markup.
+    assert.deepEqual(cells(rows()[0]), [
+      '1',
+      '2026-09-13 10:05:07',
+      'mei@example.com',
+      'Yes',
+      '<img src=x onerror=alert(1)>',
+      'Friend',
+      'Yes',
+      '✓',
+      '—',
+    ]);
+    assert.deepEqual(cells(rows()[1]), [
+      '2',
+      '2026-09-14 11:00:00',
+      'jun@example.com',
+      'Yes',
+      'Jun Wu',
+      '<b>flyer</b>',
+      '—',
+      '✓',
+      '✓',
+    ]);
+    assert.deepEqual(cells(rows()[2]), [
+      '3',
+      '2026-09-21 20:02:03',
+      'kai@example.com',
+      'No',
+      '—',
+      '—',
+      'No',
+      '—',
+      '—',
+    ]);
+    assert.equal(document.querySelector('#caaci-reg-body img, #caaci-reg-body b'), null);
+
+    // Eligible only: just Jun, still numbered by registration order.
+    const toggle = document.querySelector('#caaci-reg-eligible');
+    toggle.click();
+    assert.equal(toggle.checked, true);
+    assert.deepEqual(
+      rows().map((tr) => cells(tr).slice(0, 3)),
+      [['2', '2026-09-14 11:00:00', 'jun@example.com']],
+    );
+    toggle.click();
+    assert.equal(rows().length, 3);
+
+    document.querySelector('#caaci-reg-close').click();
+    assert.equal(panel.hidden, true);
+  } finally {
+    delete window.HTMLElement.prototype.scrollIntoView;
+    fetch.restore();
+  }
+});
+
+test('admin events: registrations CSV has a BOM, Chicago times and RFC 4180 quoting', async () => {
+  const { registrationsCsv } = await import('../src/caaci-admin.js'); // already booted
+  const rows = [
+    {
+      email: 'mei@example.com',
+      created_at: '2026-09-13T15:05:07Z',
+      attending: true,
+      attendee_names: 'Mei, "Jun"\nand Kai',
+      heard_from: 'Friend',
+      wants_meal: true,
+      account: { created_at: '2026-09-01T12:00:00Z' },
+      perk_eligible: true,
+    },
+    {
+      email: 'kai@example.com',
+      created_at: '2026-09-22T01:02:03Z',
+      attending: false,
+      attendee_names: null,
+      heard_from: '=HYPERLINK("http://x")',
+      wants_meal: null,
+      account: null,
+      perk_eligible: false,
+    },
+    {
+      email: 'lin@example.com',
+      created_at: '2026-01-15T18:00:00Z', // CST (UTC−6) in winter
+      attending: true,
+      attendee_names: '林美',
+      heard_from: 'Social Media',
+      wants_meal: false,
+      account: { created_at: '2026-01-10T06:00:00Z' }, // midnight → 00, not 24
+      perk_eligible: true,
+    },
+  ];
+  const header =
+    '#,registered_at (Chicago),email,attending,names,heard_from,wants_meal,has_account,account_created_at (Chicago),mooncake_eligible';
+  const mei =
+    '1,2026-09-13 10:05:07,mei@example.com,yes,"Mei, ""Jun""\nand Kai",Friend,yes,yes,2026-09-01 07:00:00,yes';
+  // A formula-looking answer is defused with a leading ' (then quoted for its quotes).
+  const kai = `2,2026-09-21 20:02:03,kai@example.com,no,,"'=HYPERLINK(""http://x"")",,no,,no`;
+  const lin =
+    '3,2026-01-15 12:00:00,lin@example.com,yes,林美,Social Media,no,yes,2026-01-10 00:00:00,yes';
+
+  const csv = registrationsCsv(rows);
+  assert.equal(csv.charCodeAt(0), 0xfeff, 'UTF-8 BOM first');
+  assert.equal(csv, `\uFEFF${[header, mei, kai, lin].join('\r\n')}\r\n`);
+
+  // Eligible only keeps each row's registration number.
+  assert.equal(
+    registrationsCsv(rows, { eligibleOnly: true }),
+    `\uFEFF${[header, mei, lin].join('\r\n')}\r\n`,
+  );
 });
