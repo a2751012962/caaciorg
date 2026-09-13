@@ -1781,10 +1781,71 @@ function eventWhen({ starts_at: start, ends_at: end }) {
   const to = inEventTz(end, TIME_FMT);
   return `${from} – ${endDay === day ? to : `${endDay} · ${to}`}`;
 }
-const deadlineText = (iso) =>
-  inEventTz(iso, { month: 'long', day: 'numeric', ...TIME_FMT, timeZoneName: 'short' });
-// The registration time, to the second: "Sep 13, 2026, 3:04:05 PM CDT".
-const registeredText = (iso) => inEventTz(iso, { dateStyle: 'medium', timeStyle: 'long' });
+// Deadlines and registration times name the zone in words. Intl's short zone
+// name reads "CDT" in English but "GMT-5" in Chinese, which people misread, so
+// these two are assembled from the Chicago clock parts instead.
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+function eventClock(iso) {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: EVENT_TZ,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(d);
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  const hour = Number(get('hour'));
+  return {
+    year: get('year'),
+    month: Number(get('month')),
+    day: get('day'),
+    hour12: hour % 12 || 12,
+    minute: get('minute'),
+    second: get('second'),
+    pm: hour >= 12,
+    // 下午2点, 晚上7点, 中午12点 — how the time of day is said in Chinese.
+    period:
+      hour < 6 ? '凌晨' : hour < 12 ? '上午' : hour === 12 ? '中午' : hour < 18 ? '下午' : '晚上',
+  };
+}
+// "September 27, 2:00 PM Central Time" · "9月27日下午2点（美国中部时间）".
+function deadlineText(iso) {
+  const c = eventClock(iso);
+  if (!c) return '';
+  return t(
+    `${MONTHS[c.month - 1]} ${c.day}, ${c.hour12}:${c.minute} ${c.pm ? 'PM' : 'AM'} Central Time`,
+    `${c.month}月${c.day}日${c.period}${c.hour12}点${c.minute === '00' ? '' : `${c.minute}分`}（美国中部时间）`,
+  );
+}
+// The registration time, to the second: "Sep 13, 2026, 3:04:05 PM Central Time"
+// · "2026年9月13日 下午3:04:05（美国中部时间）".
+function registeredText(iso) {
+  const c = eventClock(iso);
+  if (!c) return '';
+  const clock = `${c.hour12}:${c.minute}:${c.second}`;
+  return t(
+    `${MONTHS[c.month - 1].slice(0, 3)} ${c.day}, ${c.year}, ${clock} ${c.pm ? 'PM' : 'AM'} Central Time`,
+    `${c.year}年${c.month}月${c.day}日 ${c.period}${clock}（美国中部时间）`,
+  );
+}
 
 // Live copy replacing a static bilingual element: drop data-en/data-zh so the
 // language pass can never put the flyer's text back.
@@ -1863,7 +1924,7 @@ export async function wireEventFormPage() {
   // The callout above the form: the deadline while it is open, "closed" after.
   const renderPerk = () => {
     const when = deadlineText(deadline);
-    if (!when) return; // the static copy already says "before the festival starts"
+    if (!when) return; // the static copy already carries the flyer's deadline
     const open = Date.now() <= new Date(deadline).getTime();
     const box = $('#caaci-ev-perk');
     box.classList.toggle('alert-warning', open);
@@ -1871,21 +1932,23 @@ export async function wireEventFormPage() {
     setText(
       $('#caaci-ev-perk-title'),
       open
-        ? t('Free mooncake', '免费月饼')
+        ? t('Free mooncake', '免费领月饼')
         : t('Free mooncake sign-up has closed', '免费月饼登记已截止'),
     );
     setText(
       $('#caaci-ev-perk-text'),
       open
         ? t(
-            `Register below and create a free CAACI website account by ${when}, and a free mooncake is waiting for you at the festival. The account is optional — anyone can register.`,
-            `在 ${when} 前完成报名并免费注册 CAACI 网站账户，即可在活动现场领取免费月饼。注册账户并非必需——任何人都可以报名。`,
+            `Register and create a free CAACI website account by ${when}, and pick up a free mooncake at the festival.`,
+            `${when}前报名，并免费注册一个 CAACI 网站账户，活动当天就能在现场免费领一份月饼。`,
           )
         : t(
             `It closed on ${when}. You can still register for the festival below.`,
-            `已于 ${when} 截止。您仍可在下方报名参加活动。`,
+            `已于${when}截止。您仍可在下方报名参加活动。`,
           ),
     );
+    // "No account still lets you register, just without a mooncake" — moot once closed.
+    $('#caaci-ev-perk-note').hidden = !open;
   };
 
   // Signed in, but registered under a different address than the login one.
@@ -1896,12 +1959,12 @@ export async function wireEventFormPage() {
     if (signOutFirst)
       return t(
         `The free mooncake goes with the email you registered with, not the account you are signed in to. Create a free CAACI account with that email${when ? ` by ${when}` : ''}, or log in to it — you will be signed out of this account first.`,
-        `免费月饼与报名时填写的邮箱绑定，而不是您当前登录的账户。请${when ? `在 ${when} 前` : ''}用该邮箱免费注册 CAACI 账户或登录——系统会先为您退出当前账户。`,
+        `免费月饼与报名时填写的邮箱绑定，而不是您当前登录的账户。请${when ? `在${when}前` : ''}用该邮箱免费注册 CAACI 账户或登录——系统会先为您退出当前账户。`,
       );
     return when
       ? t(
           `One more step for a free mooncake: create a free CAACI account with the email you registered with by ${when}.`,
-          `领取免费月饼还差一步：请在 ${when} 前，用报名时填写的邮箱免费注册 CAACI 账户。`,
+          `领取免费月饼还差一步：请在${when}前，用报名时填写的邮箱免费注册 CAACI 账户。`,
         )
       : t(
           'One more step for a free mooncake: create a free CAACI account with the email you registered with before the festival starts.',

@@ -124,7 +124,11 @@ test('event form: an anonymous visitor registers, then is sent to signup with th
     const perk = q('#caaci-ev-perk');
     assert.ok(perk.classList.contains('alert-warning'));
     assert.match(perk.textContent, /Free mooncake/);
-    assert.match(perk.textContent, /September 27\D+2:00\sPM CDT/, 'deadline in Chicago time');
+    assert.match(
+      perk.textContent,
+      /September 27, 2:00 PM Central Time/,
+      'deadline in Chicago time',
+    );
 
     fillForm({ email: '  mei@x.com ' });
     await submit();
@@ -148,12 +152,12 @@ test('event form: an anonymous visitor registers, then is sent to signup with th
     assert.equal(document.activeElement, q('#caaci-ev-done-title'));
     const time = q('#caaci-ev-done-time').textContent;
     assert.match(time, /Sep 13, 2026/);
-    assert.match(time, /3:04:05\sPM CDT/, 'to the second, in Chicago time');
+    assert.match(time, /3:04:05 PM Central Time/, 'to the second, in Chicago time');
     assert.equal(q('#caaci-ev-done-already').hidden, true);
     assert.equal(q('#caaci-ev-perk-counted').hidden, true);
     assert.equal(q('#caaci-ev-perk-closed').hidden, true);
     assert.ok(shown('#caaci-ev-perk-cta'));
-    assert.match(q('#caaci-ev-perk-cta').textContent, /September 27\D+2:00\sPM CDT/);
+    assert.match(q('#caaci-ev-perk-cta').textContent, /September 27, 2:00 PM Central Time/);
     assert.equal(
       q('#caaci-ev-login').getAttribute('href'),
       '/login-3/?next=%2Fmid_autumn_festival_form%2F',
@@ -267,7 +271,7 @@ test('event form: a resubmission says the answers were updated and shows the ori
     await submit();
     assert.ok(shown('#caaci-ev-done-already'));
     assert.match(q('#caaci-ev-done-already').textContent, /original registration time is kept/);
-    assert.match(q('#caaci-ev-done-time').textContent, /Sep 1, 2026\D+10:00:00\sAM CDT/);
+    assert.match(q('#caaci-ev-done-time').textContent, /Sep 1, 2026\D+10:00:00 AM Central Time/);
   } finally {
     fetch.restore();
   }
@@ -360,7 +364,7 @@ test('event form: signed in but registered under another email, the mooncake ste
     assert.ok(shown('#caaci-ev-perk-cta'));
     const cta = q('#caaci-ev-perk-cta-text').textContent;
     assert.match(cta, /goes with the email you registered with/);
-    assert.match(cta, /September 27\D+2:00\sPM CDT/);
+    assert.match(cta, /September 27, 2:00 PM Central Time/);
     assert.match(cta, /signed out/);
 
     q('#caaci-ev-signup').click();
@@ -475,7 +479,7 @@ test('event form: a signed-in visitor who already registered sees the success st
     assert.equal(q('#caaci-ev-form-card').hidden, true);
     assert.ok(shown('#caaci-ev-done'));
     // 01:02:03 UTC on the 10th is still the evening of the 9th in Champaign.
-    assert.match(q('#caaci-ev-done-time').textContent, /Sep 9, 2026\D+8:02:03\sPM CDT/);
+    assert.match(q('#caaci-ev-done-time').textContent, /Sep 9, 2026\D+8:02:03 PM Central Time/);
     assert.equal(q('#caaci-ev-done-already').hidden, true);
     assert.ok(shown('#caaci-ev-perk-counted'));
 
@@ -507,8 +511,9 @@ test('event form: after the deadline the callout says mooncake sign-up closed, a
     assert.ok(perk.classList.contains('alert-secondary'));
     assert.equal(perk.classList.contains('alert-warning'), false);
     assert.match(perk.textContent, /sign-up has closed/);
-    assert.match(perk.textContent, /September 27\D+2:00\sPM CDT/);
+    assert.match(perk.textContent, /September 27, 2:00 PM Central Time/);
     assert.match(perk.textContent, /still register/);
+    assert.equal(q('#caaci-ev-perk-note').hidden, true, 'no "without an account" line once closed');
 
     fillForm();
     await submit();
@@ -518,6 +523,39 @@ test('event form: after the deadline the callout says mooncake sign-up closed, a
     assert.equal(q('#caaci-ev-perk-counted').hidden, true);
   } finally {
     fetch.restore();
+  }
+});
+
+test('event form: in Chinese the mooncake callout and times say 美国中部时间, never GMT-5', async () => {
+  const PERK_ZH =
+    '9月27日下午2点（美国中部时间）前报名，并免费注册一个 CAACI 网站账户，活动当天就能在现场免费领一份月饼。';
+  const NOTE_ZH = '不注册账户也可以报名参加活动，只是领不到月饼。';
+  member.__setLang('zh');
+  setup();
+  member.__setSupa(supaWith(null));
+  const fetch = stubApi();
+  try {
+    // The flyer copy, before the API has answered.
+    member.applyLang();
+    assert.equal(q('#caaci-ev-perk-title').textContent, '免费领月饼');
+    assert.equal(q('#caaci-ev-perk-text').textContent, PERK_ZH);
+    assert.equal(q('#caaci-ev-perk-note').textContent, NOTE_ZH);
+
+    // The same sentence rebuilt from the API's deadline (2:00 PM in Chicago).
+    await member.wireEventFormPage();
+    assert.equal(q('#caaci-ev-perk-title').textContent, '免费领月饼');
+    assert.equal(q('#caaci-ev-perk-text').textContent, PERK_ZH);
+    assert.ok(shown('#caaci-ev-perk-note'));
+
+    fillForm();
+    await submit();
+    // 20:04:05 UTC is 3:04:05 in the afternoon in Champaign.
+    assert.match(q('#caaci-ev-done-time').textContent, /2026年9月13日 下午3:04:05（美国中部时间）/);
+    assert.match(q('#caaci-ev-perk-cta').textContent, /请在9月27日下午2点（美国中部时间）前，/);
+    assert.doesNotMatch(document.body.textContent, /GMT|CDT/);
+  } finally {
+    fetch.restore();
+    member.__setLang('en');
   }
 });
 
