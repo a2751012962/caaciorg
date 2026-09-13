@@ -1252,3 +1252,81 @@ test('account security: a second Save while the first code request is in flight 
   await tick();
   assert.equal(q('#caaci-pw-code-resend').textContent, 'Resend in 60s');
 });
+
+// Counts intervals still running. Install after mockClock(t) and restore in a
+// finally, so t.mock can put the real timers back afterwards.
+function trackIntervals() {
+  const live = new Set();
+  const { setInterval: realSet, clearInterval: realClear } = globalThis;
+  globalThis.setInterval = (...args) => {
+    const id = realSet(...args);
+    live.add(id);
+    return id;
+  };
+  globalThis.clearInterval = (id) => {
+    live.delete(id);
+    return realClear(id);
+  };
+  return {
+    live,
+    restore() {
+      globalThis.setInterval = realSet;
+      globalThis.clearInterval = realClear;
+    },
+  };
+}
+
+// Opens checkout for the Individual tier, types `email`, switches to log-in mode.
+async function openCheckoutLogin(email) {
+  q('[data-tier="individual"]').click();
+  await tick();
+  fill('#caaci-email', email);
+  q('#caaci-auth-toggle').click();
+  return q('#caaci-co-forgot');
+}
+
+test('membership checkout: closing the modal stops the reset countdown, even mid-request, and reopening resumes it', async (t) => {
+  mockClock(t);
+  const timers = trackIntervals();
+  try {
+    setup('membership');
+    let release;
+    const stub = supaStub({
+      auth: {
+        resetPasswordForEmail: () =>
+          new Promise((resolve) => {
+            release = () => resolve({ data: {}, error: null });
+          }),
+      },
+    });
+    member.__setSupa(stub);
+    await member.wireMembershipPage();
+
+    // Counting down, then closed.
+    let forgot = await openCheckoutLogin('mei@x.com');
+    forgot.click();
+    release();
+    await tick();
+    assert.equal(forgot.textContent, 'Resend in 60s');
+    assert.equal(timers.live.size, 1);
+    q('[data-act="close"]').click();
+    assert.equal(timers.live.size, 0, 'closing stops the countdown');
+
+    // Closed while the request is still in flight.
+    forgot = await openCheckoutLogin('ada@x.com');
+    forgot.click();
+    assert.equal(forgot.getAttribute('aria-busy'), 'true');
+    q('[data-act="close"]').click();
+    release();
+    await tick();
+    assert.equal(timers.live.size, 0, 'no countdown starts for a closed modal');
+
+    t.mock.timers.tick(5000);
+    forgot = await openCheckoutLogin('ada@x.com');
+    assert.equal(forgot.disabled, true, 'reopening resumes the stored countdown');
+    assert.equal(forgot.textContent, 'Resend in 55s');
+    assert.equal(callsTo(stub, 'resetPasswordForEmail').length, 2);
+  } finally {
+    timers.restore();
+  }
+});

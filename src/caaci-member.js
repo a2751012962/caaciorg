@@ -155,6 +155,9 @@ function cooldown(btn, { action, email, seconds, label }) {
     btn.disabled = false;
     return false;
   }
+  // The button is gone (the checkout modal closed mid-request): the stored end
+  // time lets a reopened modal resume, but no timer should tick for nobody.
+  if (!btn.isConnected) return true;
   const render = () => {
     const left = Math.ceil((end - Date.now()) / 1000);
     if (left > 0) {
