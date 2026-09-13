@@ -1,6 +1,9 @@
 // /api/admin/event-registrations?event_id=<uuid>  (admin only)
-//   GET — every registration for one event, oldest first, each matched to a
-//         website account and marked eligible (or not) for the free gift.
+//   GET — the event's questions and every registration for it, oldest first,
+//         each with its answers, matched to a website account and marked
+//         eligible (or not) for the event's free gift; plus a summary with
+//         per-option counts for the choice questions.
+// An event with no gift (perk_item_zh / perk_item_en unset) has nobody eligible.
 // Effective deadline = events.perk_deadline ?? events.starts_at, inclusive.
 // Eligible = registered by the deadline AND a CONFIRMED account exists
 // (members.id = member_id, else lower(members.email) = email) that was created
@@ -10,13 +13,15 @@
 // staff can see them.
 // Every request is gated by requireAdmin.
 import { json, bad, sb, requireAdmin } from '../_lib.js';
+import { validateQuestions, perkOf } from '../_event-form.js';
 
 const MAX_ROWS = 2000;
 const MAX_MEMBERS = 5000;
 const AUTH_PER_PAGE = 1000;
 const AUTH_MAX_PAGES = 20;
-const ROW_COLUMNS =
-  'id,email,attending,attendee_names,heard_from,wants_meal,created_at,updated_at,member_id';
+const EVENT_COLUMNS =
+  'id,slug,title,title_zh,starts_at,perk_deadline,perk_item_zh,perk_item_en,registration_questions';
+const ROW_COLUMNS = 'id,email,answers,created_at,updated_at,member_id';
 // events.id is a uuid: anything else can't match, and PostgREST would answer a
 // malformed one with a cast error (500) rather than an empty result.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -42,6 +47,32 @@ async function confirmedUserIds(env) {
   return ids;
 }
 
+// { [questionId]: { [optionId]: 0, …, other: 0 } } for the choice questions.
+// Option ids are never 'other' (validateQuestions refuses it), so Other answers
+// have a key of their own. An option id the question no longer has is not counted.
+function emptyChoices(questions) {
+  const choices = {};
+  for (const q of questions) {
+    if (q.type !== 'single' && q.type !== 'multi') continue;
+    choices[q.id] = Object.fromEntries([...q.options.map((o) => [o.id, 0]), ['other', 0]]);
+  }
+  return choices;
+}
+
+function countChoices(choices, answers) {
+  if (!answers || typeof answers !== 'object') return;
+  for (const [questionId, counts] of Object.entries(choices)) {
+    const a = Object.hasOwn(answers, questionId) ? answers[questionId] : null;
+    if (!a || typeof a !== 'object') continue;
+    const picked = new Set([
+      ...(Array.isArray(a.options) ? a.options : []),
+      ...(typeof a.option === 'string' ? [a.option] : []),
+    ]);
+    for (const id of picked) if (id !== 'other' && Object.hasOwn(counts, id)) counts[id]++;
+    if (typeof a.other === 'string') counts.other++;
+  }
+}
+
 export async function onRequestGet({ request, env }) {
   const gate = await requireAdmin(request, env);
   if (gate.error) return gate.error;
@@ -52,10 +83,16 @@ export async function onRequestGet({ request, env }) {
 
   try {
     const DB = sb(env);
-    const event = await DB.selectOne('events', { id: eventId }, 'id,title,starts_at,perk_deadline');
+    const event = await DB.selectOne('events', { id: eventId }, EVENT_COLUMNS);
     if (!event) return bad('Event not found.', 404);
-    const deadline = event.perk_deadline ?? event.starts_at;
-    const cutoff = Date.parse(deadline);
+    const perk = perkOf(event);
+    const cutoff = perk ? Date.parse(perk.deadline) : NaN;
+    // A form that takes no registrations (null) still lists any it once took.
+    // A hand-edited list that fails validation shows no question columns
+    // rather than hiding the registrations.
+    const questions = Array.isArray(event.registration_questions)
+      ? validateQuestions(event.registration_questions).questions || []
+      : [];
 
     const [{ rows: regs }, { rows: members }, confirmed] = await Promise.all([
       DB.select('event_registrations', {
@@ -84,15 +121,14 @@ export async function onRequestGet({ request, env }) {
         .toLowerCase();
       if (key && !byEmail.has(key)) byEmail.set(key, m);
     }
+    // False for every timestamp when there is no gift (cutoff is NaN).
     const onTime = (ts) => !!ts && Date.parse(ts) <= cutoff;
 
     const summary = {
       total: 0,
-      attending: 0,
-      not_attending: 0,
-      meal: 0,
       with_account: 0,
       perk_eligible: 0,
+      choices: emptyChoices(questions),
     };
     const rows = regs.map((r) => {
       const m = (r.member_id && byId.get(r.member_id)) || byEmail.get(r.email) || null;
@@ -107,21 +143,17 @@ export async function onRequestGet({ request, env }) {
         : null;
       const perk_eligible =
         onTime(r.created_at) && !!account?.confirmed && onTime(account.created_at);
+      const answers = r.answers && typeof r.answers === 'object' ? r.answers : {};
 
       summary.total++;
-      if (r.attending === true) summary.attending++;
-      if (r.attending === false) summary.not_attending++;
-      if (r.wants_meal === true) summary.meal++;
       if (account?.confirmed) summary.with_account++;
       if (perk_eligible) summary.perk_eligible++;
+      countChoices(summary.choices, answers);
 
       return {
         id: r.id,
         email: r.email,
-        attending: r.attending,
-        attendee_names: r.attendee_names,
-        heard_from: r.heard_from,
-        wants_meal: r.wants_meal,
+        answers,
         created_at: r.created_at,
         updated_at: r.updated_at,
         member_id: r.member_id,
@@ -133,11 +165,13 @@ export async function onRequestGet({ request, env }) {
     return json({
       event: {
         id: event.id,
+        slug: event.slug,
         title: event.title,
+        title_zh: event.title_zh ?? null,
         starts_at: event.starts_at,
-        perk_deadline: event.perk_deadline,
-        deadline,
+        perk,
       },
+      questions,
       rows,
       summary,
     });

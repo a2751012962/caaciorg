@@ -4,13 +4,101 @@ import { onRequestGet } from '../functions/api/admin/event-registrations.js';
 import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
 
 const EV = '11111111-1111-4111-8111-111111111111'; // perk_deadline set
-const EV_NO_PERK = '22222222-2222-4222-8222-222222222222'; // perk_deadline null → starts_at
+const EV_NO_DEADLINE = '22222222-2222-4222-8222-222222222222'; // perk_deadline null → starts_at
+const EV_NO_GIFT = '44444444-4444-4444-8444-444444444444'; // no gift names
+const EV_CLOSED = '55555555-5555-4555-8555-555555555555'; // registration_questions null
 const DEADLINE = '2026-09-21T04:59:59+00:00';
 const STARTS = '2026-09-27T19:00:00+00:00';
 
+const QUESTIONS = [
+  {
+    id: 'attending',
+    type: 'single',
+    label_en: 'Can you attend?',
+    label_zh: '您能参加吗？',
+    required: true,
+    options: [
+      { id: 'yes', label_en: "Yes, I'll be there", label_zh: '能，我会参加' },
+      { id: 'no', label_en: "Sorry, can't make it", label_zh: '抱歉，无法参加' },
+    ],
+    other: false,
+  },
+  {
+    id: 'names',
+    type: 'textarea',
+    label_en: 'Names',
+    label_zh: '姓名',
+    required: true,
+  },
+  {
+    id: 'heard_from',
+    type: 'single',
+    label_en: 'How did you hear?',
+    label_zh: '您是从哪里得知的？',
+    required: false,
+    options: [
+      { id: 'website', label_en: 'Website', label_zh: '网站' },
+      { id: 'friend', label_en: 'Friend', label_zh: '朋友' },
+    ],
+    other: true,
+  },
+  {
+    id: 'food',
+    type: 'multi',
+    label_en: 'Food',
+    label_zh: '食物',
+    required: false,
+    options: [
+      { id: 'dumplings', label_en: 'Dumplings', label_zh: '饺子' },
+      { id: 'tea', label_en: 'Tea', label_zh: '茶' },
+    ],
+    other: true,
+  },
+];
+
+const GIFT = { perk_item_zh: '月饼', perk_item_en: 'mooncake' };
 const EVENTS = {
-  [EV]: { id: EV, title: 'Mid-Autumn Festival', starts_at: STARTS, perk_deadline: DEADLINE },
-  [EV_NO_PERK]: { id: EV_NO_PERK, title: 'Picnic', starts_at: STARTS, perk_deadline: null },
+  [EV]: {
+    id: EV,
+    slug: 'mid-autumn-festival',
+    title: 'Mid-Autumn Festival',
+    title_zh: '中秋节',
+    starts_at: STARTS,
+    perk_deadline: DEADLINE,
+    ...GIFT,
+    registration_questions: QUESTIONS,
+  },
+  [EV_NO_DEADLINE]: {
+    id: EV_NO_DEADLINE,
+    slug: 'picnic',
+    title: 'Picnic',
+    title_zh: null,
+    starts_at: STARTS,
+    perk_deadline: null,
+    ...GIFT,
+    registration_questions: QUESTIONS,
+  },
+  [EV_NO_GIFT]: {
+    id: EV_NO_GIFT,
+    slug: 'talk',
+    title: 'Talk',
+    title_zh: null,
+    starts_at: STARTS,
+    perk_deadline: DEADLINE,
+    perk_item_zh: null,
+    perk_item_en: null,
+    registration_questions: QUESTIONS,
+  },
+  [EV_CLOSED]: {
+    id: EV_CLOSED,
+    slug: 'closed',
+    title: 'Closed',
+    title_zh: null,
+    starts_at: STARTS,
+    perk_deadline: DEADLINE,
+    ...GIFT,
+    registration_questions: null,
+  },
 };
 
 const BEFORE = '2026-09-10T12:00:00+00:00';
@@ -56,10 +144,7 @@ const AUTH_USERS = [
 
 const reg = (over) => ({
   id: over.email,
-  attending: true,
-  attendee_names: 'Someone',
-  heard_from: 'Website',
-  wants_meal: null,
+  answers: { attending: { option: 'yes' }, names: 'Someone', heard_from: { option: 'website' } },
   created_at: BEFORE,
   updated_at: BEFORE,
   member_id: null,
@@ -69,13 +154,25 @@ const reg = (over) => ({
 // Ordered by created_at, as the query asks the database to.
 const REGS = [
   // matched by case-insensitive email; account + registration before deadline
-  reg({ email: 'mei.lin@example.com', wants_meal: true }),
+  reg({ email: 'mei.lin@example.com' }),
   // member_id wins over the email, which belongs to someone else's account
-  reg({ email: 'late@example.com', member_id: 'm-jun', attending: false, attendee_names: null }),
+  reg({
+    email: 'late@example.com',
+    member_id: 'm-jun',
+    answers: { attending: { option: 'no' }, names: 'Jun', food: { options: ['tea'] } },
+  }),
   // account made in time but never confirmed → shown, not counted
-  reg({ email: 'unconfirmed@example.com' }),
+  reg({
+    email: 'unconfirmed@example.com',
+    answers: {
+      attending: { option: 'yes' },
+      names: 'U',
+      heard_from: { other: 'a poster' },
+      food: { options: ['dumplings', 'tea'], other: '' },
+    },
+  }),
   // registered and account created EXACTLY at the deadline → counts
-  reg({ email: 'edge@example.com', created_at: DEADLINE, wants_meal: false }),
+  reg({ email: 'edge@example.com', created_at: DEADLINE }),
   // account created after the deadline
   reg({ email: 'late2@example.com', member_id: 'm-late', created_at: DEADLINE }),
   // no account at all; a stale member_id falls back to the (unknown) email
@@ -83,12 +180,13 @@ const REGS = [
     email: 'nobody@example.com',
     member_id: 'm-gone',
     created_at: '2026-09-21T05:00:00+00:00',
+    answers: { attending: { option: 'yes' }, heard_from: { option: 'removed-option' } },
   }),
-  // registered after the deadline, account is fine
-  reg({ email: 'jun@example.com', created_at: AFTER }),
+  // registered after the deadline, account is fine; a legacy row never backfilled
+  reg({ email: 'jun@example.com', created_at: AFTER, answers: {} }),
 ];
 
-function route({ admin = true, regs = REGS, authPages = [AUTH_USERS] } = {}) {
+function route({ admin = true, regs = REGS, authPages = [AUTH_USERS], events = EVENTS } = {}) {
   return (u) => {
     if (u.includes('/auth/v1/admin/users')) {
       const page = Number(new URL(u).searchParams.get('page'));
@@ -99,7 +197,7 @@ function route({ admin = true, regs = REGS, authPages = [AUTH_USERS] } = {}) {
       return { body: [{ id: 'admin-1', is_admin: admin }] };
     if (u.includes('/rest/v1/events')) {
       const id = decodeURIComponent(u.match(/id=eq\.([^&]+)/)?.[1] || '');
-      return { body: EVENTS[id] ? [EVENTS[id]] : [] };
+      return { body: events[id] ? [events[id]] : [] };
     }
     if (u.includes('/rest/v1/event_registrations')) return { body: regs };
     if (u.includes('/rest/v1/members')) return { body: MEMBERS };
@@ -173,11 +271,13 @@ test('admin registrations: matches accounts and applies the eligibility rule', a
 
     assert.deepEqual(data.event, {
       id: EV,
+      slug: 'mid-autumn-festival',
       title: 'Mid-Autumn Festival',
+      title_zh: '中秋节',
       starts_at: STARTS,
-      perk_deadline: DEADLINE,
-      deadline: DEADLINE,
+      perk: { item_en: 'mooncake', item_zh: '月饼', deadline: DEADLINE },
     });
+    assert.deepEqual(data.questions, QUESTIONS);
 
     const by = Object.fromEntries(data.rows.map((x) => [x.email, x]));
     // case-insensitive email match against a mixed-case members.email
@@ -215,30 +315,57 @@ test('admin registrations: matches accounts and applies the eligibility rule', a
     assert.equal(by['jun@example.com'].account.id, 'm-jun');
     assert.equal(by['jun@example.com'].perk_eligible, false);
 
-    // The row shape the admin panel and CSV rely on.
+    // The row shape the admin panel and CSV rely on: answers as stored.
     assert.deepEqual(Object.keys(data.rows[0]).sort(), [
       'account',
-      'attendee_names',
-      'attending',
+      'answers',
       'created_at',
       'email',
-      'heard_from',
       'id',
       'member_id',
       'perk_eligible',
       'updated_at',
-      'wants_meal',
     ]);
+    assert.deepEqual(by['unconfirmed@example.com'].answers, REGS[2].answers);
 
     // with_account counts confirmed accounts only (not the unconfirmed signup).
     assert.deepEqual(data.summary, {
       total: 7,
-      attending: 6,
-      not_attending: 1,
-      meal: 1,
       with_account: 5,
       perk_eligible: 3,
+      choices: {
+        attending: { yes: 5, no: 1, other: 0 },
+        heard_from: { website: 3, friend: 0, other: 1 },
+        food: { dumplings: 1, tea: 2, other: 1 },
+      },
     });
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin registrations: choice counts skip text questions, removed options and malformed answers', async () => {
+  const regs = [
+    reg({ email: 'a@example.com', answers: { attending: { option: 'other' }, names: 'yes' } }),
+    reg({ email: 'b@example.com', answers: { attending: 'yes', food: { options: 'tea' } } }),
+    reg({ email: 'c@example.com', answers: null }),
+    reg({ email: 'd@example.com', answers: { food: { options: ['tea', 'tea', 'gone'] } } }),
+    reg({ email: 'e@example.com', answers: { heard_from: { other: 5 } } }),
+  ];
+  const fetch = mockFetch(route({ regs }));
+  try {
+    const data = await (await get(`?event_id=${EV}`)).json();
+    assert.deepEqual(data.summary.choices, {
+      attending: { yes: 0, no: 0, other: 0 },
+      heard_from: { website: 0, friend: 0, other: 0 },
+      food: { dumplings: 0, tea: 1, other: 0 },
+    });
+    assert.equal('names' in data.summary.choices, false);
+    assert.deepEqual(
+      data.rows.find((x) => x.email === 'c@example.com').answers,
+      {},
+      'a null answers value comes back as {}',
+    );
   } finally {
     fetch.restore();
   }
@@ -269,6 +396,45 @@ test('admin registrations: only a confirmed account makes a registrant eligible'
     } finally {
       fetch.restore();
     }
+  }
+});
+
+test('admin registrations: an event with no gift has nobody eligible, accounts still matched', async () => {
+  const fetch = mockFetch(route());
+  try {
+    const data = await (await get(`?event_id=${EV_NO_GIFT}`)).json();
+    assert.equal(data.event.perk, null);
+    assert.equal(
+      data.rows.some((x) => x.perk_eligible),
+      false,
+    );
+    assert.equal(data.summary.perk_eligible, 0);
+    assert.equal(data.summary.with_account, 5);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin registrations: a form no longer taking registrations still lists them, with no question columns', async () => {
+  const fetch = mockFetch(route());
+  try {
+    const data = await (await get(`?event_id=${EV_CLOSED}`)).json();
+    assert.deepEqual(data.questions, []);
+    assert.deepEqual(data.summary.choices, {});
+    assert.equal(data.rows.length, REGS.length);
+  } finally {
+    fetch.restore();
+  }
+  const broken = { ...EVENTS, [EV]: { ...EVENTS[EV], registration_questions: [{ id: 'X' }] } };
+  const again = mockFetch(route({ events: broken }));
+  try {
+    const r = await get(`?event_id=${EV}`);
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.deepEqual(data.questions, [], 'a hand-edited invalid form hides only the columns');
+    assert.equal(data.rows.length, REGS.length);
+  } finally {
+    again.restore();
   }
 });
 
@@ -325,9 +491,9 @@ test('admin registrations: a null perk_deadline falls back to the event start', 
   ];
   const fetch = mockFetch(route({ regs: onlyAfterDeadline }));
   try {
-    const data = await (await get(`?event_id=${EV_NO_PERK}`)).json();
-    assert.equal(data.event.perk_deadline, null);
-    assert.equal(data.event.deadline, STARTS);
+    const data = await (await get(`?event_id=${EV_NO_DEADLINE}`)).json();
+    assert.equal(data.event.perk.deadline, STARTS);
+    assert.equal(data.event.title_zh, null);
     assert.deepEqual(
       data.rows.map((x) => [x.email, x.perk_eligible]),
       [
@@ -346,6 +512,7 @@ test('admin registrations: asks for this event, oldest first, and keeps that ord
   try {
     const data = await (await get(`?event_id=${EV}`)).json();
     const q = fetch.calls.find((c) => c.url.includes('/rest/v1/event_registrations')).url;
+    assert.ok(q.includes('select=id,email,answers,created_at,updated_at,member_id&'));
     assert.ok(q.includes(`event_id=eq.${EV}`));
     assert.ok(q.includes('order=created_at.asc'));
     assert.ok(q.includes('limit=2000'));

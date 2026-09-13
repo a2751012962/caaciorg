@@ -6,12 +6,19 @@
 //            so flipping `published` is what makes an event official.
 //   DELETE — remove an event (its RSVPs and registrations cascade — see
 //            0001_init.sql, 0015_event_registrations.sql).
+// Registration (0018): registration_questions null means the event takes no
+// registrations; an array is its form, checked by validateQuestions. The free
+// gift is perk_item_zh + perk_item_en (both or neither) with perk_deadline.
+// Listed rows carry registration_count, so the admin can be warned before
+// changing the questions of a form people have already answered.
 // Every request is gated by requireAdmin.
 import { json, bad, sb, requireAdmin } from '../_lib.js';
+import { validateQuestions } from '../_event-form.js';
 
 const MAX_LIMIT = 50;
+const MAX_COUNTED = 10000; // registrations read to count a page of events
 const COLUMNS =
-  'id,title,slug,description,starts_at,ends_at,location,image_url,published,perk_deadline,created_at';
+  'id,title,title_zh,slug,description,starts_at,ends_at,location,image_url,published,perk_deadline,perk_item_zh,perk_item_en,registration_questions,created_at';
 
 const slugify = (s) =>
   String(s || '')
@@ -54,6 +61,25 @@ function parseFields(b) {
       patch.perk_deadline = d.toISOString();
     }
   }
+  // The gift's name in both languages, or neither: a one-language name would
+  // show an empty gift on the other half of every bilingual page and email.
+  if (b.perk_item_zh !== undefined || b.perk_item_en !== undefined) {
+    const zh = String(b.perk_item_zh ?? '').trim() || null;
+    const en = String(b.perk_item_en ?? '').trim() || null;
+    if (!zh !== !en) return { error: 'Enter the gift name in both languages, or neither.' };
+    patch.perk_item_zh = zh;
+    patch.perk_item_en = en;
+  }
+  if (b.title_zh !== undefined) patch.title_zh = String(b.title_zh ?? '').trim() || null;
+  if (b.registration_questions !== undefined) {
+    if (b.registration_questions === null) {
+      patch.registration_questions = null; // stop taking registrations
+    } else {
+      const { questions, error } = validateQuestions(b.registration_questions);
+      if (error) return { error };
+      patch.registration_questions = questions;
+    }
+  }
   if (b.description !== undefined) patch.description = String(b.description || '').trim() || null;
   if (b.location !== undefined) patch.location = String(b.location || '').trim() || null;
   if (b.image_url !== undefined) patch.image_url = String(b.image_url || '').trim() || null;
@@ -87,7 +113,8 @@ export async function onRequestGet({ request, env }) {
   }
 
   try {
-    const { rows, total } = await sb(env).select('events', {
+    const DB = sb(env);
+    const { rows, total } = await DB.select('events', {
       columns: COLUMNS,
       filters,
       order: 'starts_at.desc',
@@ -95,7 +122,23 @@ export async function onRequestGet({ request, env }) {
       offset,
       count: 'exact',
     });
-    return json({ rows, total, limit, offset });
+    // One read of the page's registrations (event ids only), counted here.
+    const counts = new Map(rows.map((r) => [r.id, 0]));
+    if (rows.length) {
+      const { rows: regs } = await DB.select('event_registrations', {
+        columns: 'event_id',
+        filters: [`event_id=in.(${rows.map((r) => encodeURIComponent(r.id)).join(',')})`],
+        limit: MAX_COUNTED,
+      });
+      for (const { event_id } of regs)
+        if (counts.has(event_id)) counts.set(event_id, counts.get(event_id) + 1);
+    }
+    return json({
+      rows: rows.map((r) => ({ ...r, registration_count: counts.get(r.id) })),
+      total,
+      limit,
+      offset,
+    });
   } catch (e) {
     return bad(e.message, 500);
   }
