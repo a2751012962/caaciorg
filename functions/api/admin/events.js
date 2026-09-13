@@ -4,13 +4,14 @@
 //   POST   — patch an event, including the publish/unpublish toggle. Only
 //            published events are publicly readable (events_read RLS policy),
 //            so flipping `published` is what makes an event official.
-//   DELETE — remove an event (its RSVPs cascade — see 0001_init.sql).
+//   DELETE — remove an event (its RSVPs and registrations cascade — see
+//            0001_init.sql, 0015_event_registrations.sql).
 // Every request is gated by requireAdmin.
 import { json, bad, sb, requireAdmin } from '../_lib.js';
 
 const MAX_LIMIT = 50;
 const COLUMNS =
-  'id,title,slug,description,starts_at,ends_at,location,image_url,published,created_at';
+  'id,title,slug,description,starts_at,ends_at,location,image_url,published,perk_deadline,created_at';
 
 const slugify = (s) =>
   String(s || '')
@@ -43,6 +44,16 @@ function parseFields(b) {
   }
   if (patch.starts_at && patch.ends_at && patch.ends_at < patch.starts_at)
     return { error: 'End must be after start.' };
+  // Free-gift (e.g. mooncake) cutoff; null means "the event's start time".
+  if (b.perk_deadline !== undefined) {
+    if (b.perk_deadline === null || b.perk_deadline === '') {
+      patch.perk_deadline = null;
+    } else {
+      const d = new Date(b.perk_deadline);
+      if (isNaN(d.getTime())) return { error: 'Invalid free-gift deadline.' };
+      patch.perk_deadline = d.toISOString();
+    }
+  }
   if (b.description !== undefined) patch.description = String(b.description || '').trim() || null;
   if (b.location !== undefined) patch.location = String(b.location || '').trim() || null;
   if (b.image_url !== undefined) patch.image_url = String(b.image_url || '').trim() || null;
