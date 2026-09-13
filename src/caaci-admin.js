@@ -942,30 +942,91 @@ function wireDiscounts() {
 }
 
 // ---------- news composer ----------
-// The message as the email will render, in a frame sandboxed with no allow-* at
-// all (so no scripts and no same-origin access to this admin session). The
-// sandbox attribute is set before srcdoc so the content never loads unsandboxed.
-function showNewsPreview() {
-  const host = $('#caaci-news-preview');
+// The message is edited as the email will look: in a frame sandboxed with
+// allow-same-origin but no allow-scripts, so this page can make it editable
+// (designMode) and read it back while nothing in the message — a <script>, an
+// onerror=… — can run. The frame is sandboxed before it is attached, and its
+// document is written from this page. #caaci-news-body stays the one copy that
+// sending reads: every edit in the frame is written back to it, and View source
+// shows it for editing by hand.
+const NEWS_COMMANDS = [
+  'bold',
+  'italic',
+  'formatBlock',
+  'insertUnorderedList',
+  'createLink',
+  'unlink',
+];
+let newsFrame = null;
+let newsWholeDocument = false; // the message is a whole <html> document, not a fragment
+
+// Draws what the HTML box holds into a fresh editing frame.
+function loadNewsEditor() {
   const html = $('#caaci-news-body').value;
-  if (!html.trim()) {
-    host.hidden = true;
-    host.innerHTML = '';
-    return notice(
-      $('#caaci-news-notice'),
-      t('Write a message to preview.', '请先填写正文再预览。'),
-      false,
-    );
-  }
+  newsWholeDocument = /<(html|head|body)[\s>]/i.test(html);
   const frame = document.createElement('iframe');
-  frame.setAttribute('sandbox', '');
-  frame.setAttribute('title', t('Message preview', '正文预览'));
-  frame.setAttribute('srcdoc', html);
+  frame.setAttribute('sandbox', 'allow-same-origin');
+  frame.setAttribute('title', t('Message editor', '正文编辑区'));
   const box = document.createElement('div');
   box.className = 'ratio ratio-4x3 border';
   box.appendChild(frame);
-  host.replaceChildren(box);
-  host.hidden = false;
+  $('#caaci-news-editor').replaceChildren(box);
+  newsFrame = frame;
+  const doc = frame.contentDocument;
+  doc.open();
+  doc.write(html.trim() ? html : '<p><br></p>');
+  doc.close();
+  doc.designMode = 'on';
+  doc.addEventListener('input', syncNewsSource);
+}
+
+// Writes the frame's HTML back to the box: the body for a fragment, the whole
+// document when the message was one or the browser moved something into <head>.
+function syncNewsSource() {
+  const doc = newsFrame?.contentDocument;
+  if (!doc?.body) return;
+  const whole = newsWholeDocument || doc.head.childElementCount > 0;
+  $('#caaci-news-body').value = whole
+    ? `<!doctype html>\n${doc.documentElement.outerHTML}`
+    : doc.body.innerHTML;
+}
+
+// A toolbar button runs its editing command in the frame. A link must be http(s)
+// or mailto, so a javascript: address never gets into an email.
+function runNewsCommand(btn) {
+  const doc = newsFrame?.contentDocument;
+  const cmd = btn.dataset.cmd;
+  if (!doc || !NEWS_COMMANDS.includes(cmd)) return;
+  let arg = btn.dataset.arg;
+  if (cmd === 'createLink') {
+    const typed = window.prompt(t('Link address', '链接地址'), 'https://');
+    if (typed == null || !typed.trim()) return;
+    arg = typed.trim();
+    if (!/^(https?:\/\/|mailto:)/i.test(arg))
+      return notice(
+        $('#caaci-news-notice'),
+        t(
+          'A link must start with https://, http:// or mailto:.',
+          '链接必须以 https://、http:// 或 mailto: 开头。',
+        ),
+        false,
+      );
+  }
+  newsFrame.contentWindow?.focus();
+  doc.execCommand(cmd, false, arg);
+  syncNewsSource();
+}
+
+// View source shows the HTML box; going back draws what it holds into the frame.
+function setNewsSourceMode(on) {
+  $('#caaci-news-visual').hidden = on;
+  $('#caaci-news-body').hidden = !on;
+  const btn = $('#caaci-news-source-btn');
+  btn.dataset.en = on ? 'Back to visual editing' : 'View source';
+  btn.dataset.zh = on ? '返回可视化编辑' : '查看源代码';
+  btn.textContent = t(btn.dataset.en, btn.dataset.zh);
+  btn.setAttribute('aria-pressed', String(on));
+  if (!on) loadNewsEditor();
 }
 
 // Whether this environment refuses real sends (NEWS_TEST_ONLY): shows the banner
@@ -1010,7 +1071,17 @@ function wireNews() {
   const tab = $('[data-tab="news"]');
   if (tab) tab.addEventListener('click', () => loadNewsMode());
   $('#caaci-news-test-btn').addEventListener('click', sendNewsTest);
-  $('#caaci-news-preview-btn').addEventListener('click', showNewsPreview);
+  loadNewsEditor();
+  $('#caaci-news-source-btn').addEventListener('click', () =>
+    setNewsSourceMode($('#caaci-news-body').hidden),
+  );
+  const toolbar = $('#caaci-news-toolbar');
+  // A mousedown would move focus out of the frame and lose its selection.
+  toolbar.addEventListener('mousedown', (e) => e.preventDefault());
+  toolbar.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-cmd]');
+    if (btn) runNewsCommand(btn);
+  });
   $('#caaci-news-send').addEventListener('click', async () => {
     const notb = $('#caaci-news-notice');
     const btn = $('#caaci-news-send');
