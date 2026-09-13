@@ -173,10 +173,25 @@
   color: var(--caaci-body);
 }
 /* On the events page the calendar's own container already sets the width, so
-   the card spans it like the calendar header does. */
+   the card spans it like the calendar header does. The calendar also resets
+   everything inside .tribe-common (`.tribe-common aside` / `.tribe-common a`:
+   display, margin, padding, border, background), and those two-part selectors
+   outrank the single-class rules above — the card lost its layout and the
+   button went white-on-white. Restate what the reset takes away here. */
 .tribe-events-l-container .caaci-promo {
   width: 100%;
   max-width: none;
+  display: flex;
+  margin: var(--caaci-gap) auto;
+  padding: var(--caaci-gap);
+  border-left: 4px solid var(--caaci-brick);
+}
+.tribe-events-l-container .caaci-promo .caaci-btn {
+  padding: 0.5em 1.5em;
+  background: var(--caaci-brick);
+}
+.tribe-events-l-container .caaci-promo .caaci-btn:hover {
+  background: var(--caaci-brick-dark);
 }
 
 /* ================================================== Donation checkout === */
