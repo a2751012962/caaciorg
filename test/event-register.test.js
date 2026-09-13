@@ -230,6 +230,7 @@ test('event-register POST: anonymous first registration upserts on (event_id, em
       already: false,
       registered_at: FIRST_AT,
       signed_in: false,
+      linked: false,
       deadline: EVENT.perk_deadline,
     });
 
@@ -327,22 +328,38 @@ test('event-register POST: not attending needs no names and stores attending=fal
   }
 });
 
-test('event-register POST: a valid bearer token records member_id and signed_in', async () => {
-  const fetch = mockFetch(route({ user: { id: 'u1', email: 'someone@else.com' } }));
-  try {
-    const r = await post(VALID, { headers: { authorization: 'Bearer good-token' } });
-    assert.equal(r.status, 200);
-    assert.equal((await r.json()).signed_in, true);
-    const auth = callsTo(fetch, '/auth/v1/user')[0];
-    assert.equal(auth.options.headers.authorization, 'Bearer good-token');
-    assert.equal(auth.options.headers.apikey, 'anon-key');
-    const row = JSON.parse(upsertCall(fetch).options.body);
-    assert.equal(row.member_id, 'u1');
-    assert.equal(row.email, 'pat@example.com', 'the form email is stored, not the login email');
-  } finally {
-    fetch.restore();
-  }
-});
+// Signed in, the row is linked to the account only when the form email is the
+// account's own login email; registering any other address is stored exactly
+// like a signed-out submission, so it cannot be counted against the account.
+for (const [label, loginEmail, formEmail, linked] of [
+  ['same email -> linked, member_id sent', 'pat@example.com', 'pat@example.com', true],
+  ['same email in another case -> linked', 'Pat@Example.COM', '  pat@EXAMPLE.com ', true],
+  ['different email -> no member_id key', 'someone@else.com', 'pat@example.com', false],
+  ['login without an email -> no member_id key', undefined, 'pat@example.com', false],
+]) {
+  test(`event-register POST: signed in, ${label}`, async () => {
+    const fetch = mockFetch(route({ user: { id: 'u1', email: loginEmail } }));
+    try {
+      const r = await post(
+        { ...VALID, email: formEmail },
+        { headers: { authorization: 'Bearer good-token' } },
+      );
+      assert.equal(r.status, 200);
+      const out = await r.json();
+      assert.equal(out.signed_in, true);
+      assert.equal(out.linked, linked);
+      const auth = callsTo(fetch, '/auth/v1/user')[0];
+      assert.equal(auth.options.headers.authorization, 'Bearer good-token');
+      assert.equal(auth.options.headers.apikey, 'anon-key');
+      const row = JSON.parse(upsertCall(fetch).options.body);
+      assert.equal(row.email, 'pat@example.com', 'the form email is stored, not the login email');
+      assert.equal('member_id' in row, linked);
+      assert.equal(row.member_id, linked ? 'u1' : undefined);
+    } finally {
+      fetch.restore();
+    }
+  });
+}
 
 test('event-register POST: an invalid token is treated as anonymous, not an error', async () => {
   const fetch = mockFetch(route({ user: null }));
@@ -352,6 +369,7 @@ test('event-register POST: an invalid token is treated as anonymous, not an erro
     const out = await r.json();
     assert.equal(out.ok, true);
     assert.equal(out.signed_in, false);
+    assert.equal(out.linked, false);
     assert.equal(callsTo(fetch, '/auth/v1/user').length, 1);
     assert.equal('member_id' in JSON.parse(upsertCall(fetch).options.body), false);
     assert.equal(emails(fetch).length, 1, 'still a first registration');
@@ -372,6 +390,7 @@ test('event-register POST: resubmission -> already=true, keeps the first created
       already: true,
       registered_at: EARLIER_AT,
       signed_in: false,
+      linked: false,
       deadline: EVENT.perk_deadline,
     });
     const row = JSON.parse(upsertCall(fetch).options.body);
@@ -445,7 +464,7 @@ test('event-register POST: first registration emails the registrant an escaped c
   }
 });
 
-test('event-register POST: a signed-in first registration is told it counts, with no sign-up link', async () => {
+test('event-register POST: a linked first registration is told it counts, with no sign-up link', async () => {
   const fetch = mockFetch(route({ user: { id: 'u1', email: 'pat@example.com' } }));
   try {
     const r = await post(VALID, { headers: { authorization: 'Bearer good' } });
@@ -453,6 +472,19 @@ test('event-register POST: a signed-in first registration is told it counts, wit
     const { html } = emails(fetch)[0];
     assert.match(html, /counts for a free mooncake/);
     assert.equal(html.includes('/login-3/'), false);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event-register POST: signed in but registering another address, the email offers the sign-up link', async () => {
+  const fetch = mockFetch(route({ user: { id: 'u1', email: 'someone@else.com' } }));
+  try {
+    const r = await post(VALID, { headers: { authorization: 'Bearer good' } });
+    assert.equal(r.status, 200);
+    const { html } = emails(fetch)[0];
+    assert.equal(/counts for a free mooncake/.test(html), false);
+    assert.match(html, /href="https:\/\/beta\.caaciorg\.com\/login-3\/"/);
   } finally {
     fetch.restore();
   }

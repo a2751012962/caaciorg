@@ -7,6 +7,8 @@
 //   POST — create or update the registration for (event, email). A resubmission
 //        overwrites the answers but keeps created_at, the first submission time
 //        that decides the free mooncake; only the first one gets a confirmation.
+//        Signed in, the row is linked to the account (member_id, `linked: true`)
+//        only when the form email is the account's own login email.
 // A bad or expired token is treated as signed out, never as an error.
 // event_registrations is server-only (0015): read and written here and by
 // /api/admin/event-registrations, with the service-role key.
@@ -132,7 +134,13 @@ export async function onRequestPost({ request, env }) {
     );
     if (!event || event.published !== true) return bad('Event not found.', 404);
 
-    const memberId = (await optionalUser(request, env))?.id || null;
+    // Link the registration to the account only when it is the account's own
+    // address: otherwise a signed-in user could register someone else's email
+    // and have that row (and its mooncake) counted against their account.
+    // Registering another address is stored exactly like a signed-out one.
+    const user = await optionalUser(request, env);
+    const linked = !!user?.id && String(user.email || '').toLowerCase() === email;
+    const memberId = linked ? user.id : null;
 
     const existing = await DB.selectOne(
       'event_registrations',
@@ -171,7 +179,7 @@ export async function onRequestPost({ request, env }) {
             logo: `${env.SUPABASE_URL}/storage/v1/object/public/media/email/caaci-logo.png`,
             event,
             deadline,
-            signedIn: !!memberId,
+            linked,
             answers: { email, attending, names, heardFrom, wantsMeal },
           }),
         });
@@ -184,7 +192,8 @@ export async function onRequestPost({ request, env }) {
       ok: true,
       already: !!existing,
       registered_at: existing?.created_at ?? row?.created_at ?? null,
-      signed_in: !!memberId,
+      signed_in: !!user?.id,
+      linked,
       deadline,
     });
   } catch (e) {
@@ -213,7 +222,7 @@ function eventTime(event, locale) {
 
 // The registrant's confirmation, laid out like supabase/templates/*.html:
 // Chinese first, then English. Everything user- or admin-supplied is escaped.
-function confirmationHtml({ origin, host, logo, event, deadline, signedIn, answers }) {
+function confirmationHtml({ origin, host, logo, event, deadline, linked, answers }) {
   const title = esc(event.title);
   const heading = 'margin:0 0 8px;color:#300200;font-size:20px;';
   const small = 'font-size:13px;color:#666666;';
@@ -225,7 +234,7 @@ function confirmationHtml({ origin, host, logo, event, deadline, signedIn, answe
   // Only offer the mooncake while it can still be earned.
   let perk = '';
   if (Date.now() <= new Date(deadline).getTime()) {
-    const body = signedIn
+    const body = linked
       ? `<p style="margin:0 0 8px;">✓ 你的报名已关联你的 CAACI 账号，可在活动现场领取一个免费月饼。</p>
     <p style="margin:0;">✓ Your registration is linked to your CAACI account, so it counts for a free mooncake at the festival.</p>`
       : `<p style="margin:0 0 8px;">在 ${esc(chicago(deadline, 'zh-CN'))}（美国中部时间）之前，用此邮箱注册一个免费 CAACI 账号，即可在活动现场领取一个免费月饼。</p>
