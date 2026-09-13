@@ -1341,6 +1341,7 @@ async function loadFamilies() {
   notb.hidden = true;
   households = data.rows || [];
   householdsLoaded = true;
+  renderFamilyPlanMembers(data.family_plan_members);
   const host = $('#caaci-families-list');
   host.innerHTML = '';
   if (!households.length) {
@@ -1350,6 +1351,78 @@ async function loadFamilies() {
   // false when the server could not read invitations (migration 0017 not applied yet).
   const invitesAvailable = data.invites_available !== false;
   for (const h of households) host.appendChild(familyCard(h, invitesAvailable));
+}
+
+// Family-plan members with no family yet, e.g. imported MemberPress family
+// plans. null = the server couldn't read them; undefined = a server that
+// doesn't send the list, so nothing is shown.
+function renderFamilyPlanMembers(list) {
+  const host = $('#caaci-family-plan-members');
+  host.innerHTML = '';
+  if (list === undefined) return;
+  const section = document.createElement('section');
+  section.className = 'card mt-3';
+  section.dataset.planMembers = '';
+  let body;
+  if (list === null) {
+    body = `<p class="text-secondary mb-0" data-plan-members-unavailable>${t("Couldn't load family-plan members.", '无法加载家庭会员列表。')}</p>`;
+  } else if (!list.length) {
+    body = `<p class="text-secondary mb-0">${t('Every family-plan member has a family.', '所有家庭会员都已建家庭。')}</p>`;
+  } else {
+    body = `<p class="text-secondary">${t(
+      'These members are on the Family plan but have no family yet. They can start one from their account page by inviting family, or you can create it here.',
+      '这些会员买的是家庭会员，但还没建家庭。他们可以在账户页邀请家人时自动建立，也可以由你在这里直接建。',
+    )}</p>
+      <div class="table-responsive"><table class="table table-sm table-vcenter"><thead><tr>
+        <th>${t('Name', '姓名')}</th><th>${t('Email', '邮箱')}</th>
+        <th>${t('Status', '状态')}</th><th>${t('Expires', '到期')}</th><th></th></tr></thead>
+        <tbody>${list.map(planMemberRow).join('')}</tbody></table></div>`;
+  }
+  const count = list?.length
+    ? ` <span class="badge" data-plan-members-count>${list.length}</span>`
+    : '';
+  section.innerHTML = `
+    <div class="card-header">
+      <h3 class="card-title mb-0">${t('Family-plan members without a family', '还没建家庭的家庭会员')}${count}</h3>
+    </div>
+    <div class="card-body">${body}</div>`;
+  for (const b of section.querySelectorAll('[data-act="create-family"]')) {
+    const m = list.find((x) => x.id === b.dataset.member);
+    b.addEventListener('click', () => createFamilyFor(m, b));
+  }
+  host.appendChild(section);
+}
+
+function planMemberRow(m) {
+  return `<tr>
+    <td>${esc(m.full_name || '—')}</td>
+    <td>${esc(m.email || '—')}</td>
+    <td>${badgeHtml(m.status, STATUS_LABEL[m.status]?.() || m.status || '—')}</td>
+    <td>${esc(fmtDate(m.expires_at))}</td>
+    <td><button type="button" class="btn btn-sm" data-member="${esc(m.id)}" data-act="create-family">${t('Create family', '建家庭')}</button></td></tr>`;
+}
+
+// The member becomes the new family's founder, as if they had started it from
+// /account/, so they can invite family from there.
+async function createFamilyFor(m, btn) {
+  const who = m.email || m.full_name;
+  const ask = t(
+    `Create a family for ${who}? They become its founder and can invite family from their account page.`,
+    `为 ${who} 建家庭？该会员会成为创始人，之后可以在账户页邀请家人。`,
+  );
+  if (!window.confirm(ask)) return;
+  btn.disabled = true;
+  const notb = $('#caaci-families-notice');
+  const { ok, data } = await api('/api/admin/households', {
+    method: 'PUT',
+    body: { founder_member_id: m.id },
+  });
+  if (!ok) {
+    btn.disabled = false;
+    return notice(notb, data.error || t('Could not create the family.', '建家庭失败。'), false);
+  }
+  await loadFamilies();
+  notice(notb, t(`Family created for ${who}.`, `已为 ${who} 建家庭。`));
 }
 
 const RELATIONSHIP_LABEL = {

@@ -1,8 +1,10 @@
 // /api/admin/households  (admin only)
 //   GET    — list families, each with its linked login accounts + family members,
 //            and (once migration 0017 is applied) its founder, pending
-//            invitations, latest activity and seats in use.
-//   PUT    — create a family.
+//            invitations, latest activity and seats in use. Also lists the
+//            family-plan members who have no family yet (family_plan_members).
+//   PUT    — create a family. With body.founder_member_id, create it for that
+//            family-plan member instead, exactly as /api/family would.
 //   POST   — update a family (body.id required).
 //   DELETE — delete a family (its family members go too; linked accounts are kept).
 // Every request is gated by requireAdmin (validates session + is_admin).
@@ -31,6 +33,18 @@ const EXTRA_FILTERS = [
   'events.order=created_at.desc',
   'events.limit=20',
 ];
+
+// Members on the family plan with no family. Imported MemberPress family plans
+// start out like this; the family appears once the member invites someone from
+// /account/ or an admin creates it here.
+const PLAN_MEMBER_COLUMNS = 'id,full_name,email,status,member_since,expires_at';
+const PLAN_MEMBER_FILTERS = ['tier_id=eq.family', 'household_id=is.null'];
+
+// family_create_household refusals (0017).
+const CREATE_REFUSAL = {
+  already_in_household: ['That member is already in a family.', 409],
+  no_member: ['Member not found.', 404],
+};
 
 // The self-service family cap enforced by 0017. Shown to admins for context
 // only; admins are not capped.
@@ -102,6 +116,37 @@ async function buildPatch(b, env, { requireName }) {
   return { patch };
 }
 
+// Start a family for a family-plan member with none, through the same
+// family_create_household call /api/family uses: the member becomes its founder
+// (linked account + 'head' person), so they can invite family from /account/.
+async function createForMember(env, memberId) {
+  if (!memberId || typeof memberId !== 'string') return bad('Member id is required.');
+  const DB = sb(env);
+  try {
+    const m = await DB.selectOne(
+      'members',
+      { id: memberId },
+      'id,full_name,email,tier_id,household_id',
+    );
+    if (!m) return bad(...CREATE_REFUSAL.no_member);
+    if (m.household_id) return bad(...CREATE_REFUSAL.already_in_household);
+    if (m.tier_id !== 'family') return bad('That member is not on the family plan.');
+    const res = await DB.rpc('family_create_household', {
+      p_founder: m.id,
+      p_name: `${m.email || m.full_name}'s family`,
+      p_full_name: m.full_name || m.email,
+      p_email: m.email,
+    });
+    if (!res?.ok) {
+      const [msg, status] = CREATE_REFUSAL[res?.reason] || ['Could not create the family.', 500];
+      return bad(msg, status);
+    }
+    return json({ ok: true, household_id: res.household_id });
+  } catch (e) {
+    return bad(e.message, 500);
+  }
+}
+
 export async function onRequestGet({ request, env }) {
   const gate = await requireAdmin(request, env);
   if (gate.error) return gate.error;
@@ -116,6 +161,16 @@ export async function onRequestGet({ request, env }) {
     ({ rows }) => rows,
     () => null,
   );
+  // null = the list could not be read; the families list still loads.
+  const planMembers = DB.select('members', {
+    columns: PLAN_MEMBER_COLUMNS,
+    filters: PLAN_MEMBER_FILTERS,
+    order: 'email.asc',
+    limit: 500,
+  }).then(
+    ({ rows }) => rows,
+    () => null,
+  );
   try {
     const { rows } = await DB.select('households', { columns: COLUMNS, ...page });
     const more = await extras;
@@ -123,6 +178,7 @@ export async function onRequestGet({ request, env }) {
     return json({
       rows: rows.map((h) => withExtras(h, byId.get(h.id))),
       invites_available: more !== null,
+      family_plan_members: await planMembers,
     });
   } catch (e) {
     return bad(e.message, 500);
@@ -139,6 +195,7 @@ export async function onRequestPut({ request, env }) {
   } catch {
     return bad('invalid JSON');
   }
+  if (b.founder_member_id !== undefined) return createForMember(env, b.founder_member_id);
   const built = await buildPatch(b, env, { requireName: true });
   if (built.error) return built.error;
 

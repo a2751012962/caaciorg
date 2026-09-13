@@ -1901,6 +1901,131 @@ test('admin families: a founder outside the family, hostile actors, unknown even
   }
 });
 
+// ---------- families: family-plan members without a family ----------
+const PLAN_MEMBERS = [
+  {
+    id: 'f1',
+    full_name: `Zheng ${HOSTILE}`,
+    email: 'zg@x.com',
+    status: 'active',
+    expires_at: '2026-03-01T00:00:00Z',
+  },
+  { id: 'f2', full_name: null, email: `yun${HOSTILE}@x.com`, status: 'expired', expires_at: null },
+];
+const planMembersEl = () =>
+  document.querySelector('#caaci-family-plan-members [data-plan-members]');
+
+test('admin families: family-plan members without a family are listed with no families, escaped, and Create family starts one', async () => {
+  let plan = PLAN_MEMBERS;
+  const fetch = mockFetch((u, o) => {
+    if (!u.includes('/api/admin/households')) return { body: { ok: true } };
+    if (o.method === 'PUT') {
+      plan = plan.filter((m) => m.id !== JSON.parse(o.body).founder_member_id);
+      return { body: { ok: true, household_id: 'h9' } };
+    }
+    return { body: { rows: [], invites_available: true, family_plan_members: plan } };
+  });
+  const realConfirm = window.confirm;
+  try {
+    await openFamilies();
+    assert.match(document.querySelector('#caaci-families-list').textContent, /No families yet\./);
+    let s = planMembersEl();
+    assert.ok(s, 'list rendered');
+    assert.equal(s.querySelector('img, b'), null, 'hostile text never becomes markup');
+    assert.match(
+      s.querySelector('.card-title').textContent,
+      /Family-plan members without a family/,
+    );
+    assert.equal(s.querySelector('[data-plan-members-count]').textContent, '2');
+    let rows = [...s.querySelectorAll('tbody tr')];
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0].cells[0].textContent, `Zheng ${HOSTILE}`);
+    assert.equal(rows[0].cells[1].textContent, 'zg@x.com');
+    assert.equal(rows[0].cells[2].textContent, 'Active');
+    assert.equal(rows[0].cells[3].textContent, day('2026-03-01T00:00:00Z'));
+    assert.equal(rows[1].cells[0].textContent, '—');
+    assert.equal(rows[1].cells[1].textContent, `yun${HOSTILE}@x.com`);
+    assert.equal(rows[1].cells[2].textContent, 'Expired');
+    assert.equal(rows[1].cells[3].textContent, '—');
+
+    // Declining the confirm sends nothing.
+    let asked = '';
+    window.confirm = (m) => ((asked = m), false);
+    rows[0].querySelector('[data-act="create-family"]').click();
+    await tick();
+    assert.match(asked, /Create a family for zg@x\.com\?/);
+    const puts = () => fetch.calls.filter((c) => c.options.method === 'PUT');
+    assert.equal(puts().length, 0);
+
+    window.confirm = () => true;
+    rows[0].querySelector('[data-act="create-family"]').click();
+    await tick();
+    assert.equal(puts().length, 1);
+    assert.equal(puts()[0].url.includes('/api/admin/households'), true);
+    assert.deepEqual(JSON.parse(puts()[0].options.body), { founder_member_id: 'f1' });
+    const notb = document.querySelector('#caaci-families-notice');
+    assert.equal(notb.hidden, false);
+    assert.equal(notb.textContent, 'Family created for zg@x.com.');
+    s = planMembersEl();
+    rows = [...s.querySelectorAll('tbody tr')];
+    assert.equal(rows.length, 1, 'reloaded without the new founder');
+    assert.equal(rows[0].cells[1].textContent, `yun${HOSTILE}@x.com`);
+
+    document.querySelector('#caaci-lang').click();
+    await openFamilies();
+    const zh = planMembersEl().textContent;
+    for (const label of ['还没建家庭的家庭会员', '建家庭', '已过期', '邮箱'])
+      assert.ok(zh.includes(label), `zh label ${label}`);
+    document.querySelector('#caaci-lang').click();
+    await tick();
+  } finally {
+    window.confirm = realConfirm;
+    fetch.restore();
+  }
+});
+
+test('admin families: Create family shows the server refusal, and the list has unavailable, empty and absent states', async () => {
+  let reply = { rows: [], invites_available: true, family_plan_members: PLAN_MEMBERS };
+  const fetch = mockFetch((u, o) => {
+    if (!u.includes('/api/admin/households')) return { body: { ok: true } };
+    if (o.method === 'PUT')
+      return { status: 409, body: { error: 'That member is already in a family.' } };
+    return { body: reply };
+  });
+  const realConfirm = window.confirm;
+  try {
+    window.confirm = () => true;
+    await openFamilies();
+    const btn = planMembersEl().querySelector('[data-act="create-family"]');
+    btn.click();
+    await tick();
+    const notb = document.querySelector('#caaci-families-notice');
+    assert.equal(notb.textContent, 'That member is already in a family.');
+    assert.ok(notb.classList.contains('alert-danger'));
+    assert.equal(btn.disabled, false, 'button usable again');
+
+    reply = { rows: [], invites_available: true, family_plan_members: null };
+    await openFamilies();
+    assert.match(
+      planMembersEl().querySelector('[data-plan-members-unavailable]').textContent,
+      /Couldn't load family-plan members\./,
+    );
+
+    reply = { rows: [], invites_available: true, family_plan_members: [] };
+    await openFamilies();
+    assert.match(planMembersEl().textContent, /Every family-plan member has a family\./);
+    assert.equal(planMembersEl().querySelector('[data-plan-members-count]'), null);
+
+    reply = { rows: [FAMILY], invites_available: true };
+    await openFamilies();
+    assert.equal(planMembersEl(), null, 'no list from a server that does not send one');
+    assert.ok(familyCardEl(), 'families still render');
+  } finally {
+    window.confirm = realConfirm;
+    fetch.restore();
+  }
+});
+
 test('admin members: once families load, the member editor offers them and saves the chosen family', async () => {
   familiesReply = familiesAvailable;
   const fetch = mockFetch((u, o) =>

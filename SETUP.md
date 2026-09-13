@@ -613,7 +613,11 @@ visit `/admin/` while logged in. The panel provides:
   people + pending invitations, out of the self-service limit of 3 — admins aren't capped),
   **pending invitations**, and a collapsible **activity** log (latest 20 events). Until
   migration `0017_family_invites.sql` is applied, the card says invitations and activity are
-  unavailable and everything else works as before.
+  unavailable and everything else works as before. Below the families, **Family-plan members
+  without a family** lists members on the `family` tier with no household (imported
+  MemberPress family plans start out this way). **Create family** starts one for that member
+  through `family_create_household`, exactly as their first invitation from `/account/` would:
+  they become its founder and can then invite family themselves.
 - **Compose News** — email an announcement to members (active-only or all) via Resend.
   Recipients are read server-side and never exposed to the browser; each member gets their
   own message. Sends are throttled (one per minute) and require an explicit confirm.
