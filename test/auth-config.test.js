@@ -7,6 +7,10 @@
 //   * Microsoft pointed at a single tenant instead of /common, locking out
 //     every member who does not have a caaciorg account
 //   * a return URL dropping out of the redirect allow list
+//   * custom SMTP switched off, after which Supabase's built-in mailer delivers
+//     only to the project team's own addresses
+//   * an auth email template or subject edited in the dashboard, drifting from
+//     supabase/templates/ (push-auth-emails.mjs puts it back)
 //
 // Two groups, with different requirements:
 //
@@ -28,6 +32,7 @@
 // against the stored setting, not inferred from an authorize response.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { buildAuthPatch, diffAuthConfig, loadTemplates } from '../push-auth-emails.mjs';
 
 const AUTHORIZE_ON = process.env.CAACI_AUTH_CONFIG_TESTS === '1';
 const skipAuthorize = AUTHORIZE_ON
@@ -201,3 +206,46 @@ test('site_url is allow-listed and actually serves', { skip: skipConfig }, async
   }
   assert.equal(status, 200, `site_url ${siteUrl} answered HTTP ${status}`);
 });
+
+// The password is deliberately left alone: it is a secret, reading it back
+// proves nothing about whether Resend accepts it, and a failure message here
+// must never be able to print it. Only the public fields are compared.
+test('custom SMTP sends as CAACI through Resend', { skip: skipConfig }, async () => {
+  const cfg = await authConfig();
+
+  assert.equal(
+    cfg.smtp_host,
+    'smtp.resend.com',
+    "custom SMTP is off or points elsewhere — Supabase's built-in mailer only reaches the project team",
+  );
+  // As text: the docs do not say whether the port reads back as a number or a string.
+  assert.equal(String(cfg.smtp_port), '465');
+  assert.equal(cfg.smtp_user, 'resend');
+  assert.equal(cfg.smtp_admin_email, 'no-reply@caaciorg.com', 'the From address changed');
+  assert.equal(cfg.smtp_sender_name, 'CAACI', 'the From name changed');
+});
+
+// Compares with the same normalisation the push script uses — line endings and
+// trailing whitespace only — so what fails here is exactly what --apply fixes.
+test(
+  'live email templates and subjects match supabase/templates/',
+  { skip: skipConfig },
+  async () => {
+    const cfg = await authConfig();
+    const repo = Object.fromEntries(
+      Object.entries(buildAuthPatch(await loadTemplates())).filter(([key]) =>
+        key.startsWith('mailer_'),
+      ),
+    );
+
+    const drift = diffAuthConfig(repo, cfg);
+    assert.deepEqual(
+      drift.map((d) => d.key),
+      [],
+      `${drift.length} auth email setting(s) drifted from supabase/templates/:\n` +
+        drift.map((d) => `  ${d.key}: ${d.summary}`).join('\n') +
+        '\nRun `npm run auth:emails` (a dry run) to see the difference. If the repo is right, ' +
+        'push it with `npm run auth:emails -- --apply`; if the dashboard is, copy it into the repo.',
+    );
+  },
+);
