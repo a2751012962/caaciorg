@@ -43,6 +43,7 @@ const t = (en, zh) => (lang === 'zh' ? zh : en);
 
 // ---------- session + admin gate ----------
 let token = null;
+let myId = null; // the signed-in admin's own member id
 let gateState = null; // null = checking | 'misconfig' | 'anon' | 'forbidden'
 
 // Render the gate's heading + message for the current state and language. Once a
@@ -86,6 +87,7 @@ async function gate() {
     return false;
   }
   token = session.access_token;
+  myId = session.user.id;
   // Read our own member row (RLS lets a user read their own row, incl. is_admin).
   const { data: me } = await supa
     .from('members')
@@ -343,6 +345,55 @@ function wireAuthEmails(row, m) {
   }
 }
 
+// ---------- set a member's password (no email link) ----------
+// Takes effect at once. The server refuses administrators — your own account
+// included (see My account) — and emails the member that it was changed.
+function wireSetPassword(row, m) {
+  const btn = row.querySelector('[data-act="set-password"]');
+  if (!btn) return; // your own row
+  const input = row.querySelector('[data-f="new_password"]');
+  const msg = row.querySelector('[data-msg]');
+  const who = m.full_name || m.email;
+  btn.addEventListener('click', async () => {
+    const password = input.value;
+    if (password.length < 8)
+      return notice(msg, t('Password must be at least 8 characters.', '密码至少 8 位。'), false);
+    if (
+      !window.confirm(
+        t(
+          `Set a new password for ${who}? It works immediately, and ${who} is emailed that an administrator changed it.`,
+          `为 ${who} 设置新密码？新密码立即生效，并会邮件通知 ${who} 密码已被管理员修改。`,
+        ),
+      )
+    )
+      return;
+    btn.disabled = true;
+    let res = null;
+    try {
+      res = await api('/api/admin/member-password', {
+        method: 'POST',
+        body: { member_id: m.id, password },
+      });
+    } catch {
+      // Network failure: reported below.
+    }
+    btn.disabled = false;
+    if (res?.ok) {
+      input.value = '';
+      notice(
+        msg,
+        t(
+          `Password updated for ${who}. Give them the new password in person or through another channel you trust.`,
+          `已为 ${who} 更新密码。请当面或通过其他可靠渠道告知对方新密码。`,
+        ),
+        true,
+      );
+      return;
+    }
+    notice(msg, res?.data?.error || t('Could not change the password.', '密码修改失败。'), false);
+  });
+}
+
 function toggleEditor(tr, m) {
   clearEditorTimers(); // closing or replacing the open editor ends its countdowns
   const next = tr.nextElementSibling;
@@ -394,9 +445,27 @@ function toggleEditor(tr, m) {
       <button type="button" class="btn btn-sm" data-act="send-invite">${t('Send invitation', '发送邀请邮件')}</button>
       <span class="text-secondary small">${t("Members who haven't set up a login yet get an invitation; members who already have one get a link to set their password.", '尚未启用登录账户的会员会收到邀请；已有账户的会员会收到设置密码的链接。')}</span>
     </div>
+    ${
+      m.id === myId
+        ? `<p class="text-secondary small mt-2 mb-0" data-set-password>${t('To change your own password, use the My account tab.', '修改自己的密码请到“我的账号”标签页。')}</p>`
+        : `<div class="row g-2 align-items-end mt-2" data-set-password>
+      ${field(
+        t(
+          'Or set a new password directly (at least 8 characters)',
+          '或直接设置新密码（至少 8 位）',
+        ),
+        '<input type="password" class="form-control" data-f="new_password" minlength="8" autocomplete="new-password">',
+        'col-sm-6 col-lg-4',
+      )}
+      <div class="col-auto">
+        <button type="button" class="btn" data-act="set-password">${t('Set password', '设置密码')}</button>
+      </div>
+    </div>`
+    }
     <div class="alert mb-0 mt-2" data-msg hidden></div></td>`;
   tr.after(row);
   wireAuthEmails(row, m);
+  wireSetPassword(row, m);
 
   row.querySelector('[data-act="save"]').addEventListener('click', async () => {
     const get = (f) => row.querySelector(`[data-f="${f}"]`).value;
@@ -2105,6 +2174,194 @@ function wireBusiness() {
   if (tab) tab.addEventListener('click', () => loadBusiness());
 }
 
+// ---------- my account (the signed-in admin's own password) ----------
+// Mirrors the member account page: an email/password login confirms its
+// current password, a Google/Microsoft-only login sets a first one, and when
+// Supabase answers "reauthentication needed" it emails a code that goes back as
+// `nonce`. No admin endpoint is involved — /api/admin/member-password refuses
+// the caller's own account on purpose.
+const hasPasswordLogin = (user) =>
+  (user.identities || []).some((i) => i.provider === 'email') ||
+  (user.app_metadata?.providers || []).includes('email');
+
+const needsReauth = (error) =>
+  !!error &&
+  (error.code === 'reauthentication_needed' || /reauthenticat/i.test(error.message || ''));
+
+const REAUTH_COOLDOWN_S = 60; // Supabase sends at most one auth email a minute
+
+// Disable a button for `seconds`, counting down in its label.
+function countdown(btn, label, seconds) {
+  let left = seconds;
+  const paint = () => {
+    btn.textContent = `${label} (${left}s)`;
+  };
+  btn.disabled = true;
+  paint();
+  const timer = setInterval(() => {
+    left -= 1;
+    if (left > 0) return paint();
+    clearInterval(timer);
+    btn.disabled = false;
+    btn.textContent = label;
+  }, 1000);
+}
+
+function renderMyPassword(host, user) {
+  let hasPassword = hasPasswordLogin(user); // flips once an OAuth-only admin sets one
+  const currentField = () =>
+    field(
+      t('Current password', '当前密码'),
+      '<input type="password" class="form-control" data-f="current" autocomplete="current-password">',
+      'mb-3',
+    );
+  const oauthNote = () =>
+    `<p class="text-secondary">${t('You sign in with Google or Microsoft. Set a password to also sign in with your email address.', '您目前通过 Google 或 Microsoft 登录。设置密码后也可以使用邮箱登录。')}</p>`;
+  const saveLabel = () =>
+    hasPassword ? t('Change password', '修改密码') : t('Set password', '设置密码');
+  const resendLabel = t('Resend code', '重新发送验证码');
+
+  host.innerHTML = `
+    <p>${t('Signed in as', '当前登录账号：')} <strong>${esc(user.email)}</strong></p>
+    <div data-slot="current">${hasPassword ? currentField() : oauthNote()}</div>
+    ${field(
+      t('New password (at least 8 characters)', '新密码（至少 8 位）'),
+      '<input type="password" class="form-control" data-f="new" minlength="8" autocomplete="new-password">',
+      'mb-3',
+    )}
+    ${field(
+      t('Confirm new password', '确认新密码'),
+      '<input type="password" class="form-control" data-f="new2" autocomplete="new-password">',
+      'mb-3',
+    )}
+    <button type="button" class="btn btn-primary" data-act="save-password">${saveLabel()}</button>
+    <div class="mt-3" data-reauth hidden>
+      <p class="mb-2" data-reauth-msg></p>
+      ${field(
+        t('Verification code', '验证码'),
+        '<input type="text" class="form-control" data-f="code" inputmode="numeric" autocomplete="one-time-code">',
+        'mb-3',
+      )}
+      <div class="btn-list">
+        <button type="button" class="btn btn-primary" data-act="confirm-code">${t('Confirm', '确认')}</button>
+        <button type="button" class="btn" data-act="resend-code">${resendLabel}</button>
+      </div>
+    </div>
+    <p class="alert mt-3 mb-0" data-msg hidden></p>`;
+
+  const input = (name) => host.querySelector(`[data-f="${name}"]`);
+  const msg = host.querySelector('[data-msg]');
+  const reauth = host.querySelector('[data-reauth]');
+  const saveBtn = host.querySelector('[data-act="save-password"]');
+  const confirmBtn = host.querySelector('[data-act="confirm-code"]');
+  const resendBtn = host.querySelector('[data-act="resend-code"]');
+
+  // The update the fields describe right now — read at Save and again at
+  // Confirm. Returns null after saying what is wrong.
+  const passwordUpdate = () => {
+    const current = hasPassword ? input('current').value : '';
+    const password = input('new').value;
+    let problem = '';
+    if (hasPassword && !current) problem = t('Enter your current password.', '请输入当前密码。');
+    else if (password.length < 8)
+      problem = t('Password must be at least 8 characters.', '密码至少 8 位。');
+    else if (password !== input('new2').value)
+      problem = t('Passwords do not match.', '两次输入的密码不一致。');
+    if (problem) {
+      notice(msg, problem, false);
+      return null;
+    }
+    return hasPassword ? { password, current_password: current } : { password };
+  };
+
+  const sendCode = async () => {
+    resendBtn.disabled = true;
+    const { error } = await supa.auth.reauthenticate();
+    if (error) {
+      resendBtn.disabled = false;
+      notice(msg, error.message, false);
+      return;
+    }
+    countdown(resendBtn, resendLabel, REAUTH_COOLDOWN_S);
+  };
+
+  const saved = () => {
+    const text = hasPassword
+      ? t('Password updated.', '密码已更新。')
+      : t(
+          'Password set — you can now also sign in with your email address.',
+          '密码已设置，现在也可以使用邮箱登录。',
+        );
+    reauth.hidden = true;
+    if (!hasPassword) {
+      hasPassword = true;
+      host.querySelector('[data-slot="current"]').innerHTML = currentField();
+      saveBtn.textContent = saveLabel();
+    }
+    for (const name of ['current', 'new', 'new2', 'code']) {
+      const el = input(name);
+      if (el) el.value = '';
+    }
+    notice(msg, text, true);
+  };
+
+  saveBtn.addEventListener('click', async () => {
+    const attrs = passwordUpdate();
+    if (!attrs) return;
+    saveBtn.disabled = true;
+    const { error } = await supa.auth.updateUser(attrs);
+    saveBtn.disabled = false;
+    if (needsReauth(error)) {
+      msg.hidden = true;
+      reauth.hidden = false;
+      host.querySelector('[data-reauth-msg]').textContent = t(
+        `We emailed a verification code to ${user.email}. Enter it below to finish.`,
+        `我们已向 ${user.email} 发送验证码，请在下方输入以完成修改。`,
+      );
+      // A code sent moments ago (Resend still counting down) is still valid.
+      if (!resendBtn.disabled) await sendCode();
+      return;
+    }
+    if (error) return notice(msg, error.message, false);
+    saved();
+  });
+
+  confirmBtn.addEventListener('click', async () => {
+    if (reauth.hidden) return;
+    const attrs = passwordUpdate();
+    if (!attrs) return;
+    const nonce = input('code').value.trim();
+    if (!nonce)
+      return notice(msg, t('Enter the code from the email.', '请输入邮件中的验证码。'), false);
+    confirmBtn.disabled = true;
+    const { error } = await supa.auth.updateUser({ ...attrs, nonce });
+    confirmBtn.disabled = false;
+    if (error) return notice(msg, error.message, false);
+    saved();
+  });
+
+  resendBtn.addEventListener('click', sendCode);
+}
+
+function wireMyAccount() {
+  const tab = $('[data-tab="account"]');
+  const host = $('#caaci-account-host');
+  if (!tab || !host) return;
+  let loading = null; // the card is built once, so later tab clicks keep typed values
+  tab.addEventListener('click', () => {
+    if (loading) return;
+    loading = (async () => {
+      const { data, error } = await supa.auth.getUser();
+      if (error || !data?.user) {
+        loading = null; // let the next click try again
+        host.innerHTML = `<p class="alert alert-danger mb-0">${t('Could not load your account. Please try again.', '无法加载账号信息，请重试。')}</p>`;
+        return;
+      }
+      renderMyPassword(host, data.user);
+    })();
+  });
+}
+
 // ---------- boot ----------
 (async function () {
   applyLang();
@@ -2136,6 +2393,7 @@ function wireBusiness() {
   wireBusiness();
   wireMedia();
   wireNews();
+  wireMyAccount();
   await loadTiers();
   await loadHouseholds(); // for the member "Family" dropdown
   await loadMembers();
