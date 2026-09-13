@@ -488,6 +488,7 @@
                     Only published events are visible to the public and open for RSVPs.
                   </p>
                   <div id="caaci-event-form-host"></div>
+                  <div id="caaci-event-qr-host"></div>
                   <!-- Registrations for one event — opened from its row, filled by caaci-admin.js. -->
                   <div class="card mb-3" id="caaci-reg-panel" hidden>
                     <div class="card-header">
@@ -499,14 +500,19 @@
                         <div class="text-secondary small" id="caaci-reg-deadline"></div>
                       </div>
                       <div class="card-actions btn-list align-items-center">
-                        <label class="form-check form-switch mb-0">
+                        <!-- Shown only for an event with a free gift. -->
+                        <label
+                          class="form-check form-switch mb-0"
+                          id="caaci-reg-eligible-wrap"
+                          hidden
+                        >
                           <input type="checkbox" class="form-check-input" id="caaci-reg-eligible" />
                           <span
                             class="form-check-label"
-                            data-en="Eligible only"
-                            data-zh="只看可领月饼"
+                            data-en="Gift-eligible only"
+                            data-zh="只看可领福利"
                           >
-                            Eligible only
+                            Gift-eligible only
                           </span>
                         </label>
                         <button
@@ -530,25 +536,13 @@
                       </div>
                     </div>
                     <div class="card-body">
+                      <!-- Head-counts, then per-option counts for each choice question. -->
                       <div class="row row-cards" id="caaci-reg-stats"></div>
                     </div>
                     <div class="table-responsive">
                       <table class="table table-vcenter card-table" id="caaci-reg-table">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th data-en="Registered (Chicago)" data-zh="报名时间（芝加哥）">
-                              Registered (Chicago)
-                            </th>
-                            <th data-en="Email" data-zh="邮箱">Email</th>
-                            <th data-en="Attending" data-zh="参加">Attending</th>
-                            <th data-en="Names" data-zh="参加者姓名">Names</th>
-                            <th data-en="Heard from" data-zh="信息来源">Heard from</th>
-                            <th data-en="Meal" data-zh="订餐">Meal</th>
-                            <th data-en="Account" data-zh="账户">Account</th>
-                            <th data-en="Mooncake" data-zh="月饼">Mooncake</th>
-                          </tr>
-                        </thead>
+                        <!-- One column per registration question, built from the event's form. -->
+                        <thead id="caaci-reg-head"></thead>
                         <tbody id="caaci-reg-body"></tbody>
                       </table>
                     </div>
@@ -761,6 +755,38 @@
                       </option>
                     </select>
                   </div>
+                  <!-- A template fills the subject and message below; both stay editable. -->
+                  <div class="row g-2 mb-3">
+                    <div class="col-sm-6">
+                      <label
+                        class="form-label"
+                        for="caaci-news-template"
+                        data-en="Template"
+                        data-zh="模板"
+                        >Template</label
+                      >
+                      <select id="caaci-news-template" class="form-select">
+                        <option value="" data-en="Blank" data-zh="空白">Blank</option>
+                        <option
+                          value="event"
+                          data-en="Event announcement · 活动通知"
+                          data-zh="活动通知 · Event announcement"
+                        >
+                          Event announcement · 活动通知
+                        </option>
+                      </select>
+                    </div>
+                    <div class="col-sm-6" id="caaci-news-event-wrap" hidden>
+                      <label
+                        class="form-label"
+                        for="caaci-news-event"
+                        data-en="Event (published)"
+                        data-zh="活动（已发布）"
+                        >Event (published)</label
+                      >
+                      <select id="caaci-news-event" class="form-select"></select>
+                    </div>
+                  </div>
                   <div class="mb-3">
                     <label class="form-label" data-en="Subject" data-zh="主题">Subject</label>
                     <input type="text" id="caaci-news-subject" class="form-control" />
@@ -783,7 +809,16 @@
                       >I understand this emails real members.</span
                     >
                   </label>
-                  <div class="mt-3">
+                  <div class="mt-3 btn-list">
+                    <button
+                      type="button"
+                      class="btn"
+                      id="caaci-news-preview-btn"
+                      data-en="Preview"
+                      data-zh="预览"
+                    >
+                      Preview
+                    </button>
                     <button
                       type="button"
                       class="btn btn-primary"
@@ -794,6 +829,8 @@
                       Send news email
                     </button>
                   </div>
+                  <!-- The message rendered in a sandboxed frame (no scripts) by caaci-admin.js. -->
+                  <div class="mt-3" id="caaci-news-preview" hidden></div>
                   <p class="alert mt-3" id="caaci-news-notice" hidden></p>
                 </div>
               </section>

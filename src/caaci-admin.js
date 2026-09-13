@@ -866,7 +866,104 @@ function wireDiscounts() {
 }
 
 // ---------- news composer ----------
+// The "Event announcement" template: the API renders the email for a published
+// event (GET /api/admin/news-template → { subject, html }) into the subject and
+// message boxes, where it stays editable and is sent like any other news email.
+let newsFilled = null; // the template text last put in the boxes
+let newsSeq = 0; // a slow template answer for an event since deselected is dropped
+
+async function loadNewsEvents() {
+  const sel = $('#caaci-news-event');
+  const { ok, data } = await api('/api/admin/events?published=true&limit=50');
+  if (!ok) {
+    notice(
+      $('#caaci-news-notice'),
+      data.error || t('Could not load events.', '无法加载活动。'),
+      false,
+    );
+    return;
+  }
+  const current = sel.value;
+  sel.innerHTML = [
+    `<option value="">${t('— Choose an event —', '— 选择活动 —')}</option>`,
+    ...(data.rows || []).map(
+      (e) =>
+        `<option value="${esc(e.id)}">${esc(e.title_zh ? `${e.title_zh} · ${e.title}` : e.title)} (${fmtDate(e.starts_at)})</option>`,
+    ),
+  ].join('');
+  if ([...sel.options].some((o) => o.value === current)) sel.value = current;
+}
+
+async function applyNewsTemplate() {
+  const eventId = $('#caaci-news-event').value;
+  if ($('#caaci-news-template').value !== 'event' || !eventId) return;
+  const subject = $('#caaci-news-subject');
+  const body = $('#caaci-news-body');
+  const notb = $('#caaci-news-notice');
+  // Never silently replace something the admin wrote or edited.
+  const untouched =
+    newsFilled && subject.value === newsFilled.subject && body.value === newsFilled.html;
+  if (
+    (subject.value.trim() || body.value.trim()) &&
+    !untouched &&
+    !window.confirm(
+      t(
+        'Replace the subject and message with the event announcement?',
+        '用活动通知替换当前的主题和正文？',
+      ),
+    )
+  )
+    return;
+  const seq = ++newsSeq;
+  const { ok, data } = await api(
+    `/api/admin/news-template?event_id=${encodeURIComponent(eventId)}`,
+  );
+  if (seq !== newsSeq) return;
+  if (!ok)
+    return notice(notb, data.error || t('Could not load the template.', '无法加载模板。'), false);
+  subject.value = data.subject || '';
+  body.value = data.html || '';
+  newsFilled = { subject: subject.value, html: body.value };
+  notb.hidden = true;
+  if (!$('#caaci-news-preview').hidden) showNewsPreview(); // keep an open preview current
+}
+
+// The message as the email will render, in a frame sandboxed with no allow-* at
+// all (so no scripts and no same-origin access to this admin session). The
+// sandbox attribute is set before srcdoc so the content never loads unsandboxed.
+function showNewsPreview() {
+  const host = $('#caaci-news-preview');
+  const html = $('#caaci-news-body').value;
+  if (!html.trim()) {
+    host.hidden = true;
+    host.innerHTML = '';
+    return notice(
+      $('#caaci-news-notice'),
+      t('Write a message to preview.', '请先填写正文再预览。'),
+      false,
+    );
+  }
+  const frame = document.createElement('iframe');
+  frame.setAttribute('sandbox', '');
+  frame.setAttribute('title', t('Message preview', '正文预览'));
+  frame.setAttribute('srcdoc', html);
+  const box = document.createElement('div');
+  box.className = 'ratio ratio-4x3 border';
+  box.appendChild(frame);
+  host.replaceChildren(box);
+  host.hidden = false;
+}
+
 function wireNews() {
+  $('#caaci-news-template').addEventListener('change', async () => {
+    const isEvent = $('#caaci-news-template').value === 'event';
+    $('#caaci-news-event-wrap').hidden = !isEvent;
+    if (!isEvent) return; // Blank leaves the boxes as they are
+    await loadNewsEvents();
+    await applyNewsTemplate();
+  });
+  $('#caaci-news-event').addEventListener('change', applyNewsTemplate);
+  $('#caaci-news-preview-btn').addEventListener('click', showNewsPreview);
   $('#caaci-news-send').addEventListener('click', async () => {
     const notb = $('#caaci-news-notice');
     const btn = $('#caaci-news-send');
@@ -1536,6 +1633,67 @@ const fmtWhen = (e) => {
     : txt;
 };
 
+// Registration is open for a published event that takes registrations (the public
+// API answers 404 otherwise) and has not ended; the end check is the API's own
+// registrationOpen rule, now <= (ends_at ?? starts_at).
+const registrationOpen = (e) =>
+  !!e.published &&
+  !!e.slug &&
+  Array.isArray(e.registration_questions) &&
+  Date.now() <= Date.parse(e.ends_at ?? e.starts_at);
+const registrationUrl = (e) => `${location.origin}/events/${encodeURIComponent(e.slug)}/register/`;
+
+async function copyRegistrationLink(e) {
+  const url = registrationUrl(e);
+  try {
+    await navigator.clipboard.writeText(url);
+    notice(
+      $('#caaci-events-notice'),
+      t(`Registration link copied: ${url}`, `报名链接已复制：${url}`),
+      true,
+    );
+  } catch {
+    window.prompt(t('Copy the registration link:', '请复制报名链接：'), url);
+  }
+}
+
+// A printable QR code for the registration page — the same generator as the
+// discount codes' QR (qrDataUrl, assets/qrcode.js).
+function showRegistrationQr(e) {
+  const host = $('#caaci-event-qr-host');
+  const url = registrationUrl(e);
+  let png;
+  try {
+    png = qrDataUrl(url);
+  } catch (err) {
+    notice($('#caaci-events-notice'), `QR: ${err.message}`, false);
+    return;
+  }
+  const title = e.title_zh ? `${e.title_zh} · ${e.title}` : e.title;
+  host.innerHTML = `
+    <div class="card card-body mb-3">
+      <div class="row g-3 align-items-center">
+        <div class="col-auto">
+          <img class="img-thumbnail" alt="${esc(t(`Registration QR code for ${e.title}`, `${title} 报名二维码`))}" src="${png}">
+        </div>
+        <div class="col">
+          <h3 class="mb-1">${esc(title)}</h3>
+          <p class="text-secondary">${t('Scanning opens the registration page', '扫码打开报名页面')} <code>${esc(url)}</code></p>
+          <div class="btn-list">
+            <a class="btn" download="caaci-${esc(e.slug)}-registration-qr.gif" href="${png}">${t('Download image', '下载图片')}</a>
+            <button type="button" class="btn" data-act="copy">${t('Copy link', '复制链接')}</button>
+            <button type="button" class="btn" data-act="close">${t('Close', '关闭')}</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  host.querySelector('[data-act="copy"]').addEventListener('click', () => copyRegistrationLink(e));
+  host.querySelector('[data-act="close"]').addEventListener('click', () => {
+    host.innerHTML = '';
+  });
+  host.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 async function loadEvents() {
   const notb = $('#caaci-events-notice');
   const params = new URLSearchParams({ limit: String(EV_LIMIT), offset: String(evOffset) });
@@ -1562,7 +1720,14 @@ async function loadEvents() {
       : { key: 'pending', label: t('Draft', '草稿') };
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${esc(e.title)}${e.image_url ? ` <span class="avatar avatar-sm ms-1" style="background-image: url('${esc(e.image_url)}')"></span>` : ''}</td>
+      <td>${esc(e.title)}${e.image_url ? ` <span class="avatar avatar-sm ms-1" style="background-image: url('${esc(e.image_url)}')"></span>` : ''}${
+        registrationOpen(e)
+          ? `<div class="btn-list mt-1">
+          <button type="button" class="btn btn-sm btn-ghost-primary" data-act="reg-link">${t('Copy registration link', '复制报名链接')}</button>
+          <button type="button" class="btn btn-sm btn-ghost-primary" data-act="reg-qr">${t('Registration QR code', '报名二维码')}</button>
+        </div>`
+          : ''
+      }</td>
       <td>${fmtWhen(e)}</td>
       <td>${esc(e.location || '—')}</td>
       <td>${badgeHtml(st.key, st.label)}</td>
@@ -1578,6 +1743,10 @@ async function loadEvents() {
     tr.querySelector('[data-act="registrations"]').addEventListener('click', () =>
       openRegistrations(e),
     );
+    tr.querySelector('[data-act="reg-link"]')?.addEventListener('click', () =>
+      copyRegistrationLink(e),
+    );
+    tr.querySelector('[data-act="reg-qr"]')?.addEventListener('click', () => showRegistrationQr(e));
     tr.querySelector('[data-act="toggle"]').addEventListener('click', async () => {
       const { ok: ok2, data: d2 } = await api('/api/admin/events', {
         method: 'POST',
@@ -1616,25 +1785,297 @@ async function loadEvents() {
   $('#caaci-ev-next').disabled = evOffset + EV_LIMIT >= evTotal;
 }
 
+// ---------- event registration questions (the editor's question builder) ----------
+// Questions are plain state: typing only updates it (so focus stays put) and each
+// structural change (add, remove, move, type) re-renders the list from it. Ids are
+// minted once and never derived from a label, so answers already stored under an
+// id keep matching after a relabel or a reorder. The limits mirror the API's
+// validateQuestions (functions/api/_event-form.js), which has the last word.
+const Q_TYPES = ['single', 'multi', 'text', 'textarea'];
+const CHOICE_TYPES = new Set(['single', 'multi']);
+const MAX_QUESTIONS = 30;
+const MAX_OPTIONS = 30;
+const MAX_LABEL = 200;
+const QUESTION_ID = /^[a-z0-9_]{1,40}$/;
+
+// `prefix` + 6 random [a-z0-9], not already in `taken`.
+function newQuestionId(prefix, taken) {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  for (;;) {
+    const rnd = crypto.getRandomValues(new Uint8Array(6));
+    const id = prefix + [...rnd].map((b) => chars[b % chars.length]).join('');
+    if (!taken.includes(id)) return id;
+  }
+}
+const blankOption = (q) => ({
+  id: newQuestionId(
+    'o_',
+    q.options.map((o) => o.id),
+  ),
+  label_en: '',
+  label_zh: '',
+});
+function blankQuestion(qs) {
+  const q = {
+    id: newQuestionId(
+      'q_',
+      qs.map((x) => x.id),
+    ),
+    type: 'single',
+    label_en: '',
+    label_zh: '',
+    required: false,
+    options: [],
+    other: false,
+  };
+  q.options.push(blankOption(q));
+  return q;
+}
+
+// Editable copy of an event's registration_questions (null → no questions yet).
+const questionState = (raw) =>
+  (Array.isArray(raw) ? raw : []).map((q) => ({
+    id: String(q?.id ?? ''),
+    type: Q_TYPES.includes(q?.type) ? q.type : 'text',
+    label_en: String(q?.label_en ?? ''),
+    label_zh: String(q?.label_zh ?? ''),
+    required: !!q?.required,
+    options: (Array.isArray(q?.options) ? q.options : []).map((o) => ({
+      id: String(o?.id ?? ''),
+      label_en: String(o?.label_en ?? ''),
+      label_zh: String(o?.label_zh ?? ''),
+    })),
+    other: !!q?.other,
+  }));
+
+// What the API stores: labels trimmed; options and `other` on choice questions only.
+// A text question keeps its options in the editor state, so switching the type
+// back restores them, but they are not sent.
+const questionsPayload = (qs) =>
+  qs.map((q) => ({
+    id: q.id,
+    type: q.type,
+    label_en: q.label_en.trim(),
+    label_zh: q.label_zh.trim(),
+    required: q.required,
+    ...(CHOICE_TYPES.has(q.type)
+      ? {
+          options: q.options.map((o) => ({
+            id: o.id,
+            label_en: o.label_en.trim(),
+            label_zh: o.label_zh.trim(),
+          })),
+          other: q.other,
+        }
+      : {}),
+  }));
+
+// The first problem with the questions, for the admin; null when they look valid.
+function questionsError(qs) {
+  if (qs.length > MAX_QUESTIONS)
+    return t(`Use at most ${MAX_QUESTIONS} questions.`, `最多只能有 ${MAX_QUESTIONS} 个问题。`);
+  const labelled = (x) =>
+    [x.label_en.trim(), x.label_zh.trim()].every((s) => s.length >= 1 && s.length <= MAX_LABEL);
+  const ids = new Set();
+  for (const [i, q] of qs.entries()) {
+    const n = i + 1;
+    if (!QUESTION_ID.test(q.id) || ids.has(q.id))
+      return t(
+        `Question ${n} has an invalid id. Remove it and add it again.`,
+        `问题 ${n} 的编号无效，请删除后重新添加。`,
+      );
+    ids.add(q.id);
+    if (!labelled(q))
+      return t(
+        `Question ${n}: enter the question in both English and Chinese (up to ${MAX_LABEL} characters).`,
+        `问题 ${n}：请用英文和中文填写问题（最多 ${MAX_LABEL} 个字符）。`,
+      );
+    if (!CHOICE_TYPES.has(q.type)) continue;
+    if (q.options.length < 1 || q.options.length > MAX_OPTIONS)
+      return t(
+        `Question ${n}: give it 1 to ${MAX_OPTIONS} options.`,
+        `问题 ${n}：请设置 1 到 ${MAX_OPTIONS} 个选项。`,
+      );
+    const optionIds = new Set();
+    for (const [j, o] of q.options.entries()) {
+      if (!QUESTION_ID.test(o.id) || optionIds.has(o.id))
+        return t(
+          `Question ${n}, option ${j + 1} has an invalid id. Remove it and add it again.`,
+          `问题 ${n} 的选项 ${j + 1} 编号无效，请删除后重新添加。`,
+        );
+      optionIds.add(o.id);
+      if (!labelled(o))
+        return t(
+          `Question ${n}, option ${j + 1}: enter the option in both English and Chinese (up to ${MAX_LABEL} characters).`,
+          `问题 ${n} 的选项 ${j + 1}：请用英文和中文填写选项（最多 ${MAX_LABEL} 个字符）。`,
+        );
+    }
+  }
+  return null;
+}
+
+function renderQuestionBuilder(host, qs) {
+  const typeName = {
+    single: t('One choice', '单选'),
+    multi: t('Several choices', '多选'),
+    text: t('Short text', '简短文字'),
+    textarea: t('Long text', '长文字'),
+  };
+  // A small move/remove button; `label` is its accessible name.
+  const tool = (act, symbol, label, disabled, tone = 'btn-ghost-secondary') =>
+    `<button type="button" class="btn btn-sm btn-icon ${tone}" data-act="${act}" aria-label="${label}" title="${label}"${disabled ? ' disabled' : ''}>${symbol}</button>`;
+  const optionRow = (q, o, j) => `
+    <div class="row g-2 align-items-center mb-2" data-o="${j}">
+      <div class="col-sm"><input type="text" class="form-control form-control-sm" data-of="label_en" maxlength="${MAX_LABEL}" value="${esc(o.label_en)}" placeholder="English" aria-label="${t(`Option ${j + 1} (English)`, `选项 ${j + 1}（英文）`)}"></div>
+      <div class="col-sm"><input type="text" class="form-control form-control-sm" data-of="label_zh" maxlength="${MAX_LABEL}" value="${esc(o.label_zh)}" placeholder="中文" aria-label="${t(`Option ${j + 1} (Chinese)`, `选项 ${j + 1}（中文）`)}"></div>
+      <div class="col-auto btn-list flex-nowrap">
+        ${tool('opt-up', '↑', t('Move option up', '上移选项'), j === 0)}
+        ${tool('opt-down', '↓', t('Move option down', '下移选项'), j === q.options.length - 1)}
+        ${tool('opt-remove', '×', t('Remove option', '删除选项'), false, 'btn-ghost-danger')}
+      </div>
+    </div>`;
+  const choices = (q) => `
+    <div class="mt-3">
+      <div class="form-label">${t('Options', '选项')}</div>
+      ${q.options.map((o, j) => optionRow(q, o, j)).join('')}
+      <div class="d-flex flex-wrap align-items-center gap-3">
+        <button type="button" class="btn btn-sm" data-act="opt-add"${q.options.length >= MAX_OPTIONS ? ' disabled' : ''}>${t('+ Add option', '+ 添加选项')}</button>
+        <label class="form-check mb-0"><input type="checkbox" class="form-check-input" data-qf="other"${q.other ? ' checked' : ''} />
+          <span class="form-check-label">${t('Allow “Other” with a text box', '允许选“其他”并填写文字')}</span></label>
+      </div>
+    </div>`;
+  const card = (q, i) => `
+    <div class="card card-sm mb-2" data-q="${i}">
+      <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+          <span class="badge bg-secondary-lt">${t(`Question ${i + 1}`, `问题 ${i + 1}`)}</span>
+          <select class="form-select form-select-sm w-auto" data-qf="type" aria-label="${t('Answer type', '答题类型')}">
+            ${Q_TYPES.map((ty) => `<option value="${ty}"${ty === q.type ? ' selected' : ''}>${typeName[ty]}</option>`).join('')}
+          </select>
+          <label class="form-check mb-0"><input type="checkbox" class="form-check-input" data-qf="required"${q.required ? ' checked' : ''} />
+            <span class="form-check-label">${t('Required', '必填')}</span></label>
+          <div class="btn-list flex-nowrap ms-auto">
+            ${tool('q-up', '↑', t('Move question up', '上移问题'), i === 0)}
+            ${tool('q-down', '↓', t('Move question down', '下移问题'), i === qs.length - 1)}
+            ${tool('q-remove', '×', t('Remove question', '删除问题'), false, 'btn-ghost-danger')}
+          </div>
+        </div>
+        <div class="row g-2">
+          ${field(t('Question (English)', '问题（英文）'), `<input type="text" class="form-control" data-qf="label_en" maxlength="${MAX_LABEL}" value="${esc(q.label_en)}">`, 'col-md-6')}
+          ${field(t('Question (Chinese)', '问题（中文）'), `<input type="text" class="form-control" data-qf="label_zh" maxlength="${MAX_LABEL}" value="${esc(q.label_zh)}">`, 'col-md-6')}
+        </div>
+        ${CHOICE_TYPES.has(q.type) ? choices(q) : ''}
+      </div>
+    </div>`;
+  host.innerHTML = `
+    ${qs.length ? qs.map(card).join('') : `<p class="text-secondary">${t('No questions yet: the form asks only for an email address.', '暂无问题：表单只收集邮箱地址。')}</p>`}
+    <button type="button" class="btn btn-sm" data-act="q-add"${qs.length >= MAX_QUESTIONS ? ' disabled' : ''}>${t('+ Add question', '+ 添加问题')}</button>`;
+}
+
+// One set of listeners on the builder host; `qs` is mutated in place.
+function wireQuestionBuilder(host, qs) {
+  const render = (focus) => {
+    renderQuestionBuilder(host, qs);
+    if (focus) host.querySelector(focus)?.focus();
+  };
+  const at = (el) => {
+    const card = el.closest('[data-q]');
+    const row = el.closest('[data-o]');
+    return { qi: card ? Number(card.dataset.q) : -1, oi: row ? Number(row.dataset.o) : -1 };
+  };
+  // Moves list[from] to list[to]; false when `to` is out of range.
+  const move = (list, from, to) => {
+    if (to < 0 || to >= list.length) return false;
+    list.splice(to, 0, list.splice(from, 1)[0]);
+    return true;
+  };
+  host.addEventListener('input', (e) => {
+    const { qi, oi } = at(e.target);
+    const q = qs[qi];
+    if (!q) return;
+    const { qf, of: optionKey } = e.target.dataset;
+    if (optionKey && q.options[oi]) q.options[oi][optionKey] = e.target.value;
+    else if (qf === 'label_en' || qf === 'label_zh') q[qf] = e.target.value;
+  });
+  host.addEventListener('change', (e) => {
+    const { qi } = at(e.target);
+    const q = qs[qi];
+    if (!q) return;
+    const { qf } = e.target.dataset;
+    if (qf === 'required' || qf === 'other') q[qf] = e.target.checked;
+    if (qf !== 'type') return;
+    q.type = e.target.value;
+    if (CHOICE_TYPES.has(q.type) && !q.options.length) q.options.push(blankOption(q));
+    render(`[data-q="${qi}"] [data-qf="type"]`);
+  });
+  host.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const { qi, oi } = at(btn);
+    const q = qs[qi];
+    let focus = null;
+    if (act === 'q-add') {
+      if (qs.length >= MAX_QUESTIONS) return;
+      qs.push(blankQuestion(qs));
+      focus = `[data-q="${qs.length - 1}"] [data-qf="label_en"]`;
+    } else if (act === 'q-up' || act === 'q-down') {
+      const to = act === 'q-up' ? qi - 1 : qi + 1;
+      if (!move(qs, qi, to)) return;
+      focus = `[data-q="${to}"] [data-act="${act}"]`;
+    } else if (act === 'q-remove') {
+      qs.splice(qi, 1);
+    } else if (act === 'opt-add') {
+      if (q.options.length >= MAX_OPTIONS) return;
+      q.options.push(blankOption(q));
+      focus = `[data-q="${qi}"] [data-o="${q.options.length - 1}"] [data-of="label_en"]`;
+    } else if (act === 'opt-up' || act === 'opt-down') {
+      const to = act === 'opt-up' ? oi - 1 : oi + 1;
+      if (!move(q.options, oi, to)) return;
+      focus = `[data-q="${qi}"] [data-o="${to}"] [data-act="${act}"]`;
+    } else if (act === 'opt-remove') {
+      q.options.splice(oi, 1);
+    } else {
+      return;
+    }
+    render(focus);
+  });
+  render();
+}
+
 function eventForm(host, ev) {
   if (host.firstChild) {
     host.innerHTML = '';
     if (ev === undefined) return; // toggle: + New event closes an open form
   }
   const edit = !!ev;
+  // null registration_questions = the event takes no registrations.
+  const accepting = edit && Array.isArray(ev.registration_questions);
+  const regCount = (edit && Number(ev.registration_count)) || 0;
   host.innerHTML = `
     <form class="card card-body mb-3">
       <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
         ${field(`${t('Title', '标题')} *`, `<input type="text" class="form-control" data-f="title" value="${edit ? esc(ev.title) : ''}" required>`)}
+        ${field(t('Chinese title (optional)', '中文标题（可选）'), `<input type="text" class="form-control" data-f="title_zh" value="${edit ? esc(ev.title_zh || '') : ''}">`)}
         ${field(t('Location', '地点'), `<input type="text" class="form-control" data-f="location" value="${edit ? esc(ev.location || '') : ''}">`)}
         ${field(`${t('Starts', '开始')} *`, `<input type="datetime-local" class="form-control" data-f="starts_at" value="${edit ? dtInput(ev.starts_at) : ''}">`)}
         ${field(t('Ends (optional)', '结束（可选）'), `<input type="datetime-local" class="form-control" data-f="ends_at" value="${edit ? dtInput(ev.ends_at) : ''}">`)}
         ${field(t('Free-gift deadline', '福利截止时间'), `<input type="datetime-local" class="form-control" data-f="perk_deadline" value="${edit ? dtInput(ev.perk_deadline) : ''}"><small class="form-hint">${t('Register and create an account by this time to get the free gift. Empty = event start.', '在此时间前报名并注册账户可领取福利。留空 = 活动开始时间。')}</small>`)}
+        ${field(t('Free gift (Chinese)', '福利礼品（中文）'), `<input type="text" class="form-control" data-f="perk_item_zh" value="${edit ? esc(ev.perk_item_zh || '') : ''}" placeholder="月饼"><small class="form-hint">${t('Name the gift in both languages, or leave both empty for no free gift.', '请用中英文填写礼品名称；都留空表示没有福利。')}</small>`)}
+        ${field(t('Free gift (English)', '福利礼品（英文）'), `<input type="text" class="form-control" data-f="perk_item_en" value="${edit ? esc(ev.perk_item_en || '') : ''}" placeholder="mooncake">`)}
         ${imageFieldHtml(edit ? ev.image_url : '')}
       </div>
       ${field(t('Description', '描述'), `<textarea class="form-control" data-f="description" rows="3">${edit ? esc(ev.description || '') : ''}</textarea>`, 'mb-3')}
       <label class="form-check"><input type="checkbox" class="form-check-input" data-f="published"${!edit || ev.published ? ' checked' : ''} />
         <span class="form-check-label">${t('Published (publicly visible)', '发布（公开可见）')}</span></label>
+      <div class="border-top pt-3 mb-3">
+        <div class="subheader mb-2">${t('Registration', '报名')}</div>
+        <label class="form-check form-switch"><input type="checkbox" class="form-check-input" data-f="accept_registrations"${accepting ? ' checked' : ''} />
+          <span class="form-check-label">${t('Accept registrations', '接受报名')}</span></label>
+        <p class="form-hint">${t('While the event is published and has not ended, people can register on its registration page. Email is always asked; add any other questions below.', '活动发布后、结束前，大家可以在活动报名页报名。报名表始终收集邮箱；其他问题请在下方添加。')}</p>
+        ${regCount ? `<div class="alert alert-warning" data-reg-count>${t(`${regCount} registration(s) so far. Changing the questions does not change the answers already given.`, `目前已有 ${regCount} 人报名。修改问题不会改变已提交的答案。`)}</div>` : ''}
+        <div data-questions${accepting ? '' : ' hidden'}></div>
+      </div>
       <p>
         <button type="submit" class="btn btn-primary">${edit ? t('Save', '保存') : t('Create event', '创建活动')}</button>
         <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
@@ -1644,6 +2085,12 @@ function eventForm(host, ev) {
   const form = host.querySelector('form');
   const msg = form.querySelector('[data-msg]');
   wireImageField(form);
+  const questions = questionState(edit ? ev.registration_questions : null);
+  const questionsHost = form.querySelector('[data-questions]');
+  wireQuestionBuilder(questionsHost, questions);
+  form.querySelector('[data-f="accept_registrations"]').addEventListener('change', (e) => {
+    questionsHost.hidden = !e.target.checked; // the questions are kept while it is off
+  });
   form.querySelector('[data-act="cancel"]').addEventListener('click', () => {
     host.innerHTML = '';
   });
@@ -1652,6 +2099,7 @@ function eventForm(host, ev) {
     const val = (f) => form.querySelector(`[data-f="${f}"]`);
     const body = {
       title: val('title').value.trim(),
+      title_zh: val('title_zh').value.trim(),
       location: val('location').value.trim(),
       // The admin's wall-clock times as real instants. A bare datetime-local value
       // would be read as UTC by the Worker, shifting the event by the admin's
@@ -1659,6 +2107,9 @@ function eventForm(host, ev) {
       starts_at: localToIso(val('starts_at').value),
       ends_at: localToIso(val('ends_at').value),
       perk_deadline: localToIso(val('perk_deadline').value),
+      // The free gift, e.g. 月饼 / mooncake; '' for both = no gift.
+      perk_item_zh: val('perk_item_zh').value.trim(),
+      perk_item_en: val('perk_item_en').value.trim(),
       description: val('description').value.trim(),
       image_url: val('image_url').value.trim(),
       published: val('published').checked,
@@ -1666,6 +2117,36 @@ function eventForm(host, ev) {
     if (!body.title) return notice(msg, t('Title is required.', '标题为必填项。'), false);
     if (!body.starts_at)
       return notice(msg, t('Start date is required.', '开始时间为必填项。'), false);
+    if (!body.perk_item_zh !== !body.perk_item_en)
+      return notice(
+        msg,
+        t(
+          'Enter the gift name in both languages, or neither.',
+          '请用中英文填写礼品名称，或都不填。',
+        ),
+        false,
+      );
+    // Switched off → null: no registration page, and the public API answers 404.
+    const open = val('accept_registrations').checked;
+    if (open) {
+      const problem = questionsError(questions);
+      if (problem) return notice(msg, problem, false);
+    }
+    body.registration_questions = open ? questionsPayload(questions) : null;
+    // Stored answers are keyed by question and option id and are never rewritten,
+    // so check before changing the form under people who already registered.
+    const saved = accepting ? questionsPayload(questionState(ev.registration_questions)) : null;
+    if (
+      regCount > 0 &&
+      JSON.stringify(body.registration_questions) !== JSON.stringify(saved) &&
+      !window.confirm(
+        t(
+          `${regCount} people have already registered for this event. Their answers stay as they are, so answers to changed or removed questions and options may no longer match the form. Save the new questions?`,
+          `已有 ${regCount} 人报名此活动。已提交的答案不会随之修改，修改或删除的问题和选项可能与已有答案对不上。确定保存新的问题吗？`,
+        ),
+      )
+    )
+      return;
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
     const { ok, data } = edit
@@ -1699,19 +2180,26 @@ const chicagoTime = (d) => {
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 };
 
-const CSV_COLUMNS = [
-  '#',
-  'registered_at (Chicago)',
-  'email',
-  'attending',
-  'names',
-  'heard_from',
-  'wants_meal',
-  'has_account',
-  'account_confirmed',
-  'account_created_at (Chicago)',
-  'mooncake_eligible',
-];
+// A question's or option's label in `inLang` (English when the Chinese is missing).
+const labelIn = (x, inLang) => (inLang === 'zh' && x.label_zh) || x.label_en || '';
+
+// One registrant's answer to one question as plain text ('' = unanswered); the
+// caller escapes it. Choices show their option labels and a typed Other as
+// "Other: <text>"; an option removed from the form since shows its stored id.
+function answerText(q, answer, inLang) {
+  if (answer == null) return '';
+  if (!CHOICE_TYPES.has(q.type)) return typeof answer === 'string' ? answer : '';
+  const option = (id) => {
+    const o = (q.options || []).find((x) => x.id === id);
+    return o ? labelIn(o, inLang) : String(id);
+  };
+  let parts = [];
+  if (q.type === 'multi') parts = (Array.isArray(answer.options) ? answer.options : []).map(option);
+  else if (answer.option != null) parts = [option(answer.option)];
+  if (answer.other) parts.push(`${inLang === 'zh' ? '其他：' : 'Other: '}${answer.other}`);
+  return parts.join('; ');
+}
+
 const yesNo = (v) => (v === true ? 'yes' : v === false ? 'no' : '');
 // RFC 4180: quote a cell holding a comma, quote or line break, doubling quotes.
 // Registrant text that starts like a spreadsheet formula gets a leading ' so
@@ -1722,25 +2210,40 @@ const csvCell = (v) => {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-// The registrations CSV (pure — no DOM). `#` is the position in registration
-// order, so it stays the same when only eligible rows are exported. Starts with
-// a UTF-8 BOM so Excel reads Chinese names correctly; CRLF line ends.
-export function registrationsCsv(rows, { eligibleOnly = false } = {}) {
-  const lines = [CSV_COLUMNS];
+// The registrations CSV (pure — no DOM) from an /api/admin/event-registrations
+// answer: the same columns as the panel, with English labels — one per question,
+// then the account and, for an event with a free gift, eligibility. `#` is the
+// position in registration order, so it stays the same when only eligible rows
+// are exported. Starts with a UTF-8 BOM so Excel reads Chinese names correctly;
+// CRLF line ends.
+export function registrationsCsv(
+  { event, questions = [], rows = [] },
+  { eligibleOnly = false } = {},
+) {
+  const perk = event?.perk || null;
+  const lines = [
+    [
+      '#',
+      'registered_at (Chicago)',
+      'email',
+      ...questions.map((q) => q.label_en),
+      'has_account',
+      'account_confirmed',
+      'account_created_at (Chicago)',
+      ...(perk ? [`gift_eligible (${perk.item_en})`] : []),
+    ],
+  ];
   rows.forEach((r, i) => {
     if (eligibleOnly && !r.perk_eligible) return;
     lines.push([
       i + 1,
       chicagoTime(r.created_at),
       r.email,
-      yesNo(r.attending),
-      r.attendee_names,
-      r.heard_from,
-      yesNo(r.wants_meal),
+      ...questions.map((q) => answerText(q, r.answers?.[q.id], 'en')),
       yesNo(!!r.account),
       r.account ? yesNo(!!r.account.confirmed) : '',
       chicagoTime(r.account?.created_at),
-      yesNo(!!r.perk_eligible),
+      ...(perk ? [yesNo(!!r.perk_eligible)] : []),
     ]);
   });
   return `\uFEFF${lines.map((l) => l.map(csvCell).join(',')).join('\r\n')}\r\n`;
@@ -1748,6 +2251,8 @@ export function registrationsCsv(rows, { eligibleOnly = false } = {}) {
 
 let regData = null; // the /api/admin/event-registrations answer the panel shows
 let regSeq = 0; // a slow answer for an event the admin has since left is dropped
+
+const eventTitleIn = (e) => (lang === 'zh' && e.title_zh) || e.title;
 
 async function openRegistrations(ev) {
   const panel = $('#caaci-reg-panel');
@@ -1757,12 +2262,14 @@ async function openRegistrations(ev) {
   panel.hidden = false;
   notb.hidden = true;
   $('#caaci-reg-eligible').checked = false;
+  $('#caaci-reg-eligible-wrap').hidden = true;
   $('#caaci-reg-csv').disabled = true;
-  $('#caaci-reg-title').textContent = ev.title;
+  $('#caaci-reg-title').textContent = eventTitleIn(ev);
   $('#caaci-reg-deadline').textContent = '';
   $('#caaci-reg-stats').innerHTML = '';
+  $('#caaci-reg-head').innerHTML = '';
   $('#caaci-reg-body').innerHTML =
-    `<tr><td colspan="9" class="text-secondary">${t('Loading…', '加载中…')}</td></tr>`;
+    `<tr><td class="text-secondary">${t('Loading…', '加载中…')}</td></tr>`;
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   const { ok, data } = await api(
@@ -1773,77 +2280,118 @@ async function openRegistrations(ev) {
     $('#caaci-reg-body').innerHTML = '';
     return notice(notb, data.error || t('Could not load registrations.', '无法加载报名。'), false);
   }
-  regData = data;
-  const { event, summary } = data;
-  const when = chicagoTime(event.deadline);
-  $('#caaci-reg-title').textContent = event.title;
-  $('#caaci-reg-deadline').textContent = event.perk_deadline
-    ? t(`Free-gift deadline: ${when} (Chicago)`, `福利截止时间：${when}（芝加哥时间）`)
-    : t(
-        `Free-gift deadline: ${when} (Chicago) — the event start`,
-        `福利截止时间：${when}（芝加哥时间）——即活动开始时间`,
-      );
+  regData = {
+    ...data,
+    questions: Array.isArray(data.questions) ? data.questions : [],
+    rows: data.rows || [],
+  };
+  const { event, questions } = regData;
+  const summary = data.summary || {};
+  const perk = event.perk || null; // { item_en, item_zh, deadline } | null
+  $('#caaci-reg-title').textContent = eventTitleIn(event);
+  if (perk) {
+    const when = chicagoTime(perk.deadline);
+    const atStart = Date.parse(perk.deadline) === Date.parse(event.starts_at);
+    $('#caaci-reg-deadline').textContent = t(
+      `Free gift: ${perk.item_en} · deadline ${when} (Chicago)${atStart ? ' — the event start' : ''}`,
+      `福利：${perk.item_zh} · 截止时间 ${when}（芝加哥时间）${atStart ? '——即活动开始时间' : ''}`,
+    );
+  } else {
+    $('#caaci-reg-deadline').textContent = t('No free gift for this event.', '该活动没有福利。');
+  }
   const stat = (label, n, cls = '') => `
     <div class="col-6 col-sm-4 col-lg-2">
       <div class="card card-sm"><div class="card-body">
-        <div class="subheader">${label}</div>
+        <div class="subheader">${esc(label)}</div>
         <div class="h1 mb-0${cls}">${Number(n) || 0}</div>
       </div></div>
     </div>`;
+  // How many picked each option of a choice question (summary.choices), Other last.
+  const choiceCounts = (q) => {
+    const counts = summary.choices?.[q.id] || {};
+    const lines = (q.options || []).map((o) => [labelIn(o, lang), counts[o.id]]);
+    if (q.other || counts.other) lines.push([t('Other', '其他'), counts.other]);
+    return `
+    <div class="col-sm-6 col-lg-4" data-choice="${esc(q.id)}">
+      <div class="card card-sm"><div class="card-body">
+        <div class="subheader mb-2">${esc(labelIn(q, lang))}</div>
+        ${lines
+          .map(
+            ([label, n]) =>
+              `<div class="d-flex justify-content-between gap-2"><span>${esc(label)}</span><strong>${Number(n) || 0}</strong></div>`,
+          )
+          .join('')}
+      </div></div>
+    </div>`;
+  };
   $('#caaci-reg-stats').innerHTML = [
     stat(t('Total', '总数'), summary.total),
-    stat(t('Attending', '参加'), summary.attending),
-    stat(t('Not attending', '不参加'), summary.not_attending),
-    stat(t('Want a meal', '订餐'), summary.meal),
     stat(t('Confirmed account', '已验证账户'), summary.with_account),
-    stat(t('Mooncake eligible', '可领月饼'), summary.perk_eligible, ' text-success'),
+    ...(perk
+      ? [
+          stat(
+            t(`Free ${perk.item_en} eligible`, `可领${perk.item_zh}`),
+            summary.perk_eligible,
+            ' text-success',
+          ),
+        ]
+      : []),
+    ...questions.filter((q) => CHOICE_TYPES.has(q.type)).map(choiceCounts),
   ].join('');
+  $('#caaci-reg-eligible-wrap').hidden = !perk; // nobody is eligible without a gift
   $('#caaci-reg-csv').disabled = false;
   renderRegistrations();
 }
 
 function renderRegistrations() {
   if (!regData) return;
-  const eligibleOnly = $('#caaci-reg-eligible').checked;
+  const { event, questions, rows } = regData;
+  const perk = event.perk || null;
+  const eligibleOnly = !!perk && $('#caaci-reg-eligible').checked;
   const mark = (yes) =>
     yes ? '<span class="text-success">✓</span>' : '<span class="text-secondary">—</span>';
-  const meal = (v) => (v === true ? t('Yes', '要') : v === false ? t('No', '不要') : '—');
   // A signup that never confirmed its email doesn't count, but staff should see it.
   const account = (a) => {
     if (!a) return mark(false);
     return a.confirmed ? mark(true) : badgeHtml('pending', t('Unconfirmed', '未验证'));
   };
+  // Admin-written labels and everything a registrant typed go through esc().
+  $('#caaci-reg-head').innerHTML = `<tr>
+      <th>#</th>
+      <th>${t('Registered (Chicago)', '报名时间（芝加哥）')}</th>
+      <th>${t('Email', '邮箱')}</th>
+      ${questions.map((q) => `<th>${esc(labelIn(q, lang))}</th>`).join('')}
+      <th>${t('Account', '账户')}</th>
+      ${perk ? `<th>${esc(t(`Free ${perk.item_en}`, `免费${perk.item_zh}`))}</th>` : ''}
+    </tr>`;
   const html = [];
-  regData.rows.forEach((r, i) => {
+  rows.forEach((r, i) => {
     if (eligibleOnly && !r.perk_eligible) return;
-    // Everything a registrant typed goes through esc().
     html.push(`<tr>
       <td class="text-secondary">${i + 1}</td>
       <td class="text-nowrap">${chicagoTime(r.created_at)}</td>
       <td>${esc(r.email)}</td>
-      <td>${r.attending ? badgeHtml('active', t('Yes', '参加')) : badgeHtml('expired', t('No', '不参加'))}</td>
-      <td class="text-wrap">${esc(r.attendee_names || '—')}</td>
-      <td>${esc(r.heard_from || '—')}</td>
-      <td>${meal(r.wants_meal)}</td>
+      ${questions.map((q) => `<td class="text-wrap">${esc(answerText(q, r.answers?.[q.id], lang) || '—')}</td>`).join('')}
       <td>${account(r.account)}</td>
-      <td>${mark(r.perk_eligible)}</td>
+      ${perk ? `<td>${mark(r.perk_eligible)}</td>` : ''}
     </tr>`);
   });
+  const columns = 4 + questions.length + (perk ? 1 : 0);
   $('#caaci-reg-body').innerHTML =
     html.join('') ||
-    `<tr><td colspan="9" class="text-secondary">${
+    `<tr><td colspan="${columns}" class="text-secondary">${
       eligibleOnly
-        ? t('No eligible registrations.', '暂无可领月饼的报名。')
+        ? t('No eligible registrations.', '暂无可领福利的报名。')
         : t('No registrations yet.', '暂无报名。')
     }</td></tr>`;
 }
 
 function downloadRegistrationsCsv() {
   if (!regData) return;
-  const eligibleOnly = $('#caaci-reg-eligible').checked;
-  const csv = registrationsCsv(regData.rows, { eligibleOnly });
+  const eligibleOnly = !!regData.event.perk && $('#caaci-reg-eligible').checked;
+  const csv = registrationsCsv(regData, { eligibleOnly });
   const name =
-    String(regData.event.title || '')
+    String(regData.event.slug || regData.event.title || '')
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'event';
