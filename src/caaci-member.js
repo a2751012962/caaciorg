@@ -1465,6 +1465,7 @@ async function drawCardPng({ name, tierName, until, qrPng }) {
 function renderMemberCard(host, { user, member, tierName }) {
   const until = member.expires_at ? new Date(member.expires_at).toLocaleDateString() : '';
   const cardName = member.full_name || user.email;
+  host.classList.add('mb-3'); // the gap below the card exists only with a card
   host.innerHTML = `
     <div class="card">
       <div class="card-header"><h3 class="card-title mb-0">${t('Digital membership card', '电子会员卡')}</h3></div>
@@ -1571,14 +1572,17 @@ function familyInviteParam() {
 
 const FAMILY_ROLES = ['founder', 'member', 'none'];
 const RELATIONSHIPS = ['head', 'spouse', 'child', 'parent', 'other'];
-const relLabel = (r) =>
-  ({
+// Own keys only, so "constructor" or "__proto__" from the server gets no label.
+const relLabel = (r) => {
+  const labels = {
     head: t('Head of household', '户主'),
     spouse: t('Spouse', '配偶'),
     child: t('Child', '子女'),
     parent: t('Parent', '父母'),
     other: t('Other', '其他'),
-  })[r] || '';
+  };
+  return Object.hasOwn(labels, r) ? labels[r] : '';
+};
 
 const STATUS_BADGE = {
   active: 'bg-success-lt',
@@ -1601,6 +1605,7 @@ const EVENT_LABEL = {
   joined: ['joined the family', '加入了家庭'],
   left: ['left the family', '退出了家庭'],
   removed: ['removed a member', '移除了成员'],
+  member_removed: ['removed a member', '移除了成员'],
   person_added: ['added a person without an account', '添加了未关联账号的成员'],
   person_removed: ['removed a person without an account', '移除了未关联账号的成员'],
   dissolved: ['dissolved the family', '解散了家庭'],
@@ -1624,7 +1629,7 @@ function familySummary(fam, extra = '') {
     <h4 class="mb-2" data-fam-name>${esc(fam.household?.name || t('Your family', '你的家庭'))}</h4>
     <div class="datagrid mb-3">
       <div class="datagrid-item"><div class="datagrid-title">${t('Family plan', '家庭会员')}</div>
-        <div class="datagrid-content"><span class="badge ${STATUS_BADGE[plan.status] || 'bg-secondary-lt'}" data-fam-plan-status>${esc(statusLabel(plan.status, lang) || '—')}</span></div></div>
+        <div class="datagrid-content"><span class="badge ${Object.hasOwn(STATUS_BADGE, plan.status) ? STATUS_BADGE[plan.status] : 'bg-secondary-lt'}" data-fam-plan-status>${esc(statusLabel(plan.status, lang) || '—')}</span></div></div>
       <div class="datagrid-item"><div class="datagrid-title">${plan.status === 'active' ? t('Valid through', '有效期至') : t('Expires', '到期日期')}</div>
         <div class="datagrid-content">${fmtDate(plan.expires_at)}</div></div>
       ${extra}
@@ -1775,7 +1780,7 @@ async function familyRequest(body) {
 
 // The invite-by-email and add-a-person forms. Values typed by the member are
 // read back from the inputs, never interpolated here.
-function familyForms(full) {
+function familyForms(full, limit) {
   const dis = full ? ' disabled' : '';
   const relSelect = `<select class="form-select" name="relationship" aria-label="${t('Relationship', '关系')}"${dis}>
       <option value="">${t('Relationship (optional)', '关系（可选）')}</option>
@@ -1785,8 +1790,8 @@ function familyForms(full) {
     ${
       full
         ? `<div class="alert alert-warning" data-fam-full>${t(
-            'Family is full (3 people). Remove someone or cancel an invitation to add another person.',
-            '家庭已满（3 人）。请先移除成员或取消邀请，再添加其他人。',
+            `Family is full (${limit} people). Remove someone or cancel an invitation to add another person.`,
+            `家庭已满（${limit} 人）。请先移除成员或取消邀请，再添加其他人。`,
           )}</div>`
         : ''
     }
@@ -1856,13 +1861,57 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
         member: { ...member, expires_at: fam.plan.expires_at },
         tierName: tier ? tierText(tier, 'name') : t('Family Membership', '家庭会员'),
       });
-    } else if (!eligible && planCard) cardHost.innerHTML = '';
+    } else if (!eligible && planCard) {
+      cardHost.innerHTML = '';
+      cardHost.classList.remove('mb-3');
+    }
     planCard = eligible;
   };
 
+  // Only plain objects count as list entries; a missing or malformed list is empty.
+  const entries = (list) =>
+    Array.isArray(list) ? list.filter((x) => x && typeof x === 'object' && !Array.isArray(x)) : [];
+  const normalize = (data) => ({
+    ...data,
+    people: entries(data.people),
+    invites: entries(data.invites),
+    events: entries(data.events),
+    invitations_for_me: entries(data.invitations_for_me),
+  });
+
+  // Render `fam`; a view that throws part-way hides the card rather than
+  // leaving it half-wired. Returns whether it rendered.
+  const show = (fam) => {
+    try {
+      render(fam);
+      return true;
+    } catch {
+      body.innerHTML = '';
+      host.hidden = true;
+      return false;
+    }
+  };
+
+  // The last family view that rendered. Once there is one, a reload that fails
+  // keeps it (and the membership card) on screen with a note, instead of hiding.
+  let shown = null;
   const load = async () => {
     const { ok, data } = await familyRequest();
-    render(ok && FAMILY_ROLES.includes(data.role) ? data : null);
+    const fam = ok && FAMILY_ROLES.includes(data.role) ? normalize(data) : null;
+    if (fam && show(fam)) {
+      shown = fam;
+      return;
+    }
+    if (!shown) {
+      if (!fam) show(null);
+      return;
+    }
+    if (fam) show(shown); // the new view threw part-way: put the last good one back
+    notice(
+      note,
+      t('Couldn’t refresh your family — please reload the page.', '无法刷新家庭信息，请刷新页面。'),
+      false,
+    );
   };
 
   // One change on `btn`: optional confirm, busy while in flight (a second
@@ -1878,16 +1927,17 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
     if (btn.getAttribute('aria-busy')) return null;
     if (ask && !window.confirm(ask)) return null;
     const done = busy(btn, t('Working…', '处理中…'));
-    const res = await familyRequest(payload);
-    if (!res.ok) {
-      done();
-      failNote(res);
+    try {
+      const res = await familyRequest(payload);
+      if (!res.ok) failNote(res);
+      else {
+        notice(note, success(res.data), true);
+        await load();
+      }
       return res;
+    } finally {
+      done();
     }
-    notice(note, success(res.data), true);
-    await load();
-    done();
-    return res;
   };
 
   const wireForms = (full) => {
@@ -2051,7 +2101,7 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
         )}
         ${familyPeople(Array.isArray(fam.people) ? fam.people : [], pendingInvites(fam))}
         ${familyPending(pendingInvites(fam))}
-        ${familyForms(full)}
+        ${familyForms(full, seats.limit)}
         <div class="border-top pt-3 mt-3">
           <button type="button" class="btn btn-danger" data-fam-dissolve>${t('Dissolve family', '解散家庭')}</button>
           <p class="text-secondary small mt-2 mb-0">${t(
@@ -2088,7 +2138,7 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
           '家庭会员最多包含 3 人（含你本人）。可以通过邮箱邀请家人，也可以添加没有账号的家人。',
         )}</p>
         <p>${t('People', '人数')}: <strong data-fam-seats>${seats.used} / ${seats.limit}</strong></p>
-        ${familyForms(full)}`;
+        ${familyForms(full, seats.limit)}`;
     }
     body.innerHTML = html;
     host.hidden = !html && note.hidden;
@@ -2114,6 +2164,19 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
     syncCard(fam);
   };
 
+  // One invitation is answered at a time across the whole card: while an
+  // accept or decline is in flight, every other row's buttons do nothing.
+  let answering = false;
+  const answer = async (btn, payload, opts) => {
+    if (answering) return null;
+    answering = true;
+    try {
+      return await run(btn, payload, opts);
+    } finally {
+      answering = false;
+    }
+  };
+
   const wireInvitesForMe = (list) => {
     $$('[data-fam-for-me]', body).forEach((row, i) => {
       const inv = list[i];
@@ -2124,7 +2187,7 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
       };
       const accept = $('[data-fam-accept]', row);
       accept.addEventListener('click', () =>
-        run(
+        answer(
           accept,
           { action: 'accept_invite', invite_id: inv.id },
           {
@@ -2140,7 +2203,7 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
       );
       const decline = $('[data-fam-decline]', row);
       decline.addEventListener('click', () =>
-        run(
+        answer(
           decline,
           { action: 'decline_invite', invite_id: inv.id },
           {
@@ -2288,7 +2351,7 @@ export async function wireAccountPage() {
         </div>
       </div>
       <div class="col-lg-6">
-        <div id="caaci-mcard-host" class="mb-3"></div>
+        <div id="caaci-mcard-host"></div>
         <div id="caaci-family-host" hidden></div>
       </div>
     </div>`;

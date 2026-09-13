@@ -432,6 +432,57 @@ test('family founder: name, plan, seats, badges, activity, and the not-linked hi
   }
 });
 
+test('family founder: member_removed events render the "removed a member" label, in both languages', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  let api = familyApi(
+    founderFam({
+      events: [
+        {
+          type: 'member_removed',
+          actor_email: 'f@x.com',
+          subject_email: 'm@x.com',
+          created_at: '2026-09-01T12:00:00Z',
+        },
+      ],
+    }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const events = qa('[data-fam-events] li');
+    assert.equal(events.length, 1);
+    assert.match(events[0].textContent, /f@x\.com removed a member · m@x\.com/);
+  } finally {
+    api.restore();
+  }
+
+  setup();
+  member.__setLang('zh');
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  api = familyApi(
+    founderFam({
+      events: [
+        {
+          type: 'member_removed',
+          actor_email: 'f@x.com',
+          subject_email: 'm@x.com',
+          created_at: '2026-09-01T12:00:00Z',
+        },
+      ],
+    }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const events = qa('[data-fam-events] li');
+    assert.match(events[0].textContent, /移除了成员/);
+  } finally {
+    api.restore();
+    member.__setLang('en');
+  }
+});
+
 test('family founder: a full family disables both forms; Remove confirms, posts, and reloads', async () => {
   const { confirms } = setup();
   member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
@@ -1072,6 +1123,355 @@ test('family founder: a 409 for a second invite on the same person shows the ser
     assert.equal(api.gets().length, 1, 'no reload after an error');
     assert.equal(rowForm.querySelector('button[type="submit"]').disabled, false);
     assert.equal(rowForm.querySelector('[name="email"]').value, 'kid@x.com', 'typed email kept');
+  } finally {
+    api.restore();
+  }
+});
+
+// ---------- malformed data, failed reloads, one answer at a time ----------
+test('family founder: entries that are not objects are skipped, and the rows still act on the right person', async () => {
+  const { confirms } = setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(
+    founderFam({
+      people: [P_FOUNDER, null, 'x', P_SPOUSE, P_CHILD],
+      invites: [null, INV_DAD],
+      events: [null, 7],
+      invitations_for_me: [null],
+    }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.equal(q('#caaci-family-host').hidden, false);
+    assert.equal(q('[data-fam-name]').textContent, 'Lin family');
+    assert.equal(qa('[data-fam-person]').length, 3);
+    assert.equal(qa('[data-fam-pending]').length, 1);
+    assert.equal(qa('[data-fam-for-me]').length, 0);
+    assert.equal(q('[data-fam-events]'), null, 'no valid events, no activity list');
+    qa('[data-fam-person]')[2].querySelector('[data-fam-remove]').click();
+    await settle();
+    assert.match(confirms[0], /Baby Lin/);
+    assert.deepEqual(api.posts(), [{ action: 'remove_person', person_id: 'p3' }]);
+  } finally {
+    api.restore();
+  }
+
+  // Lists that are not arrays at all count as empty.
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api2 = familyApi(founderFam({ people: 'nope', invites: {}, events: 5 }));
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.equal(q('#caaci-family-host').hidden, false);
+    assert.equal(qa('[data-fam-person]').length, 0);
+  } finally {
+    api2.restore();
+  }
+});
+
+test('family: a family view that cannot render hides the card and leaves the page working', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: PLAIN_ROW }));
+  // Not JSON, but it reaches render the same way: text that cannot become a string.
+  const api = familyApi(
+    founderFam({ people: [P_FOUNDER, { ...P_CHILD, full_name: Object.create(null) }] }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.equal(q('#caaci-family-host').hidden, true);
+    assert.ok(q('#caaci-security-host').children.length, 'security card still renders');
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: a reload with a malformed events list after adding someone frees the Add button', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(founderFam(), (body, state) => {
+    state.fam = founderFam({ events: [null] });
+    return { body: { ok: true } };
+  });
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const add = q('form[data-fam-add]');
+    add.querySelector('[name="full_name"]').value = 'Baby Two';
+    submit(add);
+    await settle();
+    assert.deepEqual(api.posts(), [{ action: 'add_person', full_name: 'Baby Two' }]);
+    assert.equal(api.gets().length, 2, 'reloaded');
+    assert.match(q('[data-fam-notice]').textContent, /Baby Two was added/);
+    const btn = q('form[data-fam-add] button[type="submit"]');
+    assert.equal(btn.disabled, false);
+    assert.equal(btn.getAttribute('aria-busy'), null);
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: a reload that fails after a change keeps the family view and card, and says to reload', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: PLAIN_ROW })); // no tier of their own
+  const api = familyApi(founderFam({ invites: [INV_DAD] }), (body, state) => {
+    state.get = { status: 500, body: {} };
+    return { body: { ok: true } };
+  });
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.ok(q('#caaci-mcard-host .caaci-mcard2'), 'card through the family plan');
+    q('[data-fam-cancel]').click();
+    await settle();
+    assert.deepEqual(api.posts(), [{ action: 'cancel_invite', invite_id: 'i1' }]);
+    assert.equal(api.gets().length, 2);
+    assert.equal(q('#caaci-family-host').hidden, false);
+    assert.equal(q('[data-fam-name]').textContent, 'Lin family');
+    assert.ok(q('[data-fam-dissolve]'), 'founder view kept');
+    assert.ok(q('#caaci-mcard-host .caaci-mcard2'), 'membership card kept');
+    const note = q('[data-fam-notice]');
+    assert.equal(note.textContent, 'Couldn’t refresh your family — please reload the page.');
+    assert.ok(note.classList.contains('alert-danger'));
+    assert.equal(q('[data-fam-cancel]').disabled, false);
+  } finally {
+    api.restore();
+  }
+});
+
+test('invitations for me: while one answer is in flight, every other Accept and Decline does nothing', async () => {
+  const { confirms } = setup();
+  member.__setSupa(supaStub({ memberRow: PLAIN_ROW }));
+  let calls = 0;
+  const api = familyApi(
+    { ...NONE, invitations_for_me: [FOR_ME_WANG, FOR_ME_ZHAO] },
+    (body, state) => {
+      calls += 1;
+      if (calls === 1) return { status: 409, body: { error: 'That invitation has expired.' } };
+      state.fam = memberFam();
+      return { body: { ok: true } };
+    },
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const [wang, zhao] = qa('[data-fam-for-me]');
+    wang.querySelector('[data-fam-accept]').click();
+    zhao.querySelector('[data-fam-accept]').click();
+    zhao.querySelector('[data-fam-decline]').click();
+    await settle();
+    assert.deepEqual(api.posts(), [{ action: 'accept_invite', invite_id: 'fi1' }]);
+    assert.equal(confirms.length, 0, 'no confirm while another answer runs');
+    assert.equal(q('[data-fam-notice]').textContent, 'That invitation has expired.');
+
+    // Once it is done, the next answer goes through.
+    zhao.querySelector('[data-fam-accept]').click();
+    await settle();
+    assert.deepEqual(api.posts()[1], { action: 'accept_invite', invite_id: 'fi2' });
+    assert.ok(q('[data-fam-leave]'), 'joined');
+  } finally {
+    api.restore();
+  }
+});
+
+// ---------- own-key lookups, the seat limit in copy, card spacing ----------
+test('family founder: prototype keys as relationship or plan status get no label and the neutral badge', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(
+    founderFam({
+      plan: { tier_id: 'family', status: 'toString', expires_at: '2027-03-01T00:00:00Z' },
+      people: [P_FOUNDER, { ...P_CHILD, relationship: 'constructor' }],
+      invites: [{ ...INV_DAD, relationship: '__proto__' }],
+    }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const fam = q('#caaci-family-host');
+    assert.equal(fam.hidden, false);
+    const badge = q('[data-fam-plan-status]');
+    assert.equal(badge.className, 'badge bg-secondary-lt');
+    assert.equal(badge.textContent, 'toString');
+    assert.doesNotMatch(fam.textContent, /function|native code|\[object/);
+    assert.match(qa('[data-fam-person]')[1].textContent, /Baby Lin\s+Not linked/);
+    assert.match(q('[data-fam-pending]').textContent, /dad@x\.com · Lao Lin\s+Sent/);
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: the full-family alert names the seat limit the server sent', async () => {
+  const fam = founderFam({
+    seats: { used: 4, limit: 4 },
+    people: [P_FOUNDER, P_SPOUSE, P_CHILD, { ...P_CHILD, id: 'p4', full_name: 'Kid Two' }],
+  });
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  let api = familyApi(fam);
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.match(q('[data-fam-full]').textContent, /Family is full \(4 people\)/);
+  } finally {
+    api.restore();
+  }
+
+  setup();
+  member.__setLang('zh');
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  api = familyApi(fam);
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.match(q('[data-fam-full]').textContent, /家庭已满（4 人）/);
+  } finally {
+    api.restore();
+    member.__setLang('en');
+  }
+});
+
+test('membership card: the card host has its bottom gap only while a card is shown', async () => {
+  const gap = () => q('#caaci-mcard-host').classList.contains('mb-3');
+  setup();
+  member.__setSupa(supaStub({ memberRow: PLAIN_ROW }));
+  let api = familyApi(NONE);
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.equal(q('.caaci-mcard2'), null);
+    assert.equal(gap(), false, 'no card, no gap');
+  } finally {
+    api.restore();
+  }
+
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  api = familyApi(NONE);
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.ok(q('.caaci-mcard2'));
+    assert.equal(gap(), true, 'own card');
+  } finally {
+    api.restore();
+  }
+
+  setup();
+  member.__setSupa(supaStub({ memberRow: PLAIN_ROW }));
+  api = familyApi(memberFam(), (body, state) => {
+    state.fam = NONE;
+    return { body: { ok: true } };
+  });
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.ok(q('.caaci-mcard2'));
+    assert.equal(gap(), true, 'family plan card');
+    q('[data-fam-leave]').click();
+    await settle();
+    assert.equal(q('.caaci-mcard2'), null);
+    assert.equal(gap(), false, 'card gone after leaving, gap too');
+  } finally {
+    api.restore();
+  }
+});
+
+// ---------- coverage: English escaping, per-address cooldown, full form, own card ----------
+test('family founder: the pending-invite note escapes the email in English', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const evil = '<img src=x><x-evil></x-evil>';
+  const api = familyApi(founderFam({ invites: [{ ...INV_DAD, email: evil, person_id: 'p3' }] }));
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const note = q('[data-fam-row-pending]');
+    assert.equal(note.querySelector('img, x-evil'), null);
+    assert.equal(note.textContent, `Invitation pending to ${evil}`);
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: resending one invitation leaves the other address’s Resend usable', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'Date'] });
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(
+    founderFam({ invites: [INV_DAD, { ...INV_DAD, id: 'i7', email: 'mom@x.com' }] }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    qa('[data-fam-resend]')[0].click();
+    await settle();
+    assert.deepEqual(api.posts(), [{ action: 'resend_invite', invite_id: 'i1' }]);
+    assert.equal(api.gets().length, 2, 'reloaded');
+    const [dad, mom] = qa('[data-fam-resend]');
+    assert.equal(dad.disabled, true);
+    assert.equal(dad.textContent, 'Resend in 60s');
+    assert.equal(mom.disabled, false, 'a different address has its own cooldown');
+    assert.equal(mom.textContent, 'Resend');
+    mom.click();
+    await settle();
+    assert.deepEqual(api.posts()[1], { action: 'resend_invite', invite_id: 'i7' });
+  } finally {
+    api.restore();
+  }
+});
+
+test('family founder: a full family’s invite-by-email form sends nothing, even with an address typed', async () => {
+  setup();
+  member.__setSupa(supaStub({ memberRow: FAMILY_ROW }));
+  const api = familyApi(
+    founderFam({ seats: { used: 3, limit: 3 }, people: [P_FOUNDER, P_SPOUSE, P_CHILD] }),
+  );
+  try {
+    await member.wireAccountPage();
+    await tick();
+    assert.ok(q('[data-fam-full]'));
+    const inv = q('form[data-fam-invite]');
+    inv.querySelector('[name="email"]').value = 'extra@x.com';
+    submit(inv);
+    await settle();
+    assert.equal(api.posts().length, 0);
+    assert.equal(q('[data-fam-notice]').hidden, true);
+  } finally {
+    api.restore();
+  }
+});
+
+test('membership card: a founder with an active tier of their own sees that tier and expiry, not the family plan', async () => {
+  setup();
+  member.__setSupa(
+    supaStub({
+      memberRow: { ...FAMILY_ROW, tier_id: 'individual', expires_at: '2026-12-31T12:00:00Z' },
+      tierRows: [
+        { id: 'family', name: 'Household Plan', price_cents: 6000, active: true },
+        { id: 'individual', name: 'Solo Plan', price_cents: 3000, active: true },
+      ],
+    }),
+  );
+  const api = familyApi(founderFam());
+  try {
+    await member.wireAccountPage();
+    await tick();
+    const cards = qa('.caaci-mcard2');
+    assert.equal(cards.length, 1);
+    const text = cards[0].textContent;
+    assert.match(text, /Solo Plan/);
+    assert.doesNotMatch(text, /Household Plan/);
+    assert.match(
+      text,
+      new RegExp(`Valid through ${escRe(new Date('2026-12-31T12:00:00Z').toLocaleDateString())}`),
+    );
+    assert.doesNotMatch(
+      text,
+      new RegExp(escRe(new Date('2027-03-01T00:00:00Z').toLocaleDateString())),
+    );
   } finally {
     api.restore();
   }
