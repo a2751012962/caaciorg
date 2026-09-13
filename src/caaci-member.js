@@ -226,6 +226,80 @@ const sendResetLink = (btn, note, email, label) =>
     sent: t('Password reset email sent — check your inbox.', '重置密码邮件已发送，请查收。'),
   });
 
+// ---------- one-time sign-in code ----------
+// Members moved over from the old WordPress site have an account but no
+// password. So every failed password sign-in offers them, and everyone else,
+// the reset email above or a one-time code: signInWithOtp emails it (the
+// magic_link template carries both the link and {{ .Token }}), verifyOtp signs
+// in with it.
+const legacyHintText = () =>
+  t(
+    'Moved over from the old caaciorg.com site, or forgot your password? Set a new password, or sign in with a one-time code.',
+    '从老网站转过来的会员或忘记密码？请重新设置密码，或用临时验证码登录。',
+  );
+
+// With shouldCreateUser:false GoTrue refuses a code for an address that has no
+// account ("Signups not allowed for otp", otp_disabled). Showing that would tell
+// anyone which addresses are members, so it reads exactly like a real send —
+// the same notice and the same cooldown. A rate limit still says how long to wait.
+const isNoAccountError = (error) =>
+  !!error &&
+  !emailRetryAfter(error) &&
+  (['otp_disabled', 'user_not_found', 'signup_disabled'].includes(error.code) ||
+    /signups? not allowed|user not found/i.test(error.message || ''));
+
+const sendSignInCode = (btn, note, { email, label, redirectTo }) =>
+  sendEmail(btn, note, {
+    action: 'otp',
+    email,
+    label,
+    send: async () => {
+      const result = await supa.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
+      });
+      return isNoAccountError(result?.error) ? { error: null } : result;
+    },
+    sent: t(
+      "If this email has an account, we've sent a sign-in code.",
+      '如果该邮箱已注册，验证码已发送。',
+    ),
+  });
+
+// Signs in with the emailed code. Resolves to the user — leaving `btn` busy,
+// since the caller moves on — or to null after saying why, with `btn` free again.
+async function verifySignInCode(btn, note, email, input) {
+  if (btn.getAttribute('aria-busy')) return null; // Enter pressed mid-request
+  const token = input.value.replace(/\s+/g, '');
+  if (!/^\d{6,10}$/.test(token)) {
+    notice(note, t('Enter the code from the email.', '请输入邮件中的验证码。'), false);
+    return null;
+  }
+  const done = busy(btn, t('Signing in…', '登录中…'));
+  let result;
+  try {
+    result = await supa.auth.verifyOtp({ email, token, type: 'email' });
+  } catch {
+    done();
+    notice(note, t('Network error — please try again.', '网络错误，请重试。'), false);
+    return null;
+  }
+  const user = !result?.error && result?.data?.user;
+  if (!user) {
+    done();
+    notice(
+      note,
+      t(
+        'That code is wrong or has expired — request a new one.',
+        '验证码错误或已过期，请重新获取。',
+      ),
+      false,
+    );
+    return null;
+  }
+  return user;
+}
+
 export async function loadTiers() {
   if (!supa) return mergeTiers(null);
   try {
@@ -413,6 +487,76 @@ export async function wireAuthPage() {
   const offerLoginResend = confirmResend(loginResend, notb);
   const offerSignupResend = confirmResend($('#caaci-su-resend'), $('#caaci-signup-notice'));
 
+  // Any other failed sign-in. GoTrue says "Invalid login credentials" alike for
+  // a wrong password and an unknown address, so the page never guesses which:
+  // everyone gets both ways in for the address typed — a reset link (on the
+  // same cooldown as the forgot-password form) or a one-time code.
+  const legacy = $('#caaci-li-legacy');
+  const legacyReset = $('#caaci-li-legacy-reset');
+  const codeSend = $('#caaci-li-code-send');
+  const codeForm = $('#caaci-li-code-form');
+  const codeInput = $('#caaci-li-code');
+  const resendResetLabel = t('Resend reset email', '重新发送重置邮件');
+  const resendCodeLabel = t('Resend sign-in code', '重新发送验证码');
+  let legacyEmail = '';
+  const offerLegacy = (email) => {
+    legacyEmail = email;
+    $('#caaci-li-legacy-hint').textContent = legacyHintText();
+    legacy.hidden = false;
+    followCooldown(legacyReset, {
+      action: 'recovery',
+      email,
+      label: resendResetLabel,
+      idleLabel: t('Email me a reset link', '发送重置密码邮件'),
+    });
+    followCooldown(codeSend, {
+      action: 'otp',
+      email,
+      label: resendCodeLabel,
+      idleLabel: t('Email me a sign-in code', '发送临时验证码'),
+    });
+    // A code sent to this address moments ago (even before a reload) still works.
+    if (storedCooldownEnd('otp', email)) codeForm.hidden = false;
+  };
+  const hideLegacy = () => {
+    legacy.hidden = true;
+    codeForm.hidden = true;
+    codeInput.value = '';
+    stopCooldown(legacyReset);
+    stopCooldown(codeSend);
+  };
+  $('#caaci-li-email').addEventListener('input', hideLegacy);
+  // True, after saying so, when the address typed cannot be sent anything.
+  const invalidLegacyEmail = () => {
+    if (EMAIL_RE.test(legacyEmail)) return false;
+    notice(notb, t('Enter a valid email address.', '请填写有效邮箱。'), false);
+    return true;
+  };
+  legacyReset.addEventListener('click', () => {
+    if (legacyReset.disabled || invalidLegacyEmail()) return;
+    return sendResetLink(legacyReset, notb, legacyEmail, resendResetLabel);
+  });
+  codeSend.addEventListener('click', async () => {
+    if (codeSend.disabled || invalidLegacyEmail()) return;
+    const email = legacyEmail;
+    const sent = await sendSignInCode(codeSend, notb, {
+      email,
+      label: resendCodeLabel,
+      redirectTo: location.origin + (next || '/account/'),
+    });
+    // Unless the address was changed while the code was on its way.
+    if (sent && !legacy.hidden && legacyEmail === email) {
+      codeForm.hidden = false;
+      codeInput.focus({ preventScroll: true });
+    }
+  });
+  codeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const user = await verifySignInCode($('#caaci-li-code-verify'), notb, legacyEmail, codeInput);
+    // Leave the button busy — the navigation below replaces the page.
+    if (user) location.href = await destinationAfterSignIn(user.id, next);
+  });
+
   $('#caaci-login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = $('#caaci-li-email').value.trim();
@@ -429,6 +573,7 @@ export async function wireAuthPage() {
       // An account whose confirmation link was never opened cannot sign in; say
       // so plainly and offer the email again instead of a bare error string.
       if (error.code === 'email_not_confirmed' || /not confirmed/i.test(error.message || '')) {
+        hideLegacy();
         notice(
           notb,
           t(
@@ -440,8 +585,10 @@ export async function wireAuthPage() {
         return offerLoginResend(email);
       }
       loginResend.hidden = true;
-      return notice(notb, error.message, false);
+      notice(notb, error.message, false);
+      return offerLegacy(email);
     }
+    hideLegacy();
     // Leave the button busy — the navigation below replaces the page.
     location.href = await destinationAfterSignIn(data?.user?.id, next);
   });
@@ -824,6 +971,10 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
   const loggedIn = !!user;
   let authMode = 'signup';
   let applied = discount || null;
+  // A failed log-in shows the set-a-password-or-code hint (wired below for an
+  // anonymous visitor); a code sign-in leaves its user here for pay().
+  let offerLegacy = () => {};
+  let codeUser = null;
 
   const name = tierText(tier, 'name');
   const title = isSwitch
@@ -857,9 +1008,11 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
   const main = $('#caaci-co-main', host);
   const msg = $('#caaci-co-notice', host);
   const close = () => {
-    // A forgot-password countdown must not keep ticking once the modal is gone.
-    const forgotBtn = $('#caaci-co-forgot', host);
-    if (forgotBtn) stopCooldown(forgotBtn);
+    // A forgot-password or sign-in-code countdown must not keep ticking once the modal is gone.
+    for (const id of ['#caaci-co-forgot', '#caaci-co-code-send']) {
+      const btn = $(id, host);
+      if (btn) stopCooldown(btn);
+    }
     host.innerHTML = '';
     document.removeEventListener('keydown', onKey);
   };
@@ -897,8 +1050,19 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
         <label class="form-label" for="caaci-pwd">${t('Password (at least 8 characters)', '密码（至少 8 位）')}</label>
         <input type="password" id="caaci-pwd" class="form-control" minlength="8" autocomplete="new-password">
       </div>
+      <p class="text-secondary mb-2" id="caaci-co-legacy-hint" hidden>${legacyHintText()}</p>
       <div class="mb-2" id="caaci-co-forgotwrap" hidden>
         <button type="button" class="btn btn-link px-0" id="caaci-co-forgot">${t('Forgot password?', '忘记密码？')}</button>
+      </div>
+      <div class="mb-3" id="caaci-co-code-wrap" hidden>
+        <button type="button" class="btn btn-link px-0" id="caaci-co-code-send">${t('Email me a sign-in code', '发送临时验证码')}</button>
+        <form class="mt-2" id="caaci-co-code-form" novalidate hidden>
+          <label class="form-label" for="caaci-co-code">${t('Sign-in code from the email', '邮件中的验证码')}</label>
+          <div class="input-group">
+            <input type="text" id="caaci-co-code" class="form-control" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}" required>
+            <button type="submit" class="btn btn-primary" id="caaci-co-code-verify">${t('Sign in', '登录')}</button>
+          </div>
+        </form>
       </div>
       <p class="text-secondary mb-2">
         <span id="caaci-auth-prompt">${t('Already have an account?', '已有账户？')}</span>
@@ -910,6 +1074,16 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
     const forgot = $('#caaci-co-forgot', host);
     const emailInput = $('#caaci-email', host);
     const resendResetLabel = t('Resend reset email', '重新发送重置邮件');
+    // A failed log-in offers what the login page does: this forgot-password
+    // button (relabelled while the hint shows) or a one-time code, whose
+    // sign-in continues the checkout.
+    const hint = $('#caaci-co-legacy-hint', host);
+    const codeWrap = $('#caaci-co-code-wrap', host);
+    const codeSend = $('#caaci-co-code-send', host);
+    const codeForm = $('#caaci-co-code-form', host);
+    const codeInput = $('#caaci-co-code', host);
+    const resendCodeLabel = t('Resend sign-in code', '重新发送验证码');
+    let codeEmail = '';
     // The countdown belongs to the address typed — including one that a reset
     // from an earlier modal (or page load) left in localStorage.
     const followForgot = () =>
@@ -917,9 +1091,69 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
         action: 'recovery',
         email: emailInput.value,
         label: resendResetLabel,
-        idleLabel: t('Forgot password?', '忘记密码？'),
+        idleLabel: hint.hidden
+          ? t('Forgot password?', '忘记密码？')
+          : t('Email me a reset link', '发送重置密码邮件'),
       });
-    emailInput.addEventListener('input', followForgot);
+    const hideLegacy = () => {
+      hint.hidden = true;
+      codeWrap.hidden = true;
+      codeForm.hidden = true;
+      codeInput.value = '';
+      stopCooldown(codeSend);
+    };
+    offerLegacy = () => {
+      codeEmail = emailInput.value.trim();
+      hint.hidden = false;
+      codeWrap.hidden = false;
+      followForgot();
+      followCooldown(codeSend, {
+        action: 'otp',
+        email: codeEmail,
+        label: resendCodeLabel,
+        idleLabel: t('Email me a sign-in code', '发送临时验证码'),
+      });
+      // A code sent to this address moments ago (even from an earlier modal) still works.
+      if (storedCooldownEnd('otp', codeEmail)) codeForm.hidden = false;
+    };
+    emailInput.addEventListener('input', () => {
+      hideLegacy();
+      followForgot();
+    });
+    codeSend.addEventListener('click', async () => {
+      if (codeSend.disabled) return;
+      const email = codeEmail;
+      if (!EMAIL_RE.test(email))
+        return notice(
+          msg,
+          t('Enter a valid email address above first.', '请先在上方填写有效邮箱。'),
+          false,
+        );
+      const sent = await sendSignInCode(codeSend, msg, {
+        email,
+        label: resendCodeLabel,
+        // The link in the same email brings them back to this page, signed in.
+        redirectTo: location.origin + location.pathname + (location.search || ''),
+      });
+      // Unless the address was changed while the code was on its way.
+      if (sent && !codeWrap.hidden && codeEmail === email) {
+        codeForm.hidden = false;
+        codeInput.focus({ preventScroll: true });
+      }
+    });
+    codeForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const signedIn = await verifySignInCode(
+        $('#caaci-co-code-verify', host),
+        msg,
+        codeEmail,
+        codeInput,
+      );
+      if (!signedIn) return;
+      codeUser = { id: signedIn.id, email: signedIn.email || codeEmail };
+      hideLegacy();
+      pay();
+    });
     forgot.addEventListener('click', () => {
       if (forgot.disabled) return;
       const email = emailInput.value.trim();
@@ -940,7 +1174,8 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
         : t('Log in', '登录');
       $('#caaci-co-namewrap', host).style.display = signup ? '' : 'none';
       $('#caaci-co-forgotwrap', host).hidden = signup;
-      if (!signup) followForgot();
+      if (signup) hideLegacy();
+      else followForgot();
       $('#caaci-pwd', host).autocomplete = signup ? 'new-password' : 'current-password';
       $('#caaci-auth-prompt', host).textContent = signup
         ? t('Already have an account?', '已有账户？')
@@ -1046,8 +1281,9 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
     }
 
     // Fresh checkout — establish an account first if anonymous.
-    let uid = user?.id;
-    let email = user?.email;
+    // Signed in with an emailed code in this modal: continue as that user.
+    let uid = user?.id || codeUser?.id;
+    let email = user?.email || codeUser?.email;
     if (!uid) {
       email = $('#caaci-email', host).value.trim();
       const pwd = $('#caaci-pwd', host).value;
@@ -1055,7 +1291,10 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
       if (authMode === 'login') {
         if (!pwd) return fail(t('Enter your password.', '请输入密码。'));
         const { data, error } = await supa.auth.signInWithPassword({ email, password: pwd });
-        if (error) return fail(error.message);
+        if (error) {
+          offerLegacy();
+          return fail(error.message);
+        }
         uid = data?.user?.id;
       } else {
         if (pwd.length < 8)
@@ -1071,7 +1310,10 @@ export function openCheckout({ tier, user, member, discount, notb, allTiers = []
         if (error) return fail(error.message);
         if (isDuplicateSignup(data))
           return fail(
-            t('This email already has an account — log in instead.', '该邮箱已注册，请直接登录。'),
+            t(
+              'This email already has an account — log in instead. Moved over from the old caaciorg.com site? Log in to set a new password, or sign in with a one-time code.',
+              '该邮箱已注册，请直接登录。从老网站转过来的会员：请切换到登录，重新设置密码，或用临时验证码登录。',
+            ),
           );
         uid = data?.user?.id;
       }

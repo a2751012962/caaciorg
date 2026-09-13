@@ -138,6 +138,65 @@
             >
               Resend confirmation email
             </button>
+            <!-- Shown after a failed sign-in (wireAuthPage). Members moved over from
+                 the old site have no password yet, so this offers a reset link or a
+                 one-time code for the address that was typed. -->
+            <div class="mt-3" id="caaci-li-legacy" hidden>
+              <p class="text-secondary mb-2" id="caaci-li-legacy-hint"></p>
+              <div class="row g-2">
+                <div class="col-12 col-sm-6">
+                  <button
+                    type="button"
+                    id="caaci-li-legacy-reset"
+                    class="btn w-100"
+                    data-en="Email me a reset link"
+                    data-zh="发送重置密码邮件"
+                  >
+                    Email me a reset link
+                  </button>
+                </div>
+                <div class="col-12 col-sm-6">
+                  <button
+                    type="button"
+                    id="caaci-li-code-send"
+                    class="btn w-100"
+                    data-en="Email me a sign-in code"
+                    data-zh="发送临时验证码"
+                  >
+                    Email me a sign-in code
+                  </button>
+                </div>
+              </div>
+              <form class="mt-3" id="caaci-li-code-form" novalidate hidden>
+                <label
+                  class="form-label"
+                  for="caaci-li-code"
+                  data-en="Sign-in code from the email"
+                  data-zh="邮件中的验证码"
+                  >Sign-in code from the email</label
+                >
+                <div class="input-group">
+                  <input
+                    type="text"
+                    id="caaci-li-code"
+                    class="form-control"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    pattern="[0-9]{6,10}"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    id="caaci-li-code-verify"
+                    class="btn btn-primary"
+                    data-en="Sign in"
+                    data-zh="登录"
+                  >
+                    Sign in
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
 
