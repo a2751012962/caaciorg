@@ -753,15 +753,56 @@ const EXPIRED =
   'error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired';
 
 test('account page: an expired or already-used recovery link says so and points back to /login-3/', async () => {
-  for (const where of [{ hash: `#${EXPIRED}` }, { search: `?recovery=1&${EXPIRED}` }]) {
+  for (const where of [
+    { search: '?recovery=1', hash: `#${EXPIRED}` },
+    { search: `?recovery=1&${EXPIRED}` },
+    { hash: `#type=recovery&${EXPIRED}` },
+  ]) {
     setup('account', where);
     member.__setSupa(supaStub({ user: null }));
     await member.wireAccountPage();
     const rec = q('#caaci-recovery-host');
-    assert.match(rec.textContent, /expired or has already been used/i, JSON.stringify(where));
+    const label = JSON.stringify(where);
+    assert.match(rec.textContent, /password reset link/i, label);
+    assert.match(rec.textContent, /expired or has already been used/i, label);
     assert.ok(rec.querySelector('a[href="/login-3/"]'), 'link to request a new one');
     assert.equal(q('#caaci-np'), null, 'no set-password form for a dead link');
-    assert.doesNotMatch(rec.innerHTML, /invalid\+or/, 'the raw URL text is not echoed');
+    // URLSearchParams decodes "+" to spaces, so check the decoded wording.
+    assert.doesNotMatch(rec.textContent, /invalid or has expired/, 'the URL text is not echoed');
+  }
+});
+
+test('account page: other dead links (signup confirmation, email change, OAuth) get a generic message', async () => {
+  for (const where of [
+    { hash: `#${EXPIRED}` },
+    {
+      search:
+        '?error=server_error&error_code=unexpected_failure&error_description=Unable+to+exchange+external+code',
+    },
+  ]) {
+    setup('account', where);
+    member.__setSupa(supaStub({ user: null }));
+    await member.wireAccountPage();
+    const rec = q('#caaci-recovery-host');
+    const label = JSON.stringify(where);
+    assert.match(rec.textContent, /This link no longer works/, label);
+    assert.doesNotMatch(rec.textContent, /password/i, label);
+    assert.ok(rec.querySelector('a[href="/login-3/"]'), label);
+    assert.doesNotMatch(rec.textContent, /invalid or has expired|exchange external code/, label);
+  }
+});
+
+test('account page: a hostile error_description in a dead link is never rendered as markup', async () => {
+  const hostile = encodeURIComponent('<img src=x onerror=alert(1)>');
+  for (const where of [
+    { search: `?recovery=1&error_code=otp_expired&error_description=${hostile}` },
+    { hash: `#error=access_denied&error_description=${hostile}` },
+  ]) {
+    setup('account', where);
+    member.__setSupa(supaStub({ user: null }));
+    await member.wireAccountPage();
+    assert.equal(document.querySelector('img, [onerror]'), null, JSON.stringify(where));
+    assert.doesNotMatch(q('#caaci-recovery-host').textContent, /onerror/);
   }
 });
 

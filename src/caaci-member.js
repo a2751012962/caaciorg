@@ -1078,24 +1078,42 @@ function recoveryCard(host) {
   });
 }
 
-// Supabase reports a dead email link (otp_expired, access_denied…) through
-// error_code / error_description in the hash or the query string.
-function recoveryLinkFailed() {
+// Supabase reports a dead email link (otp_expired, access_denied…) or a failed
+// OAuth sign-in through error_code / error_description in the hash or query.
+function linkFailed() {
   return [location.hash, location.search].some((part) => {
     const p = new URLSearchParams(String(part || '').replace(/^[#?]/, ''));
     return p.has('error_code') || p.has('error_description');
   });
 }
 
-// The error text itself is not shown: it comes from the URL, so anyone could
-// put words there.
-function recoveryFailedCard(host) {
+// The error text itself is never shown: it comes from the URL, so anyone could
+// put words (or markup) there. A reset link gets reset-specific copy; any other
+// dead link — signup confirmation, email change, OAuth — a generic next step.
+function failedLinkCard(host, recovery) {
+  const [title, body, action] = recovery
+    ? [
+        t('This password reset link no longer works', '此重置密码链接已失效'),
+        t(
+          'The link has expired or has already been used — each link works once, for a limited time.',
+          '该链接已过期或已被使用——每个链接只能使用一次，且有时效。',
+        ),
+        t('Request a new reset link', '重新申请重置链接'),
+      ]
+    : [
+        t('This link no longer works', '此链接已失效'),
+        t(
+          'It may have expired or already been used. Sign in to continue — if you still need the email, you can ask for a new one from there.',
+          '链接可能已过期或已被使用。请登录后继续——如仍需要该邮件，可在登录后重新申请。',
+        ),
+        t('Go to sign in', '前往登录'),
+      ];
   host.innerHTML = `
     <div class="alert alert-warning mb-3" role="alert">
-      <h4 class="alert-title">${t('This password reset link no longer works', '此重置密码链接已失效')}</h4>
+      <h4 class="alert-title">${title}</h4>
       <div>
-        ${t('The link has expired or has already been used — each link works once, for a limited time.', '该链接已过期或已被使用——每个链接只能使用一次，且有时效。')}
-        <a href="/login-3/">${t('Request a new reset link', '重新申请重置链接')}</a>
+        ${body}
+        <a href="/login-3/">${action}</a>
       </div>
     </div>`;
 }
@@ -1481,9 +1499,9 @@ export async function wireAccountPage() {
   // error_description instead of a session, so it gets an explanation, not a
   // form that could only fail.
   const recoveryHost = $('#caaci-recovery-host');
-  if (recoveryLinkFailed()) recoveryFailedCard(recoveryHost);
-  else if (/type=recovery/.test(location.hash) || /[?&]recovery=/.test(location.search))
-    recoveryCard(recoveryHost);
+  const recovery = /type=recovery/.test(location.hash) || /[?&]recovery=/.test(location.search);
+  if (linkFailed()) failedLinkCard(recoveryHost, recovery);
+  else if (recovery) recoveryCard(recoveryHost);
 
   const { user } = await currentMember();
   if (!user) {
