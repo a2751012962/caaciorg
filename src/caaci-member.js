@@ -1854,9 +1854,50 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
     planCard = eligible;
   };
 
+  // Only plain objects count as list entries; a missing or malformed list is empty.
+  const entries = (list) =>
+    Array.isArray(list) ? list.filter((x) => x && typeof x === 'object' && !Array.isArray(x)) : [];
+  const normalize = (data) => ({
+    ...data,
+    people: entries(data.people),
+    invites: entries(data.invites),
+    events: entries(data.events),
+    invitations_for_me: entries(data.invitations_for_me),
+  });
+
+  // Render `fam`; a view that throws part-way hides the card rather than
+  // leaving it half-wired. Returns whether it rendered.
+  const show = (fam) => {
+    try {
+      render(fam);
+      return true;
+    } catch {
+      body.innerHTML = '';
+      host.hidden = true;
+      return false;
+    }
+  };
+
+  // The last family view that rendered. Once there is one, a reload that fails
+  // keeps it (and the membership card) on screen with a note, instead of hiding.
+  let shown = null;
   const load = async () => {
     const { ok, data } = await familyRequest();
-    render(ok && FAMILY_ROLES.includes(data.role) ? data : null);
+    const fam = ok && FAMILY_ROLES.includes(data.role) ? normalize(data) : null;
+    if (fam && show(fam)) {
+      shown = fam;
+      return;
+    }
+    if (!shown) {
+      if (!fam) show(null);
+      return;
+    }
+    if (fam) show(shown); // the new view threw part-way: put the last good one back
+    notice(
+      note,
+      t('Couldn’t refresh your family — please reload the page.', '无法刷新家庭信息，请刷新页面。'),
+      false,
+    );
   };
 
   // One change on `btn`: optional confirm, busy while in flight (a second
@@ -1872,16 +1913,17 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
     if (btn.getAttribute('aria-busy')) return null;
     if (ask && !window.confirm(ask)) return null;
     const done = busy(btn, t('Working…', '处理中…'));
-    const res = await familyRequest(payload);
-    if (!res.ok) {
-      done();
-      failNote(res);
+    try {
+      const res = await familyRequest(payload);
+      if (!res.ok) failNote(res);
+      else {
+        notice(note, success(res.data), true);
+        await load();
+      }
       return res;
+    } finally {
+      done();
     }
-    notice(note, success(res.data), true);
-    await load();
-    done();
-    return res;
   };
 
   const wireForms = (full) => {
@@ -2108,6 +2150,19 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
     syncCard(fam);
   };
 
+  // One invitation is answered at a time across the whole card: while an
+  // accept or decline is in flight, every other row's buttons do nothing.
+  let answering = false;
+  const answer = async (btn, payload, opts) => {
+    if (answering) return null;
+    answering = true;
+    try {
+      return await run(btn, payload, opts);
+    } finally {
+      answering = false;
+    }
+  };
+
   const wireInvitesForMe = (list) => {
     $$('[data-fam-for-me]', body).forEach((row, i) => {
       const inv = list[i];
@@ -2118,7 +2173,7 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
       };
       const accept = $('[data-fam-accept]', row);
       accept.addEventListener('click', () =>
-        run(
+        answer(
           accept,
           { action: 'accept_invite', invite_id: inv.id },
           {
@@ -2134,7 +2189,7 @@ async function wireFamily(host, { user, member, tiers, cardHost, ownCard }) {
       );
       const decline = $('[data-fam-decline]', row);
       decline.addEventListener('click', () =>
-        run(
+        answer(
           decline,
           { action: 'decline_invite', invite_id: inv.id },
           {
