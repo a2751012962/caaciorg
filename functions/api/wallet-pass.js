@@ -10,7 +10,7 @@
 // Until those secrets exist this endpoint answers 503 and the account page
 // simply hides its "Add to Apple Wallet" button.
 import forge from 'node-forge';
-import { json, bad, sb, requireUser } from './_lib.js';
+import { json, bad, sb, requireUser, effectiveMembership } from './_lib.js';
 
 // ---- embedded pass artwork (solid brick icon; transparent logo so the
 // ---- logoText renders alone). Generated PNGs, base64-embedded.
@@ -165,14 +165,12 @@ export async function onRequestPost({ request, env }) {
   if (gate.error) return gate.error;
 
   try {
-    const m = await sb(env).selectOne(
-      'members',
-      { id: gate.user.id },
-      'id,full_name,email,tier_id,status,expires_at',
-    );
-    if (!m || m.status !== 'active' || !m.tier_id)
-      return bad('Only active members can add their card to Apple Wallet.', 403);
-    const tier = await sb(env).selectOne('membership_tiers', { id: m.tier_id }, 'name');
+    // A joined family member has no plan of their own: their card is the family plan.
+    const plan = await effectiveMembership(sb(env), gate.user.id);
+    if (!plan) return bad('Only active members can add their card to Apple Wallet.', 403);
+    const m = plan.member;
+    const expiresAt = plan.expires_at;
+    const tier = await sb(env).selectOne('membership_tiers', { id: plan.tier_id }, 'name');
 
     const origin = new URL(request.url).origin;
     const verifyUrl = `${origin}/api/verify?m=${m.id}`;
@@ -188,19 +186,19 @@ export async function onRequestPost({ request, env }) {
       foregroundColor: 'rgb(255,255,255)',
       backgroundColor: 'rgb(142,46,17)',
       labelColor: 'rgb(237,187,95)',
-      ...(m.expires_at ? { expirationDate: new Date(m.expires_at).toISOString() } : {}),
+      ...(expiresAt ? { expirationDate: new Date(expiresAt).toISOString() } : {}),
       barcodes: [
         { format: 'PKBarcodeFormatQR', message: verifyUrl, messageEncoding: 'iso-8859-1' },
       ],
       generic: {
         primaryFields: [{ key: 'member', label: 'MEMBER · 会员', value: name }],
-        secondaryFields: [{ key: 'tier', label: 'PLAN · 方案', value: tier?.name || m.tier_id }],
-        auxiliaryFields: m.expires_at
+        secondaryFields: [{ key: 'tier', label: 'PLAN · 方案', value: tier?.name || plan.tier_id }],
+        auxiliaryFields: expiresAt
           ? [
               {
                 key: 'expires',
                 label: 'VALID THROUGH · 有效期至',
-                value: new Date(m.expires_at).toLocaleDateString('en-US'),
+                value: new Date(expiresAt).toLocaleDateString('en-US'),
               },
             ]
           : [],

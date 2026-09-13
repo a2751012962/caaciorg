@@ -2,7 +2,7 @@
 // The QR on a member's digital card encodes this URL; a restaurant scans it and
 // sees LIVE status (green valid / red not valid), so a screenshot of an expired
 // card can't pass. Reveals only name, tier, and validity — nothing else.
-import { sb } from './_lib.js';
+import { sb, effectiveMembership } from './_lib.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -51,21 +51,17 @@ export async function onRequestGet({ request, env }) {
   if (!UUID_RE.test(id)) return html(page({ ok: false }));
 
   try {
-    const m = await sb(env).selectOne('members', { id }, 'full_name,tier_id,status,expires_at');
-    const ok =
-      !!m &&
-      !!m.tier_id &&
-      m.status === 'active' &&
-      (!m.expires_at || new Date(m.expires_at) > new Date());
-    if (!ok) return html(page({ ok: false }));
+    // A joined family member has no plan of their own: their card is the family plan.
+    const plan = await effectiveMembership(sb(env), id);
+    if (!plan) return html(page({ ok: false }));
 
-    const tier = await sb(env).selectOne('membership_tiers', { id: m.tier_id }, 'name');
+    const tier = await sb(env).selectOne('membership_tiers', { id: plan.tier_id }, 'name');
     return html(
       page({
         ok: true,
-        name: m.full_name || 'CAACI Member',
-        tierName: tier?.name || m.tier_id,
-        until: m.expires_at ? new Date(m.expires_at).toLocaleDateString('en-US') : '',
+        name: plan.member.full_name || 'CAACI Member',
+        tierName: tier?.name || plan.tier_id,
+        until: plan.expires_at ? new Date(plan.expires_at).toLocaleDateString('en-US') : '',
       }),
     );
   } catch {

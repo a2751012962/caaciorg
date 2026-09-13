@@ -86,6 +86,102 @@ test('wallet-pass: non-active member is refused', async () => {
   }
 });
 
+// A joined family member has no plan of their own; their card is the family
+// plan held by the founder. Rows are served by table and id.
+const FOUNDER = '99999999-2222-3333-4444-555555555555';
+const HOUSE = '88888888-2222-3333-4444-555555555555';
+const FAMILY_UNTIL = '2999-06-30T12:00:00Z';
+
+function familyRoute({ founder }) {
+  const rows = {
+    [UUID]: {
+      id: UUID,
+      full_name: 'Kid Lin',
+      email: 'kid@x.com',
+      tier_id: null,
+      status: 'pending',
+      expires_at: null,
+      household_id: HOUSE,
+    },
+  };
+  if (founder)
+    rows[FOUNDER] = {
+      id: FOUNDER,
+      full_name: 'Mei Lin',
+      tier_id: 'family',
+      status: 'active',
+      expires_at: FAMILY_UNTIL,
+      household_id: HOUSE,
+      ...founder,
+    };
+  const household = {
+    id: HOUSE,
+    status: 'active',
+    tier_id: 'family',
+    expires_at: null,
+    founder_member_id: FOUNDER,
+  };
+  return (u) => {
+    const url = new URL(u);
+    const id = (url.searchParams.get('id') || '').replace(/^eq\./, '');
+    if (url.pathname === '/auth/v1/user') return { body: { id: UUID } };
+    if (url.pathname.endsWith('/membership_tiers'))
+      return { body: [{ name: id === 'family' ? 'Family Membership' : id }] };
+    if (url.pathname.endsWith('/households')) return { body: id === HOUSE ? [household] : [] };
+    if (url.pathname.endsWith('/members')) return { body: rows[id] ? [rows[id]] : [] };
+    return {};
+  };
+}
+
+async function requestPass(route) {
+  const fetch = mockFetch(route);
+  try {
+    return await onRequestPost({
+      request: fakeRequest({
+        url: 'https://caaci.example/api/wallet-pass',
+        body: {},
+        headers: { authorization: 'Bearer tok' },
+      }),
+      env: fakeEnv(APPLE_ENV),
+    });
+  } finally {
+    fetch.restore();
+  }
+}
+
+test('wallet-pass: a joined family member gets a pass for the active family plan and its expiry', async () => {
+  const r = await requestPass(familyRoute({ founder: {} }));
+  assert.equal(r.status, 200);
+  const pass = JSON.parse(readZip(new Uint8Array(await r.arrayBuffer()))['pass.json'].toString());
+  assert.equal(pass.serialNumber, UUID);
+  assert.equal(pass.generic.primaryFields[0].value, 'Kid Lin');
+  assert.equal(pass.generic.secondaryFields[0].value, 'Family Membership');
+  assert.equal(pass.expirationDate, new Date(FAMILY_UNTIL).toISOString());
+  assert.equal(
+    pass.generic.auxiliaryFields[0].value,
+    new Date(FAMILY_UNTIL).toLocaleDateString('en-US'),
+  );
+});
+
+test('wallet-pass: a joined family member is refused when the family plan is not active', async () => {
+  for (const founder of [
+    { status: 'past_due' },
+    { expires_at: '2020-01-01T00:00:00Z' },
+    { tier_id: 'individual' },
+    null,
+  ]) {
+    const r = await requestPass(familyRoute({ founder }));
+    assert.equal(r.status, 403, JSON.stringify(founder));
+  }
+});
+
+test('wallet-pass: a signed-in user with no membership row is refused', async () => {
+  const r = await requestPass((u) =>
+    u.includes('/auth/v1/user') ? { body: { id: UUID } } : { body: [] },
+  );
+  assert.equal(r.status, 403);
+});
+
 test('wallet-pass: builds a signed .pkpass with correct manifest hashes', async () => {
   const fetch = mockFetch(
     route({
