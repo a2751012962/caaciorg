@@ -283,10 +283,15 @@ function wireAuthEmails(row, m) {
     invite: {
       label: t('Send invitation', '发送邀请邮件'),
       ask: t(
-        `Email ${who} an invitation to set up their login?`,
-        `向 ${who} 发送设置登录账户的邀请？`,
+        `Email ${who} a link to set up their login? Members without a login get an invitation; existing accounts get a password-setup link.`,
+        `向 ${who} 发送登录设置链接？尚未启用登录的会员会收到邀请邮件；已有账户的会员会收到设置密码的链接。`,
       ),
       done: t(`Invitation sent to ${who}.`, `已向 ${who} 发送邀请邮件。`),
+      // The server sends an existing account the password-setup email instead.
+      password_setup: t(
+        `${who} already has an account, so they were emailed a link to set their password. The email's subject reads "Set or reset your CAACI password".`,
+        `${who} 已有账户，已向其发送设置密码的链接。邮件主题为“设置或重置你的 CAACI 账号密码”。`,
+      ),
     },
   };
   for (const [action, k] of Object.entries(kinds)) {
@@ -316,7 +321,7 @@ function wireAuthEmails(row, m) {
         if (target) showCooldown(target.btn, k.label, key);
         say(
           res.ok
-            ? k.done
+            ? (res.data?.delivered === 'password_setup' && k.password_setup) || k.done
             : t(
                 'An email was sent to this member very recently. Please wait a minute and try again.',
                 '刚刚已向该会员发送过邮件，请等一分钟后再试。',
@@ -326,16 +331,6 @@ function wireAuthEmails(row, m) {
         return;
       }
       if (target) target.btn.disabled = false;
-      if (res?.status === 409) {
-        say(
-          t(
-            'This login email is already confirmed, so it cannot be invited. Use "Send password reset" instead.',
-            '该登录邮箱已确认，无法发送邀请，请改用“发送重置密码邮件”。',
-          ),
-          false,
-        );
-        return;
-      }
       say(res?.data?.error || t('Could not send the email.', '邮件发送失败。'), false);
     });
   }
@@ -394,7 +389,7 @@ function toggleEditor(tr, m) {
     <div class="btn-list align-items-center mt-2">
       <button type="button" class="btn btn-sm" data-act="send-reset">${t('Send password reset', '发送重置密码邮件')}</button>
       <button type="button" class="btn btn-sm" data-act="send-invite">${t('Send invitation', '发送邀请邮件')}</button>
-      <span class="text-secondary small">${t('Invitations only work for members whose email was never confirmed. Members created in this admin panel are already confirmed, so send them a password reset.', '邀请仅适用于邮箱从未确认过的会员。在本后台创建的会员邮箱已确认，请改为发送重置密码邮件。')}</span>
+      <span class="text-secondary small">${t("Members who haven't set up a login yet get an invitation; members who already have one get a link to set their password.", '尚未启用登录账户的会员会收到邀请；已有账户的会员会收到设置密码的链接。')}</span>
     </div>
     <div class="alert mb-0 mt-2" data-msg hidden></div></td>`;
   tr.after(row);

@@ -118,7 +118,7 @@ test('member email: reset sends recovery to the looked-up address, not the clien
   }
 });
 
-test('member email: invite sends the invite email for a never-signed-in member', async () => {
+test('member email: invite sends the Supabase invite to an unconfirmed, never-signed-in login', async () => {
   const fetch = mockFetch(route());
   try {
     const r = await onRequestPost({
@@ -126,6 +126,7 @@ test('member email: invite sends the invite email for a never-signed-in member',
       env: fakeEnv(),
     });
     assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { ok: true, action: 'invite', delivered: 'invite' });
     const calls = emailCalls(fetch);
     assert.equal(calls.length, 1);
     const u = new URL(calls[0].url);
@@ -138,49 +139,113 @@ test('member email: invite sends the invite email for a never-signed-in member',
   }
 });
 
-test('member email: invite for an already-confirmed login -> 409 pointing at reset', async () => {
-  const fetch = mockFetch(
-    route({
-      authUser: { id: 'm1', email_confirmed_at: '2026-01-01T00:00:00Z', last_sign_in_at: null },
-    }),
-  );
-  try {
-    const r = await onRequestPost({
-      request: adminReq({ member_id: 'm1', action: 'invite' }),
-      env: fakeEnv(),
+const RECOVERY_REDIRECT = 'https://caaci.example/account/?recovery=1';
+
+test('member email: invite for a confirmed or signed-in login sends the password-setup email instead', async () => {
+  const states = {
+    email_confirmed_at: { email_confirmed_at: '2026-01-01T00:00:00Z', last_sign_in_at: null },
+    confirmed_at: {
+      email_confirmed_at: null,
+      confirmed_at: '2026-01-01T00:00:00Z',
+      last_sign_in_at: null,
+    },
+    'signed in but unconfirmed': {
+      email_confirmed_at: null,
+      last_sign_in_at: '2026-02-01T00:00:00Z',
+    },
+  };
+  for (const [label, state] of Object.entries(states)) {
+    const { status, body, calls } = await send('invite', {
+      member: { id: 'm1', email: 'attacker@evil.com' },
+      authUser: { id: 'm1', email: 'mei@x.com', ...state },
     });
-    assert.equal(r.status, 409);
-    assert.match((await r.json()).error, /reset/i);
-    assert.equal(emailCalls(fetch).length, 0);
-  } finally {
-    fetch.restore();
+    assert.equal(status, 200, label);
+    assert.deepEqual(body, { ok: true, action: 'invite', delivered: 'password_setup' }, label);
+    assert.equal(calls.length, 1, `${label}: one email, no invite call`);
+    const u = new URL(calls[0].url);
+    assert.equal(u.origin + u.pathname, 'https://db.example/auth/v1/recover', label);
+    assert.equal(u.searchParams.get('redirect_to'), RECOVERY_REDIRECT, label);
+    assert.deepEqual(JSON.parse(calls[0].options.body), { email: 'mei@x.com' }, label);
   }
 });
 
-test('member email: GoTrue refusing the invite as already registered -> 409', async () => {
-  const fetch = mockFetch(
-    route({
-      invite: {
-        status: 422,
-        body: {
-          code: 422,
-          error_code: 'email_exists',
-          msg: 'A user with this email address has already been registered',
-        },
+test('member email: an invite refused as already registered falls back to one password-setup email', async () => {
+  const refusals = {
+    'legacy error_code': {
+      status: 422,
+      body: {
+        code: 422,
+        error_code: 'email_exists',
+        msg: 'A user with this email address has already been registered',
       },
-    }),
-  );
-  try {
-    const r = await onRequestPost({
-      request: adminReq({ member_id: 'm1', action: 'invite' }),
-      env: fakeEnv(),
-    });
-    assert.equal(r.status, 409);
-    assert.match((await r.json()).error, /reset/i);
-  } finally {
-    fetch.restore();
+    },
+    'new-shape email_exists': { status: 422, body: { code: 'email_exists', message: 'x' } },
+    user_already_exists: { status: 422, body: { code: 'user_already_exists', message: 'x' } },
+    'message only': {
+      status: 400,
+      body: { msg: 'A user with this email address has already been registered' },
+    },
+  };
+  for (const [label, invite] of Object.entries(refusals)) {
+    const { status, body, calls } = await send('invite', { invite });
+    assert.equal(status, 200, label);
+    assert.deepEqual(body, { ok: true, action: 'invite', delivered: 'password_setup' }, label);
+    assert.deepEqual(
+      calls.map((c) => new URL(c.url).pathname),
+      ['/auth/v1/invite', '/auth/v1/recover'],
+      label,
+    );
+    assert.equal(new URL(calls[1].url).searchParams.get('redirect_to'), RECOVERY_REDIRECT, label);
+    assert.deepEqual(JSON.parse(calls[1].options.body), { email: 'mei@x.com' }, label);
   }
 });
+
+test('member email: invite keeps the 429 and 502 mapping on whichever email it sends', async () => {
+  const rateLimited = {
+    status: 429,
+    body: { code: 429, error_code: 'over_email_send_rate_limit', msg: 'wait 42 seconds' },
+  };
+  const refused = { status: 422, body: { code: 'email_exists', message: 'x' } };
+  const confirmed = { id: 'm1', email: 'mei@x.com', email_confirmed_at: '2026-01-01T00:00:00Z' };
+
+  const setupLimited = await send('invite', { authUser: confirmed, recover: rateLimited });
+  assert.equal(setupLimited.status, 429);
+  assert.equal(setupLimited.calls.length, 1);
+
+  const inviteLimited = await send('invite', { invite: rateLimited });
+  assert.equal(inviteLimited.status, 429);
+  assert.equal(inviteLimited.calls.length, 1, 'a rate limit is not an already-registered refusal');
+
+  const fallbackLimited = await send('invite', { invite: refused, recover: rateLimited });
+  assert.equal(fallbackLimited.status, 429);
+  assert.equal(fallbackLimited.calls.length, 2);
+
+  const fallbackBroken = await send('invite', {
+    invite: refused,
+    recover: { status: 500, body: { code: 500, msg: 'boom re_SECRET123' } },
+  });
+  assert.equal(fallbackBroken.status, 502);
+  assert.doesNotMatch(JSON.stringify(fallbackBroken.body), /SECRET|boom|already/);
+  assert.equal(fallbackBroken.calls.length, 2, 'falls back once, never loops');
+});
+
+test(
+  'member email: invite and its recover fallback are both refused as already-registered -> one 502, no retry loop',
+  { timeout: 2000 },
+  async () => {
+    const alreadyRegistered = { status: 422, body: { code: 'email_exists' } };
+    const { status, calls } = await send('invite', {
+      invite: alreadyRegistered,
+      recover: alreadyRegistered,
+    });
+    assert.equal(status, 502);
+    assert.deepEqual(
+      calls.map((c) => new URL(c.url).pathname),
+      ['/auth/v1/invite', '/auth/v1/recover'],
+      'falls back once from invite to recover, then stops',
+    );
+  },
+);
 
 test('member email: upstream rate limit -> 429 with a readable message', async () => {
   const fetch = mockFetch(
@@ -268,24 +333,6 @@ test('member email: a rate-limit code alone (non-429 status) -> 429', async () =
     recover: { status: 400, body: { code: 'over_email_send_rate_limit', message: 'x' } },
   });
   assert.equal(status, 429);
-});
-
-test('member email: a new-shape email_exists code alone -> 409', async () => {
-  const { status, body } = await send('invite', {
-    invite: { status: 422, body: { code: 'email_exists', message: 'x' } },
-  });
-  assert.equal(status, 409);
-  assert.match(body.error, /reset/i);
-});
-
-test('member email: an "already been registered" message alone -> 409', async () => {
-  const { status } = await send('invite', {
-    invite: {
-      status: 400,
-      body: { msg: 'A user with this email address has already been registered' },
-    },
-  });
-  assert.equal(status, 409);
 });
 
 test('member email: a JSON null error body is mapped, not thrown', async () => {
