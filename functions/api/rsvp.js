@@ -25,6 +25,11 @@ export async function onRequestPost({ request, env }) {
   if (!user?.id) return bad('You must be logged in to RSVP.', 401);
 
   try {
+    // The insert below uses the service-role key (bypasses RLS), so gate on the
+    // event being real and published here — this endpoint is the only rsvps write path.
+    const event = await sb(env).selectOne('events', { id: b.event_id }, 'id,published');
+    if (!event || event.published !== true) return bad('Event not found.', 404);
+
     await sb(env).insert(
       'rsvps',
       {

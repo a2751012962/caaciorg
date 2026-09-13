@@ -3,10 +3,16 @@ import assert from 'node:assert/strict';
 import { onRequestPost } from '../functions/api/rsvp.js';
 import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
 
-// Routes the auth lookup (valid token -> user) and the rsvps insert.
-function route({ user = { id: 'u1' }, insert = { body: '' } } = {}) {
+// Routes the auth lookup (valid token -> user), the events lookup (null -> no
+// row), and the rsvps insert.
+function route({
+  user = { id: 'u1' },
+  event = { id: 'e1', published: true },
+  insert = { body: '' },
+} = {}) {
   return (url) => {
     if (url.includes('/auth/v1/user')) return user ? { body: user } : { ok: false, status: 401 };
+    if (url.includes('/rest/v1/events')) return { body: event ? [event] : [] };
     if (url.includes('/rest/v1/rsvps')) return insert;
     return { body: {} };
   };
@@ -48,7 +54,33 @@ test('rsvp: no/invalid token -> 401', async () => {
   }
 });
 
-test('rsvp: valid token inserts with guests clamped to >= 0', async () => {
+for (const [label, event] of [
+  ['unpublished event', { id: 'e1', published: false }],
+  ['nonexistent event', null],
+]) {
+  test(`rsvp: ${label} -> 404 and no insert`, async () => {
+    const fetch = mockFetch(route({ event }));
+    try {
+      const r = await onRequestPost({
+        request: fakeRequest({
+          body: { event_id: 'e1' },
+          headers: { authorization: 'Bearer good' },
+        }),
+        env: fakeEnv(),
+      });
+      assert.equal(r.status, 404);
+      assert.deepEqual(await r.json(), { error: 'Event not found.' });
+      assert.equal(
+        fetch.calls.some((c) => c.url.includes('/rest/v1/rsvps')),
+        false,
+      );
+    } finally {
+      fetch.restore();
+    }
+  });
+}
+
+test('rsvp: published event, valid token inserts with guests clamped to >= 0', async () => {
   const fetch = mockFetch(route());
   try {
     const r = await onRequestPost({
@@ -60,6 +92,8 @@ test('rsvp: valid token inserts with guests clamped to >= 0', async () => {
     });
     assert.equal(r.status, 200);
     assert.deepEqual(await r.json(), { ok: true });
+    const lookup = fetch.calls.find((c) => c.url.includes('/rest/v1/events'));
+    assert.match(lookup.url, /select=id,published&id=eq\.e1/);
     const insert = fetch.calls.find((c) => c.url.includes('/rest/v1/rsvps'));
     const row = JSON.parse(insert.options.body);
     assert.equal(row.event_id, 'e1');
