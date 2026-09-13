@@ -234,7 +234,7 @@ test('admin events: lists and re-reads the Chinese title, questions and gift nam
   }
 });
 
-test('admin events: each listed event carries its registration_count, from one read', async () => {
+test('admin events: each listed event carries its registration_count', async () => {
   const fetch = mockFetch((u, o) =>
     u.includes('/rest/v1/event_registrations')
       ? { body: [{ event_id: 'e1' }, { event_id: 'e1' }, { event_id: 'other' }] }
@@ -253,8 +253,71 @@ test('admin events: each listed event carries its registration_count, from one r
     );
     assert.equal(data.total, 2);
     const reads = fetch.calls.filter((c) => c.url.includes('/rest/v1/event_registrations'));
-    assert.equal(reads.length, 1);
-    assert.match(reads[0].url, /\?select=event_id&event_id=in\.\(e1,e2\)&limit=10000/);
+    assert.equal(reads.length, 1, 'a short first page is the last');
+    const params = new URL(reads[0].url).searchParams;
+    assert.equal(params.get('select'), 'event_id');
+    assert.equal(params.get('event_id'), 'in.(e1,e2)');
+    assert.equal(params.get('order'), 'id');
+    assert.equal(params.get('limit'), '1000');
+    assert.equal(params.get('offset'), '0');
+  } finally {
+    fetch.restore();
+  }
+});
+
+// PostgREST caps a response at max_rows (1000 by default) whatever limit is
+// asked for, so a count from one read would stop at 1000.
+test('admin events: registration_count pages through registrations 1000 at a time, in id order', async () => {
+  const regsAt = (offset) =>
+    offset === 0
+      ? [
+          ...Array.from({ length: 600 }, () => ({ event_id: 'e1' })),
+          ...Array.from({ length: 400 }, () => ({ event_id: 'e2' })),
+        ]
+      : offset === 1000
+        ? [{ event_id: 'e1' }, { event_id: 'e1' }, { event_id: 'e1' }, { event_id: 'gone' }]
+        : [];
+  const fetch = mockFetch((u, o) =>
+    u.includes('/rest/v1/event_registrations')
+      ? { body: regsAt(Number(new URL(u).searchParams.get('offset'))) }
+      : route()(u, o),
+  );
+  try {
+    const data = await (await onRequestGet({ request: authed(), env: fakeEnv() })).json();
+    assert.deepEqual(
+      data.rows.map((x) => [x.id, x.registration_count]),
+      [
+        ['e1', 603],
+        ['e2', 400],
+      ],
+    );
+    const reads = fetch.calls
+      .filter((c) => c.url.includes('/rest/v1/event_registrations'))
+      .map((c) => new URL(c.url).searchParams);
+    assert.deepEqual(
+      reads.map((p) => [p.get('offset'), p.get('limit'), p.get('order')]),
+      [
+        ['0', '1000', 'id'],
+        ['1000', '1000', 'id'],
+      ],
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: registration_count stops after 20 full pages', async () => {
+  const full = Array.from({ length: 1000 }, () => ({ event_id: 'e1' }));
+  const fetch = mockFetch((u, o) =>
+    u.includes('/rest/v1/event_registrations') ? { body: full } : route()(u, o),
+  );
+  try {
+    const r = await onRequestGet({ request: authed(), env: fakeEnv() });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).rows[0].registration_count, 20000);
+    const reads = fetch.calls.filter((c) => c.url.includes('/rest/v1/event_registrations'));
+    assert.equal(reads.length, 20);
+    assert.equal(new URL(reads.at(-1).url).searchParams.get('offset'), '19000');
   } finally {
     fetch.restore();
   }

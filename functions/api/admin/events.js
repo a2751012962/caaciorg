@@ -16,7 +16,10 @@ import { json, bad, sb, requireAdmin } from '../_lib.js';
 import { validateQuestions } from '../_event-form.js';
 
 const MAX_LIMIT = 50;
-const MAX_COUNTED = 10000; // registrations read to count a page of events
+// Registrations are counted a page at a time: PostgREST caps every response
+// at max_rows (1000 by default), so one large limit would silently undercount.
+const COUNT_PAGE = 1000;
+const COUNT_MAX_PAGES = 20;
 const COLUMNS =
   'id,title,title_zh,slug,description,starts_at,ends_at,location,image_url,published,perk_deadline,perk_item_zh,perk_item_en,registration_questions,created_at';
 
@@ -122,16 +125,23 @@ export async function onRequestGet({ request, env }) {
       offset,
       count: 'exact',
     });
-    // One read of the page's registrations (event ids only), counted here.
+    // The page's registrations (event ids only), counted here. Ordered by id so
+    // pages neither skip nor repeat a row; a short page is the last.
     const counts = new Map(rows.map((r) => [r.id, 0]));
     if (rows.length) {
-      const { rows: regs } = await DB.select('event_registrations', {
-        columns: 'event_id',
-        filters: [`event_id=in.(${rows.map((r) => encodeURIComponent(r.id)).join(',')})`],
-        limit: MAX_COUNTED,
-      });
-      for (const { event_id } of regs)
-        if (counts.has(event_id)) counts.set(event_id, counts.get(event_id) + 1);
+      const filters = [`event_id=in.(${rows.map((r) => encodeURIComponent(r.id)).join(',')})`];
+      for (let page = 0; page < COUNT_MAX_PAGES; page++) {
+        const { rows: regs } = await DB.select('event_registrations', {
+          columns: 'event_id',
+          filters,
+          order: 'id',
+          limit: COUNT_PAGE,
+          offset: page * COUNT_PAGE,
+        });
+        for (const { event_id } of regs)
+          if (counts.has(event_id)) counts.set(event_id, counts.get(event_id) + 1);
+        if (regs.length < COUNT_PAGE) break;
+      }
     }
     return json({
       rows: rows.map((r) => ({ ...r, registration_count: counts.get(r.id) })),
