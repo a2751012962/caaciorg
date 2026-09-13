@@ -166,6 +166,56 @@ test('verify: a member with no plan and no family is still not valid', async () 
   assert.match(await verifyPage({ member: null }), /NOT VALID/);
 });
 
+// This code deploys before 0017 is applied, so the family lookup can fail with a
+// PostgREST error (42703 on a column the migration adds). The member's own plan
+// then decides, and a failed lookup is never reported VALID.
+const MISSING_COLUMN = {
+  status: 400,
+  body: {
+    code: '42703',
+    details: null,
+    hint: null,
+    message: 'column households.founder_member_id does not exist',
+  },
+};
+
+test('verify: before 0017, a failing family lookup leaves the member’s own plan in charge', async () => {
+  const cases = [
+    [
+      'own active plan',
+      joined({ tier_id: 'individual', status: 'active', expires_at: FAMILY_UNTIL }),
+      true,
+    ],
+    ['family plan only', joined(), false],
+  ];
+  for (const [what, member, valid] of cases) {
+    const fetch = mockFetch((u) => {
+      const path = new URL(u).pathname;
+      if (path.endsWith('/membership_tiers')) return { body: [{ name: 'Individual Membership' }] };
+      if (path.endsWith('/households')) return MISSING_COLUMN;
+      if (path.endsWith('/members')) return { body: [member] };
+      return {};
+    });
+    try {
+      const r = await onRequestGet({ request: fakeRequest({ url: url(UUID) }), env: fakeEnv() });
+      assert.equal(r.status, 200, what);
+      const html = await r.text();
+      if (valid) {
+        assert.match(html, /VALID MEMBER/, what);
+        assert.doesNotMatch(html, /NOT VALID/, what);
+      } else {
+        assert.match(html, /NOT VALID/, what);
+        assert.ok(
+          fetch.calls.some((c) => c.url.includes('/rest/v1/households')),
+          'the failing family lookup was really reached',
+        );
+      }
+    } finally {
+      fetch.restore();
+    }
+  }
+});
+
 test('verify: a malformed id never hits the database', async () => {
   const fetch = mockFetch(route(null));
   try {

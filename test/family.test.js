@@ -1430,6 +1430,55 @@ test('remove_person: two concurrent removals cannot leave the founder alone', as
   assert.equal(s.household_members.filter((p) => p.household_id === H && !p.member_id).length, 1);
 });
 
+test('GET and POST /api/family answer clean JSON errors before 0017 is applied', async () => {
+  const missingColumn = {
+    status: 400,
+    body: { code: '42703', message: 'column households.founder_member_id does not exist' },
+  };
+  const missingTable = {
+    status: 404,
+    body: {
+      code: 'PGRST205',
+      message: "Could not find the table 'public.household_invites' in the schema cache",
+    },
+  };
+  const cases = [
+    ['in a family', world(), '/households', missingColumn, { action: 'invite', email: 'n@x.com' }],
+    [
+      'in no family',
+      as(world(), I),
+      '/household_invites',
+      missingTable,
+      { action: 'decline_invite', invite_id: uid(5) },
+    ],
+  ];
+  for (const [who, s, table, failure, postBody] of cases) {
+    const base = backend(s);
+    const fetch = mockFetch((u, o) => (new URL(u).pathname.endsWith(table) ? failure : base(u, o)));
+    try {
+      for (const [handler, body] of [
+        [onRequestGet, undefined],
+        [onRequestPost, postBody],
+      ]) {
+        const r = await handler({
+          request: fakeRequest({
+            url: 'https://caaci.example/api/family',
+            headers: { authorization: 'Bearer tok' },
+            body,
+          }),
+          env: fakeEnv(),
+        });
+        assert.equal(r.status, 502, `${who} ${handler.name}`);
+        const data = await r.json();
+        assert.equal(typeof data.error, 'string', who);
+        assert.doesNotMatch(data.error, /founder_member_id|PGRST|42703|schema cache/, who);
+      }
+    } finally {
+      fetch.restore();
+    }
+  }
+});
+
 test('authAdmin.updateUserMetadata PUTs only the given user_metadata keys', async () => {
   const fetch = mockFetch(() => ({ body: {} }));
   try {

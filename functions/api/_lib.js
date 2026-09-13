@@ -350,6 +350,17 @@ export async function effectiveMembership(DB, memberId) {
   if (m.tier_id && m.status === 'active' && liveUntil(m))
     return { member: m, tier_id: m.tier_id, expires_at: m.expires_at };
   if (!m.household_id) return null;
+  // Before 0017 is applied a family lookup can fail (a PostgREST error on a
+  // column or table it adds). The member's own plan, not valid above, decides:
+  // a failed lookup is never a valid card.
+  try {
+    return await familyPlan(DB, m);
+  } catch {
+    return null;
+  }
+}
+
+async function familyPlan(DB, m) {
   const h = await DB.selectOne('households', { id: m.household_id }, '*');
   if (!h || h.status === 'cancelled') return null;
   if (h.founder_member_id) {

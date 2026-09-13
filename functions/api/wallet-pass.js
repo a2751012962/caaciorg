@@ -239,8 +239,9 @@ export async function onRequestPost({ request, env }) {
         'cache-control': 'no-store',
       },
     });
-  } catch (e) {
-    return bad(e.message, 500);
+  } catch {
+    // Never echo an upstream (e.g. PostgREST) error to the member.
+    return bad('Your Wallet pass could not be created right now. Please try again later.', 500);
   }
 }
 

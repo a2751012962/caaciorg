@@ -175,6 +175,33 @@ test('wallet-pass: a joined family member is refused when the family plan is not
   }
 });
 
+test('wallet-pass: before 0017, a failing family lookup gives a family-only member 403, not 500', async () => {
+  const routeWith = (member) => (u) => {
+    const path = new URL(u).pathname;
+    if (path === '/auth/v1/user') return { body: { id: UUID } };
+    if (path.endsWith('/membership_tiers')) return { body: [{ name: 'Individual Membership' }] };
+    if (path.endsWith('/households'))
+      return {
+        status: 400,
+        body: { code: '42703', message: 'column households.founder_member_id does not exist' },
+      };
+    if (path.endsWith('/members')) return { body: [member] };
+    return {};
+  };
+  const familyOnly = {
+    id: UUID,
+    full_name: 'Kid Lin',
+    email: 'kid@x.com',
+    tier_id: null,
+    status: 'pending',
+    expires_at: null,
+    household_id: HOUSE,
+  };
+  assert.equal((await requestPass(routeWith(familyOnly))).status, 403);
+  const own = { ...familyOnly, tier_id: 'individual', status: 'active', expires_at: FAMILY_UNTIL };
+  assert.equal((await requestPass(routeWith(own))).status, 200);
+});
+
 test('wallet-pass: a signed-in user with no membership row is refused', async () => {
   const r = await requestPass((u) =>
     u.includes('/auth/v1/user') ? { body: { id: UUID } } : { body: [] },
