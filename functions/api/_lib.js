@@ -191,6 +191,20 @@ export function authAdmin(env) {
       });
       if (!r.ok) throw new Error(`update user: ${r.status}`);
     },
+    // Change login attributes (password, email_confirm, …) as the service role.
+    // Resolves to { ok, status, code, message } like the email sends, so a
+    // caller can pass GoTrue's weak_password answer on instead of a bare 500.
+    async updateUser(id, attrs) {
+      const r = await fetch(`${base}/auth/v1/admin/users/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(attrs),
+      });
+      if (r.ok) return { ok: true, status: r.status, code: '', message: '' };
+      const data = (await r.json().catch(() => null)) || {};
+      const code = data.error_code || (typeof data.code === 'string' ? data.code : '');
+      return { ok: false, status: r.status, code, message: data.msg || data.message || '' };
+    },
     async createUser(attrs) {
       const r = await fetch(`${base}/auth/v1/admin/users`, {
         method: 'POST',
