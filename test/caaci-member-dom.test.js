@@ -23,6 +23,7 @@ function setup(page, { search = '', hash = '' } = {}) {
   globalThis.Event = dom.window.Event;
   globalThis.Image = dom.window.Image;
   globalThis.localStorage = dom.window.localStorage;
+  globalThis.sessionStorage = dom.window.sessionStorage;
   globalThis.location = {
     pathname: `/${page}/`,
     origin: 'https://caaci.example',
@@ -1507,4 +1508,34 @@ test('account page: a dead reset link points a signed-in member to Account secur
     'the sign-in page would only bounce them back here',
   );
   assert.ok(q('#caaci-security'), 'the account still renders below');
+});
+
+test('login page: ?signup=1 opens the signup card with the email an event form handed over, once', async () => {
+  setup('login', { search: '?signup=1&next=%2Fmid_autumn_festival_form%2F' });
+  sessionStorage.setItem('caaci-signup-email', 'mei@x.com');
+  const stub = supaStub();
+  member.__setSupa(stub);
+  await member.wireAuthPage();
+  assert.equal(q('#caaci-signup-card').hidden, false);
+  assert.equal(q('#caaci-show-signup').getAttribute('aria-expanded'), 'true');
+  assert.equal(document.activeElement, q('#caaci-su-name'));
+  assert.equal(q('#caaci-su-email').value, 'mei@x.com');
+  assert.equal(sessionStorage.getItem('caaci-signup-email'), null, 'the handover is read once');
+
+  // The confirmation link brings them back to the form they came from.
+  q('#caaci-su-name').value = 'Mei Lin';
+  q('#caaci-su-pwd').value = 'longenough1';
+  q('#caaci-su-pwd2').value = 'longenough1';
+  q('#caaci-signup-form').dispatchEvent(new Event('submit'));
+  await tick();
+  const [[{ email, options }]] = callsTo(stub, 'signUp');
+  assert.equal(email, 'mei@x.com');
+  assert.equal(options.emailRedirectTo, 'https://caaci.example/mid_autumn_festival_form/');
+
+  // Without ?signup=1 the card stays closed, and there is nothing to prefill.
+  setup('login');
+  member.__setSupa(supaStub());
+  await member.wireAuthPage();
+  assert.equal(q('#caaci-signup-card').hidden, true);
+  assert.equal(q('#caaci-su-email').value, '');
 });
