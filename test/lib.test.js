@@ -89,6 +89,38 @@ test('sb().insert throws on a non-ok response', async () => {
   }
 });
 
+test('sb().upsert posts on_conflict with the merge-duplicates preference and returns rows', async () => {
+  const fetch = mockFetch(() => ({ body: [{ id: 'r1', created_at: '2026-09-01T00:00:00Z' }] }));
+  try {
+    const rows = await sb(fakeEnv()).upsert(
+      'event_registrations',
+      { event_id: 'e1', email: 'a@x.com' },
+      { onConflict: 'event_id,email' },
+    );
+    assert.deepEqual(rows, [{ id: 'r1', created_at: '2026-09-01T00:00:00Z' }]);
+    const { url, options } = fetch.calls[0];
+    assert.equal(url, 'https://db.example/rest/v1/event_registrations?on_conflict=event_id,email');
+    assert.equal(options.method, 'POST');
+    assert.equal(options.headers.apikey, 'service-key');
+    assert.equal(options.headers.prefer, 'resolution=merge-duplicates,return=representation');
+    assert.deepEqual(JSON.parse(options.body), { event_id: 'e1', email: 'a@x.com' });
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('sb().upsert throws on a non-ok response', async () => {
+  const fetch = mockFetch(() => ({ ok: false, status: 400, body: 'no unique constraint' }));
+  try {
+    await assert.rejects(
+      sb(fakeEnv()).upsert('event_registrations', {}, { onConflict: 'event_id,email' }),
+      /supabase upsert event_registrations: 400 no unique constraint/,
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('sb().update builds an eq filter with URL-encoded values', async () => {
   const fetch = mockFetch(() => ({ body: '' }));
   try {
@@ -143,6 +175,70 @@ test('sendEmail posts to Resend with reply_to when configured', async () => {
     assert.equal(sent.subject, 'Hi');
     assert.equal(sent.reply_to, 'c@x.com');
     assert.equal(sent.from, 'a@x.com');
+    assert.equal(sent.to, 'b@x.com');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('sendEmail without `to` is still a no-op when NOTIFY_TO is unset', async () => {
+  const fetch = mockFetch(() => ({}));
+  try {
+    await sendEmail(fakeEnv({ RESEND_API_KEY: 're_1', NOTIFY_FROM: 'a@x.com' }), {
+      subject: 's',
+      html: 'h',
+    });
+    assert.equal(fetch.calls.length, 0);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('sendEmail with `to` sends there, needing only RESEND_API_KEY and NOTIFY_FROM', async () => {
+  const fetch = mockFetch(() => ({ body: { id: 'email_2' } }));
+  try {
+    await sendEmail(fakeEnv({ RESEND_API_KEY: 're_1', NOTIFY_FROM: 'a@x.com' }), {
+      subject: 'Registered',
+      html: '<p>ok</p>',
+      to: 'guest@x.com',
+    });
+    assert.equal(fetch.calls.length, 1);
+    const sent = JSON.parse(fetch.calls[0].options.body);
+    assert.equal(sent.to, 'guest@x.com');
+    assert.equal(sent.from, 'a@x.com');
+    assert.equal('reply_to' in sent, false);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('sendEmail with `to` goes to that address, not NOTIFY_TO, even when NOTIFY_TO is set', async () => {
+  const fetch = mockFetch(() => ({ body: { id: 'email_3' } }));
+  try {
+    await sendEmail(
+      fakeEnv({ RESEND_API_KEY: 're_1', NOTIFY_FROM: 'a@x.com', NOTIFY_TO: 'staff@x.com' }),
+      { subject: 's', html: 'h', to: 'guest@x.com' },
+    );
+    assert.equal(JSON.parse(fetch.calls[0].options.body).to, 'guest@x.com');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('sendEmail with `to` is a no-op when RESEND_API_KEY or NOTIFY_FROM is unset', async () => {
+  const fetch = mockFetch(() => ({}));
+  try {
+    await sendEmail(fakeEnv({ NOTIFY_FROM: 'a@x.com' }), {
+      subject: 's',
+      html: 'h',
+      to: 'g@x.com',
+    });
+    await sendEmail(fakeEnv({ RESEND_API_KEY: 're_1' }), {
+      subject: 's',
+      html: 'h',
+      to: 'g@x.com',
+    });
+    assert.equal(fetch.calls.length, 0);
   } finally {
     fetch.restore();
   }

@@ -28,6 +28,19 @@ export function sb(env) {
       if (!r.ok) throw new Error(`supabase insert ${table}: ${r.status} ${await r.text()}`);
       return returning ? r.json() : null;
     },
+    // Insert, or merge into the row that already holds the same `onConflict`
+    // key (e.g. 'event_id,email' — needs a unique constraint on exactly those
+    // columns). Only the columns present in `row` are overwritten on a conflict,
+    // so leaving one out (e.g. created_at) keeps its stored value. Returns rows.
+    async upsert(table, row, { onConflict } = {}) {
+      const r = await fetch(`${base}/rest/v1/${table}?on_conflict=${onConflict}`, {
+        method: 'POST',
+        headers: { ...headers, prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify(row),
+      });
+      if (!r.ok) throw new Error(`supabase upsert ${table}: ${r.status} ${await r.text()}`);
+      return r.json();
+    },
     async update(table, match, patch) {
       const qs = Object.entries(match)
         .map(([k, v]) => `${k}=eq.${encodeURIComponent(v)}`)
@@ -331,15 +344,18 @@ export async function activateFreeTier(DB, memberId, tier, member = null) {
   return { ok: true };
 }
 
-// Send a notification email (Resend by default; falls back to no-op if unset).
-export async function sendEmail(env, { subject, html, replyTo }) {
-  if (!env.RESEND_API_KEY || !env.NOTIFY_FROM || !env.NOTIFY_TO) return; // not configured
+// Send an email (Resend by default; falls back to no-op if unset). Without `to`
+// it is a staff notification to NOTIFY_TO; with `to` (e.g. a registrant's
+// confirmation) only RESEND_API_KEY and NOTIFY_FROM are needed.
+export async function sendEmail(env, { subject, html, replyTo, to }) {
+  const recipient = to || env.NOTIFY_TO;
+  if (!env.RESEND_API_KEY || !env.NOTIFY_FROM || !recipient) return; // not configured
   await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
     body: JSON.stringify({
       from: env.NOTIFY_FROM,
-      to: env.NOTIFY_TO,
+      to: recipient,
       subject,
       html,
       ...(replyTo ? { reply_to: replyTo } : {}),
