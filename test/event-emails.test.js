@@ -146,8 +146,8 @@ test('announcement: the mooncake renders the approved Mid-Autumn copy exactly', 
     '免费领月饼',
     '9月27日下午2点（美国中部时间）前报名，并免费注册一个 CAACI 网站账户，活动当天就能在现场免费领一份月饼。',
     '不注册账户也可以报名参加活动，只是领不到月饼。',
-    'Register and create a free CAACI website account by September 27, 2:00 PM Central Time, and pick up a free mooncake at the festival.',
-    "You can register for the festival without an account — you just won't get a mooncake.",
+    'Register and create a free CAACI website account by September 27, 2:00 PM Central Time, and pick up your free mooncake at the event.',
+    "You can register without an account — you just won't get the free mooncake.",
   ]) {
     assert.ok(body.includes(approved), approved);
   }
@@ -251,8 +251,8 @@ test('announcement: another gift and event use the same sentences with their own
   );
   assert.ok(body.includes('免费领雨伞 · Free umbrella'));
   assert.ok(body.includes('活动当天就能在现场免费领一份雨伞。'));
-  assert.ok(body.includes('and pick up a free umbrella at the event.'));
-  assert.ok(body.includes("you just won't get an umbrella."));
+  assert.ok(body.includes('and pick up your free umbrella at the event.'));
+  assert.ok(body.includes("you just won't get the free umbrella."));
   assert.equal(
     announce({ event: { ...MID_AUTUMN, title: 'Summer Picnic', title_zh: null } }).subject,
     'Summer Picnic · Summer Picnic 报名开始 / Registration open',
@@ -354,17 +354,17 @@ test('confirmation: unlinked, the gift box offers a sign-up link built from the 
   );
   assert.ok(
     body.includes(
-      'Create a free CAACI website account with this email by September 27, 2:00 PM Central Time, and pick up a free mooncake at the festival.',
+      'Create a free CAACI website account with this email by September 27, 2:00 PM Central Time, and pick up your free mooncake at the event.',
     ),
   );
   assert.match(html, /href="https:\/\/beta\.caaciorg\.com\/login-3\/"/);
   assert.match(html, />beta\.caaciorg\.com<\/a>/, 'footer host follows the origin');
-  assert.equal(html.includes('counts for a free mooncake'), false);
+  assert.equal(html.includes('counts for your free mooncake'), false);
 });
 
 test('confirmation: linked, the gift box says it counts and offers no sign-up link', () => {
   const { html } = confirm({ linked: true });
-  assert.match(html, /counts for a free mooncake at the festival/);
+  assert.match(html, /counts for your free mooncake at the event/);
   assert.match(html, /你的报名已关联你的 CAACI 账户/);
   assert.equal(html.includes('/login-3/'), false);
 });

@@ -49,7 +49,9 @@ async function walk(dir, out = []) {
 }
 
 console.log('Cleaning dist/…');
-await rm(DIST, { recursive: true, force: true });
+// The same transient Windows locks as writeFile above (a test that just ran a
+// build, Defender scanning the output) can make the delete fail with EBUSY.
+await rm(DIST, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 await cp(MIRROR, DIST, { recursive: true });
 
 // Public runtime config — ONLY the public anon values are exposed to the browser.

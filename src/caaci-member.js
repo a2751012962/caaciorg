@@ -2706,12 +2706,6 @@ export async function wireEventFormPage() {
     if (box && e.target.value.trim()) box.checked = true;
   });
 
-  // The gift's wording says "festival" for an event whose title says it is
-  // one, so that 月饼 / mooncake at the Mid-Autumn Festival reads word for word
-  // as the copy approved for it, and "event" otherwise.
-  const place = () => (/festival/i.test(ev?.title || '') ? 'festival' : 'event');
-  const article = (word) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
-
   // The callout above the form: the deadline while it is open, "closed" after.
   const renderPerk = () => {
     const box = $('#caaci-ev-perk');
@@ -2732,11 +2726,11 @@ export async function wireEventFormPage() {
       $('#caaci-ev-perk-text'),
       open
         ? t(
-            `Register and create a free CAACI website account${when ? ` by ${when}` : ''}, and pick up a free ${en} at the ${place()}.`,
+            `Register and create a free CAACI website account${when ? ` by ${when}` : ''}, and pick up your free ${en} at the event.`,
             `${when ? `${when}前` : ''}报名，并免费注册一个 CAACI 网站账户，活动当天就能在现场免费领一份${zh}。`,
           )
         : t(
-            `It closed on ${when}. You can still register for the ${place()} below.`,
+            `It closed on ${when}. You can still register below.`,
             `已于${when}截止。您仍可在下方报名参加活动。`,
           ),
     );
@@ -2745,7 +2739,7 @@ export async function wireEventFormPage() {
     setText(
       perkNote,
       t(
-        `You can register for the ${place()} without an account — you just won't get ${article(en)} ${en}.`,
+        `You can register without an account — you just won't get the free ${en}.`,
         `不注册账户也可以报名参加活动，只是领不到${zh}。`,
       ),
     );
@@ -2769,7 +2763,7 @@ export async function wireEventFormPage() {
           `领取免费${zh}还差一步：请在${when}前，用报名时填写的邮箱免费注册 CAACI 账户。`,
         )
       : t(
-          `One more step for a free ${en}: create a free CAACI account with the email you registered with before the ${place()} starts.`,
+          `One more step for a free ${en}: create a free CAACI account with the email you registered with before the event starts.`,
           `领取免费${zh}还差一步：在活动开始前，用报名时填写的邮箱免费注册 CAACI 账户。`,
         );
   };

@@ -87,10 +87,6 @@ export function centralTime(iso, lang) {
   return `${MONTHS[month - 1]} ${day}, ${hour12}:${minute} ${hour >= 12 ? 'PM' : 'AM'} Central Time`;
 }
 
-// What the English copy calls the event: the Mid-Autumn copy says "festival".
-const eventNoun = (event) => (/festival/i.test(event?.title || '') ? 'festival' : 'event');
-const article = (word) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
-
 // ------------------------------------------------------------------ layout ----
 
 function frame(s, inner) {
@@ -194,8 +190,6 @@ function perkBox(event, now, paragraphs) {
   const copy = {
     zh: esc(perk.item_zh),
     en: esc(perk.item_en),
-    a: article(perk.item_en),
-    noun: eventNoun(event),
     whenZh: esc(centralTime(perk.deadline, 'zh')),
     whenEn: esc(centralTime(perk.deadline, 'en')),
   };
@@ -239,9 +233,9 @@ export function registrationConfirmation({
   const perk = perkBox(event, now, (c) =>
     linked
       ? `<p style="margin:0 0 8px;">✓ 你的报名已关联你的 CAACI 账户，活动当天可在现场免费领一份${c.zh}。</p>
-    <p style="margin:0;">✓ Your registration is linked to your CAACI account, so it counts for a free ${c.en} at the ${c.noun}.</p>`
+    <p style="margin:0;">✓ Your registration is linked to your CAACI account, so it counts for your free ${c.en} at the event.</p>`
       : `<p style="margin:0 0 8px;">${c.whenZh}前用此邮箱免费注册一个 CAACI 网站账户，活动当天就能在现场免费领一份${c.zh}。</p>
-    <p style="margin:0 0 16px;">Create a free CAACI website account with this email by ${c.whenEn}, and pick up a free ${c.en} at the ${c.noun}.</p>
+    <p style="margin:0 0 16px;">Create a free CAACI website account with this email by ${c.whenEn}, and pick up your free ${c.en} at the event.</p>
     ${button(`${esc(origin)}/login-3/`, '注册免费账户 · Create a free account')}
     <p style="margin:0;${SMALL}">已经用此邮箱注册过 CAACI 账户？无需其他操作。<br>Already have a CAACI account with this email? You're all set.</p>`,
   );
@@ -264,8 +258,8 @@ export function eventAnnouncement({ origin, logo, event, now = Date.now() }) {
       c,
     ) => `<p style="margin:0 0 8px;">${c.whenZh}前报名，并免费注册一个 CAACI 网站账户，活动当天就能在现场免费领一份${c.zh}。</p>
     <p style="margin:0 0 8px;${SMALL}">不注册账户也可以报名参加活动，只是领不到${c.zh}。</p>
-    <p style="margin:0 0 8px;">Register and create a free CAACI website account by ${c.whenEn}, and pick up a free ${c.en} at the ${c.noun}.</p>
-    <p style="margin:0;${SMALL}">You can register for the ${c.noun} without an account — you just won't get ${c.a} ${c.en}.</p>`,
+    <p style="margin:0 0 8px;">Register and create a free CAACI website account by ${c.whenEn}, and pick up your free ${c.en} at the event.</p>
+    <p style="margin:0;${SMALL}">You can register without an account — you just won't get the free ${c.en}.</p>`,
   );
   const description = String(event.description ?? '').trim();
   return {

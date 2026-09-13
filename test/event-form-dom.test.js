@@ -254,11 +254,11 @@ test('event form: an anonymous visitor registers for the festival, then is sent 
     assert.equal(q('#caaci-ev-perk-title').textContent, 'Free mooncake');
     assert.equal(
       q('#caaci-ev-perk-text').textContent,
-      'Register and create a free CAACI website account by September 27, 2:00 PM Central Time, and pick up a free mooncake at the festival.',
+      'Register and create a free CAACI website account by September 27, 2:00 PM Central Time, and pick up your free mooncake at the event.',
     );
     assert.equal(
       q('#caaci-ev-perk-note').textContent,
-      "You can register for the festival without an account — you just won't get a mooncake.",
+      "You can register without an account — you just won't get the free mooncake.",
     );
     assert.ok(shown('#caaci-ev-perk-note'));
 
@@ -802,11 +802,11 @@ test('event form: the callout names the event\'s own gift, and says "event" unle
     assert.equal(q('#caaci-ev-perk-title').textContent, 'Free umbrella');
     assert.equal(
       q('#caaci-ev-perk-text').textContent,
-      'Register and create a free CAACI website account by September 27, 2:00 PM Central Time, and pick up a free umbrella at the event.',
+      'Register and create a free CAACI website account by September 27, 2:00 PM Central Time, and pick up your free umbrella at the event.',
     );
     assert.equal(
       q('#caaci-ev-perk-note').textContent,
-      "You can register for the event without an account — you just won't get an umbrella.",
+      "You can register without an account — you just won't get the free umbrella.",
     );
     q('#caaci-ev-email').value = 'ann@x.com';
     q('#caaci-ev-q-dishes-o-tea').checked = true;
@@ -1024,7 +1024,7 @@ test('event form: after the gift deadline the callout says mooncake sign-up clos
     assert.equal(q('#caaci-ev-perk-title').textContent, 'Free mooncake sign-up has closed');
     assert.match(perk.textContent, /sign-up has closed/);
     assert.match(perk.textContent, /September 27, 2:00 PM Central Time/);
-    assert.match(perk.textContent, /still register for the festival/);
+    assert.match(perk.textContent, /still register below/);
     assert.equal(q('#caaci-ev-perk-note').hidden, true, 'no "without an account" line once closed');
 
     fillForm();

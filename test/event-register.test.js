@@ -585,7 +585,7 @@ test('event-register POST: a linked first registration is told it counts, with n
     const r = await post(VALID, { headers: { authorization: 'Bearer good' } });
     assert.equal(r.status, 200);
     const { html } = emails(fetch)[0];
-    assert.match(html, /counts for a free mooncake/);
+    assert.match(html, /counts for your free mooncake/);
     assert.equal(html.includes('/login-3/'), false);
   } finally {
     fetch.restore();
@@ -598,7 +598,7 @@ test('event-register POST: signed in but registering another address, the email 
     const r = await post(VALID, { headers: { authorization: 'Bearer good' } });
     assert.equal(r.status, 200);
     const { html } = emails(fetch)[0];
-    assert.equal(/counts for a free mooncake/.test(html), false);
+    assert.equal(/counts for your free mooncake/.test(html), false);
     assert.match(html, /href="https:\/\/beta\.caaciorg\.com\/login-3\/"/);
   } finally {
     fetch.restore();
