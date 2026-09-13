@@ -215,6 +215,18 @@
                     Refunds
                   </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
+                    data-tab="account"
+                    aria-selected="false"
+                    data-en="My account"
+                    data-zh="我的账号"
+                  >
+                    My account
+                  </button>
+                </li>
               </ul>
 
               <!-- ============ Members & Subscriptions ============ -->
@@ -926,6 +938,25 @@
                   </button>
                 </div>
                 <p class="alert m-3" id="caaci-refunds-notice" hidden></p>
+              </section>
+
+              <!-- ============ My account ============ -->
+              <!-- The signed-in admin's own password. Built by wireMyAccount on first
+                   open, through Supabase Auth — no /api/admin endpoint is involved. -->
+              <section class="card" data-panel="account" hidden>
+                <div class="card-header">
+                  <div>
+                    <div class="subheader" data-en="Signed-in administrator" data-zh="当前管理员">
+                      Signed-in administrator
+                    </div>
+                    <h2 class="card-title mb-0" data-en="My password" data-zh="我的密码">
+                      My password
+                    </h2>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <div id="caaci-account-host"></div>
+                </div>
               </section>
             </main>
           </div>

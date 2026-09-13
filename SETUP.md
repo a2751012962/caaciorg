@@ -586,7 +586,14 @@ visit `/admin/` while logged in. The panel provides:
   login account so they can sign in — set a password or leave it blank for a sign-in link),
   **edit** status / tier / expiry / family inline, and **delete** a member (removes their
   login account too). The editor can also **send a password reset or invitation email** to
-  the member's login address (see _Self-service auth & billing_ below). Subscription state is
+  the member's login address (see _Self-service auth & billing_ below), or **set a new
+  password directly** (`/api/admin/member-password`): it works at once with no link, marks
+  the login email confirmed, and emails the member a notice (without the password) through
+  Resend. It refuses administrators — another admin's login and your own — and a member
+  with no login account (send an invitation instead). Residual risk: any admin can still
+  take over a non-admin member's login this way, and nothing is logged — the member's
+  notice email is the only after-the-fact signal, so keep the admin list short (demote
+  test accounts such as `demo@caaci.test` when they are not needed). Subscription state is
   also updated automatically by the Stripe webhook events listed above.
 - **Families** — manage family memberships. A household groups several people under one
   membership: link login accounts via a member's _Family_ field, and add family members who
@@ -629,6 +636,10 @@ visit `/admin/` while logged in. The panel provides:
   charge is resolved from whichever reference the ledger stored (Checkout Session
   for the first year, Invoice for renewals), so staff never handle charge ids.
   Requires migration `0010_refunds.sql`.
+- **My account** — the signed-in admin changes their own password, the same way members do
+  on `/account/`: confirm the current password (a Google/Microsoft-only admin sets a first
+  one), and enter the emailed code if Supabase asks for reauthentication. It talks to
+  Supabase Auth directly; no admin endpoint can change an admin's password.
 
 Apply the admin migrations before using the panel (paste each into the SQL editor, in order —
 see [Applying migrations](#applying-migrations)):
