@@ -22,7 +22,7 @@ import { registrationConfirmation, emailLogo } from './_event-emails.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EVENT_COLUMNS =
-  'id,slug,title,title_zh,description,starts_at,ends_at,location,perk_deadline,perk_item_zh,perk_item_en,registration_questions,published';
+  'id,slug,title,title_zh,description,description_zh,starts_at,ends_at,location,perk_deadline,perk_item_zh,perk_item_en,registration_questions,published';
 
 // The signed-in user behind the bearer token, or null.
 async function optionalUser(request, env) {
@@ -61,6 +61,7 @@ export async function onRequestGet({ request, env }) {
         title: event.title,
         title_zh: event.title_zh ?? null,
         description: event.description,
+        description_zh: event.description_zh ?? null,
         starts_at: event.starts_at,
         ends_at: event.ends_at,
         location: event.location,

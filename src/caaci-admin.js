@@ -2382,6 +2382,7 @@ function eventForm(host, ev) {
         ${imageFieldHtml(edit ? ev.image_url : '')}
       </div>
       ${field(t('Description', '描述'), `<textarea class="form-control" data-f="description" rows="3">${edit ? esc(ev.description || '') : ''}</textarea>`, 'mb-3')}
+      ${field(t('Chinese description (optional)', '中文描述（可选）'), `<textarea class="form-control" data-f="description_zh" rows="3">${edit ? esc(ev.description_zh || '') : ''}</textarea>`, 'mb-3')}
       <label class="form-check"><input type="checkbox" class="form-check-input" data-f="published"${!edit || ev.published ? ' checked' : ''} />
         <span class="form-check-label">${t('Published (publicly visible)', '发布（公开可见）')}</span></label>
       <div class="border-top pt-3 mb-3">
@@ -2427,6 +2428,7 @@ function eventForm(host, ev) {
       perk_item_zh: val('perk_item_zh').value.trim(),
       perk_item_en: val('perk_item_en').value.trim(),
       description: val('description').value.trim(),
+      description_zh: val('description_zh').value.trim(),
       image_url: val('image_url').value.trim(),
       published: val('published').checked,
     };

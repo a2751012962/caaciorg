@@ -215,6 +215,37 @@ test('announcement: every admin-written field is escaped; the description keeps 
   assert.match(html, /\/events\/a%20b\/register\//);
 });
 
+test('announcement: the Chinese description comes first, escaped; one paragraph when only one is set or both match', () => {
+  const paragraphs = (html) => [...html.matchAll(/<p style="margin:0 0 (\d+)px;">([^<]*)<\/p>/g)];
+  const both = announce({
+    event: {
+      ...MID_AUTUMN,
+      description_zh: '月饼 <和> 灯笼',
+      description: 'Mooncakes and lanterns',
+    },
+  }).html;
+  assert.equal(both.includes('<和>'), false);
+  const zhAt = both.indexOf('月饼 &lt;和&gt; 灯笼');
+  assert.ok(zhAt > 0 && zhAt < both.indexOf('Mooncakes and lanterns'), 'Chinese first');
+  assert.deepEqual(
+    paragraphs(both)
+      .filter(([, , text]) => /灯笼|lanterns/.test(text))
+      .map(([, margin]) => margin),
+    ['8', '24'],
+  );
+
+  for (const event of [
+    { ...MID_AUTUMN, description_zh: null },
+    { ...MID_AUTUMN, description_zh: '  ' },
+    { ...MID_AUTUMN, description_zh: 'Mooncakes and lanterns' },
+  ]) {
+    const { html } = announce({ event });
+    assert.equal(html.split('Mooncakes and lanterns').length, 2, 'shown once');
+  }
+  const zhOnly = announce({ event: { ...MID_AUTUMN, description: null, description_zh: '月饼' } });
+  assert.match(zhOnly.html, /<p style="margin:0 0 24px;">月饼<\/p>/);
+});
+
 test('announcement: a title in {{{…}}} is shown as typed, not expanded', () => {
   const { html } = announce({
     event: { ...MID_AUTUMN, title: '{{{PERK_HTML}}} {{{REGISTER_URL}}}' },

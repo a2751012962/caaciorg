@@ -21,7 +21,7 @@ const MAX_LIMIT = 50;
 const COUNT_PAGE = 1000;
 const COUNT_MAX_PAGES = 20;
 const COLUMNS =
-  'id,title,title_zh,slug,description,starts_at,ends_at,location,image_url,published,perk_deadline,perk_item_zh,perk_item_en,registration_questions,created_at';
+  'id,title,title_zh,slug,description,description_zh,starts_at,ends_at,location,image_url,published,perk_deadline,perk_item_zh,perk_item_en,registration_questions,created_at';
 
 const slugify = (s) =>
   String(s || '')
@@ -87,6 +87,8 @@ function parseFields(b) {
     }
   }
   if (b.description !== undefined) patch.description = String(b.description || '').trim() || null;
+  if (b.description_zh !== undefined)
+    patch.description_zh = String(b.description_zh ?? '').trim() || null;
   if (b.location !== undefined) patch.location = String(b.location || '').trim() || null;
   if (b.image_url !== undefined) patch.image_url = String(b.image_url || '').trim() || null;
   if (b.published !== undefined) patch.published = !!b.published;
