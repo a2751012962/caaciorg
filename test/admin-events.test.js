@@ -226,7 +226,13 @@ test('admin events: lists and re-reads the Chinese title, questions and gift nam
     assert.equal(selects.length, 2);
     for (const c of selects) {
       const columns = new URL(c.url).searchParams.get('select').split(',');
-      for (const col of ['title_zh', 'registration_questions', 'perk_item_zh', 'perk_item_en'])
+      for (const col of [
+        'title_zh',
+        'description_zh',
+        'registration_questions',
+        'perk_item_zh',
+        'perk_item_en',
+      ])
         assert.ok(columns.includes(col), col);
     }
   } finally {
@@ -397,14 +403,18 @@ test('admin events: registration_questions are validated and stored normalized, 
   }
 });
 
-test('admin events: title_zh is trimmed, and blank clears it', async () => {
+test('admin events: title_zh and description_zh are trimmed, and blank clears them', async () => {
   const fetch = mockFetch(route());
   try {
     await postPatch({ title_zh: '  中秋节 ' });
     assert.deepEqual(patchBodies(fetch).at(-1), { title_zh: '中秋节' });
+    await postPatch({ description_zh: ' 一起分享月饼。\n' });
+    assert.deepEqual(patchBodies(fetch).at(-1), { description_zh: '一起分享月饼。' });
     for (const empty of ['', '   ', null]) {
       await postPatch({ title_zh: empty });
       assert.deepEqual(patchBodies(fetch).at(-1), { title_zh: null });
+      await postPatch({ description_zh: empty });
+      assert.deepEqual(patchBodies(fetch).at(-1), { description_zh: null });
     }
   } finally {
     fetch.restore();

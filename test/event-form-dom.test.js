@@ -104,6 +104,7 @@ const EVENT = {
   title: 'Mid-Autumn Festival 2099',
   title_zh: '中秋节',
   description: 'Mooncakes under the harvest moon.',
+  description_zh: '在丰收的明月下，一起分享月饼。',
   starts_at: FUTURE,
   ends_at: '2099-09-27T23:00:00Z',
   location: 'Siebel Center for Design',
@@ -232,8 +233,10 @@ test('event form: an anonymous visitor registers for the festival, then is sent 
       assert.equal(q(sel).hidden, true, sel);
     assert.ok(shown('#caaci-ev-form-card'));
 
-    // In English the title is the English one, though the event has title_zh.
+    // In English the title and description are the English ones, though the
+    // event has title_zh and description_zh.
     assert.equal(q('#caaci-ev-title').textContent, 'Mid-Autumn Festival 2099');
+    assert.equal(q('#caaci-ev-desc').textContent, 'Mooncakes under the harvest moon.');
     assert.equal(
       document.title,
       'Mid-Autumn Festival 2099 | Chinese American Association of Central Illinois',
@@ -1051,6 +1054,8 @@ test('event form: in Chinese the title is title_zh, the questions are in Chinese
     member.applyLang();
     await member.wireEventFormPage();
     assert.equal(q('#caaci-ev-title').textContent, '中秋节');
+    assert.equal(q('#caaci-ev-desc').textContent, '在丰收的明月下，一起分享月饼。');
+    assert.ok(shown('#caaci-ev-desc'));
     assert.equal(
       q('#caaci-ev-q-attending-o-yes').closest('fieldset').querySelector('legend').textContent,
       '您能参加吗？',

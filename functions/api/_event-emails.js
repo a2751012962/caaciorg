@@ -348,14 +348,22 @@ export function registrationConfirmation({
 }
 
 export function eventAnnouncement({ origin, logo, event, now = Date.now() }) {
-  const description = String(event.description ?? '').trim();
+  // Chinese first, like the titles; one paragraph when only one is set or both match.
+  const descriptions = [
+    ...new Set(
+      [event.description_zh, event.description].map((d) => String(d ?? '').trim()).filter(Boolean),
+    ),
+  ];
   return {
     subject: announcementSubject(event.title_zh || event.title, event.title),
     html: fill(ANNOUNCEMENT.html, {
       ...commonSlots({ origin, logo, event }),
-      DESCRIPTION_HTML: description
-        ? `<p style="margin:0 0 24px;">${esc(description).replace(/\r?\n/g, '<br>')}</p>`
-        : '',
+      DESCRIPTION_HTML: descriptions
+        .map(
+          (d, i) =>
+            `<p style="margin:0 0 ${i === descriptions.length - 1 ? 24 : 8}px;">${esc(d).replace(/\r?\n/g, '<br>')}</p>`,
+        )
+        .join('\n    '),
       PERK_HTML: registerPerk(event, now),
       REGISTER_URL: registerUrl(origin, event),
     }),

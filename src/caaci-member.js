@@ -3194,9 +3194,10 @@ export async function wireEventFormPage() {
     $('#caaci-ev-where').textContent = ev.location || '';
     $('#caaci-ev-where-row').hidden = !ev.location;
     $('#caaci-ev-details').hidden = !when && !ev.location;
-    if (ev.description) {
+    const description = t(ev.description, ev.description_zh || ev.description);
+    if (description) {
       const desc = $('#caaci-ev-desc');
-      desc.textContent = ev.description;
+      desc.textContent = description;
       desc.hidden = false;
     }
     renderPerk();

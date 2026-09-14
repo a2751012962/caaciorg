@@ -64,6 +64,7 @@ const EVENT = {
   title: 'Mid-Autumn Festival 中秋节',
   title_zh: '中秋节',
   description: 'Mooncakes and lanterns',
+  description_zh: '月饼和灯笼',
   starts_at: '2099-09-27T19:00:00+00:00',
   ends_at: '2099-09-27T23:00:00+00:00',
   location: 'Siebel Center for Design, 1208 S Fourth St, Champaign, IL',
@@ -135,7 +136,7 @@ const upsertBody = (fetch) => JSON.parse(upsertCall(fetch).options.body);
 const emails = (fetch) => callsTo(fetch, 'api.resend.com').map((c) => JSON.parse(c.options.body));
 
 const EVENT_SELECT =
-  /\?select=id,slug,title,title_zh,description,starts_at,ends_at,location,perk_deadline,perk_item_zh,perk_item_en,registration_questions,published&slug=eq\.mid-autumn-festival&limit=1$/;
+  /\?select=id,slug,title,title_zh,description,description_zh,starts_at,ends_at,location,perk_deadline,perk_item_zh,perk_item_en,registration_questions,published&slug=eq\.mid-autumn-festival&limit=1$/;
 
 // ---------------------------------------------------------------- POST ----
 
@@ -667,6 +668,7 @@ const PUBLIC_EVENT = {
   title: EVENT.title,
   title_zh: EVENT.title_zh,
   description: EVENT.description,
+  description_zh: EVENT.description_zh,
   starts_at: EVENT.starts_at,
   ends_at: EVENT.ends_at,
   location: EVENT.location,
@@ -763,13 +765,14 @@ test('event-register GET: gift null without both names; deadline is the start wi
       { ...EVENT, perk_deadline: null },
       { ...PERK, deadline: EVENT.starts_at },
     ],
-    [{ ...EVENT, title_zh: undefined }, PERK],
+    [{ ...EVENT, title_zh: undefined, description_zh: undefined }, PERK],
   ]) {
     const fetch = mockFetch(route({ event }));
     try {
       const out = await (await get('?event=mid-autumn-festival')).json();
       assert.deepEqual(out.event.perk, perk);
       assert.equal(out.event.title_zh, event.title_zh ?? null);
+      assert.equal(out.event.description_zh, event.description_zh ?? null);
     } finally {
       fetch.restore();
     }
