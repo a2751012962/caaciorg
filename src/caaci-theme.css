@@ -277,3 +277,67 @@ h3,
 .caaci-legal ul {
   margin-bottom: 1rem;
 }
+
+/* ================================================== Phone widths (< 768px) === */
+/* Touch targets under Tabler's md breakpoint, where the nav collapses. Measured
+   at 375px: the menu button was 32x32, the collapsed menu rows 36-40px, the
+   event form's radio and checkbox rows 20px tall with 12px dead gaps between
+   them, and the login page's "Forgot password?" / "Create an account" links
+   16px tall. Apple and Google ask for 44-48px. */
+@media (max-width: 767.98px) {
+  /* Tabler fixes the button at 2rem square (border-box), so padding alone
+     cannot grow it. The negative margin keeps the icon where it was. */
+  .caaci-sitenav .navbar-toggler {
+    width: 44px;
+    height: 44px;
+    margin-left: -6px;
+  }
+  /* .navbar-nav is in the selector to outrank Tabler's
+     `.navbar .navbar-nav .nav-link { min-height: 2.5rem }`. */
+  .caaci-sitenav .navbar-nav .nav-link,
+  .caaci-sitenav .nav-link,
+  .caaci-sitenav .dropdown-item {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  /* The whole row answers a tap: a 44px row, no margin between rows, and a
+     label that fills it. Flex ignores the input's float, so the input would
+     take up flow width and pull the label left against it; its right margin
+     puts the label back where the row's padding starts (32px padding minus a
+     20px box, or 40px minus a 32px switch). */
+  .form-check:not(.form-check-inline) {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    margin-bottom: 0;
+  }
+  .form-check:not(.form-check-inline) > .form-check-input {
+    flex: none;
+    margin-top: 0;
+    margin-right: 12px;
+  }
+  .form-switch:not(.form-check-inline) > .form-check-input {
+    margin-right: 8px;
+  }
+  .form-check:not(.form-check-inline) > .form-check-label {
+    flex: 1;
+    padding-block: 12px;
+  }
+
+  /* Stand-alone text links: a taller hit box without moving anything, since
+     the negative margin cancels the padding in the line box. The hit box
+     paints over what it overlaps, so "Forgot password?" gets 8px: the password
+     field starts 8px under the link text. */
+  .form-label-description > a {
+    display: inline-block;
+    padding-block: 8px;
+    margin-block: -8px;
+  }
+  .text-center > a {
+    display: inline-block;
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+}
