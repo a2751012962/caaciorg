@@ -456,6 +456,36 @@
   }
 }
 
+/* Phone widths, measured at 375px on caaciorg.com. */
+@media (max-width: 767px) {
+  /* Once .caaci-cta-row stacks the Donate / Events / Membership tiles, Divi's
+     mobile rules strip their padding and each tile is a 24px strip of 14px
+     text — a third of a fingertip. Give each one a 48px touch target with the
+     label centred in it. */
+  .caaci-cta-row .et_clickable {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+  }
+
+  /* Each event row on /events/ is a Tribe grid row with -21px gutters inside a
+     container whose side padding is a percentage — 19.5px at 375px — so the
+     rows reach 1.5px past the viewport and the whole page scrolls sideways.
+     Clip the container horizontally; `clip`, unlike `hidden`, creates no
+     scroll container, so nothing vertical changes. */
+  .tribe-common-l-container.tribe-events-l-container {
+    overflow-x: clip;
+  }
+
+  /* iOS zooms the page when an input under 16px takes focus. Divi's header
+     search field is 13.33px, so opening search on a phone zoomed the page in
+     and left it zoomed. */
+  .et-search-form input.et-search-field {
+    font-size: 16px;
+  }
+}
+
 /* Keyboard-only skip link, injected by caaci-app.js. The colour is repeated on
    every state because Divi styles `a`, `a:hover` and `a:visited` separately in
    its own scheme red — inheriting that would put 2:1 text on the brick fill. */
