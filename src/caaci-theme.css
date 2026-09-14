@@ -164,11 +164,15 @@ h3,
   vertical-align: 0.15em;
 }
 /* Tabler stacks .nav-item children in a column (its nav links put an icon above
-   the label), which drops the caret onto a second line under its parent. */
+   the label), which drops the caret onto a second line under its parent. It
+   also centres them; a plain item's link fills the row so that never shows, but
+   the label + caret pair here is only as wide as its text, so in the collapsed
+   phone menu it would sit in the middle while the other items start at the left. */
 .caaci-sitenav .nav-item.dropdown {
   display: flex;
   flex-direction: row;
   align-items: center;
+  justify-content: flex-start;
 }
 .caaci-sitenav .nav-item.dropdown > .nav-link {
   width: auto;
