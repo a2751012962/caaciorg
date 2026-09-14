@@ -378,21 +378,21 @@ export function wireAuthNav() {
 // hand.
 const FESTIVAL_PROMO = {
   path: '/mid_autumn_festival_form/',
-  until: Date.parse('2026-09-27T23:00:00Z'), // 6:00 PM in Champaign, when the festival ends
+  until: Date.parse('2026-09-28T00:00:00Z'), // 7:00 PM in Champaign, when the festival ends
   date: '2026-09-27',
   venue: 'Siebel Center for Design',
   en: {
-    eyebrow: 'Sun, Sept 27 · 2–6 PM · Siebel Center for Design',
+    eyebrow: 'Sun, Sept 27 · 2–7 PM · Siebel Center for Design',
     title: 'Mid-Autumn Festival registration is open',
     text: 'Register for the festival, and create a free CAACI account by 2:00 PM Central Time on September 27 to pick up a free mooncake.',
     cta: 'Register now',
     upcoming: 'Upcoming Events',
     event: 'Mid-Autumn Festival',
     month: 'Sep',
-    when: 'September 27, 2026 @ 2:00 pm - 6:00 pm',
+    when: 'September 27, 2026 @ 2:00 pm - 7:00 pm',
   },
   zh: {
-    eyebrow: '9月27日（周日）下午2点–6点 · Siebel Center for Design',
+    eyebrow: '9月27日（周日）下午2点–7点 · Siebel Center for Design',
     title: '中秋节活动报名中',
     text: '欢迎报名参加中秋节活动。9月27日下午2点（美国中部时间）前报名并注册 CAACI 网站账户，现场免费领一份月饼。',
     cta: '立即报名',
@@ -400,7 +400,7 @@ const FESTIVAL_PROMO = {
     event: '中秋节活动',
     month: '9 月',
     // The same date format the calendar uses for the past events below.
-    when: '9 月 27, 2026 @ 2:00 下午 - 6:00 下午',
+    when: '9 月 27, 2026 @ 2:00 下午 - 7:00 下午',
   },
 };
 

@@ -9,7 +9,9 @@ import { JSDOM } from 'jsdom';
 import { wireFestivalPromo } from '../src/caaci-app.js';
 
 const BEFORE = Date.parse('2026-09-20T12:00:00Z');
-const AFTER = Date.parse('2026-09-28T00:00:00Z'); // the festival ended at 23:00Z on the 27th
+// 2:00–7:00 PM in Champaign (CDT = UTC-5) is 19:00Z on the 27th to 00:00Z on the 28th.
+const LAST_HOUR = Date.parse('2026-09-27T23:30:00Z'); // 6:30 PM, still on
+const AFTER = Date.parse('2026-09-28T00:00:01Z'); // just after 7:00 PM
 
 const mirror = (file) => readFileSync(new URL(`../mirror/${file}`, import.meta.url), 'utf8');
 
@@ -167,6 +169,10 @@ test('festival promo: nowhere else, and not after the festival', () => {
     wireFestivalPromo(BEFORE);
     assert.equal(cards().length + upcoming().length, 0, `${file} at ${path}`);
   }
+
+  load(mirror('index.html'), '/');
+  wireFestivalPromo(LAST_HOUR);
+  assert.equal(cards().length, 1, 'still there between 6 and 7 PM');
 
   load(mirror('index.html'), '/');
   wireFestivalPromo(AFTER);
