@@ -54,6 +54,7 @@ test('no hex colour inside a Tailwind arbitrary value', async () => {
 // listItem(), hoverLift, reveal() ... instead of retyping curves and durations.
 // StackedCardsSection is a bespoke scrubbed timeline and keeps its own numbers.
 const MOTION_EXEMPT = ['lib\\motion.ts', 'lib/motion.ts', 'StackedCardsSection.tsx', 'Hero.tsx'];
+// Hero.tsx stays exempt: its banners run a bespoke GSAP entrance sequence.
 const MOTION_LITERALS = [
   [
     /ease: \[0\.22, 1, 0\.36, 1\]/,
