@@ -20,11 +20,13 @@
 /* The mirror loads Playfair Display (headings) and Saira Extra Condensed
    (buttons) from Google Fonts on every WordPress page, so the Tabler pages
    must load them too or the token stacks silently fall back to Georgia and
-   Helvetica. Poppins is deliberately NOT loaded: Divi overrides all body and
-   navigation text to cwTeXFangSong, which is never served, so the mirror's
-   body copy actually renders in the system sans-serif — the same face the
-   `--caaci-font-body` stack falls back to when Poppins is absent. Loading
-   Poppins would make our body text differ from the mirror's. */
+   Helvetica. Poppins is not imported here, so /admin/ keeps rendering body
+   text in the system sans-serif that `--caaci-font-body` falls back to. The
+   public Tabler pages (login, privacy, event registration) link the React
+   site's Google Fonts in their <head> instead (Poppins, Playfair Display, Noto
+   Serif SC — the same link as web/index.html): their site header copies the
+   React header, and their body copy then renders in Poppins like the React
+   pages. */
 @import url('https://fonts.googleapis.com/css?family=Playfair+Display:400,500,700|Saira+Extra+Condensed:600&display=swap');
 
 /* ======================================================= Tabler → tokens === */
@@ -105,28 +107,29 @@ h3,
   }
 }
 
-/* ============================================ Site navigation (all pages) === */
-/* The Divi header, measured on the mirror's home page: 69px white bar, no
-   shadow at rest, 40px logo, menu right-aligned to the container edge, 14px/600
-   links in black with ~22px between items, the current page in the red scheme
-   colour. Shared by the member pages (member-src/_nav.html) and the admin
-   panel so moving between them does not change the chrome. */
-.caaci-sitenav {
+/* ============================================== Site navigation (/admin/) === */
+/* The admin header, measured on the old mirror's Divi header: 69px white bar,
+   no shadow at rest, 40px logo, menu right-aligned to the container edge,
+   14px/600 links in black, the current page in the red scheme colour. The
+   public pages' header also carries .caaci-sitenav but has its own section
+   below ("Site header"); :where() keeps these rules off it without raising
+   their specificity, so the admin cascade is exactly what it was. */
+.caaci-sitenav:where(:not(.caaci-sitenav-site)) {
   background: var(--caaci-surface);
   box-shadow: none; /* Tabler draws an inset hairline; the mirror has none */
   min-height: 69px;
 }
-.caaci-sitenav .navbar-brand {
+.caaci-sitenav:where(:not(.caaci-sitenav-site)) .navbar-brand {
   padding: 0;
 }
-.caaci-sitenav .navbar-brand img {
+.caaci-sitenav:where(:not(.caaci-sitenav-site)) .navbar-brand img {
   height: 40px;
   width: auto;
 }
-.caaci-sitenav .navbar-nav {
+.caaci-sitenav:where(:not(.caaci-sitenav-site)) .navbar-nav {
   margin-left: auto;
 }
-.caaci-sitenav .nav-link {
+.caaci-sitenav:where(:not(.caaci-sitenav-site)) .nav-link {
   font-family: var(--caaci-font-body);
   font-size: 14px;
   font-weight: 600;
@@ -134,66 +137,361 @@ h3,
   padding: 8px 11px;
   transition: opacity 0.4s ease-in-out;
 }
-/* Language toggle and Log In / Sign out are plain menu items on the mirror,
-   not buttons. */
-.caaci-sitenav button.nav-link {
+/* Language toggle and Sign out are plain menu items, not buttons. */
+.caaci-sitenav:where(:not(.caaci-sitenav-site)) button.nav-link {
   background: none;
   border: 0;
   cursor: pointer;
 }
-.caaci-sitenav .nav-link:hover {
+.caaci-sitenav:where(:not(.caaci-sitenav-site)) .nav-link:hover {
   color: var(--caaci-ink);
   opacity: 0.7;
 }
-.caaci-sitenav .nav-link.active {
+.caaci-sitenav:where(:not(.caaci-sitenav-site)) .nav-link.active {
   color: var(--caaci-red);
   box-shadow: none;
 }
-/* Divi opens its submenus on hover and shows a small caret next to the parent
-   label. Bootstrap needs a real toggle, so the parent is split: the label is
-   still a link to the section, and this button is the caret. Pulled in under
-   the label's right padding so it sits 4px after the text, as Divi's does. */
-.caaci-sitenav .caaci-nav-caret {
-  background: none;
-  border: 0;
-  padding: 0 11px 0 0;
-  margin-left: -7px;
+
+/* ================================================ Site header (public pages) === */
+/* member-src/_nav.html on /login-3/, /privacy/ and the event registration
+   pages: a copy of the React site's header (web/src/components/Navbar.tsx),
+   value for value from its Tailwind classes. A 72px translucent white bar with
+   a hairline and a small shadow; the logo beside the CAACI wordmark; 14px/600
+   uppercase links with 0.05em tracking, brick on hover and underlined when
+   current; hover/focus dropdowns; the globe language pill. Below 1024px
+   (Tailwind's lg, where the React header switches too) the bar holds the logo,
+   the pill and a hamburger that opens the stacked menu. The markup keeps
+   Tabler's navbar / nav-link / dropdown-item class names because
+   caaci-member.js and the tests find the nav by them, so every Tabler default
+   those names bring is reset here. */
+.caaci-sitenav-site {
+  --caaci-sitenav-gutter: 16px;
+  display: block;
+  min-height: 0;
+  padding: 0;
+  color: var(--caaci-neutral-700);
+  font-family: var(--caaci-font-body);
+  background: rgba(var(--caaci-surface-rgb), 0.95);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid color-mix(in oklab, var(--caaci-neutral-200) 80%, transparent);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
-.caaci-sitenav .caaci-nav-caret::after {
-  margin-left: 0;
-  vertical-align: 0.15em;
+@media (min-width: 640px) {
+  .caaci-sitenav-site {
+    --caaci-sitenav-gutter: 24px;
+  }
 }
-/* Tabler stacks .nav-item children in a column (its nav links put an icon above
-   the label), which drops the caret onto a second line under its parent. It
-   also centres them; a plain item's link fills the row so that never shows, but
-   the label + caret pair here is only as wide as its text, so in the collapsed
-   phone menu it would sit in the middle while the other items start at the left. */
-.caaci-sitenav .nav-item.dropdown {
+@media (min-width: 1024px) {
+  .caaci-sitenav-site {
+    --caaci-sitenav-gutter: 32px;
+  }
+}
+.caaci-sitenav-bar {
   display: flex;
-  flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding-inline: var(--caaci-sitenav-gutter);
 }
-.caaci-sitenav .nav-item.dropdown > .nav-link {
+
+/* Logo and wordmark. The bar's 72px comes from this row. */
+.caaci-sitenav-site .caaci-sitenav-brand {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  height: 72px;
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: normal;
+  color: inherit;
+  text-decoration: none;
+}
+.caaci-sitenav-brand img {
   width: auto;
+  height: 48px;
+  max-height: 56px;
+  object-fit: contain;
 }
-/* Match the mirror: submenus are opaque white panels, not see-through.
-   Tabler ships a negative `inset` on .dropdown-menu for its own card-style
-   menus and relies on Popper to correct it. The hover path below never runs
-   Popper, so the menu would sit on top of the navbar — pin it under the item
-   explicitly. */
-.caaci-sitenav .dropdown-menu {
-  background-color: var(--caaci-surface);
-  border-top: 3px solid var(--caaci-rust-deep);
-  inset: auto auto auto 0;
-  top: 100%;
-  margin-top: 0;
+.caaci-sitenav-wordmark {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
 }
-@media (min-width: 768px) {
-  /* Divi reveals the submenu on hover; keep that muscle memory on desktop
-     while the caret button still works for keyboard and touch. */
-  .caaci-sitenav .nav-item.dropdown:hover > .dropdown-menu {
+.caaci-sitenav-name {
+  font-family: var(--caaci-font-display);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  color: var(--caaci-maroon);
+}
+.caaci-sitenav-tagline {
+  display: none;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--caaci-neutral-500);
+}
+@media (min-width: 640px) {
+  .caaci-sitenav-tagline {
+    display: inline;
+  }
+}
+
+/* Language pill: a globe and the language it switches to ("中" / "En", set by
+   caaci-member.js, which replaces the button's text — hence the CSS icon). */
+.caaci-sitenav-lang {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--caaci-neutral-300);
+  border-radius: 9999px;
+  background: var(--caaci-neutral-50);
+  color: var(--caaci-neutral-700);
+  font-family: var(--caaci-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.caaci-sitenav-lang::before {
+  content: '';
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background-color: var(--caaci-brick);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20'/%3E%3Cpath d='M2 12h20'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20'/%3E%3Cpath d='M2 12h20'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+/* Hamburger (Menu / X icons, swapped on Bootstrap's aria-expanded). 44px hit
+   box; the negative margin keeps the 24px icon where the React one sits. */
+.caaci-sitenav-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--caaci-neutral-700);
+  cursor: pointer;
+}
+.caaci-sitenav-toggle:hover {
+  color: var(--caaci-brick);
+}
+.caaci-sitenav-toggle svg {
+  width: 24px;
+  height: 24px;
+}
+.caaci-sitenav-toggle[aria-expanded='true'] .caaci-sitenav-icon-open,
+.caaci-sitenav-toggle[aria-expanded='false'] .caaci-sitenav-icon-close {
+  display: none;
+}
+
+/* Menu items, shared by both layouts. */
+.caaci-sitenav-items,
+.caaci-sitenav-dropdown {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.caaci-sitenav-items > li:has(> [hidden]) {
+  display: none; /* the login page hides its own "Log In" */
+}
+.caaci-sitenav-site .nav-link,
+.caaci-sitenav-site .dropdown-item {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-family: var(--caaci-font-body);
+  color: var(--caaci-neutral-700);
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.caaci-sitenav-site .nav-link.active,
+.caaci-sitenav-site .dropdown-item.active {
+  color: var(--caaci-brick);
+}
+.caaci-sitenav-chevron {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--caaci-neutral-400);
+  transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Stacked menu under the bar (below 1024px). Every top-level row is 44px with
+   no gap between rows, which puts each label exactly where the React menu's
+   36px rows with 8px gaps do. About Us and its dialogs sit in an indented group;
+   Community Calendar is a plain row, as in the React menu. */
+@media (max-width: 1023.98px) {
+  .caaci-sitenav-lang {
+    gap: 4px;
+    margin-left: auto;
+    padding: 4px 10px;
+  }
+  .caaci-sitenav-toggle {
+    margin-left: 8px;
+    margin-right: -2px;
+  }
+  .caaci-sitenav-menu {
+    flex: 0 0 calc(100% + 2 * var(--caaci-sitenav-gutter));
+    max-height: calc(100vh - 72px);
+    margin-inline: calc(-1 * var(--caaci-sitenav-gutter));
+    overflow-y: auto;
+    background: var(--caaci-surface);
+    border-top: 1px solid var(--caaci-neutral-200);
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  }
+  .caaci-sitenav-items {
+    padding: 4px 16px 20px;
+  }
+  .caaci-sitenav-site .caaci-sitenav-items .nav-link,
+  .caaci-sitenav-site .caaci-sitenav-dropdown .dropdown-item {
+    padding: 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    text-transform: uppercase;
+  }
+  .caaci-sitenav-chevron,
+  .caaci-sitenav-dup {
+    display: none;
+  }
+  .caaci-sitenav-group {
+    margin-block: 4px;
+    padding-left: 12px;
+    border-left: 2px solid var(--caaci-neutral-200);
+  }
+  .caaci-sitenav-site .caaci-sitenav-items .caaci-sitenav-group > .nav-link {
+    padding-block: 4px;
+  }
+  .caaci-sitenav-group .caaci-sitenav-dropdown li {
+    margin-top: 6px;
+  }
+  .caaci-sitenav-site .caaci-sitenav-group .caaci-sitenav-dropdown .dropdown-item {
+    padding-block: 4px;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 16px;
+    text-transform: none;
+    color: var(--caaci-neutral-600);
+  }
+  .caaci-sitenav-site .caaci-sitenav-group .caaci-sitenav-dropdown .dropdown-item:hover,
+  .caaci-sitenav-site .caaci-sitenav-group .caaci-sitenav-dropdown .dropdown-item.active {
+    color: var(--caaci-brick);
+  }
+}
+
+/* One row from 1024px: logo left; links, Log In and the pill right. */
+@media (min-width: 1024px) {
+  .caaci-sitenav-toggle {
+    display: none;
+  }
+  .caaci-sitenav-site .caaci-sitenav-menu {
+    display: flex !important; /* over Bootstrap's .collapse:not(.show) */
+    order: 1;
+    margin-left: auto;
+  }
+  .caaci-sitenav-lang {
+    order: 2;
+    margin-left: 8px;
+  }
+  .caaci-sitenav-lang:hover {
+    border-color: var(--caaci-brick);
+    color: var(--caaci-brick);
+  }
+  .caaci-sitenav-items {
+    display: flex;
+    align-items: center;
+  }
+  .caaci-sitenav-items > li {
+    position: relative;
+    margin-right: 4px;
+  }
+  .caaci-sitenav-site .caaci-sitenav-items > .nav-item > .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .caaci-sitenav-site .caaci-sitenav-items > .nav-item > .nav-link:hover,
+  .caaci-sitenav-site .nav-item.dropdown:hover .caaci-sitenav-chevron {
+    color: var(--caaci-brick);
+  }
+  .caaci-sitenav-site .caaci-sitenav-items > .nav-item > .nav-link.active {
+    border-bottom: 2px solid var(--caaci-brick);
+    font-weight: 700;
+    color: var(--caaci-brick);
+  }
+  .caaci-sitenav-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1030;
+    width: 192px;
+    padding: 8px 0;
+    background: var(--caaci-surface);
+    border: 1px solid color-mix(in oklab, var(--caaci-neutral-200) 80%, transparent);
+    border-radius: 16px;
+    box-shadow:
+      0 10px 15px -3px rgba(0, 0, 0, 0.1),
+      0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  }
+  .caaci-sitenav-wide {
+    width: 224px;
+  }
+  .caaci-sitenav-site .nav-item.dropdown:hover > .caaci-sitenav-dropdown,
+  .caaci-sitenav-site .nav-item.dropdown:focus-within > .caaci-sitenav-dropdown {
     display: block;
+  }
+  .caaci-sitenav-site .caaci-sitenav-dropdown .dropdown-item {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .caaci-sitenav-site .caaci-sitenav-dropdown .dropdown-item:hover,
+  .caaci-sitenav-site .caaci-sitenav-dropdown .dropdown-item:focus-visible {
+    background-color: var(--caaci-neutral-50);
+    color: var(--caaci-brick);
+  }
+}
+@media (min-width: 1280px) {
+  .caaci-sitenav-items > li {
+    margin-right: 8px;
   }
 }
 
@@ -279,24 +577,16 @@ h3,
 }
 
 /* ================================================== Phone widths (< 768px) === */
-/* Touch targets under Tabler's md breakpoint, where the nav collapses. Measured
-   at 375px: the menu button was 32x32, the collapsed menu rows 36-40px, the
-   event form's radio and checkbox rows 20px tall with 12px dead gaps between
-   them, and the login page's "Forgot password?" / "Create an account" links
-   16px tall. Apple and Google ask for 44-48px. */
+/* Touch targets on phones. Measured at 375px: the admin header's links were
+   36-40px tall, the event form's radio and checkbox rows 20px tall with 12px
+   dead gaps between them, and the login page's "Forgot password?" / "Create an
+   account" links 16px tall. Apple and Google ask for 44-48px. (The public
+   pages' site header sizes its own targets, in "Site header" above.) */
 @media (max-width: 767.98px) {
-  /* Tabler fixes the button at 2rem square (border-box), so padding alone
-     cannot grow it. The negative margin keeps the icon where it was. */
-  .caaci-sitenav .navbar-toggler {
-    width: 44px;
-    height: 44px;
-    margin-left: -6px;
-  }
   /* .navbar-nav is in the selector to outrank Tabler's
      `.navbar .navbar-nav .nav-link { min-height: 2.5rem }`. */
-  .caaci-sitenav .navbar-nav .nav-link,
-  .caaci-sitenav .nav-link,
-  .caaci-sitenav .dropdown-item {
+  .caaci-sitenav:where(:not(.caaci-sitenav-site)) .navbar-nav .nav-link,
+  .caaci-sitenav:where(:not(.caaci-sitenav-site)) .nav-link {
     display: flex;
     align-items: center;
     min-height: 44px;

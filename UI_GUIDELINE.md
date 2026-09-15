@@ -77,8 +77,9 @@ menu text to `cwTeXFangSong`, but that face is never served, so body copy and th
 navigation fall back to the **system sans-serif**. Headings really are Playfair
 Display and buttons really are Saira Extra Condensed — both loaded from Google
 Fonts by the mirror, and by `caaci-theme.css` for the Tabler pages. Poppins is in
-the body stack for parity with the theme settings but is deliberately not loaded
-(§5). `cwTeXFangSong` stays at the end of every stack as the CJK fallback.
+the body stack for parity with the theme settings; it is loaded only on the public
+Tabler pages, whose header copies the React site (§5), not on `/admin/`.
+`cwTeXFangSong` stays at the end of every stack as the CJK fallback.
 
 **Type scale:** display `48px` · h2 `38px` · h3 `24px` · body `18px` · small `16px`
 · eyebrow `14px` (uppercase, letter-spacing 1px). Tokens: `--caaci-fs-*`.
@@ -146,24 +147,30 @@ Three element rules finish the match with the mirror: `h1`–`h3` are set in
 `--caaci-radius-0` — the same shape as the overlay's `.caaci-btn`; and the theme
 `@import`s the Playfair Display and Saira Extra Condensed faces the mirror already
 loads from Google Fonts, so headings and buttons resolve to the same glyphs on both
-kinds of page. Poppins is deliberately not loaded: Divi sets all body and menu text
-to cwTeXFangSong, which is never served, so the mirror's body copy renders in the
-system sans-serif, and the `--caaci-font-body` stack falls back to the same face.
+kinds of page. The public Tabler pages (login, privacy, event registration) also link
+the React site's Google Fonts (Poppins, Playfair Display, Noto Serif SC — the same
+`<link>` as `web/index.html`), so their header and body copy use the React site's
+faces; `/admin/` does not, and its text keeps the system sans-serif fallback.
 
-The site navigation is measured against the mirror's Divi header, not designed
-independently: 69px bar, no shadow, 40px logo, menu right-aligned to the container,
-14px/600 black links 22px apart, carets 4px after their label, language toggle and
-Log In / Sign out as plain menu items.
+The public pages' site header (`member-src/_nav.html`, `.caaci-sitenav-site`) is a
+copy of the React header (`web/src/components/Navbar.tsx`), value for value from its
+Tailwind classes: 72px translucent white bar with a hairline and a small shadow, logo
+with the CAACI wordmark, 14px/600 uppercase links, About Us and Resources dropdowns
+on hover or keyboard focus, the globe language pill, and below 1024px a hamburger
+that opens the stacked menu. Items, order, labels and links follow the React header.
+The admin header keeps the older Divi measurements: 69px bar, no shadow, 40px logo,
+14px/600 black links, language toggle and Sign out as plain menu items.
 
 Every Tabler page links, in this order: `tabler.min.css` → `caaci-ui.css` (tokens) →
 `caaci-theme.css`. Shared chrome lives in the theme file under named sections:
 
-| Section         | Class            | Used on                                     |
-| --------------- | ---------------- | ------------------------------------------- |
-| Site navigation | `.caaci-sitenav` | admin header and `member-src/_nav.html`     |
-| Hero band       | `.caaci-hero`    | `/membership/`, `/account/`                 |
-| Membership card | `.caaci-mcard2`  | `/account/` (rendered by `caaci-member.js`) |
-| Long-form copy  | `.caaci-legal`   | `/privacy/`                                 |
+| Section         | Class                 | Used on                                         |
+| --------------- | --------------------- | ----------------------------------------------- |
+| Site navigation | `.caaci-sitenav`      | admin header                                    |
+| Site header     | `.caaci-sitenav-site` | `member-src/_nav.html` (login, privacy, events) |
+| Hero band       | `.caaci-hero`         | `/membership/`, `/account/`                     |
+| Membership card | `.caaci-mcard2`       | `/account/` (rendered by `caaci-member.js`)     |
+| Long-form copy  | `.caaci-legal`        | `/privacy/`                                     |
 
 A page that needs something new gets a section here, written in tokens — not a
 `<style>` block. Prefer a Tabler utility or component first.
