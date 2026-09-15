@@ -2050,6 +2050,7 @@ async function loadEvents() {
       <td><div class="btn-list flex-nowrap">
         <button type="button" class="btn btn-sm" data-act="edit">${t('Edit', '编辑')}</button>
         <button type="button" class="btn btn-sm" data-act="registrations">${t('Registrations', '报名')}</button>
+        <button type="button" class="btn btn-sm" data-act="volunteers">${t('Volunteers', '志愿者')}</button>
         <button type="button" class="btn btn-sm" data-act="toggle">${e.published ? t('Unpublish', '取消发布') : t('Publish', '发布')}</button>
         <button type="button" class="btn btn-sm btn-ghost-danger" data-act="delete">${t('Delete', '删除')}</button>
       </div></td>`;
@@ -2059,6 +2060,7 @@ async function loadEvents() {
     tr.querySelector('[data-act="registrations"]').addEventListener('click', () =>
       openRegistrations(e),
     );
+    tr.querySelector('[data-act="volunteers"]').addEventListener('click', () => openVolunteers(e));
     tr.querySelector('[data-act="reg-link"]')?.addEventListener('click', () =>
       copyRegistrationLink(e),
     );
@@ -2723,6 +2725,201 @@ function downloadRegistrationsCsv() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// ---------- volunteers (who offered to help, and with which event) ----------
+// One list for both sources: the /volunteer/ page and the "I'd also like to
+// volunteer" box on an event registration form. The event filter is built from
+// the rows themselves, so it only ever offers events somebody signed up for,
+// plus the "any event" rows (event null) when there are some.
+const ANY_EVENT = '__any__'; // filter value for the rows with no event
+
+const SOURCE_LABEL = {
+  volunteer: () => t('Volunteer page', '志愿者报名页'),
+  registration: () => t('Registration form', '活动报名表'),
+};
+const sourceLabel = (s) => (SOURCE_LABEL[s] || (() => s || ''))();
+const anyEventLabel = () => t('Any event', '任何活动');
+
+// The volunteers CSV (pure — no DOM) from the rows the panel is showing, with
+// English labels. `#` is the position in the shown list. Starts with a UTF-8 BOM
+// so Excel reads Chinese names correctly; CRLF line ends, same as the
+// registrations export.
+export function volunteersCsv({ rows = [] } = {}) {
+  const lines = [
+    [
+      '#',
+      'signed_up_at (Chicago)',
+      'name',
+      'email',
+      'phone',
+      'event',
+      'source',
+      'message',
+      'has_account',
+      'account_status',
+    ],
+  ];
+  rows.forEach((r, i) => {
+    lines.push([
+      i + 1,
+      chicagoTime(r.created_at),
+      r.name || '',
+      r.email || '',
+      r.phone || '',
+      r.event ? r.event.title : 'Any event',
+      r.source || '',
+      r.message || '',
+      yesNo(!!r.account),
+      r.account?.status || '',
+    ]);
+  });
+  return `\uFEFF${lines.map((l) => l.map(csvCell).join(',')).join('\r\n')}\r\n`;
+}
+
+let volData = null; // the /api/admin/event-volunteers answer the panel shows
+let volLoading = null; // in-flight load, so a tab click during one doesn't double-fetch
+
+// The rows the filter currently leaves visible — what the table and the CSV show.
+function shownVolunteers() {
+  const rows = volData?.rows || [];
+  const pick = $('#caaci-vol-event')?.value || '';
+  if (!pick) return rows;
+  if (pick === ANY_EVENT) return rows.filter((r) => !r.event);
+  return rows.filter((r) => r.event?.slug === pick);
+}
+
+// One <option> per event somebody signed up for, in the order the rows arrive
+// (newest first), keeping the admin's current choice when it still exists.
+function buildVolunteerFilter() {
+  const sel = $('#caaci-vol-event');
+  const want = sel.value;
+  for (const o of [...sel.options]) if (o.value) o.remove();
+  const seen = new Set();
+  let anyEvent = false;
+  for (const r of volData?.rows || []) {
+    if (!r.event) {
+      anyEvent = true;
+      continue;
+    }
+    if (seen.has(r.event.slug)) continue;
+    seen.add(r.event.slug);
+    const o = document.createElement('option');
+    o.value = r.event.slug;
+    o.textContent = eventTitleIn(r.event);
+    sel.appendChild(o);
+  }
+  if (anyEvent) {
+    const o = document.createElement('option');
+    o.value = ANY_EVENT;
+    o.textContent = anyEventLabel();
+    sel.appendChild(o);
+  }
+  sel.value = [...sel.options].some((o) => o.value === want) ? want : '';
+}
+
+function renderVolunteers() {
+  const rows = shownVolunteers();
+  const account = (a) =>
+    a ? badgeHtml(a.status, STATUS_LABEL[a.status]?.() || a.status) : '<span>—</span>';
+  // Everything a volunteer typed, and every admin-written title, goes through esc().
+  const html = rows.map(
+    (r) => `<tr data-id="${esc(r.id)}">
+      <td>${esc(r.name || '—')}</td>
+      <td>${esc(r.email)}</td>
+      <td class="text-nowrap">${esc(r.phone || '—')}</td>
+      <td>${r.event ? esc(eventTitleIn(r.event)) : `<span class="text-secondary">${esc(anyEventLabel())}</span>`}</td>
+      <td>${esc(sourceLabel(r.source))}</td>
+      <td class="text-wrap">${esc(r.message || '—')}</td>
+      <td class="text-nowrap">${chicagoTime(r.created_at)}</td>
+      <td>${account(r.account)}</td>
+      <td><button type="button" class="btn btn-sm btn-ghost-danger" data-act="delete">${t('Delete', '删除')}</button></td>
+    </tr>`,
+  );
+  const body = $('#caaci-vol-body');
+  body.innerHTML =
+    html.join('') ||
+    `<tr><td colspan="9" class="text-secondary">${t('No volunteers yet.', '暂无志愿者报名。')}</td></tr>`;
+  for (const tr of $$('tr[data-id]', body)) {
+    const row = rows.find((r) => String(r.id) === tr.dataset.id);
+    tr.querySelector('[data-act="delete"]').addEventListener('click', () => deleteVolunteer(row));
+  }
+  $('#caaci-vol-count').textContent = rows.length
+    ? t(`${rows.length} sign-up(s)`, `共 ${rows.length} 条报名`)
+    : '';
+  $('#caaci-vol-csv').disabled = !rows.length;
+}
+
+async function deleteVolunteer(row) {
+  if (!row) return;
+  const notb = $('#caaci-vol-notice');
+  if (
+    !window.confirm(
+      t(
+        `Remove ${row.name || row.email} from the volunteer list?`,
+        `将 ${row.name || row.email} 从志愿者名单中移除？`,
+      ),
+    )
+  )
+    return;
+  const { ok, data } = await api('/api/admin/event-volunteers', {
+    method: 'DELETE',
+    body: { id: row.id },
+  });
+  if (!ok) return notice(notb, data.error || t('Delete failed.', '删除失败。'), false);
+  notb.hidden = true;
+  await loadVolunteers();
+}
+
+async function loadVolunteers() {
+  const notb = $('#caaci-vol-notice');
+  volLoading = (async () => {
+    const { ok, data } = await api('/api/admin/event-volunteers?scope=all');
+    if (!ok) {
+      volData = null;
+      $('#caaci-vol-body').innerHTML = '';
+      return notice(notb, data.error || t('Could not load volunteers.', '无法加载志愿者。'), false);
+    }
+    notb.hidden = true;
+    volData = { rows: data.rows || [] };
+    buildVolunteerFilter();
+    renderVolunteers();
+  })();
+  try {
+    await volLoading;
+  } finally {
+    volLoading = null;
+  }
+}
+
+// The Events tab's "Volunteers" button: show the tab with this event picked.
+async function openVolunteers(ev) {
+  $('[data-tab="volunteers"]').click(); // wireTabs swaps the panels; wireVolunteers loads
+  await volLoading;
+  const sel = $('#caaci-vol-event');
+  if ([...sel.options].some((o) => o.value === ev.slug)) sel.value = ev.slug;
+  renderVolunteers();
+}
+
+function downloadVolunteersCsv() {
+  if (!volData) return;
+  const pick = $('#caaci-vol-event').value;
+  const csv = volunteersCsv({ rows: shownVolunteers() });
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${pick && pick !== ANY_EVENT ? `${pick}-` : ''}volunteers.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function wireVolunteers() {
+  $('#caaci-vol-event').addEventListener('change', renderVolunteers);
+  $('#caaci-vol-csv').addEventListener('click', downloadVolunteersCsv);
+  const tab = $('[data-tab="volunteers"]');
+  if (tab) tab.addEventListener('click', () => loadVolunteers());
+}
+
 function wireEvents() {
   $('#caaci-event-add-btn').addEventListener('click', () => eventForm($('#caaci-event-form-host')));
   $('#caaci-reg-eligible').addEventListener('change', renderRegistrations);
@@ -3153,6 +3350,7 @@ function wireMyAccount() {
   wireRefunds();
   wireDiscounts();
   wireEvents();
+  wireVolunteers();
   wireBusiness();
   wireMedia();
   wireNews();
