@@ -49,7 +49,9 @@ interface MembershipPageProps {
   onNavigate: (page: string) => void;
 }
 
-const scrollToForm = () => smoothScrollTo('membership-form', { offset: -90, duration: 0.9 });
+// Scroll to the checkout panel, not its section: on phones the section stacks
+// the member pass above the form, so the section top landed on the pass card.
+const scrollToForm = () => smoothScrollTo('membership-checkout', { offset: -90, duration: 0.9 });
 
 export function MembershipPage({ content, lang, onNavigate }: MembershipPageProps) {
   const data = lang === 'en' ? membershipPageDataEN : membershipPageDataZH;
@@ -653,6 +655,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
           {/* Right: Join / Renew / Change plan */}
           <motion.div
+            id="membership-checkout"
             initial={slideFromRight}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={inView}
