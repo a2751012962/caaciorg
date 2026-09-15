@@ -98,7 +98,11 @@ export function smoothScrollTo(
   },
 ) {
   if (lenisInstance) {
-    lenisInstance.scrollTo(target, {
+    // Lenis reads a string without '#' as a CSS selector, so an element id
+    // like 'membership-form' matched nothing and the page never moved.
+    const byId =
+      typeof target === 'string' ? document.getElementById(target.replace(/^#/, '')) : null;
+    lenisInstance.scrollTo(byId ?? target, {
       offset: options?.offset ?? 0,
       duration: options?.duration ?? 1.1,
       immediate: options?.immediate ?? false,
