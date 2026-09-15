@@ -1,19 +1,37 @@
 import { useEffect, useRef } from 'react';
-import { Heart, Calendar, UserPlus } from 'lucide-react';
+import { Heart, Calendar, UserPlus, Clock, MapPin, ArrowUpRight, Gift } from 'lucide-react';
 import { gsap } from 'gsap';
 import type { CAACIContent } from '../data/content';
+import { useUpcomingEvents } from '../lib/useEvents';
+import {
+  eventAnchor,
+  eventPerkText,
+  eventTitle,
+  eventWhenText,
+  registrationPath,
+  takesRegistration,
+} from '../lib/events';
 
 interface HeroProps {
   content: CAACIContent;
+  lang?: 'en' | 'zh';
   onOpenModal: (type: 'donate' | 'events' | 'membership' | 'volunteer') => void;
   onNavigate?: (page: string) => void;
 }
 
-export function Hero({ content, onOpenModal, onNavigate }: HeroProps) {
+export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const leftColRef = useRef<HTMLDivElement>(null);
   const rightColRef = useRef<HTMLDivElement>(null);
   const bannersRef = useRef<HTMLDivElement>(null);
+  const isZh = lang === 'zh';
+
+  // The next published event (the admin panel's Events tab), promoted beside the
+  // welcome text the way the old homepage promoted the Mid-Autumn Festival.
+  const { events } = useUpcomingEvents();
+  const next = events[0] ?? null;
+  const nextPerk = next ? eventPerkText(next, lang) : null;
+  const nextRegisters = next ? takesRegistration(next) : false;
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -103,10 +121,6 @@ export function Hero({ content, onOpenModal, onNavigate }: HeroProps) {
                 src="/images/about-group.jpg"
                 alt="CAACI Members Group Gathering"
                 className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-[1.01]"
-                onError={(e) => {
-                  e.currentTarget.src =
-                    'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=1200&q=80';
-                }}
               />
               <div className="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-2xl pointer-events-none" />
             </div>
@@ -144,6 +158,63 @@ export function Hero({ content, onOpenModal, onNavigate }: HeroProps) {
                 </span>
               </div>
             </div>
+
+            {/* Next upcoming event (only when one is published) */}
+            {next && (
+              <div className="mt-6 sm:mt-8 max-w-[580px] p-5 sm:p-6 rounded-2xl bg-[#fbfbfd] border border-neutral-200/80 shadow-xs font-poppins">
+                <span className="inline-flex items-center gap-1.5 text-[10px] sm:text-xs uppercase font-bold text-[#8e2e11] tracking-wider">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>{isZh ? '近期活动' : 'Upcoming Event'}</span>
+                </span>
+                <h2 className="mt-2 text-lg sm:text-xl font-semibold text-[#1d1d1f] tracking-tight leading-snug">
+                  {eventTitle(next, lang)}
+                </h2>
+                <div className="mt-2 flex flex-col gap-1 text-xs sm:text-sm text-neutral-600">
+                  <span className="inline-flex items-start gap-1.5">
+                    <Clock className="w-3.5 h-3.5 mt-0.5 text-neutral-400 shrink-0" />
+                    <span>{eventWhenText(next, lang)}</span>
+                  </span>
+                  {next.location && (
+                    <span className="inline-flex items-start gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 mt-0.5 text-neutral-400 shrink-0" />
+                      <span>{next.location}</span>
+                    </span>
+                  )}
+                </div>
+                {nextPerk && (
+                  <p className="mt-3 flex items-start gap-1.5 text-xs sm:text-sm text-[#8e2e11] leading-relaxed">
+                    <Gift className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                    <span>{nextPerk}</span>
+                  </p>
+                )}
+                <div className="mt-4 flex flex-wrap gap-2.5">
+                  {nextRegisters && (
+                    <a
+                      href={registrationPath(next, lang)}
+                      className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#8e2e11] text-white hover:bg-[#a63715] text-xs font-semibold uppercase tracking-wider transition-all shadow-xs active:scale-98"
+                    >
+                      <span>{isZh ? '立即报名' : 'Register Now'}</span>
+                      <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onNavigate ? onNavigate(`events#${eventAnchor(next)}`) : onOpenModal('events')
+                    }
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-neutral-300 text-neutral-800 hover:border-neutral-800 text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer"
+                  >
+                    {nextRegisters
+                      ? isZh
+                        ? '查看全部活动'
+                        : 'All Events'
+                      : isZh
+                        ? '查看详情并预约'
+                        : 'Details & RSVP'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

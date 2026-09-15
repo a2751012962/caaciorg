@@ -88,11 +88,6 @@ export const aboutDataEN: AboutContent = {
       name: 'Jiachen Tu',
       desc: 'Oversee digital infrastructure, website management, and modern AI tool integration.',
     },
-    {
-      role: 'Student Engagement Director',
-      name: 'TBD',
-      desc: 'Liaison between resident community members and Chinese Student and Scholar Association (CSSA) leaders.',
-    },
   ],
   pastPresidentsTitle: 'Honorary Past Presidents of CAACI',
   pastPresidentsSubtitle:
@@ -175,11 +170,6 @@ export const aboutDataZH: AboutContent = {
       role: '科技与 AI 总监',
       name: 'Jiachen Tu',
       desc: '负责数字化网络基础设施、网站运维与现代 AI 智能赋能服务。',
-    },
-    {
-      role: '学生互动总监',
-      name: '待定 (TBD)',
-      desc: '作为华人居民与伊利诺伊大学中国学生学者联谊会 (CSSA) 的联络桥梁。',
     },
   ],
   pastPresidentsTitle: '华协历任荣誉主席',

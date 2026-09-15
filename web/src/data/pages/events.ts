@@ -1,3 +1,6 @@
+// Events page copy. Upcoming events are not listed here: they are the published
+// rows of public.events (the admin panel's Events tab), read by useEvents.ts.
+// `past` is the static archive shown under "Past Events" (#past).
 export interface EventsContent {
   title: string;
   subtitle: string;
@@ -9,7 +12,7 @@ export interface EventsContent {
   upcomingSubtitle: string;
   pastTitle: string;
   pastSubtitle: string;
-  items: {
+  past: {
     id: string;
     title: string;
     date: string;
@@ -18,7 +21,6 @@ export interface EventsContent {
     location: string;
     desc: string;
     organizer: string;
-    isFeatured?: boolean;
     category?: 'job' | 'culture' | 'governance' | 'community';
     recapSummary?: string;
   }[];
@@ -33,47 +35,11 @@ export const eventsDataEN: EventsContent = {
   filterUpcoming: 'Upcoming Events',
   filterPast: 'Past Highlights',
   upcomingTitle: 'Upcoming Events & Gatherings',
-  upcomingSubtitle:
-    'Join us for upcoming cultural celebrations, seminars, and networking sessions in Central Illinois.',
+  upcomingSubtitle: "Join us at CAACI's upcoming celebrations and community gatherings.",
   pastTitle: 'Past Events & Historical Highlights',
   pastSubtitle:
     'A retrospective archive of our community galas, general assemblies, and milestone gatherings.',
-  items: [
-    {
-      id: 'mid-autumn',
-      title: 'Mid-Autumn Cultural Festival & Lantern Gala',
-      date: 'September 20, 2026',
-      isoDate: '2026-09-20',
-      time: '5:30 PM - 8:30 PM',
-      location: 'Champaign Public Library & Community Pavilion',
-      desc: 'Celebrate the harvest moon with traditional mooncake tasting, Chinese folk music and dance performances, lantern riddles, and family crafting activities.',
-      organizer: 'CAACI Culture Committee',
-      isFeatured: true,
-      category: 'culture',
-    },
-    {
-      id: 'mentorship-forum',
-      title: 'Career Mentorship & Chamber Networking Seminar',
-      date: 'November 14, 2026',
-      isoDate: '2026-11-14',
-      time: '6:30 PM - 8:30 PM',
-      location: 'UIUC Research Park Innovation Hub',
-      desc: 'Connect with Chinese American executives and business founders in Central Illinois. Topics cover tech leadership, biotech entrepreneurship, and local market growth.',
-      organizer: 'CAACI Business & Professional Group',
-      category: 'job',
-    },
-    {
-      id: 'cny-gala',
-      title: 'Annual Chinese New Year Celebration Gala 2027',
-      date: 'January 28, 2027',
-      isoDate: '2027-01-28',
-      time: '6:00 PM - 9:30 PM',
-      location: 'Krannert Center for the Performing Arts, Urbana',
-      desc: 'Our marquee annual banquet and cultural performance featuring dragon dance, martial arts, opera, youth scholarship presentations, and community awards.',
-      organizer: 'CAACI Executive Board',
-      isFeatured: true,
-      category: 'culture',
-    },
+  past: [
     {
       id: 'cny-gala-2026',
       title: '2026 Spring Festival Gala 农历丙午新春文艺晚会',
@@ -133,45 +99,10 @@ export const eventsDataZH: EventsContent = {
   filterUpcoming: '近期活动',
   filterPast: '往期回顾',
   upcomingTitle: '近期活动与社区日程',
-  upcomingSubtitle: '欢迎报名参与即将举办的传统节日盛宴、政务招聘交流与职业导师讲座。',
+  upcomingSubtitle: '欢迎报名参加华协即将举办的节庆与社区活动。',
   pastTitle: '往期活动与历史档案',
   pastSubtitle: '回顾伊利诺伊中部华人协会历年举办的精彩节庆典礼、全员代表大会与里程碑事件。',
-  items: [
-    {
-      id: 'mid-autumn',
-      title: '中秋传统文化节与赏月游园灯会',
-      date: '2026 年 9 月 20 日',
-      isoDate: '2026-09-20',
-      time: '下午 5:30 - 晚上 8:30',
-      location: '香槟市立公共图书馆及社区草坪广场',
-      desc: '月圆中秋，阖家团聚。品尝各式传统广式与苏式月饼、欣赏中华民乐合奏与古典舞、参与中秋猜灯谜与儿童手工制作玉兔花灯。',
-      organizer: 'CAACI 文化委员会',
-      isFeatured: true,
-      category: 'culture',
-    },
-    {
-      id: 'mentorship-forum',
-      title: '青年职业发展与香槟商会创业导师论坛',
-      date: '2026 年 11 月 14 日',
-      isoDate: '2026-11-14',
-      time: '晚上 6:30 - 8:30',
-      location: 'UIUC 科技研究园创新中心',
-      desc: '邀请美中地区杰出华裔科学家、科技创业者及资深经理人分享行业洞察，助力留学生与青年学者顺利迈向职场巅峰。',
-      organizer: 'CAACI 商务与职业发展工作组',
-      category: 'job',
-    },
-    {
-      id: 'cny-gala',
-      title: '2027 CAACI 农历新春联欢晚会',
-      date: '2027 年 1 月 28 日',
-      isoDate: '2027-01-28',
-      time: '晚上 6:00 - 9:30',
-      location: '厄巴纳 Krannert 演艺中心',
-      desc: '协会年度最为盛大的标志性迎春文艺晚会，涵盖舞龙舞狮、武术展示、京剧民谣、优秀华裔青年奖学金颁奖典礼与新春千人团拜会。',
-      organizer: 'CAACI 执行理事会',
-      isFeatured: true,
-      category: 'culture',
-    },
+  past: [
     {
       id: 'cny-gala-2026',
       title: '2026 CAACI 农历丙午新春文艺晚会',
