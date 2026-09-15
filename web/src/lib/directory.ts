@@ -85,6 +85,18 @@ export function rowToMerchant(row: DirectoryRow, lang: 'en' | 'zh'): BusinessMer
   };
 }
 
+// Google Maps search for the merchant. The English name goes in the query (the
+// display name carries Chinese on /zh/, which sent Maps to the wrong place), and
+// only merchants with an address get the link at all — a bare name matched
+// anything with similar words.
+export function directionsUrl(m: Pick<BusinessMerchant, 'name' | 'nameEn' | 'address'>): string {
+  const query = [m.nameEn || m.name, m.address]
+    .map((s) => (s || '').trim())
+    .filter(Boolean)
+    .join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
 // Static merchants first, then approved listings not already among them.
 export function mergeMerchants(
   staticMerchants: BusinessMerchant[],

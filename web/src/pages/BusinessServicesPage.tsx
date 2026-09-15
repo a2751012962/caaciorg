@@ -58,6 +58,7 @@ import { cardTotal, money, useTiers } from '../lib/tiers';
 import {
   DIRECTORY_CATEGORIES,
   LISTING_CATEGORIES,
+  directionsUrl,
   loadApprovedListings,
   mergeMerchants,
   type DirectoryRow,
@@ -846,15 +847,17 @@ export function BusinessServicesPage({
                             <ExternalLink className="w-3 h-3 text-neutral-400" />
                           </a>
                         )}
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(merchant.name + ' ' + merchant.address)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 py-2 text-center text-xs font-medium rounded-full bg-neutral-900 text-white hover:bg-neutral-800 transition-colors inline-flex items-center justify-center gap-1 shadow-xs"
-                        >
-                          <Navigation className="w-3 h-3 text-gold" />
-                          <span>{lang === 'en' ? 'Directions' : '导航'}</span>
-                        </a>
+                        {merchant.address && (
+                          <a
+                            href={directionsUrl(merchant)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 py-2 text-center text-xs font-medium rounded-full bg-neutral-900 text-white hover:bg-neutral-800 transition-colors inline-flex items-center justify-center gap-1 shadow-xs"
+                          >
+                            <Navigation className="w-3 h-3 text-gold" />
+                            <span>{lang === 'en' ? 'Directions' : '导航'}</span>
+                          </a>
+                        )}
                       </div>
                     </motion.div>
                   ))}
@@ -957,15 +960,17 @@ export function BusinessServicesPage({
                           <ExternalLink className="w-3.5 h-3.5 text-neutral-400" />
                         </a>
                       )}
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(merchant.name + ' ' + merchant.address)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2 text-xs font-medium rounded-full bg-neutral-100 text-neutral-800 hover:bg-neutral-200 transition-colors inline-flex items-center gap-1.5"
-                      >
-                        <Navigation className="w-3.5 h-3.5 text-brick" />
-                        <span>{lang === 'en' ? 'Directions' : '导航路线'}</span>
-                      </a>
+                      {merchant.address && (
+                        <a
+                          href={directionsUrl(merchant)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2 text-xs font-medium rounded-full bg-neutral-100 text-neutral-800 hover:bg-neutral-200 transition-colors inline-flex items-center gap-1.5"
+                        >
+                          <Navigation className="w-3.5 h-3.5 text-brick" />
+                          <span>{lang === 'en' ? 'Directions' : '导航路线'}</span>
+                        </a>
+                      )}
                     </div>
                   </motion.div>
                 ))}
