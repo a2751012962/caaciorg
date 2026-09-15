@@ -27,8 +27,11 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
     // paints before running passive effects, so the hero was shown in its final
     // state for a frame (often the ~100ms first-layout frame) and then hidden.
     const ctx = gsap.context(() => {
-      if (left) gsap.set(left, { x: -50, opacity: 0 });
-      if (right) gsap.set(right, { x: 50, opacity: 0 });
+      // 0.01, not 0: Chrome skips rasterizing a layer at opacity 0, so the photo and
+      // heading were all drawn in the slide's first frame (a ~40ms GPU flush that
+      // showed as an 8px jump). At 0.01 they're drawn while still invisible.
+      if (left) gsap.set(left, { x: -50, opacity: 0.01 });
+      if (right) gsap.set(right, { x: 50, opacity: 0.01 });
       if (items) gsap.set(items, { y: 20, opacity: 0 });
       if (banners) {
         // The buttons' transition-all would turn this jump into a ~150ms sink and
