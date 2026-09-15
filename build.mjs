@@ -161,6 +161,10 @@ await writeFile(
   [
     '/events/:slug/register /event-register/ 200',
     '/events/:slug/register/ /event-register/ 200',
+    // pathFor() settles a Chinese visitor on /zh/events/<slug>/register/, so
+    // that spelling has to be rewritten too or a reload/share 404s.
+    '/zh/events/:slug/register /zh/event-register/ 200',
+    '/zh/events/:slug/register/ /zh/event-register/ 200',
     '',
   ].join('\n'),
 );
@@ -373,16 +377,21 @@ console.log(`Legacy page stubs into the React site: ${legacy}.`);
 // codes. It used to be a second copy of the Tabler form with the slug fixed on
 // <body>; registration is now the React page, so the printed URL becomes a stub
 // into its real route. Neither route is in the mirror, so create the directory.
+// The festival promo links it as /mid_autumn_festival_form/?lang=zh, so the
+// stub forwards the query it was reached with; the /zh/ copy only adds its own
+// ?lang=zh when there is no query to keep.
+const festivalStub = (extra) => {
+  const url = '/events/mid-autumn-festival/register/';
+  const dest = `${url}${extra}`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Redirecting…</title><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0; url=${dest}"><script>location.replace(${JSON.stringify(url)} + (location.search || ${JSON.stringify(extra)}) + location.hash)</script></head><body>Redirecting to <a href="${dest}">${dest}</a>…</body></html>\n`;
+};
 for (const [base, extra] of [
   ['', ''],
   ['zh/', '?lang=zh'],
 ]) {
   const dir = join(DIST, base + 'mid_autumn_festival_form');
   await mkdir(dir, { recursive: true });
-  await writeFile(
-    join(dir, 'index.html'),
-    legacyStub(`/events/mid-autumn-festival/register/${extra}`),
-  );
+  await writeFile(join(dir, 'index.html'), festivalStub(extra));
 }
 console.log('Printed QR URL /mid_autumn_festival_form/ stubbed into the React site.');
 
