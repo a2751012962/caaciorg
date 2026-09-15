@@ -140,51 +140,6 @@
   cursor: not-allowed;
 }
 
-/* --- Festival promo — the homepage / events-page entry to a registration form --- */
-/* On the homepage the promo is a Divi section built like the page's own
-   (wireFestivalPromo), so Divi lays it out. The homepage's type rules are tied
-   to numbered modules the promo can't reuse, so they are repeated here from
-   the mirror's Divi CSS: the small uppercase label (.et_pb_text_7 h3), the
-   Playfair heading (.et_pb_text_4 h2) and the body copy (.et_pb_text_5). */
-.caaci-promo .caaci-promo-eyebrow {
-  font-family: var(--caaci-font-body);
-  font-weight: 700;
-  text-transform: uppercase;
-  font-size: var(--caaci-fs-eyebrow);
-  letter-spacing: 1px;
-  line-height: 2em;
-  color: var(--caaci-brick);
-}
-.caaci-promo h2 {
-  font-family: var(--caaci-font-display);
-  font-weight: 700;
-  font-size: var(--caaci-fs-h2);
-  letter-spacing: 1px;
-  line-height: 1.4em;
-  color: var(--caaci-maroon);
-}
-.caaci-promo p {
-  max-width: 550px;
-  font-family: var(--caaci-font-body);
-  font-size: var(--caaci-fs-body);
-  letter-spacing: 1px;
-  line-height: 2em;
-  color: var(--caaci-muted);
-}
-.caaci-promo .caaci-btn {
-  margin-top: 1em;
-}
-/* On the events page the promo is not this card but an "Upcoming Events" row
-   built from the calendar's own past-event markup (wireFestivalPromo), so the
-   calendar's CSS styles it. Only the register button, which the past rows
-   don't have, is placed here; `.tribe-common` keeps this rule level with the
-   calendar's own `.tribe-common .tribe-common-c-btn`, and this file loads later. */
-.tribe-common .caaci-promo-upcoming-cta {
-  display: inline-block;
-  width: auto;
-  margin-top: var(--tec-spacer-3, 16px);
-}
-
 /* --- Volunteer sign-up event picker (wireVolunteer, /volunteer/) --- */
 /* Injected into the mirror's Divi contact form, between the phone field and the
    message box, so it takes that form's own rhythm: Divi gives every
