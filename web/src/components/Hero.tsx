@@ -3,10 +3,6 @@ import { Heart, Calendar, UserPlus } from 'lucide-react';
 import { gsap } from 'gsap';
 import type { CAACIContent } from '../data/content';
 
-// Ease-out for the three action banners: covers half the distance in the first
-// quarter of the animation, then settles slowly. 2.41 = ln(0.5) / ln(0.75).
-const BANNER_EASE = (t: number) => 1 - (1 - t) ** 2.41;
-
 interface HeroProps {
   content: CAACIContent;
   lang?: 'en' | 'zh';
@@ -65,7 +61,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
               opacity: 1,
               duration: 0.8,
               stagger: 0.1,
-              ease: BANNER_EASE,
+              ease: 'power3.out',
               delay: 0.5,
             });
         });
