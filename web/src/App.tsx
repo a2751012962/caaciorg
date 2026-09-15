@@ -30,6 +30,9 @@ const CommunityCalendarPage = lazy(() =>
 const BusinessServicesPage = lazy(() =>
   import('./pages/BusinessServicesPage').then((m) => ({ default: m.BusinessServicesPage })),
 );
+const EventRegisterPage = lazy(() =>
+  import('./pages/EventRegisterPage').then((m) => ({ default: m.EventRegisterPage })),
+);
 
 export type PageId =
   | 'home'
@@ -39,7 +42,8 @@ export type PageId =
   | 'account'
   | 'resources'
   | 'community-calendar'
-  | 'business-services';
+  | 'business-services'
+  | 'event-register';
 
 // build.mjs writes this app's index.html at each of these paths (and under /zh/).
 const PAGE_BY_SEGMENT: Record<string, PageId> = {
@@ -51,9 +55,16 @@ const PAGE_BY_SEGMENT: Record<string, PageId> = {
   resources: 'resources',
   'community-calendar': 'community-calendar',
   'business-services': 'business-services',
+  'event-register': 'event-register',
 };
 
+// The registration page also answers at /events/<slug>/register/ (with or
+// without the /zh/ prefix): the _redirects rewrite serves this SPA there and
+// keeps the slug in the address bar, which is how the page knows its event.
+const REGISTER_PATH = /^\/(?:zh\/)?events\/([^/]+)\/register\/?$/i;
+
 function pageFromPath(pathname: string): PageId {
+  if (REGISTER_PATH.test(pathname)) return 'event-register';
   const segment =
     pathname
       .replace(/^\/zh(?=\/|$)/, '')
@@ -62,8 +73,15 @@ function pageFromPath(pathname: string): PageId {
   return PAGE_BY_SEGMENT[segment.toLowerCase()] ?? 'home';
 }
 
-const pathFor = (page: PageId, lang: Lang) =>
-  `${lang === 'zh' ? '/zh' : ''}/${page === 'home' ? '' : `${page}/`}`;
+// `from` is the address the visitor is on: a /events/<slug>/register/ URL keeps
+// its slug (dropping it would leave the page with no event to load), while
+// every other page has one path per language.
+const pathFor = (page: PageId, lang: Lang, from = '') => {
+  const prefix = lang === 'zh' ? '/zh' : '';
+  const match = page === 'event-register' ? REGISTER_PATH.exec(from) : null;
+  if (match) return `${prefix}/events/${match[1]}/register/`;
+  return `${prefix}/${page === 'home' ? '' : `${page}/`}`;
+};
 
 // Read the address once, before the first render, and settle it: the language
 // being shown decides the /zh/ prefix, ?lang= and ?modal= are consumed, and
@@ -90,7 +108,7 @@ function boot(): { page: PageId; lang: Lang; modal: ModalType } {
       url.searchParams.set('donated', '1');
     }
   }
-  const settled = pathFor(page, lang) + url.search + url.hash;
+  const settled = pathFor(page, lang, url.pathname) + url.search + url.hash;
   if (settled !== window.location.pathname + window.location.search + window.location.hash) {
     window.history.replaceState(null, '', settled);
   }
@@ -101,6 +119,9 @@ function Site() {
   const [initial] = useState(boot);
   const [lang, setLang] = useState<Lang>(initial.lang);
   const [currentPage, setCurrentPage] = useState<PageId>(initial.page);
+  // The address as the page-level identity, updated on back/forward so a page
+  // that reads location once (event-register) is remounted for a new URL.
+  const [route, setRoute] = useState(() => window.location.pathname + window.location.search);
   const [modalType, setModalType] = useState<ModalType>(initial.modal);
   const auth = useAuth();
 
@@ -123,6 +144,7 @@ function Site() {
     const handlePopState = () => {
       setCurrentPage(pageFromPath(window.location.pathname));
       setLang(isZhPath(window.location.pathname) ? 'zh' : 'en');
+      setRoute(window.location.pathname + window.location.search);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -150,7 +172,9 @@ function Site() {
     window.history.replaceState(
       null,
       '',
-      pathFor(currentPage, nextLang) + window.location.search + window.location.hash,
+      pathFor(currentPage, nextLang, window.location.pathname) +
+        window.location.search +
+        window.location.hash,
     );
   };
 
@@ -187,6 +211,11 @@ function Site() {
         return <CommunityCalendarPage {...pageProps} />;
       case 'business-services':
         return <BusinessServicesPage {...pageProps} />;
+      case 'event-register':
+        // Keyed on the address: the registration page reads its event from the
+        // path once, so stepping back to a different /events/<slug>/register/
+        // has to start it over rather than leave the old event on screen.
+        return <EventRegisterPage key={route} {...pageProps} />;
       case 'home':
       default:
         return <HomePage {...pageProps} />;

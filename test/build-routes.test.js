@@ -1,8 +1,8 @@
 // Runs the real build (node build.mjs, well under a second) and checks what the
-// event registration page needs from it: the page at /event-register/, the same
-// page at the Mid-Autumn Festival's printed QR route with its event fixed on
-// <body>, and the dist/_redirects rewrites that serve it at
-// /events/<slug>/register/. dist/ is gitignored build output.
+// event registration page needs from it: the React site written at
+// /event-register/, the dist/_redirects rewrites that serve it at
+// /events/<slug>/register/, and the Mid-Autumn Festival's printed QR route
+// redirecting into that URL. dist/ is gitignored build output.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
@@ -32,6 +32,7 @@ test('build: the React site is written at every route it serves, in English and 
     'community-calendar/',
     'business-services/',
     'thank-you/',
+    'event-register/',
   ];
   const home = await dist('index.html');
   assert.match(home, /<div id="root"><\/div>/);
@@ -71,7 +72,7 @@ test('build: the login page stays Tabler; old pages point into the React site', 
   assert.match(await dist('zh/register/family-membership/index.html'), /"tier=family"/);
 });
 
-test('build: _redirects rewrites /events/<slug>/register onto /event-register/, and both registration routes are written', async () => {
+test('build: _redirects rewrites /events/<slug>/register onto the React registration page', async () => {
   await built;
 
   // Cloudflare Pages: one "from to status" rule per line; 200 is a rewrite.
@@ -79,35 +80,50 @@ test('build: _redirects rewrites /events/<slug>/register onto /event-register/, 
     .split(/\r?\n/)
     .map((line) => line.trim().split(/\s+/).join(' '))
     .filter((line) => line && !line.startsWith('#'));
-  assert.ok(rules.includes('/events/:slug/register /event-register/ 200'), rules.join('\n'));
-  assert.ok(rules.includes('/events/:slug/register/ /event-register/ 200'), rules.join('\n'));
+  // Both spellings in both languages: pathFor() settles a Chinese visitor on
+  // /zh/events/<slug>/register/, which has to be rewritten too or a reload 404s.
+  for (const rule of [
+    '/events/:slug/register /event-register/ 200',
+    '/events/:slug/register/ /event-register/ 200',
+    '/zh/events/:slug/register /zh/event-register/ 200',
+    '/zh/events/:slug/register/ /zh/event-register/ 200',
+  ])
+    assert.ok(rules.includes(rule), `${rule}\n---\n${rules.join('\n')}`);
 
-  const generic = await dist('event-register/index.html');
-  const festival = await dist('mid_autumn_festival_form/index.html');
-  assert.match(generic, /<body data-page="event-form">/);
-  assert.doesNotMatch(generic, /data-event=/, 'the generic page takes its event from the URL');
-  assert.match(festival, /<body data-event="mid-autumn-festival" data-page="event-form">/);
+  // The rewrite target is the React site, not the retired Tabler form.
+  const home = await dist('index.html');
+  assert.equal(await dist('event-register/index.html'), home);
   assert.equal(
-    festival.replace(' data-event="mid-autumn-festival"', ''),
-    generic,
-    'otherwise the very same page',
+    await dist('zh/event-register/index.html'),
+    home.replace('<html lang="en">', '<html lang="zh-CN">'),
   );
-  for (const [route, page] of [
-    ['event-register', generic],
-    ['mid_autumn_festival_form', festival],
+
+  // The URL printed on the Mid-Autumn Festival's QR codes still resolves: it is
+  // now a stub into the event's real registration URL (the /zh/ copy in Chinese).
+  // It forwards the query it was reached with (the festival promo links
+  // /mid_autumn_festival_form/?lang=zh); the /zh/ copy only adds its own
+  // ?lang=zh when there is nothing to forward.
+  assert.match(
+    await dist('mid_autumn_festival_form/index.html'),
+    /location\.replace\("\/events\/mid-autumn-festival\/register\/" \+ \(location\.search \|\| ""\) \+ location\.hash\)/,
+  );
+  assert.match(
+    await dist('zh/mid_autumn_festival_form/index.html'),
+    /location\.replace\("\/events\/mid-autumn-festival\/register\/" \+ \(location\.search \|\| "\?lang=zh"\) \+ location\.hash\)/,
+  );
+  // The no-JS fallback still points at the right destination.
+  assert.match(
+    await dist('zh/mid_autumn_festival_form/index.html'),
+    /url=\/events\/mid-autumn-festival\/register\/\?lang=zh"/,
+  );
+
+  // Registration no longer runs on the Tabler member bundle anywhere in dist/.
+  for (const page of [
+    'event-register/index.html',
+    'zh/event-register/index.html',
+    'mid_autumn_festival_form/index.html',
+    'zh/mid_autumn_festival_form/index.html',
   ]) {
-    assert.equal(page.includes('<!--CAACI_NAV-->'), false, `${route}: nav marker substituted`);
-    assert.match(page, /class="navbar[^"]*caaci-sitenav/, `${route}: the shared nav`);
-    assert.equal(
-      page.includes('<script type="module" src="/assets/caaci-app.js">'),
-      false,
-      `${route}: opted out of the mirror injection`,
-    );
-    // build.mjs versions every /assets/ URL with a content hash (?v=…).
-    assert.match(
-      page,
-      /<script type="module" src="\/assets\/caaci-member\.js(\?v=[0-9a-f]{12})?"><\/script>/,
-      route,
-    );
+    assert.equal((await dist(page)).includes('caaci-member.js'), false, page);
   }
 });
