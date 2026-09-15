@@ -42,7 +42,7 @@ export const eventsDataEN: EventsContent = {
   past: [
     {
       id: 'cny-gala-2026',
-      title: '2026 Spring Festival Gala 农历丙午新春文艺晚会',
+      title: '2026 CAACI Spring Festival Gala',
       date: 'February 14, 2026',
       isoDate: '2026-02-14',
       time: '6:00 PM - 9:30 PM',
@@ -54,7 +54,7 @@ export const eventsDataEN: EventsContent = {
     },
     {
       id: 'job-fair',
-      title: 'All-State Agencies Job Fair 全州政府机构招聘会',
+      title: 'All-State Agencies Job Fair',
       date: 'October 26, 2025',
       isoDate: '2025-10-26',
       time: '8:00 AM - 5:00 PM',
@@ -117,7 +117,7 @@ export const eventsDataZH: EventsContent = {
     },
     {
       id: 'job-fair',
-      title: 'All-State Agencies Job Fair 全州政府机构招聘会',
+      title: '全州政府机构招聘会',
       date: '2025 年 10 月 26 日',
       isoDate: '2025-10-26',
       time: '上午 8:00 - 下午 5:00',
