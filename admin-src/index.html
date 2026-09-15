@@ -172,6 +172,18 @@
                   <button
                     class="nav-link"
                     role="tab"
+                    data-tab="volunteers"
+                    aria-selected="false"
+                    data-en="Volunteers"
+                    data-zh="志愿者"
+                  >
+                    Volunteers
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
                     data-tab="directory"
                     aria-selected="false"
                     data-en="Directory"
@@ -618,6 +630,71 @@
                   </button>
                 </div>
                 <p class="alert m-3" id="caaci-events-notice" hidden></p>
+              </section>
+
+              <!-- ============ Volunteers ============ -->
+              <!-- Everyone who offered to help, from the /volunteer/ page and from
+                   the "I'd also like to volunteer" box on a registration form. -->
+              <section class="card" data-panel="volunteers" hidden>
+                <div class="card-header">
+                  <div>
+                    <div class="subheader" data-en="Helping hands" data-zh="志愿者报名">
+                      Helping hands
+                    </div>
+                    <h2 class="card-title mb-0" data-en="Volunteers" data-zh="志愿者">
+                      Volunteers
+                    </h2>
+                  </div>
+                  <div class="card-actions">
+                    <button
+                      type="button"
+                      class="btn btn-sm"
+                      id="caaci-vol-csv"
+                      data-en="Download CSV"
+                      data-zh="导出 CSV"
+                    >
+                      Download CSV
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <p
+                    class="text-secondary"
+                    data-en="Sign-ups from the volunteer page and from event registration forms. Filter by event, or leave it on all events."
+                    data-zh="来自志愿者报名页和活动报名表的报名记录。可按活动筛选，或查看全部活动。"
+                  >
+                    Sign-ups from the volunteer page and from event registration forms.
+                  </p>
+                  <div class="row g-2">
+                    <div class="col-sm-6 col-md-4">
+                      <select id="caaci-vol-event" class="form-select">
+                        <option value="" data-en="All events" data-zh="全部活动">All events</option>
+                      </select>
+                    </div>
+                    <div class="col-sm-6 col-md-4 d-flex align-items-center">
+                      <span class="text-secondary" id="caaci-vol-count"></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-vcenter card-table" id="caaci-vol-table">
+                    <thead>
+                      <tr>
+                        <th data-en="Name" data-zh="姓名">Name</th>
+                        <th data-en="Email" data-zh="邮箱">Email</th>
+                        <th data-en="Phone" data-zh="电话">Phone</th>
+                        <th data-en="Event" data-zh="活动">Event</th>
+                        <th data-en="Source" data-zh="来源">Source</th>
+                        <th data-en="Message" data-zh="留言">Message</th>
+                        <th data-en="Signed up" data-zh="报名时间">Signed up</th>
+                        <th data-en="Account" data-zh="账户">Account</th>
+                        <th data-en="Actions" data-zh="操作">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="caaci-vol-body"></tbody>
+                  </table>
+                </div>
+                <p class="alert m-3" id="caaci-vol-notice" hidden></p>
               </section>
 
               <!-- ============ Business directory ============ -->
