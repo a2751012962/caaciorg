@@ -7,6 +7,8 @@
 //     so it carries NO text the registrant typed: not text answers, not an
 //     Other answer (only the word "Other"), not even the address. Only option
 //     labels and the admin-written event fields, all escaped.
+//   volunteerConfirmation — sent by /api/volunteer to someone who signed up to
+//     help. Same rule: only the admin-written titles of the events they picked.
 //   newsTemplate — the templates in admin Compose News
 //     (/api/admin/news-template), for the admin to edit and send: for one
 //     event an announcement (eventAnnouncement), a reminder and a thank-you;
@@ -209,6 +211,8 @@ const thanksLayout = (s) =>
   <p style="margin:0 0 28px;${SMALL}">期待在下次活动与您相见！<br>We hope to see you at our next event!</p>`,
   );
 
+const VOLUNTEER_SUBJECT = 'CAACI 志愿者报名确认 / Thank you for volunteering';
+
 const GENERAL_SUBJECT = 'CAACI 通讯 / CAACI News';
 const generalLayout = (s) =>
   frame(
@@ -344,6 +348,45 @@ export function registrationConfirmation({
       ANSWERS_HTML: answersTable(questions, answers),
       PERK_HTML: perk,
     }),
+  };
+}
+
+// The thank-you /api/volunteer sends to someone who signed up to help. Like
+// the registration confirmation, that endpoint will mail any address anyone
+// types into it, so this carries NO text the volunteer typed — not their name,
+// their message or their phone number, and not the address itself. Only the
+// admin-written event titles, escaped. `events` is [{ title, title_zh }] in
+// display order; an empty list is the "wherever needed" sign-up.
+// Not a Resend Template: it has no admin-facing copy to keep in step there.
+export function volunteerConfirmation({ origin, logo, events = [] }) {
+  const list = events.length
+    ? `<ul style="margin:0 0 24px;padding-left:20px;">
+    ${events
+      .map(
+        (e) =>
+          `<li style="margin:0 0 6px;">${esc(e.title_zh || e.title)}${
+            e.title_zh && e.title_zh !== e.title ? ` · ${esc(e.title)}` : ''
+          }</li>`,
+      )
+      .join('\n    ')}
+  </ul>`
+    : `<p style="margin:0 0 24px;">任何活动均可 · Any event, wherever help is needed</p>`;
+  return {
+    subject: VOLUNTEER_SUBJECT,
+    html: frame(
+      siteSlots({ origin, logo }),
+      `  <h2 style="${HEADING}">感谢您报名志愿者</h2>
+  <p style="margin:0 0 20px;">感谢您愿意为美中伊利诺伊中部华人协会（CAACI）做志愿者！我们收到了您的报名，会尽快与您联系。</p>
+
+  <h2 style="${HEADING}">Thank you for volunteering</h2>
+  <p style="margin:0 0 24px;">Thank you for offering to help the Chinese American Association of Central Illinois! We have your sign-up and someone will be in touch soon.</p>
+
+  <p style="margin:0 0 8px;"><strong style="color:${INK};">您选择的活动 · You signed up to help with</strong></p>
+  ${list}
+
+  ${button(`${esc(origin)}/events/`, '近期活动 · Upcoming events')}
+  <p style="margin:0 0 28px;${SMALL}">如需修改或取消，请写信至 <a href="mailto:caaci.org@gmail.com" style="${LINK}">caaci.org@gmail.com</a>。<br>To change or cancel your sign-up, email <a href="mailto:caaci.org@gmail.com" style="${LINK}">caaci.org@gmail.com</a>.</p>`,
+    ),
   };
 }
 

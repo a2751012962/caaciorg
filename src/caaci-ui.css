@@ -185,6 +185,71 @@
   margin-top: var(--tec-spacer-3, 16px);
 }
 
+/* --- Volunteer sign-up event picker (wireVolunteer, /volunteer/) --- */
+/* Injected into the mirror's Divi contact form, between the phone field and the
+   message box, so it takes that form's own rhythm: Divi gives every
+   `p.et_pb_contact_field` a 3% left padding and a 3% bottom margin. Divi's own
+   checkbox styling (a hidden input plus an `<i>` drawn by its jQuery) only
+   applies inside `.et_pb_contact p`, so these rows in a <fieldset> keep the
+   browser's native box and are styled here instead. */
+.caaci-volunteer-events {
+  margin: 0 0 3%;
+  padding: 12px 16px;
+  border: 1px solid var(--caaci-line);
+  border-radius: var(--caaci-radius);
+  font-family: var(--caaci-font-body);
+  color: var(--caaci-body);
+}
+.caaci-volunteer-events legend {
+  /* A default legend is laid *into* the fieldset's border, so the second line
+     of the two-line question is cut through by it. A floated legend renders as
+     an ordinary block inside the box instead, with the border left whole. */
+  float: left;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: var(--caaci-fs-sm);
+  font-weight: 600;
+  color: var(--caaci-plum);
+}
+/* A flex container establishes its own formatting context, so it does not sit
+   under the floated legend above — it shrinks to whatever is left beside it,
+   which is nothing. Each row clears the float instead. */
+.caaci-volunteer-events .caaci-check {
+  clear: both;
+}
+/* The volunteer form's honeypot (caaci-app.js): a text input bots fill in and
+   people never see. Off-screen rather than display:none or hidden, which many
+   bots skip. */
+.caaci-hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+/* The whole row answers a tap, at the 44px minimum Apple and Google ask for —
+   the same target the Tabler pages' form rows got on phones. */
+.caaci-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: var(--caaci-fs-sm);
+  line-height: 1.4;
+  cursor: pointer;
+}
+.caaci-check input[type='checkbox'] {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--caaci-brick);
+}
+.caaci-check-when {
+  color: var(--caaci-muted);
+}
+
 /* ================================================== Donation checkout === */
 /* Modal opened from /donate/ (caaci-app.js openDonation); card entry itself
    happens on Stripe. */

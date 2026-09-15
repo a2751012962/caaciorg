@@ -2086,3 +2086,234 @@ test('admin news: without Jodit the message box itself is the editor, and sendin
     fetch.restore();
   }
 });
+
+// ---------- volunteers: one list for both sign-up sources ----------
+const VOL_EVENT = {
+  slug: 'mid-autumn-festival',
+  title: 'Mid-Autumn Festival',
+  title_zh: '中秋节',
+  starts_at: MAF.starts_at,
+};
+const VOLUNTEERS = [
+  {
+    id: 'v1',
+    event_id: null,
+    event: null, // "any event"
+    name: 'Ann <b>Lee</b>', // the panel escapes what a volunteer typed
+    email: 'ann@example.com',
+    phone: null,
+    message: 'Weekends, please',
+    source: 'volunteer',
+    member_id: null,
+    created_at: '2026-09-13T15:05:07Z',
+    updated_at: '2026-09-13T15:05:07Z',
+    account: null,
+  },
+  {
+    id: 'v2',
+    event_id: 'ev-maf',
+    event: VOL_EVENT,
+    name: 'Mei Lin',
+    email: 'mei@example.com',
+    phone: '217-555-0100',
+    message: null,
+    source: 'registration',
+    member_id: 'm-mei',
+    created_at: '2026-09-12T15:00:00Z',
+    updated_at: '2026-09-12T15:00:00Z',
+    account: { id: 'm-mei', status: 'active', tier_id: 'family' },
+  },
+  {
+    id: 'v3',
+    event_id: 'ev-maf',
+    event: VOL_EVENT,
+    name: 'Kai',
+    email: 'kai@example.com',
+    phone: null,
+    message: null,
+    source: 'volunteer',
+    member_id: null,
+    created_at: '2026-09-11T15:00:00Z',
+    updated_at: '2026-09-11T15:00:00Z',
+    account: null,
+  },
+];
+
+const volunteerRoutes =
+  (rows) =>
+  (u, options = {}) => {
+    if (u.includes('/api/admin/event-volunteers'))
+      return options.method === 'DELETE' ? { body: { ok: true } } : { body: { rows, summary: {} } };
+    if (u.includes('/api/admin/events')) return { body: { rows: [MAF, PICNIC], total: 2 } };
+    return { body: {} };
+  };
+
+test('admin volunteers: the tab lists every sign-up, filters by event and deletes a row', async () => {
+  let rows = VOLUNTEERS;
+  const fetch = mockFetch((u, o) => volunteerRoutes(rows)(u, o));
+  const asked = stubConfirm(true);
+  const $ = (s) => document.querySelector(s);
+  const bodyRows = () => [...document.querySelectorAll('#caaci-vol-body tr')];
+  try {
+    $('[data-tab="volunteers"]').click();
+    await tick();
+
+    // The tab's own panel is the visible one.
+    assert.equal(document.querySelector('[data-panel="volunteers"]').hidden, false);
+    assert.equal(document.querySelector('[data-panel="events"]').hidden, true);
+    assert.match(
+      fetch.calls.find((c) => c.url.includes('/api/admin/event-volunteers')).url,
+      /scope=all/,
+    );
+
+    // Every row, newest first as the API returns them.
+    assert.equal(bodyRows().length, 3);
+    const cells = bodyRows()[0].querySelectorAll('td');
+    assert.equal(cells[0].textContent, 'Ann <b>Lee</b>'); // escaped, not parsed
+    assert.equal(cells[0].querySelector('b'), null);
+    assert.equal(cells[1].textContent, 'ann@example.com');
+    assert.equal(cells[2].textContent, '—'); // no phone
+    assert.equal(cells[3].textContent, 'Any event');
+    assert.equal(cells[4].textContent, 'Volunteer page');
+    assert.equal(cells[5].textContent, 'Weekends, please');
+    assert.equal(cells[6].textContent, '2026-09-13 10:05:07'); // Chicago, not the test TZ
+    assert.equal(cells[7].textContent, '—');
+    assert.equal(bodyRows()[1].querySelectorAll('td')[4].textContent, 'Registration form');
+    assert.equal(bodyRows()[1].querySelector('.badge').textContent, 'Active');
+    assert.match($('#caaci-vol-count').textContent, /3 sign-up\(s\)/);
+
+    // The filter is built from the rows: each event once, plus "any event".
+    assert.deepEqual(
+      [...$('#caaci-vol-event').options].map((o) => [o.value, o.textContent]),
+      [
+        ['', 'All events'],
+        ['mid-autumn-festival', 'Mid-Autumn Festival'],
+        ['__any__', 'Any event'],
+      ],
+    );
+    const calls = fetch.calls.length;
+    choose($('#caaci-vol-event'), 'mid-autumn-festival');
+    assert.deepEqual(
+      bodyRows().map((tr) => tr.querySelectorAll('td')[1].textContent),
+      ['mei@example.com', 'kai@example.com'],
+    );
+    assert.equal(fetch.calls.length, calls, 'filtering is local — nothing is refetched');
+    choose($('#caaci-vol-event'), '__any__');
+    assert.deepEqual(
+      bodyRows().map((tr) => tr.querySelectorAll('td')[1].textContent),
+      ['ann@example.com'],
+    );
+
+    // Delete asks first, then removes the row and reloads the list.
+    rows = VOLUNTEERS.filter((r) => r.id !== 'v1');
+    bodyRows()[0].querySelector('[data-act="delete"]').click();
+    await tick();
+    assert.equal(asked.length, 1);
+    assert.match(asked[0], /Remove Ann <b>Lee<\/b> from the volunteer list\?/);
+    const del = fetch.calls.find((c) => c.options.method === 'DELETE');
+    assert.ok(del.url.startsWith('/api/admin/event-volunteers'));
+    assert.deepEqual(JSON.parse(del.options.body), { id: 'v1' });
+    // The "any event" option went with its only row, so the filter falls back to all.
+    assert.equal($('#caaci-vol-event').value, '');
+    assert.equal(bodyRows().length, 2);
+
+    // Nothing left to export: the CSV button is disabled.
+    rows = [];
+    $('[data-tab="volunteers"]').click();
+    await tick();
+    assert.equal(bodyRows()[0].textContent, 'No volunteers yet.');
+    assert.equal($('#caaci-vol-csv').disabled, true);
+  } finally {
+    asked.restore();
+    fetch.restore();
+  }
+});
+
+test('admin volunteers: an event row opens the tab already filtered to that event', async () => {
+  const fetch = mockFetch(volunteerRoutes(VOLUNTEERS));
+  const $ = (s) => document.querySelector(s);
+  try {
+    $('[data-tab="events"]').click();
+    await tick();
+    const row = document.querySelector('#caaci-events-body tr');
+    assert.equal(row.querySelectorAll('td')[0].textContent.startsWith('Mid-Autumn Festival'), true);
+    row.querySelector('[data-act="volunteers"]').click();
+    await tick();
+
+    assert.equal(document.querySelector('[data-panel="volunteers"]').hidden, false);
+    assert.equal($('#caaci-vol-event').value, 'mid-autumn-festival');
+    assert.deepEqual(
+      [...document.querySelectorAll('#caaci-vol-body tr')].map(
+        (tr) => tr.querySelectorAll('td')[1].textContent,
+      ),
+      ['mei@example.com', 'kai@example.com'],
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin volunteers: an event nobody has volunteered for gets its own empty state, not the whole list', async () => {
+  const fetch = mockFetch(volunteerRoutes(VOLUNTEERS));
+  const $ = (s) => document.querySelector(s);
+  try {
+    $('[data-tab="events"]').click();
+    await tick();
+    // The filter is built from the sign-ups that exist, so Picnic is not in it;
+    // without adding it, the button fell back to the unfiltered list and
+    // answered "here is everyone" to a question about one event.
+    const row = document.querySelectorAll('#caaci-events-body tr')[1];
+    assert.equal(row.querySelectorAll('td')[0].textContent.startsWith('Picnic'), true);
+    row.querySelector('[data-act="volunteers"]').click();
+    await tick();
+
+    const sel = $('#caaci-vol-event');
+    assert.equal(sel.value, 'picnic');
+    assert.equal(sel.selectedOptions[0].textContent, 'Picnic');
+    const bodyRows = [...document.querySelectorAll('#caaci-vol-body tr')];
+    assert.equal(bodyRows.length, 1);
+    assert.equal(bodyRows[0].textContent, 'No volunteers for Picnic yet.');
+    assert.equal($('#caaci-vol-csv').disabled, true);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin volunteers: the CSV has a BOM, Chicago times, RFC 4180 quoting and "Any event"', async () => {
+  const { volunteersCsv } = await import('../src/caaci-admin.js'); // already booted
+  const csv = volunteersCsv({
+    rows: [
+      {
+        created_at: '2026-09-13T15:05:07Z',
+        name: 'Ann, "A"',
+        email: 'ann@example.com',
+        phone: null,
+        event: null,
+        source: 'volunteer',
+        message: '=cmd()', // a formula-looking message is defused
+        account: null,
+      },
+      {
+        created_at: '2026-01-15T18:00:00Z', // CST (UTC−6) in winter
+        name: '林美',
+        email: 'mei@example.com',
+        phone: '217-555-0100',
+        event: VOL_EVENT,
+        source: 'registration',
+        message: 'Can drive\na van',
+        account: { id: 'm-mei', status: 'active', tier_id: 'family' },
+      },
+    ],
+  });
+  assert.equal(csv.charCodeAt(0), 0xfeff, 'UTF-8 BOM first');
+  assert.equal(
+    csv,
+    '\uFEFF' +
+      [
+        '#,signed_up_at (Chicago),name,email,phone,event,source,message,has_account,account_status',
+        '1,2026-09-13 10:05:07,"Ann, ""A""",ann@example.com,,Any event,volunteer,\'=cmd(),no,',
+        '2,2026-01-15 12:00:00,林美,mei@example.com,217-555-0100,Mid-Autumn Festival,registration,"Can drive\na van",yes,active',
+      ].join('\r\n') +
+      '\r\n',
+  );
+});

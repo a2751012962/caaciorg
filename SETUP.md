@@ -528,6 +528,59 @@ push`) **immediately before** deploying this code — the API and the admin
   reads — then delete that event (its registrations cascade). Confirmation emails
   sent from a preview link back to the preview host.
 
+## Volunteers (`/volunteer/`, `/api/volunteer`)
+
+People can offer to help without an account, from two places: the `/volunteer/`
+page (and `/zh/volunteer/`), where the mirror overlay takes over the Divi
+contact form and adds a checkbox per upcoming event, and the
+"I'd also like to volunteer at this event" box on an event's registration form.
+Both write `event_volunteers`.
+
+- **Routes.** `GET /api/volunteer` lists the published events that have not
+  happened yet — `(ends_at ?? starts_at) >= now`, oldest first, at most 20 — so
+  the page can build its checkboxes. It never returns anything about volunteers.
+  `POST /api/volunteer` takes `{ name, email, phone?, message?, events?: [slug] }`
+  (plus the `_hp` honeypot, which is silently accepted like the contact form) and
+  answers `{ ok, events: [{ slug, title, title_zh }], signed_in, linked }`. Every
+  slug must name an event from that same list; anything else is
+  `Event not found.` `POST /api/event-register` takes an optional
+  `volunteer: { name, phone? }` and reports `volunteer: true|false`; its GET, when
+  signed in, also returns `volunteer: { name, phone, created_at } | null` so the
+  page can pre-check the box.
+- **Table.** `event_volunteers` holds **one row per email address per event**,
+  upserted on `(event_id, email)` with the service-role key (RLS on, no browser
+  privileges). `event_id` null is the "any event / wherever needed" sign-up, and
+  the unique index is `nulls not distinct` so that row merges like any other
+  instead of stacking up. `source` says which form made it (`volunteer` or
+  `registration`). `created_at` is the first sign-up time and is never
+  overwritten; a second submission updates the name, phone, message and
+  `updated_at`. `member_id` is set only when the submission came from a signed-in
+  account whose **own login email** is the one on the form — the same rule as
+  event registrations, so a sign-up can never be pinned to a stranger's account.
+- **Emails** (both wrapped, so a failure never fails the sign-up): a staff
+  notification to `NOTIFY_TO` with the name, email, phone, message and the chosen
+  event titles, reply-to the volunteer; and a bilingual thank-you to the
+  volunteer built from the shared layout (`functions/api/_event-emails.js`).
+  Like the registration confirmation, the volunteer's own email carries **no text
+  they typed** — only the admin-written event titles — so the public endpoint
+  cannot be used to mail arbitrary copy from CAACI. Sending needs
+  `RESEND_API_KEY` and `NOTIFY_FROM`; with those unset the sign-up still saves.
+- **Admin → Volunteers**: every sign-up with its event, source and account, an
+  event filter, a CSV export and a per-row delete
+  (`/api/admin/event-volunteers`).
+- **Migration:** `0021_event_volunteers.sql`. Paste it into the Supabase SQL
+  editor (never `supabase db push`) **before** deploying this code — both public
+  endpoints write the new table. It only adds, so the previously deployed code
+  keeps working once it is applied. It **needs Postgres 15 or later**: the unique
+  index uses `nulls not distinct` (added in Postgres 15), which is what stops the
+  "any event" sign-up stacking up a new row per submission. Check the project's
+  version under **Supabase dashboard → Settings → Infrastructure** before
+  pasting; on Postgres 14 or older the `create unique index` fails with a syntax
+  error and nothing else in the file is applied.
+- **Testing on a preview deployment:** as for registrations, preview uses the
+  live Supabase database and sends real email. Sign up there against a separate,
+  temporary published event, then delete that event (its volunteers cascade).
+
 ## Family invitations (`/api/family`)
 
 A member on the family plan (`members.tier_id = 'family'`) is the family's

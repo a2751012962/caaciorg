@@ -35,6 +35,9 @@ export function notice(el, msg, good = true) {
   if (!n) {
     n = document.createElement('p');
     n.className = 'caaci-notice';
+    // TranslatePress blanks text it sees appear on the /zh/ pages, which would
+    // leave the confirmation an empty line — the one thing the form has to say.
+    n.setAttribute('data-no-dynamic-translation', '');
     el.appendChild(n);
   }
   n.textContent = msg;
@@ -195,10 +198,184 @@ export function wireDonate() {
   }
 }
 
+// ---------- /volunteer/ -> /api/volunteer ----------
+// The mirrored /volunteer/ page asks people to "use the contact form to sign up
+// as a volunteer", so a sign-up arrived as an ordinary message with no way to
+// tell which event it was for. This takes the same Divi form over: the Name /
+// Email / Phone fields stay (they are what gives the mirror its look), the
+// message box becomes an optional "how would you like to help", and a picker of
+// the events that are still to come is inserted above it. wireContact skips a
+// form claimed here, so a page never posts to both APIs.
+const VOLUNTEER_COPY = {
+  en: {
+    legend: 'Which event(s) would you like to help with?',
+    any: 'Any event / wherever needed',
+    message: 'How would you like to help? (optional)',
+    thanks: "Thank you for volunteering! We'll be in touch soon.",
+    failed: 'Could not send. Please try again.',
+    sending: 'Sending…',
+  },
+  zh: {
+    legend: '您想为哪些活动做志愿者？',
+    any: '任何活动均可',
+    message: '您想怎样帮忙？（选填）',
+    thanks: '感谢您报名志愿者！我们会尽快与您联系。',
+    failed: '提交失败，请重试。',
+    sending: '提交中…',
+  },
+};
+
+// The event's date in the style the site's calendar rows use. An unreadable or
+// missing date simply drops out of the label rather than showing "Invalid Date".
+export function volunteerWhen(startsAt, zh) {
+  const at = Date.parse(startsAt || '');
+  if (Number.isNaN(at)) return '';
+  try {
+    return new Date(at).toLocaleDateString(zh ? 'zh-CN' : 'en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'America/Chicago',
+    });
+  } catch {
+    return '';
+  }
+}
+
+// One checkbox row. `slug` is empty for the "Any event" row, which is what the
+// form falls back to when no event is listed or the list could not be loaded.
+function volunteerRow(slug, label, when) {
+  const row = promoNode('label', 'caaci-check');
+  const box = promoNode('input', '');
+  box.type = 'checkbox';
+  box.value = slug;
+  if (!slug) box.dataset.any = '1';
+  row.append(box, promoNode('span', '', label));
+  if (when) row.append(promoNode('span', 'caaci-check-when', ` · ${when}`));
+  return row;
+}
+
+export async function wireVolunteer() {
+  if (!/^\/(zh\/)?volunteer\/?$/.test(location.pathname)) return;
+  const form = $('.et_pb_contact_form');
+  if (!form || form.dataset.caaciVolunteer) return;
+  // Claimed before the first await, so wireContact — which runs later in the
+  // same synchronous pass — already sees the flag.
+  form.dataset.caaciVolunteer = '1';
+
+  const zh = /^\/zh(\/|$)/.test(location.pathname);
+  const copy = VOLUNTEER_COPY[zh ? 'zh' : 'en'];
+  const messageField = form.querySelector('[name*=message],textarea');
+  const messageBox = messageField?.closest('p') || messageField;
+
+  // Volunteering does not need a message, and the field now asks a question
+  // rather than demanding a note. Divi hides the label, so the placeholder is
+  // the copy people actually read; both are set for screen readers.
+  if (messageField) {
+    messageField.placeholder = copy.message;
+    messageField.removeAttribute('data-required_mark');
+    const label = form.querySelector(`label[for="${messageField.id}"]`);
+    if (label) {
+      label.textContent = copy.message;
+      label.setAttribute('data-no-dynamic-translation', '');
+    }
+  }
+
+  // Bound before the first await, like the claim above: a submit while the
+  // event list is still loading must post to /api/volunteer, not fall through
+  // to Divi's own handler and reload the page with the form's contents lost.
+  // Everything onSubmit reads is therefore initialised before that await too.
+  const submitBtn = form.querySelector('.et_pb_contact_submit, [type=submit]');
+  form.addEventListener('submit', onSubmit);
+
+  // Bots fill in every field they can find; a real visitor never sees this one.
+  // Off-screen through .caaci-hp rather than an inline style (UI_GUIDELINE §4).
+  const hp = promoNode('input', 'caaci-hp');
+  hp.type = 'text';
+  hp.name = '_hp';
+  hp.tabIndex = -1;
+  hp.autocomplete = 'off';
+  hp.setAttribute('aria-hidden', 'true');
+  form.append(hp);
+
+  const picker = promoNode('fieldset', 'caaci-volunteer-events');
+  picker.append(promoNode('legend', '', copy.legend));
+  if (messageBox) messageBox.before(picker);
+  else form.prepend(picker);
+
+  const anyRow = volunteerRow('', copy.any, '');
+  const anyBox = anyRow.querySelector('input');
+  const eventBoxes = () =>
+    [...picker.querySelectorAll('input[type=checkbox]')].filter((b) => !b.dataset.any);
+  // "Any event" and a named event are alternatives, not a combination.
+  anyBox.addEventListener('change', () => {
+    if (anyBox.checked) for (const b of eventBoxes()) b.checked = false;
+  });
+  picker.addEventListener('change', (e) => {
+    if (e.target !== anyBox && e.target.checked) anyBox.checked = false;
+  });
+
+  // Nothing to choose between: "Any event" is the only answer the form can give.
+  const setDefault = () => {
+    anyBox.checked = eventBoxes().length === 0;
+  };
+
+  // A failed list is not a failed page: the form still takes an "any event"
+  // sign-up, which is what most people pick anyway.
+  const events = await fetch('/api/volunteer')
+    .then((r) => (r.ok ? r.json() : {}))
+    .then((d) => (Array.isArray(d?.events) ? d.events : []))
+    .catch(() => []);
+  for (const ev of events)
+    picker.append(
+      volunteerRow(
+        ev.slug,
+        (zh && ev.title_zh) || ev.title || ev.slug,
+        volunteerWhen(ev.starts_at, zh),
+      ),
+    );
+  picker.append(anyRow);
+  setDefault();
+
+  // A function declaration so the listener above can be bound before any of
+  // this exists; every const it reads is assigned before the fetch below, so a
+  // submit during that fetch finds them all initialised.
+  async function onSubmit(e) {
+    e.preventDefault();
+    if (submitBtn?.disabled) return;
+    const v = (sel) => (form.querySelector(sel) || {}).value || '';
+    const label = submitBtn?.textContent;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = copy.sending;
+    }
+    const { ok, data } = await api('/api/volunteer', {
+      name: v('[name*=name]'),
+      email: v('[name*=email]'),
+      phone: v('[name*=phone]'),
+      message: messageField ? messageField.value : '',
+      events: eventBoxes()
+        .filter((b) => b.checked)
+        .map((b) => b.value),
+      _hp: hp.value,
+    });
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = label;
+    }
+    notice(form, ok ? copy.thanks : data.error || copy.failed, ok);
+    if (ok) {
+      form.reset();
+      setDefault();
+    }
+  }
+}
+
 // ---------- Divi contact form -> /api/contact ----------
 export function wireContact() {
   const form = $('.et_pb_contact_form') || document.querySelector('form[class*=contact]');
-  if (!form) return;
+  // /volunteer/ hands the same form to wireVolunteer, which claimed it first.
+  if (!form || form.dataset.caaciVolunteer) return;
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const v = (sel) => (form.querySelector(sel) || {}).value || '';
@@ -543,10 +720,15 @@ export function init() {
     wireBusinessServiceTiles,
     wireFestivalPromo,
     wireDonate,
+    // Before wireContact: on /volunteer/ both want the same Divi form, and the
+    // first one to claim it wins.
+    wireVolunteer,
     wireContact,
   ]) {
     try {
-      fn();
+      // wireVolunteer is async: catch the rejection too, so a failure there is
+      // logged like any other instead of escaping as an unhandled rejection.
+      Promise.resolve(fn()).catch((err) => console.warn('caaci-app:', err));
     } catch (err) {
       console.warn('caaci-app:', err);
     }
