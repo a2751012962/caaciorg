@@ -15,7 +15,8 @@ mirror of the live site (so the UI is identical); the WordPress backend
 ## Repo layout
 
 ```
-mirror/                 pristine public mirror of caaciorg.com (do not edit by hand)
+mirror/                 pristine public mirror of caaciorg.com (do not edit by hand;
+                        pages the React site in web/ replaced are removed)
 src/caaci-app.js        enhancement layer wired onto the mirror's existing forms
 build.mjs               mirror/ -> dist/, injects config + app into every page
 dist/                   deployable output (generated; git-ignored)

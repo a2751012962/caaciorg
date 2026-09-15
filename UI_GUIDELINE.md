@@ -184,7 +184,8 @@ A page that needs something new gets a section here, written in tokens — not a
 
 1. **Never edit the mirror by hand.** `mirror/` is pristine; all custom behaviour
    and styling lives in `src/` and is injected at build time (see
-   [`build.mjs`](build.mjs)).
+   [`build.mjs`](build.mjs)). Pages the React site (`web/`) replaced are
+   deleted from it outright, never edited.
 2. **No inline styles in JS.** Add a class to `caaci-ui.css` and reference it.
    The one historical exception (the account box) has been migrated.
 3. **Use tokens, not literals.** New color/size → add a `--caaci-*` variable.
