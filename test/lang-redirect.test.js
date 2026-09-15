@@ -229,7 +229,7 @@ test('member page: a first visit follows the browser language', async () => {
   const dom = await bootMemberPage({ languages: ['zh-CN', 'en'] });
   const doc = dom.window.document;
   assert.equal(doc.documentElement.lang, 'zh');
-  assert.equal(doc.querySelector('#caaci-lang').textContent, 'EN');
+  assert.equal(doc.querySelector('#caaci-lang').textContent, 'En');
   assert.equal(doc.querySelector('a.navbar-brand').getAttribute('href'), '/zh/');
   assert.equal(dom.window.localStorage.getItem(LANG_KEY), null);
 });
@@ -237,6 +237,8 @@ test('member page: a first visit follows the browser language', async () => {
 test('member page: the stored choice beats the browser, and ?lang= becomes the stored choice', async () => {
   let dom = await bootMemberPage({ languages: ['zh-CN'], stored: 'en' });
   assert.equal(dom.window.document.documentElement.lang, 'en');
+  assert.equal(dom.window.document.querySelector('#caaci-lang').textContent, '中');
+  assert.equal(dom.window.document.querySelector('a.navbar-brand').getAttribute('href'), '/');
 
   dom = await bootMemberPage({ languages: ['en-US'], search: '?lang=zh' });
   assert.equal(dom.window.document.documentElement.lang, 'zh');
