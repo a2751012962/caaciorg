@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowUpRight } from 'lucide-react';
@@ -92,7 +92,9 @@ export function StackedCardsSection({
 
   const isZh = lang === 'zh';
 
-  useEffect(() => {
+  // Layout effect so panels 2-4 are moved off-screen before the first paint; with
+  // useEffect a full page load could show all four statements stacked for a frame.
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { Heart, Calendar, UserPlus } from 'lucide-react';
 import { gsap } from 'gsap';
 import type { CAACIContent } from '../data/content';
@@ -21,7 +21,10 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
   const bannersRef = useRef<HTMLDivElement>(null);
   const isZh = lang === 'zh';
 
-  useEffect(() => {
+  // Layout effect, not useEffect: on a full page load React paints before running
+  // passive effects, so the hero was shown in its final state for a frame (often
+  // the ~100ms first-layout frame) and then hidden by the tweens' start values.
+  useLayoutEffect(() => {
     const ctx = gsap.context(() => {
       // Left Column enters from Left
       if (leftColRef.current) {
@@ -166,7 +169,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
           <button
             onClick={() => onOpenModal('donate')}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-[filter,scale] cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
             style={{ backgroundColor: '#8e2e11' }}
           >
             <Heart className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
@@ -179,7 +182,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
           <button
             onClick={() => (onNavigate ? onNavigate('events') : onOpenModal('events'))}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-[filter,scale] cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
             style={{ backgroundColor: '#73250e' }}
           >
             <Calendar className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
@@ -192,7 +195,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
           <button
             onClick={() => (onNavigate ? onNavigate('membership') : onOpenModal('membership'))}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-[filter,scale] cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
             style={{ backgroundColor: '#300200' }}
           >
             <UserPlus className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />

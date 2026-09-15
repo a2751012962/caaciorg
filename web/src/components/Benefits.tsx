@@ -113,7 +113,7 @@ export function Benefits({ content }: BenefitsProps) {
                 ref={(el) => {
                   cardsRef.current[index] = el;
                 }}
-                className="bg-[#fbfbfd] p-8 sm:p-9 rounded-2xl border border-neutral-200/80 space-y-4 hover:border-neutral-300 transition-all will-change-transform shadow-xs"
+                className="bg-[#fbfbfd] p-8 sm:p-9 rounded-2xl border border-neutral-200/80 space-y-4 hover:border-neutral-300 transition-colors will-change-transform shadow-xs"
               >
                 {/* Clean Circular Icon Badge identical to /membership/ */}
                 <div className="benefit-icon-wrap w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-[#1d1d1f] shadow-2xs">
