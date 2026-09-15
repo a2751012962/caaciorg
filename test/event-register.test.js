@@ -100,7 +100,9 @@ function route({
   event = EVENT,
   byEmail = null,
   byMember = null,
+  volunteer = null,
   upsert,
+  volunteerUpsert,
   resend,
 } = {}) {
   return (url, options = {}) => {
@@ -113,6 +115,11 @@ function route({
         );
       if (url.includes('member_id=eq.')) return { body: byMember ? [byMember] : [] };
       return { body: byEmail ? [byEmail] : [] };
+    }
+    if (url.includes('/rest/v1/event_volunteers')) {
+      if (options.method === 'POST')
+        return volunteerUpsert ?? { body: [{ id: 'v1', ...JSON.parse(options.body) }] };
+      return { body: volunteer ? [volunteer] : [] };
     }
     if (url.includes('api.resend.com')) {
       if (typeof resend === 'function') return resend();
@@ -133,6 +140,9 @@ const regSelects = (fetch) =>
 const upsertCall = (fetch) =>
   callsTo(fetch, '/rest/v1/event_registrations').find((c) => c.options.method === 'POST');
 const upsertBody = (fetch) => JSON.parse(upsertCall(fetch).options.body);
+const volunteerCalls = (fetch) => callsTo(fetch, '/rest/v1/event_volunteers');
+const volunteerUpsertBody = (fetch) =>
+  JSON.parse(volunteerCalls(fetch).find((c) => c.options.method === 'POST').options.body);
 const emails = (fetch) => callsTo(fetch, 'api.resend.com').map((c) => JSON.parse(c.options.body));
 
 const EVENT_SELECT =
@@ -344,6 +354,7 @@ test('event-register POST: anonymous first registration upserts answers on (even
       registered_at: FIRST_AT,
       signed_in: false,
       linked: false,
+      volunteer: false,
       perk: PERK,
     });
 
@@ -482,6 +493,7 @@ test('event-register POST: resubmission -> already=true, keeps the first created
       registered_at: EARLIER_AT,
       signed_in: false,
       linked: false,
+      volunteer: false,
       perk: PERK,
     });
     const row = upsertBody(fetch);
@@ -809,6 +821,7 @@ test('event-register GET: signed in, registration found by lower-cased login ema
       signed_in: true,
       email: 'Pat@Example.com',
       registration: { registered_at: FIRST_AT, updated_at: '2026-09-15T00:00:00+00:00' },
+      volunteer: null,
     });
     const lookups = regSelects(fetch);
     assert.equal(lookups.length, 1, 'no member_id lookup once the email matched');
@@ -872,6 +885,229 @@ test('event-register GET: a DB error -> 500', async () => {
     const r = await get('?event=mid-autumn-festival');
     assert.equal(r.status, 500);
     assert.deepEqual(await r.json(), { error: 'supabase select events: 503 down' });
+  } finally {
+    fetch.restore();
+  }
+});
+
+// ----------------------------------------------- the volunteer extension ----
+// "I'd also like to volunteer at this event" on the registration form writes an
+// event_volunteers row (0021) next to the registration, source 'registration'.
+
+test('event-register POST: no volunteer field -> volunteer false and no event_volunteers call', async () => {
+  for (const volunteer of [undefined, null]) {
+    const fetch = mockFetch(route());
+    try {
+      const r = await post({ ...VALID, volunteer });
+      assert.equal(r.status, 200);
+      assert.equal((await r.json()).volunteer, false);
+      assert.equal(volunteerCalls(fetch).length, 0);
+    } finally {
+      fetch.restore();
+    }
+  }
+});
+
+test('event-register POST: volunteer false removes the sign-up, after the registration is saved', async () => {
+  const fetch = mockFetch(route({ volunteer: { name: 'Pat Lee', phone: null } }));
+  try {
+    const r = await post({ ...VALID, volunteer: false });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).volunteer, false);
+
+    // The page only sends `false` when the box it pre-filled was un-ticked, so
+    // this is the one way someone can take themselves off the list again.
+    const calls = volunteerCalls(fetch);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].options.method, 'DELETE');
+    assert.equal(
+      calls[0].url,
+      'https://db.example/rest/v1/event_volunteers?event_id=eq.e1&email=eq.pat%40example.com',
+    );
+    // The registration is what they came for: it is saved first either way.
+    assert.ok(
+      fetch.calls.indexOf(upsertCall(fetch)) < fetch.calls.indexOf(calls[0]),
+      'registration written before the sign-up is dropped',
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+for (const [label, volunteer, error] of [
+  ['name missing', { phone: '217-555-0101' }, 'Enter your name to volunteer.'],
+  ['name blank', { name: '  ', phone: '' }, 'Enter your name to volunteer.'],
+  ['volunteer: true with no name', true, 'Enter your name to volunteer.'],
+  ['name over 120 chars', { name: 'n'.repeat(121) }, 'That name is too long.'],
+  ['phone over 40 chars', { name: 'Pat', phone: '1'.repeat(41) }, 'That phone number is too long.'],
+]) {
+  test(`event-register POST: volunteer ${label} -> 400 with no registration write or email`, async () => {
+    const fetch = mockFetch(route());
+    try {
+      const r = await post({ ...VALID, volunteer });
+      assert.equal(r.status, 400);
+      assert.deepEqual(await r.json(), { error });
+      assert.equal(callsTo(fetch, '/rest/v1/event_registrations').length, 0, 'checked first');
+      assert.equal(volunteerCalls(fetch).length, 0);
+      assert.equal(emails(fetch).length, 0);
+    } finally {
+      fetch.restore();
+    }
+  });
+}
+
+test('event-register POST: volunteer -> a registration row and a sign-up on (event_id, email)', async () => {
+  const fetch = mockFetch(route());
+  try {
+    const before = Date.now();
+    const r = await post({
+      ...VALID,
+      email: '  Pat@Example.COM ',
+      volunteer: { name: '  Pat Lee  ', phone: ' 217-555-0101 ' },
+    });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).volunteer, true);
+
+    const calls = volunteerCalls(fetch);
+    // One read (what source is already on the row?) and one upsert.
+    assert.equal(calls.length, 2);
+    const write = calls.find((c) => c.options.method === 'POST');
+    assert.equal(
+      write.url,
+      'https://db.example/rest/v1/event_volunteers?on_conflict=event_id,email',
+    );
+    assert.equal(write.options.headers.prefer, 'resolution=merge-duplicates,return=representation');
+    const { updated_at, ...row } = volunteerUpsertBody(fetch);
+    assert.deepEqual(row, {
+      event_id: 'e1',
+      name: 'Pat Lee',
+      email: 'pat@example.com',
+      phone: '217-555-0101',
+      source: 'registration',
+    });
+    // This form has no message field, so it must not send one: a null would
+    // wipe the "how I can help" note the same person left on /volunteer/.
+    for (const key of ['created_at', 'member_id', 'message'])
+      assert.equal(key in row, false, `${key} is never sent`);
+    assert.ok(Date.parse(updated_at) >= before - 1000 && Date.parse(updated_at) <= Date.now());
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event-register POST: an existing volunteer-page sign-up keeps its source', async () => {
+  for (const [existing, source] of [
+    [{ source: 'volunteer' }, 'volunteer'],
+    [{ source: 'registration' }, 'registration'],
+    [null, 'registration'],
+  ]) {
+    const fetch = mockFetch(route({ volunteer: existing }));
+    try {
+      const r = await post({ ...VALID, volunteer: { name: 'Pat Lee' } });
+      assert.equal(r.status, 200);
+      // An upsert has to send source, so without reading the row first this
+      // box would relabel a /volunteer/ sign-up as a registration one and the
+      // admin list would credit the wrong form.
+      assert.equal(volunteerUpsertBody(fetch).source, source);
+      const read = volunteerCalls(fetch).find((c) => c.options.method !== 'POST');
+      assert.match(
+        decodeURIComponent(read.url),
+        /select=source&event_id=eq\.e1&email=eq\.pat@example\.com/,
+      );
+    } finally {
+      fetch.restore();
+    }
+  }
+});
+
+test('event-register POST: an omitted volunteer phone is stored as null', async () => {
+  const fetch = mockFetch(route());
+  try {
+    await post({ ...VALID, volunteer: { name: 'Pat Lee' } });
+    assert.equal(volunteerUpsertBody(fetch).phone, null);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event-register POST: the sign-up is linked to the account on the same rule as the registration', async () => {
+  for (const [loginEmail, linked] of [
+    ['pat@example.com', true],
+    ['someone@else.com', false],
+  ]) {
+    const fetch = mockFetch(route({ user: { id: 'u1', email: loginEmail } }));
+    try {
+      const r = await post(
+        { ...VALID, volunteer: { name: 'Pat Lee' } },
+        { headers: { authorization: 'Bearer good' } },
+      );
+      assert.equal(r.status, 200);
+      const out = await r.json();
+      assert.equal(out.linked, linked);
+      assert.equal(out.volunteer, true);
+      const row = volunteerUpsertBody(fetch);
+      assert.equal('member_id' in row, linked);
+      assert.equal(row.member_id, linked ? 'u1' : undefined);
+    } finally {
+      fetch.restore();
+    }
+  }
+});
+
+test('event-register POST: the sign-up is written only after the registration succeeds', async () => {
+  const fetch = mockFetch(route({ upsert: { ok: false, status: 500, body: 'boom' } }));
+  try {
+    const r = await post({ ...VALID, volunteer: { name: 'Pat Lee' } });
+    assert.equal(r.status, 500);
+    assert.deepEqual(await r.json(), { error: 'supabase upsert event_registrations: 500 boom' });
+    assert.equal(volunteerCalls(fetch).length, 0);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event-register GET: signed in, the sign-up for (event_id, email) comes back', async () => {
+  const fetch = mockFetch(
+    route({
+      user: { id: 'u1', email: 'Pat@Example.com' },
+      volunteer: { name: 'Pat Lee', phone: '217-555-0101', created_at: EARLIER_AT },
+    }),
+  );
+  try {
+    const r = await get('?event=mid-autumn-festival', {
+      headers: { authorization: 'Bearer good' },
+    });
+    assert.equal(r.status, 200);
+    assert.deepEqual((await r.json()).volunteer, {
+      name: 'Pat Lee',
+      phone: '217-555-0101',
+      created_at: EARLIER_AT,
+    });
+    const [lookup] = volunteerCalls(fetch);
+    assert.match(
+      lookup.url,
+      /\/rest\/v1\/event_volunteers\?select=name,phone,created_at&event_id=eq\.e1&email=eq\.pat%40example\.com&limit=1$/,
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event-register GET: no sign-up -> volunteer null; signed out, no volunteer key at all', async () => {
+  let fetch = mockFetch(route({ user: { id: 'u1', email: 'pat@example.com' } }));
+  try {
+    const out = await (
+      await get('?event=mid-autumn-festival', { headers: { authorization: 'Bearer good' } })
+    ).json();
+    assert.equal(out.volunteer, null);
+  } finally {
+    fetch.restore();
+  }
+  fetch = mockFetch(route({ volunteer: { name: 'Pat Lee', phone: null, created_at: FIRST_AT } }));
+  try {
+    const out = await (await get('?event=mid-autumn-festival')).json();
+    assert.equal('volunteer' in out, false, 'nothing about any address when signed out');
+    assert.equal(volunteerCalls(fetch).length, 0);
   } finally {
     fetch.restore();
   }

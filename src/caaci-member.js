@@ -2937,6 +2937,19 @@ export async function wireEventFormPage() {
   const btn = $('#caaci-ev-submit');
   const emailEl = $('#caaci-ev-email');
   const questionsHost = $('#caaci-ev-questions');
+  // "I'd also like to volunteer": the name and phone stay out of the way until
+  // the box is ticked, so the form is no longer for everyone else.
+  const volBox = $('#caaci-ev-vol');
+  const volFields = $('#caaci-ev-vol-fields');
+  const volName = $('#caaci-ev-vol-name');
+  const volPhone = $('#caaci-ev-vol-phone');
+  // Set when the signed-in GET pre-ticked the box: only then does an un-ticked
+  // box mean "take me off the list" rather than "I never asked".
+  let volunteerPrefilled = false;
+  volBox.addEventListener('change', () => {
+    volFields.hidden = !volBox.checked;
+    if (volBox.checked) volName.focus();
+  });
   // Same-site links back to the page as it was reached (with the query, which
   // names the event on /event-register/?event=), never a fixed host.
   const here = encodeURIComponent(location.pathname + (location.search || ''));
@@ -3025,7 +3038,7 @@ export async function wireEventFormPage() {
   // `linked`: the API tied the registration to the signed-in account, which it
   // does only when the registration email is the login email. A response
   // without the field comes from before that rule, when signed in meant linked.
-  const showDone = ({ registeredAt, already, signedIn, linked = signedIn }) => {
+  const showDone = ({ registeredAt, already, signedIn, linked = signedIn, volunteer = false }) => {
     formCard.hidden = true;
     done.hidden = false;
     const title = $('#caaci-ev-done-title');
@@ -3033,6 +3046,7 @@ export async function wireEventFormPage() {
     const stamp = registeredText(registeredAt);
     setText($('#caaci-ev-done-time'), stamp ? t(`Registered ${stamp}`, `报名时间：${stamp}`) : '');
     $('#caaci-ev-done-already').hidden = !already;
+    $('#caaci-ev-done-volunteer').hidden = !volunteer;
     // The gift goes with the registration email, so an unlinked signed-in
     // registrant gets the same account step as an anonymous one.
     signOutFirst = signedIn && !linked;
@@ -3142,6 +3156,17 @@ export async function wireEventFormPage() {
     const read = readEventAnswers(form, questions);
     if (read.error) return stop(read.error, read.field);
     const body = { event: slug, email, answers: read.answers, _hp: $('#caaci_hp_field').value };
+    if (volBox.checked) {
+      const volunteerName = volName.value.trim();
+      if (!volunteerName)
+        return stop(t('Enter your name to volunteer.', '请填写志愿者姓名。'), volName);
+      body.volunteer = { name: volunteerName, phone: volPhone.value.trim() };
+    } else if (volunteerPrefilled) {
+      // The box came back ticked from the API and was un-ticked here, so this
+      // resubmission is how someone withdraws. Left out otherwise, so a plain
+      // registration never touches the volunteer list.
+      body.volunteer = false;
+    }
 
     note.hidden = true;
     const undo = busy(btn, t('Submitting…', '提交中…'));
@@ -3176,6 +3201,7 @@ export async function wireEventFormPage() {
       already: !!data.already,
       signedIn: !!data.signed_in,
       linked: typeof data.linked === 'boolean' ? data.linked : !!data.signed_in,
+      volunteer: !!data.volunteer,
     }).focus();
   });
 
@@ -3214,12 +3240,22 @@ export async function wireEventFormPage() {
     // if they registered before.
     if (!info.signed_in) return;
     if (info.email && !emailEl.value) emailEl.value = info.email;
+    // Signed up to volunteer before: show it as it stands, so a resubmission
+    // does not silently drop it.
+    if (info.volunteer) {
+      volunteerPrefilled = true;
+      volBox.checked = true;
+      volFields.hidden = false;
+      volName.value = info.volunteer.name || '';
+      volPhone.value = info.volunteer.phone || '';
+    }
     if (info.registration) {
       registeredEmail = info.email || '';
       showDone({
         registeredAt: info.registration.registered_at,
         already: false,
         signedIn: true,
+        volunteer: !!info.volunteer,
       });
     }
   };

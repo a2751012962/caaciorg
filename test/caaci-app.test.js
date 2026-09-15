@@ -15,6 +15,8 @@ import {
   donationPreset,
   wireAuthNav,
   hasStoredSession,
+  wireVolunteer,
+  volunteerWhen,
 } from '../src/caaci-app.js';
 
 let dom;
@@ -42,6 +44,9 @@ test('notice() creates a .caaci-notice once and toggles the error state', () => 
   notice(host, 'All good');
   let n = host.querySelector('.caaci-notice');
   assert.equal(n.textContent, 'All good');
+  // TranslatePress blanks text it sees appear on /zh/ pages; the confirmation
+  // is the one line the form has to keep.
+  assert.ok(n.hasAttribute('data-no-dynamic-translation'));
   assert.equal(n.getAttribute('data-state'), null);
 
   notice(host, 'Something broke', false);
@@ -85,6 +90,311 @@ test('wireContact surfaces an error notice when the API fails', async () => {
     const n = form.querySelector('.caaci-notice');
     assert.equal(n.getAttribute('data-state'), 'error');
     assert.equal(n.textContent, 'boom');
+  } finally {
+    fetch.restore();
+  }
+});
+
+// ---------- /volunteer/ ----------
+// The Divi contact form as the mirror ships it, minus the parts nothing reads.
+const VOLUNTEER_FORM = `<form class="et_pb_contact_form">
+  <p class="et_pb_contact_field"><input name="et_pb_contact_name_0" value=""></p>
+  <p class="et_pb_contact_field"><input name="et_pb_contact_email_0" value=""></p>
+  <p class="et_pb_contact_field"><input name="et_pb_contact_phone_0" value=""></p>
+  <p class="et_pb_contact_field">
+    <label for="et_pb_contact_message_0" class="et_pb_contact_form_label">Message</label>
+    <textarea name="et_pb_contact_message_0" id="et_pb_contact_message_0"
+      data-required_mark="required" placeholder="Message"></textarea></p>
+  <button type="submit" class="et_pb_contact_submit">send</button>
+</form>`;
+
+const VOL_EVENTS = [
+  {
+    slug: 'mid-autumn-festival',
+    title: 'Mid-Autumn Festival',
+    title_zh: '中秋节晚会',
+    starts_at: '2099-09-27T19:00:00Z',
+  },
+  {
+    slug: 'spring-potluck',
+    title: 'Spring Potluck',
+    title_zh: null,
+    starts_at: '2099-04-05T17:00:00Z',
+  },
+];
+// Routes the picker's GET and the sign-up POST.
+const volunteerApi = ({ events = VOL_EVENTS, post = () => ({ body: { ok: true } }) } = {}) =>
+  mockFetch((url, options) => {
+    if (url === '/api/volunteer' && options.method === 'POST') return post(url, options);
+    if (url === '/api/volunteer') return events ? { body: { events } } : { ok: false, status: 500 };
+    return { status: 404, body: {} };
+  });
+const rows = () => [...document.querySelectorAll('.caaci-volunteer-events .caaci-check')];
+const boxes = () => rows().map((r) => r.querySelector('input'));
+
+test('volunteerWhen formats the event date in Champaign time, and drops an unusable one', () => {
+  assert.equal(volunteerWhen('2099-09-27T19:00:00Z', false), 'September 27, 2099');
+  assert.equal(volunteerWhen('2099-09-27T19:00:00Z', true), '2099年9月27日');
+  // 00:30 UTC is still the previous evening in Chicago.
+  assert.equal(volunteerWhen('2099-09-28T00:30:00Z', false), 'September 27, 2099');
+  assert.equal(volunteerWhen(null, false), '');
+  assert.equal(volunteerWhen('not a date', false), '');
+});
+
+test('wireVolunteer builds the event picker on /volunteer/ and posts the chosen slugs', async () => {
+  const fetch = volunteerApi();
+  try {
+    setup(VOLUNTEER_FORM, '/volunteer/');
+    await wireVolunteer();
+    wireContact(); // the page's other wiring must not take the form as well
+    const form = document.querySelector('.et_pb_contact_form');
+    assert.equal(form.dataset.caaciVolunteer, '1');
+
+    // The picker sits above the message field, which is now optional.
+    const picker = document.querySelector('.caaci-volunteer-events');
+    assert.ok(picker, 'picker injected');
+    assert.equal(
+      picker.nextElementSibling,
+      document.querySelector('#et_pb_contact_message_0').closest('p'),
+    );
+    assert.equal(
+      picker.querySelector('legend').textContent,
+      'Which event(s) would you like to help with?',
+    );
+    const message = document.querySelector('#et_pb_contact_message_0');
+    assert.equal(message.placeholder, 'How would you like to help? (optional)');
+    assert.equal(message.getAttribute('data-required_mark'), null);
+    assert.equal(
+      document.querySelector('label[for="et_pb_contact_message_0"]').textContent,
+      'How would you like to help? (optional)',
+    );
+
+    assert.deepEqual(
+      rows().map((r) => r.textContent),
+      [
+        'Mid-Autumn Festival · September 27, 2099',
+        'Spring Potluck · April 5, 2099',
+        'Any event / wherever needed',
+      ],
+    );
+    // TranslatePress blanks text it sees appear on /zh/ pages.
+    for (const node of picker.querySelectorAll('*'))
+      assert.ok(node.hasAttribute('data-no-dynamic-translation'), node.outerHTML);
+    assert.equal(
+      boxes().filter((b) => b.checked).length,
+      0,
+      'with events listed, nothing is pre-checked',
+    );
+
+    form.querySelector('[name*=name]').value = 'Pat Lin';
+    form.querySelector('[name*=email]').value = 'pat@x.com';
+    form.querySelector('[name*=phone]').value = '555-0100';
+    message.value = 'Weekends work best';
+    boxes()[0].checked = true;
+    boxes()[0].dispatchEvent(new Event('change', { bubbles: true }));
+
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick();
+    const call = fetch.calls.find((c) => c.options.method === 'POST');
+    assert.ok(call, 'posted to /api/volunteer');
+    assert.equal(call.url, '/api/volunteer');
+    assert.deepEqual(JSON.parse(call.options.body), {
+      name: 'Pat Lin',
+      email: 'pat@x.com',
+      phone: '555-0100',
+      message: 'Weekends work best',
+      events: ['mid-autumn-festival'],
+      _hp: '',
+    });
+    assert.match(form.querySelector('.caaci-notice').textContent, /Thank you for volunteering/);
+    assert.equal(form.querySelector('.caaci-notice').getAttribute('data-state'), null);
+    assert.equal(form.querySelector('.et_pb_contact_submit').disabled, false, 'button released');
+    assert.equal(form.querySelector('.et_pb_contact_submit').textContent, 'send');
+    assert.equal(boxes().filter((b) => b.checked).length, 0, 'the picker is back to default');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wireVolunteer binds the submit handler before the event list arrives', async () => {
+  // The picker's GET is left hanging: a submit while it is in flight must still
+  // be ours, or Divi's own handler reloads the page and loses what was typed.
+  let release;
+  const fetch = mockFetch((url, options = {}) => {
+    if (url === '/api/volunteer' && options.method === 'POST') return { body: { ok: true } };
+    return new Promise((r) => {
+      release = () => r({ body: { events: VOL_EVENTS } });
+    });
+  });
+  try {
+    setup(VOLUNTEER_FORM, '/volunteer/');
+    const wiring = wireVolunteer();
+    await tick();
+    const form = document.querySelector('.et_pb_contact_form');
+    form.querySelector('[name*=name]').value = 'Pat Lin';
+    form.querySelector('[name*=email]').value = 'pat@x.com';
+    const e = new Event('submit', { cancelable: true });
+    form.dispatchEvent(e);
+    await tick();
+    assert.equal(e.defaultPrevented, true, 'the browser submit was stopped');
+    const call = fetch.calls.find((c) => c.options?.method === 'POST');
+    assert.ok(call, 'posted to /api/volunteer while the list was still loading');
+    assert.equal(JSON.parse(call.options.body).name, 'Pat Lin');
+    release();
+    await wiring;
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wireVolunteer sends a honeypot field that is off-screen, not a hidden input', async () => {
+  const fetch = volunteerApi();
+  try {
+    setup(VOLUNTEER_FORM, '/volunteer/');
+    await wireVolunteer();
+    const form = document.querySelector('.et_pb_contact_form');
+    const hp = form.querySelector('input[name="_hp"]');
+    assert.ok(hp, 'honeypot injected');
+    // Bots skip display:none / type=hidden fields; .caaci-hp moves it off-screen
+    // instead (no inline style — UI_GUIDELINE §4).
+    assert.equal(hp.type, 'text');
+    assert.equal(hp.className, 'caaci-hp');
+    assert.equal(hp.getAttribute('style'), null);
+    assert.equal(hp.getAttribute('aria-hidden'), 'true');
+    assert.equal(hp.tabIndex, -1);
+
+    hp.value = 'https://spam.example';
+    form.querySelector('[name*=email]').value = 'bot@x.com';
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick();
+    const sent = JSON.parse(fetch.calls.find((c) => c.options.method === 'POST').options.body);
+    assert.equal(sent._hp, 'https://spam.example', 'what the bot typed reaches the API');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wireVolunteer: the picker is not a .caaci-field, so the checkbox rows stay flex', async () => {
+  const fetch = volunteerApi();
+  try {
+    setup(VOLUNTEER_FORM, '/volunteer/');
+    await wireVolunteer();
+    // `.caaci-field label { display: block }` outranks `.caaci-check`, which
+    // collapsed the gap between each box and its text.
+    const picker = document.querySelector('.caaci-volunteer-events');
+    assert.equal(picker.classList.contains('caaci-field'), false);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wireVolunteer: "Any event" and a named event are alternatives', async () => {
+  const fetch = volunteerApi();
+  try {
+    setup(VOLUNTEER_FORM, '/volunteer/');
+    await wireVolunteer();
+    const [first, , any] = boxes();
+    any.checked = true;
+    any.dispatchEvent(new Event('change', { bubbles: true }));
+    first.checked = true;
+    first.dispatchEvent(new Event('change', { bubbles: true }));
+    assert.equal(any.checked, false, 'picking an event clears "Any event"');
+    any.checked = true;
+    any.dispatchEvent(new Event('change', { bubbles: true }));
+    assert.equal(first.checked, false, 'and the other way round');
+
+    document.querySelector('[name*=email]').value = 'pat@x.com';
+    document
+      .querySelector('.et_pb_contact_form')
+      .dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick();
+    const sent = JSON.parse(fetch.calls.find((c) => c.options.method === 'POST').options.body);
+    assert.deepEqual(sent.events, [], '"Any event" sends no slug');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wireVolunteer: a failed event list still offers "Any event", checked', async () => {
+  const fetch = volunteerApi({ events: null });
+  try {
+    setup(VOLUNTEER_FORM, '/volunteer/');
+    await wireVolunteer();
+    assert.deepEqual(
+      rows().map((r) => r.textContent),
+      ['Any event / wherever needed'],
+    );
+    assert.equal(boxes()[0].checked, true);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wireVolunteer shows the API error and leaves the form filled in', async () => {
+  const fetch = volunteerApi({
+    post: () => ({ ok: false, status: 400, body: { error: 'Enter your name.' } }),
+  });
+  try {
+    setup(VOLUNTEER_FORM, '/volunteer/');
+    await wireVolunteer();
+    const form = document.querySelector('.et_pb_contact_form');
+    form.querySelector('[name*=email]').value = 'pat@x.com';
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick();
+    const n = form.querySelector('.caaci-notice');
+    assert.equal(n.textContent, 'Enter your name.');
+    assert.equal(n.getAttribute('data-state'), 'error');
+    assert.equal(form.querySelector('[name*=email]').value, 'pat@x.com', 'not reset');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wireVolunteer speaks Chinese on /zh/volunteer/ and prefers title_zh', async () => {
+  const fetch = volunteerApi();
+  try {
+    setup(VOLUNTEER_FORM, '/zh/volunteer/');
+    await wireVolunteer();
+    assert.equal(
+      document.querySelector('.caaci-volunteer-events legend').textContent,
+      '您想为哪些活动做志愿者？',
+    );
+    assert.deepEqual(
+      rows().map((r) => r.textContent),
+      ['中秋节晚会 · 2099年9月27日', 'Spring Potluck · 2099年4月5日', '任何活动均可'],
+    );
+    assert.equal(
+      document.querySelector('#et_pb_contact_message_0').placeholder,
+      '您想怎样帮忙？（选填）',
+    );
+    document.querySelector('[name*=email]').value = 'pat@x.com';
+    document
+      .querySelector('.et_pb_contact_form')
+      .dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick();
+    assert.match(document.querySelector('.caaci-notice').textContent, /感谢您报名志愿者/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wireVolunteer leaves every other page to wireContact', async () => {
+  const fetch = volunteerApi();
+  try {
+    setup(VOLUNTEER_FORM, '/contact/');
+    await wireVolunteer();
+    assert.equal(document.querySelector('.caaci-volunteer-events'), null, 'no picker');
+    const form = document.querySelector('.et_pb_contact_form');
+    assert.equal(form.dataset.caaciVolunteer, undefined);
+    wireContact();
+    form.querySelector('[name*=email]').value = 'pat@x.com';
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick();
+    assert.deepEqual(
+      fetch.calls.map((c) => c.url),
+      ['/api/contact'],
+      'the contact API, and nothing from the volunteer wiring',
+    );
   } finally {
     fetch.restore();
   }
