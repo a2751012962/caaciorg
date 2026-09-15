@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "description": "Rebuild of caaciorg.com on Cloudflare Pages + Supabase",
+  "workspaces": [
+    "web"
+  ],
   "scripts": {
     "mirror": "node mirror.mjs",
-    "build": "node build.mjs",
+    "build": "npm run build -w web && node build.mjs",
+    "typecheck": "npm run typecheck -w web",
     "test": "node --test",
     "dev": "npm run build && wrangler pages dev dist",
     "deploy": "npm run build && wrangler pages deploy dist",

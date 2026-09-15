@@ -6,9 +6,10 @@ import globals from 'globals';
 //   - src/**        → browser (the progressive-enhancement client)
 //   - functions/**  → Cloudflare Pages Functions (Workers runtime)
 //   - *.mjs         → Node build/tooling scripts
+// web/ is TypeScript + React and is checked by `npm run typecheck` instead.
 export default defineConfig([
   // Vendored third-party bundle (Supabase UMD) — not our code; don't lint it.
-  { ignores: ['dist/', 'mirror/', 'node_modules/', 'src/supabase.js', 'src/vendor/'] },
+  { ignores: ['dist/', 'mirror/', 'node_modules/', 'src/supabase.js', 'src/vendor/', 'web/'] },
   js.configs.recommended,
   {
     files: ['src/**/*.js'],

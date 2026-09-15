@@ -32,6 +32,8 @@ const TYPES = {
 createServer(async (req, res) => {
   try {
     let p = decodeURIComponent(req.url.split('?')[0]);
+    // The one dist/_redirects rewrite Pages applies: /events/<slug>/register(/) serves /event-register/.
+    if (/^\/events\/[^/]+\/register\/?$/.test(p)) p = '/event-register/';
     let fp = join(ROOT, p);
     let s;
     try {

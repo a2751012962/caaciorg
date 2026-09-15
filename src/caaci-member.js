@@ -60,8 +60,9 @@ export function applyLang() {
     if (!a.dataset.enHref) a.dataset.enHref = a.getAttribute('href');
     a.setAttribute('href', lang === 'zh' ? a.getAttribute('data-zh-href') : a.dataset.enHref);
   }
+  // The language pill names the language it switches to, as the React header does.
   const tgl = $('#caaci-lang');
-  if (tgl) tgl.textContent = lang === 'en' ? '中文' : 'EN';
+  if (tgl) tgl.textContent = lang === 'en' ? '中' : 'En';
 }
 const t = (en, zh) => (lang === 'zh' ? zh : en);
 // A tier's name/description/highlight in the current language (English fallback).

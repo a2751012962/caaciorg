@@ -170,13 +170,19 @@ test('build: every /assets/ URL in the built site carries the hash of the file i
   }
   const v = (name) => `/assets/${name}?v=${hashOf.get(name)}`;
   // One page from each kind of page the build writes.
-  assert.ok(pages['index.html'].includes(`<link rel="stylesheet" href="${v('caaci-ui.css')}">`));
-  assert.ok(pages['index.html'].includes(`<script type="module" src="${v('caaci-app.js')}">`));
-  assert.ok(pages['zh/events/index.html'].includes(`src="${v('caaci-app.js')}"`));
+  const mirrored = 'hello-world/index.html';
+  assert.ok(pages[mirrored].includes(`<link rel="stylesheet" href="${v('caaci-ui.css')}">`));
+  assert.ok(pages[mirrored].includes(`<script type="module" src="${v('caaci-app.js')}">`));
+  assert.ok(pages[`zh/${mirrored}`].includes(`src="${v('caaci-app.js')}"`));
   assert.ok(pages['admin/index.html'].includes(`src="${v('caaci-admin.js')}"`));
   assert.ok(pages['admin/index.html'].includes(`href="${v('tabler.min.css')}"`));
-  assert.ok(pages['account/index.html'].includes(`src="${v('caaci-member.js')}"`));
-  assert.ok(pages['account/index.html'].includes(`src="${v('caaci-config.js')}"`));
+  assert.ok(pages['login-3/index.html'].includes(`src="${v('caaci-member.js')}"`));
+  assert.ok(pages['login-3/index.html'].includes(`src="${v('caaci-config.js')}"`));
+  // The React site (web/) loads the same runtime config; its own bundles are hashed by Vite.
+  assert.ok(pages['index.html'].includes(`<script src="${v('caaci-config.js')}"></script>`));
+  assert.ok(
+    pages['zh/account/index.html'].includes(`<script src="${v('caaci-config.js')}"></script>`),
+  );
 
   // Modules: a query string on the entry does not reach its imports, so each
   // relative import names the version of the file it loads.

@@ -1,66 +1,124 @@
-<!-- Shared site navigation for the standalone Tabler member pages. build.mjs
-     substitutes this file for the CAACI_NAV placeholder comment in each page,
-     so login/membership/account cannot drift apart the way three
-     hand-maintained copies did. (Do not write that placeholder token in full
-     here: its trailing marker would close this comment early and dump the rest
-     of the text onto the page.)
+<!-- Shared site header for the Tabler pages that stay (login, privacy, event
+     registration). build.mjs substitutes this file for the CAACI_NAV
+     placeholder comment in each page. (Do not write that placeholder token in
+     full here: its trailing marker would close this comment early and dump the
+     rest of the text onto the page.)
 
-     The item set, order and submenus mirror the Divi menu on the WordPress
-     pages exactly (Welcome / About Us > Volunteer, Donate / Events /
-     Membership > Account / Resources > Community Calendar / Business
-     Services), so moving between a mirrored page and a member page does not
-     change the navigation. Divi opens its submenus on hover; Bootstrap needs a
-     toggle, so each parent is a split control: the label still links to the
-     section, and the caret opens the submenu. caaci-member.js hides the
-     right-hand auth button on the login page and marks the current section. -->
-<header class="navbar navbar-expand-md d-print-none caaci-sitenav sticky-top">
-  <div class="container-xl">
+     It copies the React site's header (web/src/components/Navbar.tsx): the same
+     logo and wordmark, items in the same order with the same labels
+     (web/src/data/content.ts `nav`) and links, the globe language pill and the
+     uppercase "Log In", so moving between a React page and these pages does not
+     change the chrome. Plain HTML + CSS ("Site header" in caaci-theme.css): the
+     About Us and Resources submenus open on hover or keyboard focus, and below
+     1024px the hamburger opens the stacked menu through Bootstrap's collapse
+     (tabler.min.js). Each submenu repeats its parent first, as the React one
+     does; the stacked menu hides that repeat (caaci-sitenav-dup). Volunteer and
+     Donate are dialogs on the React site, opened on the home page by ?modal=.
+
+     caaci-member.js hooks: data-en/data-zh labels and data-zh-href links swap
+     with the language, #caaci-lang gets its label and toggles the language,
+     #caaci-nav-auth is hidden on the login page and becomes Sign out when
+     signed in, and links matching the current page get .active (a .dropdown-item
+     also marks the a.nav-link directly under its .nav-item.dropdown). Labels
+     live on a span wherever the link also holds an icon, because the swap
+     replaces the element's text. -->
+<header class="navbar d-print-none caaci-sitenav caaci-sitenav-site sticky-top">
+  <div class="caaci-sitenav-bar">
+    <a href="/" class="navbar-brand caaci-sitenav-brand" data-zh-href="/zh/">
+      <img
+        src="/images/logo.png"
+        alt="Chinese American Association of Central Illinois organization"
+      />
+      <span class="caaci-sitenav-wordmark">
+        <span class="caaci-sitenav-name">CAACI</span>
+        <span class="caaci-sitenav-tagline" data-en="Central Illinois" data-zh="伊利诺伊中部"
+          >Central Illinois</span
+        >
+      </span>
+    </a>
     <button
-      class="navbar-toggler"
       type="button"
+      class="caaci-sitenav-lang"
+      id="caaci-lang"
+      title="Switch Language / 切换语言"
+    >
+      中
+    </button>
+    <button
+      type="button"
+      class="caaci-sitenav-toggle collapsed"
       data-bs-toggle="collapse"
       data-bs-target="#caaci-nav-menu"
       aria-controls="caaci-nav-menu"
       aria-expanded="false"
-      aria-label="Toggle navigation"
+      aria-label="Toggle Navigation Menu"
     >
-      <span class="navbar-toggler-icon"></span>
+      <svg
+        class="caaci-sitenav-icon-open"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M4 12h16" />
+        <path d="M4 6h16" />
+        <path d="M4 18h16" />
+      </svg>
+      <svg
+        class="caaci-sitenav-icon-close"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </svg>
     </button>
-    <a href="/" class="navbar-brand pe-2" data-zh-href="/zh/">
-      <img
-        src="/wp-content/uploads/2025/01/CAACI-logo-1-e1737551037290.png"
-        alt="Chinese American Association of Central Illinois"
-      />
-    </a>
-    <div class="collapse navbar-collapse" id="caaci-nav-menu">
-      <ul class="navbar-nav">
+    <nav class="collapse caaci-sitenav-menu" id="caaci-nav-menu" aria-label="Site">
+      <ul class="caaci-sitenav-items">
         <li class="nav-item">
           <a class="nav-link" href="/" data-zh-href="/zh/" data-en="Welcome" data-zh="首页"
             >Welcome</a
           >
         </li>
-        <li class="nav-item dropdown">
-          <a
-            class="nav-link"
-            href="/about/"
-            data-zh-href="/zh/about/"
-            data-en="About Us"
-            data-zh="关于我们"
-            >About Us</a
-          >
-          <button
-            type="button"
-            class="nav-link dropdown-toggle caaci-nav-caret"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-            aria-label="About Us submenu"
-          ></button>
-          <ul class="dropdown-menu">
+        <li class="nav-item dropdown caaci-sitenav-group">
+          <a class="nav-link" href="/about/" data-zh-href="/zh/about/"
+            ><span data-en="About Us" data-zh="关于我们">About Us</span
+            ><svg
+              class="caaci-sitenav-chevron"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m6 9 6 6 6-6" /></svg
+          ></a>
+          <ul class="caaci-sitenav-dropdown">
+            <li class="caaci-sitenav-dup">
+              <a
+                class="dropdown-item"
+                href="/about/"
+                data-zh-href="/zh/about/"
+                data-en="About Us"
+                data-zh="关于我们"
+                >About Us</a
+              >
+            </li>
             <li>
               <a
                 class="dropdown-item"
-                href="/volunteer/"
-                data-zh-href="/zh/volunteer/"
+                href="/?modal=volunteer"
+                data-zh-href="/zh/?modal=volunteer"
                 data-en="Volunteer"
                 data-zh="志愿者"
                 >Volunteer</a
@@ -69,10 +127,10 @@
             <li>
               <a
                 class="dropdown-item"
-                href="/donate/"
-                data-zh-href="/zh/donate/"
+                href="/?modal=donate"
+                data-zh-href="/zh/?modal=donate"
                 data-en="Donate"
-                data-zh="捐赠"
+                data-zh="捐赠支持"
                 >Donate</a
               >
             </li>
@@ -84,44 +142,46 @@
             href="/events/"
             data-zh-href="/zh/events/"
             data-en="Events"
-            data-zh="活动"
+            data-zh="近期活动"
             >Events</a
           >
         </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link" href="/membership/" data-en="Membership" data-zh="会员">Membership</a>
-          <button
-            type="button"
-            class="nav-link dropdown-toggle caaci-nav-caret"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-            aria-label="Membership submenu"
-          ></button>
-          <ul class="dropdown-menu">
-            <li>
-              <a class="dropdown-item" href="/account/" data-en="Account" data-zh="我的账户"
-                >Account</a
-              >
-            </li>
-          </ul>
-        </li>
-        <li class="nav-item dropdown">
+        <li class="nav-item">
           <a
             class="nav-link"
-            href="/resources/"
-            data-zh-href="/zh/resources/"
-            data-en="Resources"
-            data-zh="资源"
-            >Resources</a
+            href="/membership/"
+            data-zh-href="/zh/membership/"
+            data-en="Membership"
+            data-zh="会员专区"
+            >Membership</a
           >
-          <button
-            type="button"
-            class="nav-link dropdown-toggle caaci-nav-caret"
-            data-bs-toggle="dropdown"
-            aria-expanded="false"
-            aria-label="Resources submenu"
-          ></button>
-          <ul class="dropdown-menu">
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link" href="/resources/" data-zh-href="/zh/resources/"
+            ><span data-en="Resources" data-zh="社区资源">Resources</span
+            ><svg
+              class="caaci-sitenav-chevron"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m6 9 6 6 6-6" /></svg
+          ></a>
+          <ul class="caaci-sitenav-dropdown caaci-sitenav-wide">
+            <li class="caaci-sitenav-dup">
+              <a
+                class="dropdown-item"
+                href="/resources/"
+                data-zh-href="/zh/resources/"
+                data-en="Resources"
+                data-zh="社区资源"
+                >Resources</a
+              >
+            </li>
             <li>
               <a
                 class="dropdown-item"
@@ -140,19 +200,16 @@
             href="/business-services/"
             data-zh-href="/zh/business-services/"
             data-en="Business Services"
-            data-zh="商家服务"
+            data-zh="商业服务"
             >Business Services</a
           >
         </li>
+        <li class="nav-item">
+          <a href="/login-3/" class="nav-link" id="caaci-nav-auth" data-en="Log In" data-zh="登录"
+            >Log In</a
+          >
+        </li>
       </ul>
-      <!-- Trailing menu items: on the mirror "Log In" is a plain menu entry, so
-           these are styled as nav links, not buttons. -->
-      <div class="d-flex align-items-center">
-        <button type="button" class="nav-link" id="caaci-lang">中文</button>
-        <a href="/login-3/" class="nav-link" id="caaci-nav-auth" data-en="Log In" data-zh="登录"
-          >Log In</a
-        >
-      </div>
-    </div>
+    </nav>
   </div>
 </header>
