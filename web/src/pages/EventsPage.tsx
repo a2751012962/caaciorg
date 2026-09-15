@@ -9,7 +9,6 @@ import {
   MapPin,
   Search,
   Check,
-  Share2,
   Users,
   MessageSquare,
   Sparkles,
@@ -24,7 +23,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { MorphIcon } from 'morphicons/react';
-import { Check as CheckData, LoaderCircle as LoaderData } from 'lucide'; // icon data for morphing, not components
+import { Check as CheckData, LoaderCircle as LoaderData, Share2 as ShareData } from 'lucide'; // icon data for morphing, not components
 import type { CAACIContent } from '../data/content';
 import { eventsDataEN, eventsDataZH } from '../data/pagesContent';
 import { api } from '../lib/api';
@@ -563,18 +562,17 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                     onClick={() => shareUpcoming(spotlightEvent)}
                     className="min-h-[42px] px-5 py-2.5 rounded-full border border-white/20 text-white hover:bg-white/10 text-xs font-semibold tracking-wide transition-all cursor-pointer inline-flex items-center justify-center gap-2 active:scale-98"
                   >
+                    <MorphIcon
+                      icon={copiedEventId === spotlightEvent.ev.id ? CheckData : ShareData}
+                      spring="snappy"
+                      className={`w-4 h-4 ${copiedEventId === spotlightEvent.ev.id ? 'text-emerald-400' : 'text-white/80'}`}
+                    />
                     {copiedEventId === spotlightEvent.ev.id ? (
-                      <>
-                        <Check className="w-4 h-4 text-emerald-400" />
-                        <span className="text-emerald-300">
-                          {lang === 'en' ? 'Link Copied' : '链接已复制'}
-                        </span>
-                      </>
+                      <span className="text-emerald-300">
+                        {lang === 'en' ? 'Link Copied' : '链接已复制'}
+                      </span>
                     ) : (
-                      <>
-                        <Share2 className="w-4 h-4 text-white/80" />
-                        <span>{lang === 'en' ? 'Share' : '分享'}</span>
-                      </>
+                      <span>{lang === 'en' ? 'Share' : '分享'}</span>
                     )}
                   </button>
                 </div>
@@ -1022,20 +1020,19 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   title={lang === 'en' ? 'Share' : '分享'}
                                   aria-label={lang === 'en' ? 'Share' : '分享'}
                                 >
+                                  <MorphIcon
+                                    icon={isCopied ? CheckData : ShareData}
+                                    spring="snappy"
+                                    className={`w-3.5 h-3.5 ${isCopied ? 'text-emerald-600' : 'text-neutral-500'}`}
+                                  />
                                   {isCopied ? (
-                                    <>
-                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                      <span className="hidden min-[420px]:inline font-semibold text-emerald-700">
-                                        {lang === 'en' ? 'Copied' : '已复制'}
-                                      </span>
-                                    </>
+                                    <span className="hidden min-[420px]:inline font-semibold text-emerald-700">
+                                      {lang === 'en' ? 'Copied' : '已复制'}
+                                    </span>
                                   ) : (
-                                    <>
-                                      <Share2 className="w-3.5 h-3.5 text-neutral-500" />
-                                      <span className="hidden min-[420px]:inline">
-                                        {lang === 'en' ? 'Share' : '分享'}
-                                      </span>
-                                    </>
+                                    <span className="hidden min-[420px]:inline">
+                                      {lang === 'en' ? 'Share' : '分享'}
+                                    </span>
                                   )}
                                 </button>
                               </div>
@@ -1066,18 +1063,17 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 }`}
                                 title={lang === 'en' ? 'Share event' : '分享活动'}
                               >
+                                <MorphIcon
+                                  icon={isCopied ? CheckData : ShareData}
+                                  spring="snappy"
+                                  className={`w-3.5 h-3.5 ${isCopied ? 'text-emerald-600' : 'text-neutral-400'}`}
+                                />
                                 {isCopied ? (
-                                  <>
-                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                    <span className="font-semibold text-emerald-700">
-                                      {lang === 'en' ? 'Copied' : '已复制'}
-                                    </span>
-                                  </>
+                                  <span className="font-semibold text-emerald-700">
+                                    {lang === 'en' ? 'Copied' : '已复制'}
+                                  </span>
                                 ) : (
-                                  <>
-                                    <Share2 className="w-3.5 h-3.5 text-neutral-400" />
-                                    <span>{lang === 'en' ? 'Share' : '分享'}</span>
-                                  </>
+                                  <span>{lang === 'en' ? 'Share' : '分享'}</span>
                                 )}
                               </button>
                             </div>
@@ -1290,20 +1286,19 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   title={lang === 'en' ? 'Share' : '分享'}
                                   aria-label={lang === 'en' ? 'Share' : '分享'}
                                 >
+                                  <MorphIcon
+                                    icon={isCopied ? CheckData : ShareData}
+                                    spring="snappy"
+                                    className={`w-3.5 h-3.5 ${isCopied ? 'text-emerald-600' : 'text-neutral-500'}`}
+                                  />
                                   {isCopied ? (
-                                    <>
-                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                      <span className="hidden min-[420px]:inline font-semibold text-emerald-700">
-                                        {lang === 'en' ? 'Copied' : '已复制'}
-                                      </span>
-                                    </>
+                                    <span className="hidden min-[420px]:inline font-semibold text-emerald-700">
+                                      {lang === 'en' ? 'Copied' : '已复制'}
+                                    </span>
                                   ) : (
-                                    <>
-                                      <Share2 className="w-3.5 h-3.5 text-neutral-500" />
-                                      <span className="hidden min-[420px]:inline">
-                                        {lang === 'en' ? 'Share' : '分享'}
-                                      </span>
-                                    </>
+                                    <span className="hidden min-[420px]:inline">
+                                      {lang === 'en' ? 'Share' : '分享'}
+                                    </span>
                                   )}
                                 </button>
                               </div>
@@ -1343,18 +1338,17 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 }`}
                                 title={lang === 'en' ? 'Share archive' : '分享此活动档案'}
                               >
+                                <MorphIcon
+                                  icon={isCopied ? CheckData : ShareData}
+                                  spring="snappy"
+                                  className={`w-3.5 h-3.5 ${isCopied ? 'text-emerald-600' : 'text-neutral-400'}`}
+                                />
                                 {isCopied ? (
-                                  <>
-                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                    <span className="font-semibold text-emerald-700">
-                                      {lang === 'en' ? 'Copied' : '已复制'}
-                                    </span>
-                                  </>
+                                  <span className="font-semibold text-emerald-700">
+                                    {lang === 'en' ? 'Copied' : '已复制'}
+                                  </span>
                                 ) : (
-                                  <>
-                                    <Share2 className="w-3.5 h-3.5 text-neutral-400" />
-                                    <span>{lang === 'en' ? 'Share' : '分享'}</span>
-                                  </>
+                                  <span>{lang === 'en' ? 'Share' : '分享'}</span>
                                 )}
                               </button>
                             </div>
