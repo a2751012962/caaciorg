@@ -33,7 +33,7 @@ export const membershipPageDataEN: MembershipPageContent = {
     'Exclusive discounts with partner businesses across Champaign-Urbana, Chicago, and Milwaukee',
     'Access to CAACI Member Directory and private community WeChat groups',
   ],
-  note: '* Prices are annual base dues. Paying by card adds a 3.5% processing fee; each plan shows its card total. Memberships are tax-deductible to the extent permitted by law.',
+  note: '* Prices are annual base dues. Paying by card adds a 3.5% processing fee; each plan shows its card total. CAACI is a 501(c)(3) non-profit; dues and donations are tax-deductible to the extent permitted by law.',
   inviteNote: 'Honorable Membership is granted by invitation of the CAACI Board.',
   tiers: {
     free: {
@@ -96,7 +96,7 @@ export const membershipPageDataZH: MembershipPageContent = {
     '遍布香槟-厄巴纳、芝加哥、密尔沃基等美中合作商家的专属消费折扣',
     '进入 CAACI 认证会员实名微信群与商业资讯交流圈',
   ],
-  note: '* 所示价格为年度基础会费。刷卡支付另加 3.5% 手续费，各方案均列出刷卡合计金额。捐赠与会费依照 501(c)(3) 非营利法例享有相应免税抵扣资格。',
+  note: '* 所示价格为年度基础会费。刷卡支付另加 3.5% 手续费，各方案均列出刷卡合计金额。CAACI 是 501(c)(3) 非营利组织，会费与捐款可依法享受免税抵扣。',
   inviteNote: '荣誉会员由 CAACI 理事会邀请授予。',
   tiers: {
     free: {

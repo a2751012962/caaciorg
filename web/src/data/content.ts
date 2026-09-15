@@ -149,13 +149,13 @@ export const contentEN: CAACIContent = {
     quickLinks: 'Quick Links',
     aboutText:
       'A community not-for-profit organization dedicated to fostering cultural exchange, professional development, and mutual assistance in the Champaign-Urbana area.',
-    nonProfit: 'Not-for-profit organization',
+    nonProfit: 'Non-Profit 501(c)(3)',
     facebook: 'CAACI on Facebook',
   },
   modals: {
     donateTitle: 'Make A Donation to CAACI',
     donateDesc:
-      'Your contribution supports our community festivals, educational workshops, senior assistance, and youth cultural programs.',
+      'Your contribution supports our community festivals, educational workshops, senior assistance, and youth cultural programs. CAACI is a 501(c)(3) non-profit, so donations are tax-deductible to the extent permitted by law.',
     close: 'Close',
   },
 };
@@ -240,12 +240,13 @@ export const contentZH: CAACIContent = {
     quickLinks: '快捷导航',
     aboutText:
       '致力于在香槟-厄巴纳地区促进中华文化交流、专业职业发展与华人同胞互助共荣的非营利性社区组织。',
-    nonProfit: '非营利组织',
+    nonProfit: '501(c)(3) 非营利组织',
     facebook: 'CAACI Facebook 主页',
   },
   modals: {
     donateTitle: '向 CAACI 捐赠支持',
-    donateDesc: '您的捐款将直接用于资助传统文化节日、青年与老人福利项目、教育讲座与社区公共服务。',
+    donateDesc:
+      '您的捐款将直接用于资助传统文化节日、青年与老人福利项目、教育讲座与社区公共服务。CAACI 是 501(c)(3) 非营利组织，捐款可依法享受免税抵扣。',
     close: '关闭',
   },
 };

@@ -609,8 +609,8 @@ export function BusinessServicesPage({
                 </div>
                 <p className="text-xs text-neutral-600 leading-relaxed">
                   {lang === 'en'
-                    ? `A Business Directory listing comes with Business Membership: ${directoryPrice}/yr (${directoryCard} by card, incl. 3.5% fee), paid online.`
-                    : `商户名录收录包含在商业会员中：${directoryPrice}/年（刷卡合计 ${directoryCard}，含 3.5% 手续费），在线支付。`}
+                    ? `A Business Directory listing comes with Business Membership: ${directoryPrice}/yr (${directoryCard} by card online, incl. 3.5% fee). Check, Zelle or cash also accepted — email us.`
+                    : `商户名录收录包含在商业会员中：${directoryPrice}/年（在线刷卡合计 ${directoryCard}，含 3.5% 手续费）。也接受支票、Zelle、现金，请来信联系。`}
                 </p>
               </div>
               <div className="pt-4 mt-4 border-t border-neutral-100">
@@ -1211,8 +1211,8 @@ export function BusinessServicesPage({
             </h2>
             <p className="mt-3 text-sm text-neutral-600">
               {lang === 'en'
-                ? `The CAACI Business Directory listing is part of Business Membership: ${directoryPrice}/year (${directoryCard} with the 3.5% card fee), paid online by card. Questions: caaci.org@gmail.com.`
-                : `华协商业名录收录包含在商业会员中：${directoryPrice}/年（在线刷卡合计 ${directoryCard}，含 3.5% 手续费）。如有疑问请致信 caaci.org@gmail.com。`}
+                ? `The CAACI Business Directory listing is part of Business Membership: ${directoryPrice}/year (${directoryCard} with the 3.5% card fee when paying online by card). We also accept check, Zelle and cash — email caaci.org@gmail.com to arrange payment or ask questions.`
+                : `华协商业名录收录包含在商业会员中：${directoryPrice}/年（在线刷卡合计 ${directoryCard}，含 3.5% 手续费）。也可使用支票、Zelle、现金等方式付款，请致信 caaci.org@gmail.com 安排付款或咨询。`}
             </p>
           </motion.div>
 

@@ -657,8 +657,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             </h3>
             <p className="text-xs sm:text-sm text-neutral-500 mb-8">
               {lang === 'en'
-                ? 'Choose a plan, then pay securely by card on Stripe. Your membership is activated automatically once payment completes.'
-                : '选择方案后，通过 Stripe 安全刷卡支付。付款完成后会员资格自动生效。'}
+                ? `Choose a plan and pay securely by card on Stripe; your membership is activated automatically once payment completes. We accept other payment methods too (check, Zelle, cash) — email ${content.contact.email} and we'll arrange it.`
+                : `选择方案后通过 Stripe 安全刷卡支付，付款完成后会员资格自动生效。我们也接受支票、Zelle、现金等其他付款方式，请发邮件至 ${content.contact.email} 与我们联系安排。`}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
