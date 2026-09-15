@@ -156,15 +156,42 @@
 细边框 + 轻透明是本站的"分隔语言"：`border border-neutral-200/80`。
 图片再加一层内描边：`ring-1 ring-inset ring-black/5`。
 
-### 4.4 动效
+### 4.4 动效（全局，已落地 2026-09-15）
 
-- CSS 过渡：`transition-colors` / `transition-all`；hover 图片 `duration-500 scale-[1.01]`。
-- 按钮按下：`active:scale-98`（或 `active:scale-[0.99]`）。
-- 主按钮 hover 二选一：`hover:bg-brick-hover` 或 `hover:brightness-110`。
-- GSAP 入场：`duration 0.5–0.9`，`ease: power2.out`（默认）/ `power3.out`（大位移）；微交互 `0.2–0.25`。
-- 滚动：Lenis 平滑滚动，导航栏下滑隐藏、上滑显示（`transition-transform duration-300`）。
-- 加载：`animate-spin`；实时状态点：`animate-ping`。
-- `animate-fadeIn`（下拉）与 `animate-in`（弹窗）在 `index.css` 中定义，0.18s / 0.2s ease-out。
+唯一真源：`web/src/lib/motion.ts` 的 `MOTION` 对象。`motion/react`、GSAP、CSS 三方都读它；
+`index.css` 的 `--ease-out` / `--duration-*` 只是镜像。改站点手感 = 改这一个文件。
+
+**原则**：只有"进场"和"按下"两类动作；进场一律淡入 + 位移，同一条缓动曲线；不弹跳、不回放、不循环。
+
+| 令牌                      | 值                               | 用途                                         |
+| ------------------------- | -------------------------------- | -------------------------------------------- |
+| `duration.instant`        | 0.15s                            | 颜色、hover 抬起                             |
+| `duration.fast`           | 0.25s                            | 列表项、弹窗遮罩、下拉                       |
+| `duration.base`           | 0.4s                             | 页面 / 面板挂载                              |
+| `duration.reveal`         | 0.6s                             | 滚动进场（默认）                             |
+| `duration.slow`           | 0.9s                             | 只给整列大块（About / Contact 两栏、社区卡） |
+| `ease`                    | `cubic-bezier(0.22, 1, 0.36, 1)` | 全站唯一进场曲线；GSAP 用 `power3.out`       |
+| `easeGsapInOut`           | `power1.inOut`                   | 只用于 scrub 序列（StackedCards）            |
+| `rise` / `riseSm`         | 24px / 12px                      | 进场位移：区块 / 列表与挂载                  |
+| `slide`                   | 40px                             | 左右两栏进场（原 70px，收小）                |
+| `stagger` / `staggerMax`  | 0.08s / 0.3s                     | 兄弟元素错峰；长列表封顶                     |
+| `lift`                    | -2px                             | 卡片 hover 抬起（原 -5/-6px）                |
+| `hoverScale` / `tapScale` | 1.02 / 0.98                      | 按钮 hover / 按下                            |
+| `revealStart`             | `top 80%`                        | 元素顶部过视口 80% 时触发，只触发一次        |
+
+**怎么写**
+
+- `motion/react`：`initial={riseFrom} whileInView={shown} viewport={inView} transition={rise(0.1)}`；
+  列表 `transition={listItem(idx)}`；页面挂载 `transition={mountIn}`；按钮 `whileHover={hoverScale} whileTap={tap}`；卡片 `whileHover={hoverLift}`；
+  弹窗 `overlayIn` / `panelFrom` / `panelShown` / `panelIn`。
+- GSAP：在 `gsap.context` 里 `reveal(el, { from: 'left', trigger })`、`revealGroup(children)`。不再手写 `fromTo` + `scrollTrigger`。
+- CSS：`transition-colors`（默认）、`transition-transform`；时长用 `duration-150 / 200 / 300`，曲线 `ease-out`（已映射到同一条 bezier）。
+- 平滑滚动：Lenis，`duration 1.15`，页面跳转 `smoothScrollTo(id, { offset, duration: 0.9 })`。
+
+**减少动态（prefers-reduced-motion）**：三层同时生效。CSS 全局把 animation / transition 压到 0.01ms；
+`App.tsx` 用 `<MotionConfig reducedMotion="user">`；`reveal()` 直接返回、Lenis 不启动（原生滚动）。
+
+**禁止**：`back.out` 弹跳、`toggleActions: reverse`（滚回去再消失）、组件内手写 `ease: [0.22, …]` 或 `whileHover={{ … }}` 字面量（测试会拦）、超过 0.9s 的进场、无限循环动画（`animate-ping` 仅限"实时"状态点）。
 
 ### 4.5 层级 z-index
 

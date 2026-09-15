@@ -1,5 +1,21 @@
 import { useState, useMemo, useEffect, useRef, type FormEvent, type MouseEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  hoverLift,
+  hoverScale,
+  inView,
+  listItem,
+  mountIn,
+  overlayIn,
+  panelFrom,
+  panelIn,
+  panelShown,
+  rise,
+  riseFrom,
+  riseFromSm,
+  slideFromLeft,
+  tap,
+} from '../lib/motion';
 import { ContactSection } from '../components/ContactSection';
 import { smoothScrollTo } from '../utils/smoothScroll';
 import {
@@ -387,15 +403,15 @@ export function BusinessServicesPage({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Main Title & Value Proposition */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={riseFrom}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            transition={rise()}
             className="max-w-3xl mb-10"
           >
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              initial={riseFromSm}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.05 }}
+              transition={mountIn}
               className="text-xs font-semibold text-brick mb-3"
             >
               {lang === 'en'
@@ -403,9 +419,9 @@ export function BusinessServicesPage({
                 : 'CAACI 华人商业名录与社区资源'}
             </motion.div>
             <motion.h1
-              initial={{ opacity: 0, y: 16 }}
+              initial={riseFrom}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+              transition={rise(0.1)}
               className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-ink leading-[1.15]"
             >
               {lang === 'en'
@@ -413,9 +429,9 @@ export function BusinessServicesPage({
                 : '商业服务、商会资源与华商名录'}
             </motion.h1>
             <motion.p
-              initial={{ opacity: 0, y: 16 }}
+              initial={riseFrom}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              transition={rise(0.18)}
               className="mt-4 text-base sm:text-lg text-neutral-600 leading-relaxed"
             >
               {lang === 'en'
@@ -425,14 +441,14 @@ export function BusinessServicesPage({
 
             {/* Quick Action Buttons */}
             <motion.div
-              initial={{ opacity: 0, y: 14 }}
+              initial={riseFromSm}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, delay: 0.26 }}
+              transition={rise(0.26)}
               className="mt-6 flex flex-wrap items-center gap-3"
             >
               <motion.button
-                whileHover={{ scale: 1.02, y: -1 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={hoverScale}
+                whileTap={tap}
                 type="button"
                 onClick={() => scrollToSection('section-directory', 'directory')}
                 className="px-5 py-2.5 rounded-full bg-ink text-white text-xs sm:text-sm font-medium hover:bg-neutral-800 transition-colors inline-flex items-center gap-2 cursor-pointer shadow-xs"
@@ -441,8 +457,8 @@ export function BusinessServicesPage({
                 <span>{lang === 'en' ? 'Explore Directory' : '浏览本地名录商户'}</span>
               </motion.button>
               <motion.button
-                whileHover={{ scale: 1.02, y: -1 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={hoverScale}
+                whileTap={tap}
                 type="button"
                 onClick={() => scrollToSection('section-microloan', 'microloan')}
                 className="px-5 py-2.5 rounded-full bg-white border border-neutral-300 text-neutral-800 hover:border-neutral-800 text-xs sm:text-sm font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
@@ -451,8 +467,8 @@ export function BusinessServicesPage({
                 <span>{lang === 'en' ? 'Chamber Microloan Info' : '查看商会小额贷款'}</span>
               </motion.button>
               <motion.button
-                whileHover={{ scale: 1.02, y: -1 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={hoverScale}
+                whileTap={tap}
                 type="button"
                 onClick={() => handleOpenInquiry('directory')}
                 className="px-5 py-2.5 rounded-full bg-brick/10 text-brick hover:bg-brick/15 text-xs sm:text-sm font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
@@ -471,11 +487,11 @@ export function BusinessServicesPage({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 pt-6">
             {/* Pillar 1: Directory */}
             <motion.div
-              initial={{ opacity: 0, y: 28 }}
+              initial={riseFrom}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-30px' }}
-              transition={{ duration: 0.55, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
-              whileHover={{ y: -5, transition: { duration: 0.2 } }}
+              viewport={inView}
+              transition={rise(0.05)}
+              whileHover={hoverLift}
               className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs hover:shadow-md hover:border-neutral-300 transition-all flex flex-col justify-between group"
             >
               <div className="space-y-3">
@@ -510,11 +526,11 @@ export function BusinessServicesPage({
 
             {/* Pillar 2: Microloans */}
             <motion.div
-              initial={{ opacity: 0, y: 28 }}
+              initial={riseFrom}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-30px' }}
-              transition={{ duration: 0.55, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
-              whileHover={{ y: -5, transition: { duration: 0.2 } }}
+              viewport={inView}
+              transition={rise(0.14)}
+              whileHover={hoverLift}
               className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs hover:shadow-md hover:border-neutral-300 transition-all flex flex-col justify-between group"
             >
               <div className="space-y-3">
@@ -549,11 +565,11 @@ export function BusinessServicesPage({
 
             {/* Pillar 3: Mentorship & Events */}
             <motion.div
-              initial={{ opacity: 0, y: 28 }}
+              initial={riseFrom}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-30px' }}
-              transition={{ duration: 0.55, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              whileHover={{ y: -5, transition: { duration: 0.2 } }}
+              viewport={inView}
+              transition={rise(0.22)}
+              whileHover={hoverLift}
               className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs hover:shadow-md hover:border-neutral-300 transition-all flex flex-col justify-between group"
             >
               <div className="space-y-3">
@@ -588,11 +604,11 @@ export function BusinessServicesPage({
 
             {/* Pillar 4: Corporate Sponsorship */}
             <motion.div
-              initial={{ opacity: 0, y: 28 }}
+              initial={riseFrom}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-30px' }}
-              transition={{ duration: 0.55, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              whileHover={{ y: -5, transition: { duration: 0.2 } }}
+              viewport={inView}
+              transition={rise(0.3)}
+              whileHover={hoverLift}
               className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs hover:shadow-md hover:border-neutral-300 transition-all flex flex-col justify-between group"
             >
               <div className="space-y-3">
@@ -631,10 +647,10 @@ export function BusinessServicesPage({
             {data.stats.map((stat, idx) => (
               <motion.div
                 key={idx}
-                initial={{ opacity: 0, y: 18 }}
+                initial={riseFrom}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.1 + idx * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                viewport={inView}
+                transition={rise(0.1 + idx * 0.08)}
                 className="space-y-1"
               >
                 <div className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">
@@ -655,10 +671,10 @@ export function BusinessServicesPage({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header & Filter Controls */}
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={riseFrom}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            viewport={inView}
+            transition={rise()}
             className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 pb-6 sm:pb-8 lg:pb-10 border-b border-neutral-200/80"
           >
             <div>
@@ -691,8 +707,8 @@ export function BusinessServicesPage({
               </div>
 
               <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={hoverScale}
+                whileTap={tap}
                 type="button"
                 onClick={() => handleOpenInquiry('directory')}
                 className="px-3 sm:px-4 py-2 text-xs font-medium rounded-full bg-brick text-white hover:bg-brick-pressed transition-colors cursor-pointer inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
@@ -708,17 +724,17 @@ export function BusinessServicesPage({
 
           {/* Category Filter Pills (Apple Style with Motion & Hidden Scrollbar) */}
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
+            initial={riseFromSm}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            viewport={inView}
+            transition={mountIn}
             className="py-4 sm:py-5 lg:py-6 flex items-center gap-2 overflow-x-auto no-scrollbar"
           >
             {categories.map((cat) => (
               <motion.button
                 key={cat.id}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
+                whileHover={hoverScale}
+                whileTap={tap}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
@@ -763,8 +779,8 @@ export function BusinessServicesPage({
                       key={merchant.id}
                       initial={{ opacity: 0, scale: 0.95 }}
                       whileInView={{ opacity: 1, scale: 1 }}
-                      viewport={{ once: true, margin: '-10px' }}
-                      transition={{ duration: 0.4, delay: Math.min(idx * 0.04, 0.2) }}
+                      viewport={inView}
+                      transition={listItem(idx)}
                       className="w-[82vw] max-w-[320px] shrink-0 snap-center bg-white rounded-2xl p-5 border border-neutral-200/90 shadow-sm flex flex-col justify-between"
                     >
                       <div className="space-y-3">
@@ -873,14 +889,10 @@ export function BusinessServicesPage({
                 {filteredMerchants.map((merchant: BusinessMerchant, idx: number) => (
                   <motion.div
                     key={merchant.id}
-                    initial={{ opacity: 0, y: 16 }}
+                    initial={riseFrom}
                     whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: '-20px' }}
-                    transition={{
-                      duration: 0.45,
-                      delay: Math.min(idx * 0.04, 0.28),
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
+                    viewport={inView}
+                    transition={listItem(idx)}
                     className="p-6 sm:p-8 hover:bg-surface-hover transition-colors flex flex-col md:flex-row md:items-center justify-between gap-6"
                   >
                     <div className="space-y-2 max-w-2xl">
@@ -970,10 +982,10 @@ export function BusinessServicesPage({
       >
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
-            initial={{ opacity: 0, y: 28 }}
+            initial={riseFrom}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-40px' }}
-            transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+            viewport={inView}
+            transition={rise()}
             className="space-y-6"
           >
             <span className="text-xs font-semibold text-brick block">
@@ -1008,10 +1020,10 @@ export function BusinessServicesPage({
             {/* Step 1-3 Official Application Process with Progressive Slide In */}
             <div className="pt-4 border-t border-neutral-200/80 space-y-4 text-xs sm:text-sm text-neutral-700">
               <motion.div
-                initial={{ opacity: 0, x: -16 }}
+                initial={slideFromLeft}
                 whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+                viewport={inView}
+                transition={rise(0.1)}
                 className="flex items-start gap-3.5"
               >
                 <span className="w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
@@ -1030,10 +1042,10 @@ export function BusinessServicesPage({
               </motion.div>
 
               <motion.div
-                initial={{ opacity: 0, x: -16 }}
+                initial={slideFromLeft}
                 whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                viewport={inView}
+                transition={rise(0.2)}
                 className="flex items-start gap-3.5"
               >
                 <span className="w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
@@ -1054,10 +1066,10 @@ export function BusinessServicesPage({
               </motion.div>
 
               <motion.div
-                initial={{ opacity: 0, x: -16 }}
+                initial={slideFromLeft}
                 whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                viewport={inView}
+                transition={rise(0.3)}
                 className="flex items-start gap-3.5"
               >
                 <span className="w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
@@ -1080,8 +1092,8 @@ export function BusinessServicesPage({
 
             <div className="pt-4 flex flex-wrap items-center gap-3">
               <motion.a
-                whileHover={{ scale: 1.02, y: -1 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={hoverScale}
+                whileTap={tap}
                 href="mailto:lauraw@champaigncounty.org?subject=Champaign%20County%20Chamber%20Microloan%20Inquiry"
                 className="px-6 py-3 rounded-full bg-ink text-white text-xs sm:text-sm font-medium hover:bg-neutral-800 transition-colors cursor-pointer inline-flex items-center gap-2"
               >
@@ -1089,8 +1101,8 @@ export function BusinessServicesPage({
                 <span>lauraw@champaigncounty.org</span>
               </motion.a>
               <motion.a
-                whileHover={{ scale: 1.02, y: -1 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={hoverScale}
+                whileTap={tap}
                 href="tel:2173591791"
                 className="px-6 py-3 rounded-full border border-neutral-300 text-neutral-800 hover:border-neutral-800 text-xs sm:text-sm font-medium transition-colors cursor-pointer inline-flex items-center gap-2"
               >
@@ -1109,10 +1121,10 @@ export function BusinessServicesPage({
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={riseFrom}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            viewport={inView}
+            transition={rise()}
             className="max-w-3xl mb-12"
           >
             <span className="text-xs font-semibold text-brick block mb-2">
@@ -1135,10 +1147,10 @@ export function BusinessServicesPage({
             {data.events.map((evt, idx) => (
               <motion.div
                 key={evt.id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={riseFrom}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-20px' }}
-                transition={{ duration: 0.5, delay: idx * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                viewport={inView}
+                transition={rise(idx * 0.1)}
                 className="p-6 sm:p-8 hover:bg-surface-hover transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-6"
               >
                 <div className="space-y-2 max-w-2xl">
@@ -1172,8 +1184,8 @@ export function BusinessServicesPage({
 
                 <div className="shrink-0 pt-2 lg:pt-0">
                   <motion.button
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
+                    whileHover={hoverScale}
+                    whileTap={tap}
                     type="button"
                     onClick={() => onNavigate('events')}
                     className="px-5 py-2.5 text-xs font-medium rounded-full bg-ink text-white hover:bg-neutral-800 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
@@ -1195,10 +1207,10 @@ export function BusinessServicesPage({
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={riseFrom}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            viewport={inView}
+            transition={rise()}
             className="text-center max-w-2xl mx-auto mb-14"
           >
             <span className="text-xs font-semibold text-brick block mb-2">
@@ -1220,11 +1232,11 @@ export function BusinessServicesPage({
             {data.sponsorTiers.map((tier, idx) => (
               <motion.div
                 key={idx}
-                initial={{ opacity: 0, y: 30 }}
+                initial={riseFrom}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-30px' }}
-                transition={{ duration: 0.6, delay: idx * 0.15, ease: [0.22, 1, 0.36, 1] }}
-                whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                viewport={inView}
+                transition={rise(idx * 0.15)}
+                whileHover={hoverLift}
                 className={`rounded-2xl p-8 flex flex-col justify-between transition-all relative ${
                   tier.recommended
                     ? 'bg-surface-3 border-2 border-ink shadow-md'
@@ -1262,8 +1274,8 @@ export function BusinessServicesPage({
 
                 <div className="pt-8 mt-8 border-t border-neutral-200/80">
                   <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={hoverScale}
+                    whileTap={tap}
                     type="button"
                     onClick={() => sponsorClick(tier)}
                     className={`w-full py-3 rounded-full text-xs font-medium tracking-wide uppercase transition-all cursor-pointer ${
@@ -1288,14 +1300,14 @@ export function BusinessServicesPage({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={overlayIn}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 16 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 16 }}
-              transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+              initial={panelFrom}
+              animate={panelShown}
+              exit={panelFrom}
+              transition={panelIn}
               className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-neutral-200 relative max-h-[90vh] overflow-y-auto"
             >
               <button

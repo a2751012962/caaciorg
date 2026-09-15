@@ -50,6 +50,37 @@ test('no hex colour inside a Tailwind arbitrary value', async () => {
   assert.deepEqual(hits, [], 'use a token class (bg-brick, text-ink, ...) instead');
 });
 
+// Motion numbers live in web/src/lib/motion.ts. Components compose rise(),
+// listItem(), hoverLift, reveal() ... instead of retyping curves and durations.
+// StackedCardsSection is a bespoke scrubbed timeline and keeps its own numbers.
+const MOTION_EXEMPT = ['lib\\motion.ts', 'lib/motion.ts', 'StackedCardsSection.tsx', 'Hero.tsx'];
+const MOTION_LITERALS = [
+  [
+    /ease: \[0\.22, 1, 0\.36, 1\]/,
+    'ease: [0.22, 1, 0.36, 1] — use rise()/mountIn/listItem() from lib/motion',
+  ],
+  [/toggleActions:/, 'toggleActions — use reveal() from lib/motion (reveals run once)'],
+  [
+    /ease: 'power\d\.(out|in|inOut)'|ease: 'back\.out/,
+    'GSAP ease string — use reveal() or MOTION.easeGsap',
+  ],
+  [/whileHover=\{\{/, 'whileHover literal — use hoverLift or hoverScale'],
+  [/whileTap=\{\{/, 'whileTap literal — use tap'],
+  [/viewport=\{\{/, 'viewport literal — use inView'],
+];
+
+test('motion numbers come from lib/motion.ts', async () => {
+  const hits = [];
+  for (const f of files) {
+    if (MOTION_EXEMPT.some((x) => f.endsWith(x))) continue;
+    const s = await readFile(f, 'utf8');
+    for (const [re, why] of MOTION_LITERALS) {
+      if (re.test(s)) hits.push(`${f}: ${why}`);
+    }
+  }
+  assert.deepEqual(hits, []);
+});
+
 test('no inline backgroundColor/color hex outside the canvas card', async () => {
   const hits = [];
   for (const f of files) {

@@ -3,6 +3,7 @@ import { ArrowRight, HandHeart } from 'lucide-react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type { CAACIContent } from '../data/content';
+import { MOTION, reveal } from '../lib/motion';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -36,23 +37,9 @@ export function VibrantCommunity({ content, onOpenModal }: VibrantCommunityProps
         );
       }
 
-      // Smooth floating card entrance over the parallax background
+      // The card rises over the parallax background.
       if (cardRef.current && sectionRef.current) {
-        gsap.fromTo(
-          cardRef.current,
-          { y: 50, opacity: 0 },
-          {
-            y: 0,
-            opacity: 1,
-            duration: 0.9,
-            ease: 'power3.out',
-            scrollTrigger: {
-              trigger: sectionRef.current,
-              start: 'top 75%',
-              toggleActions: 'play none none reverse',
-            },
-          },
-        );
+        reveal(cardRef.current, { trigger: sectionRef.current, duration: MOTION.duration.slow });
       }
     }, sectionRef);
 

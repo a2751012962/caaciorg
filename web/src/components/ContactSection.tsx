@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { Send, CheckCircle, Mail, MapPin } from 'lucide-react';
 import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
-
-gsap.registerPlugin(ScrollTrigger);
+import { MOTION, reveal, revealGroup } from '../lib/motion';
 
 interface ContactSectionProps {
   content: CAACIContent;
@@ -39,61 +37,18 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      // 左右侧入场: Left Form card enters from Left
+      const trigger = sectionRef.current;
+      // Form column from the left with its fields rising in turn; info cards from the right.
       if (leftColRef.current) {
-        gsap.fromTo(
-          leftColRef.current,
-          { x: -70, opacity: 0 },
-          {
-            x: 0,
-            opacity: 1,
-            duration: 0.9,
-            ease: 'power2.out',
-            scrollTrigger: {
-              trigger: sectionRef.current,
-              start: 'top 80%',
-              toggleActions: 'play none none reverse',
-            },
-          },
-        );
-
-        // 错峰入场: Form inputs stagger in
-        gsap.fromTo(
-          leftColRef.current.querySelectorAll('.contact-input-field'),
-          { y: 20, opacity: 0 },
-          {
-            y: 0,
-            opacity: 1,
-            duration: 0.6,
-            stagger: 0.08,
-            ease: 'power2.out',
-            scrollTrigger: {
-              trigger: sectionRef.current,
-              start: 'top 75%',
-              toggleActions: 'play none none reverse',
-            },
-          },
-        );
+        reveal(leftColRef.current, { trigger, from: 'left', duration: MOTION.duration.slow });
+        revealGroup(leftColRef.current.querySelectorAll('.contact-input-field'), { trigger });
       }
-
-      // 左右侧入场: Right info card enters from Right
       if (rightColRef.current) {
-        gsap.fromTo(
-          rightColRef.current.children,
-          { x: 70, opacity: 0 },
-          {
-            x: 0,
-            opacity: 1,
-            duration: 0.9,
-            stagger: 0.15,
-            ease: 'power2.out',
-            scrollTrigger: {
-              trigger: sectionRef.current,
-              start: 'top 80%',
-              toggleActions: 'play none none reverse',
-            },
-          },
-        );
+        revealGroup(rightColRef.current.children, {
+          trigger,
+          from: 'right',
+          duration: MOTION.duration.slow,
+        });
       }
     }, sectionRef);
 

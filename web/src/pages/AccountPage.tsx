@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
+import { mountIn, riseFromSm } from '../lib/motion';
 import {
   User,
   CreditCard,
@@ -702,9 +703,9 @@ export function AccountPage({
           <div className={`${shownOn('pass')} lg:hidden space-y-4`}>
             {cardActive ? (
               <motion.div
-                initial={{ opacity: 0, y: 10 }}
+                initial={riseFromSm}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25 }}
+                transition={mountIn}
                 className="space-y-4"
               >
                 <div className="flex items-center justify-between px-1">

@@ -17,6 +17,12 @@ export function initSmoothScroll(): Lenis {
     return lenisInstance;
   }
 
+  // Native scrolling when the OS asks for less motion; every helper below
+  // already falls back to window.scrollTo when there is no Lenis instance.
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    return null as unknown as Lenis;
+  }
+
   lenisInstance = new Lenis({
     duration: 1.15,
     easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),

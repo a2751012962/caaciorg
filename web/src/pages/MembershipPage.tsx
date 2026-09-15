@@ -1,5 +1,16 @@
 import { useState, useRef, useEffect, useMemo, type FormEvent, type MouseEvent } from 'react';
 import { motion } from 'motion/react';
+import {
+  hoverLift,
+  hoverScale,
+  inView,
+  mountIn,
+  rise,
+  riseFrom,
+  slideFromLeft,
+  slideFromRight,
+  tap,
+} from '../lib/motion';
 import { ContactSection } from '../components/ContactSection';
 import {
   Check,
@@ -322,7 +333,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
+        transition={mountIn}
         className="border-b border-neutral-200/80 bg-surface-2/80 backdrop-blur-xs"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
@@ -361,10 +372,10 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
       <section className="py-10 sm:py-16 lg:py-20 bg-surface-2 border-b border-neutral-200/80 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={riseFrom}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            viewport={inView}
+            transition={rise()}
             className="text-center max-w-2xl mx-auto mb-8 sm:mb-12"
           >
             <span className="text-xs font-semibold text-brick block mb-2">
@@ -400,12 +411,12 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               return (
                 <motion.div
                   key={tier.id}
-                  initial={{ opacity: 0, y: 32 }}
+                  initial={riseFrom}
                   whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-30px' }}
-                  transition={{ duration: 0.55, delay: idx * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                  whileHover={{ y: -6, transition: { duration: 0.2 } }}
-                  whileTap={{ scale: 0.98 }}
+                  viewport={inView}
+                  transition={rise(idx * 0.1)}
+                  whileHover={hoverLift}
+                  whileTap={tap}
                   className={`w-[82vw] max-w-[310px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-white rounded-2xl p-6 sm:p-7 border transition-all duration-300 flex flex-col justify-between relative ${
                     isCurrentSelected
                       ? 'border-ink shadow-lg ring-1 ring-ink'
@@ -458,8 +469,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
                   <div className="pt-6 mt-6 border-t border-neutral-100">
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.97 }}
+                      whileHover={hoverScale}
+                      whileTap={tap}
                       type="button"
                       onClick={() => {
                         selectTier(tier.id);
@@ -523,10 +534,10 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-10 xl:gap-12 items-start">
           {/* Left: Apple Wallet Passbook UI */}
           <motion.div
-            initial={{ opacity: 0, x: -30 }}
+            initial={slideFromLeft}
             whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: '-30px' }}
-            transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+            viewport={inView}
+            transition={rise()}
             className="md:col-span-5 w-full max-w-lg md:max-w-none mx-auto md:mx-0 space-y-6"
           >
             <div>
@@ -545,11 +556,11 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
             {/* Apple Wallet Sleek Pass Card */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={riseFrom}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-              whileHover={{ y: -5, scale: 1.01, transition: { duration: 0.25 } }}
+              viewport={inView}
+              transition={rise(0.1)}
+              whileHover={hoverLift}
               className="bg-ink text-white rounded-2xl p-5 sm:p-6 lg:p-7 shadow-xl border border-white/10 relative overflow-hidden group"
             >
               <div className="flex justify-between items-center pb-5 sm:pb-6 border-b border-white/10 gap-2">
@@ -611,11 +622,11 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
             {/* Quick Member Portal Link */}
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
+              initial={riseFrom}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              whileHover={{ y: -2 }}
+              viewport={inView}
+              transition={rise(0.2)}
+              whileHover={hoverLift}
               className="p-3.5 sm:p-4 rounded-xl bg-surface-3 border border-black/[0.04] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
             >
               <div className="min-w-0">
@@ -629,8 +640,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 </div>
               </div>
               <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={hoverScale}
+                whileTap={tap}
                 type="button"
                 onClick={() => onNavigate('account')}
                 className="flex-shrink-0 px-3.5 py-1.5 rounded-full bg-white border border-neutral-200 text-xs font-medium text-ink hover:bg-neutral-100 transition-colors cursor-pointer whitespace-nowrap"
@@ -642,10 +653,10 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
           {/* Right: Join / Renew / Change plan */}
           <motion.div
-            initial={{ opacity: 0, x: 30 }}
+            initial={slideFromRight}
             whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: '-30px' }}
-            transition={{ duration: 0.65, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+            viewport={inView}
+            transition={rise(0.15)}
             className="md:col-span-7 bg-white p-6 sm:p-8 lg:p-10 rounded-2xl border border-neutral-200/80 shadow-sm"
           >
             <h3 className="text-2xl font-semibold tracking-tight text-ink mb-1">
@@ -666,8 +677,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                   {plans.map((tier) => (
                     <motion.button
                       key={tier.id}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      whileHover={hoverScale}
+                      whileTap={tap}
                       type="button"
                       onClick={() => selectTier(tier.id)}
                       aria-pressed={selected?.id === tier.id}
@@ -805,8 +816,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               {modeNote && <p className="text-xs text-neutral-600 leading-relaxed">{modeNote}</p>}
 
               <motion.button
-                whileHover={{ scale: 1.015 }}
-                whileTap={{ scale: 0.985 }}
+                whileHover={hoverScale}
+                whileTap={tap}
                 type="submit"
                 disabled={busy || !mode}
                 aria-busy={busy}
@@ -838,10 +849,10 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
         className="py-16 sm:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-hidden"
       >
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={riseFrom}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          viewport={inView}
+          transition={rise()}
           className="max-w-3xl mb-14"
         >
           <span className="text-xs font-semibold text-brick block mb-2">
@@ -859,11 +870,11 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
         <div className="flex md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 overflow-x-auto md:overflow-visible no-scrollbar snap-x snap-mandatory md:snap-none -mx-4 px-6 sm:-mx-6 sm:px-8 md:mx-0 md:px-0 pt-2 pb-4 md:pt-0 md:pb-0 overscroll-x-contain">
           <motion.div
-            initial={{ opacity: 0, y: 28 }}
+            initial={riseFrom}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-20px' }}
-            transition={{ duration: 0.55, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
-            whileHover={{ y: -6, transition: { duration: 0.2 } }}
+            viewport={inView}
+            transition={rise(0.05)}
+            whileHover={hoverLift}
             className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
           >
             <div className="space-y-4">
@@ -882,11 +893,11 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 28 }}
+            initial={riseFrom}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-20px' }}
-            transition={{ duration: 0.55, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-            whileHover={{ y: -6, transition: { duration: 0.2 } }}
+            viewport={inView}
+            transition={rise(0.15)}
+            whileHover={hoverLift}
             className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
           >
             <div className="space-y-4">
@@ -905,11 +916,11 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 28 }}
+            initial={riseFrom}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-20px' }}
-            transition={{ duration: 0.55, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            whileHover={{ y: -6, transition: { duration: 0.2 } }}
+            viewport={inView}
+            transition={rise(0.25)}
+            whileHover={hoverLift}
             className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
           >
             <div className="space-y-4">
@@ -928,11 +939,11 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 28 }}
+            initial={riseFrom}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-20px' }}
-            transition={{ duration: 0.55, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            whileHover={{ y: -6, transition: { duration: 0.2 } }}
+            viewport={inView}
+            transition={rise(0.35)}
+            whileHover={hoverLift}
             className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
           >
             <div className="space-y-4">

@@ -1,9 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type { CAACIContent } from '../data/content';
-
-gsap.registerPlugin(ScrollTrigger);
+import { MOTION, reveal, revealGroup } from '../lib/motion';
 
 interface AboutProps {
   content: CAACIContent;
@@ -17,60 +15,15 @@ export function About({ content, onNavigate }: AboutProps) {
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      // 左右侧入场: Left Column enters from Left (x: -70)
+      const trigger = sectionRef.current;
+      // Photo column slides in from the left, text column from the right, then
+      // the text column's pieces rise one after another.
       if (leftColRef.current) {
-        gsap.fromTo(
-          leftColRef.current,
-          { x: -70, opacity: 0 },
-          {
-            x: 0,
-            opacity: 1,
-            duration: 0.9,
-            ease: 'power2.out',
-            scrollTrigger: {
-              trigger: sectionRef.current,
-              start: 'top 80%',
-              toggleActions: 'play none none reverse',
-            },
-          },
-        );
+        reveal(leftColRef.current, { trigger, from: 'left', duration: MOTION.duration.slow });
       }
-
-      // 左右侧入场: Right Column enters from Right (x: 70)
       if (rightColRef.current) {
-        gsap.fromTo(
-          rightColRef.current,
-          { x: 70, opacity: 0 },
-          {
-            x: 0,
-            opacity: 1,
-            duration: 0.9,
-            ease: 'power2.out',
-            scrollTrigger: {
-              trigger: sectionRef.current,
-              start: 'top 80%',
-              toggleActions: 'play none none reverse',
-            },
-          },
-        );
-
-        // 错峰入场: Inner elements of right column stagger in
-        gsap.fromTo(
-          rightColRef.current.querySelectorAll('.about-stagger-item'),
-          { y: 25, opacity: 0 },
-          {
-            y: 0,
-            opacity: 1,
-            duration: 0.7,
-            stagger: 0.1,
-            ease: 'power2.out',
-            scrollTrigger: {
-              trigger: sectionRef.current,
-              start: 'top 75%',
-              toggleActions: 'play none none reverse',
-            },
-          },
-        );
+        reveal(rightColRef.current, { trigger, from: 'right', duration: MOTION.duration.slow });
+        revealGroup(rightColRef.current.querySelectorAll('.about-stagger-item'), { trigger });
       }
     }, sectionRef);
 

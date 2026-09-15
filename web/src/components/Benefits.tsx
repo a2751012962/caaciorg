@@ -1,10 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Users, Award, ShoppingBag, TrendingUp } from 'lucide-react';
 import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type { CAACIContent } from '../data/content';
-
-gsap.registerPlugin(ScrollTrigger);
+import { MOTION, reveal } from '../lib/motion';
 
 interface BenefitsProps {
   content: CAACIContent;
@@ -17,65 +15,11 @@ export function Benefits({ content }: BenefitsProps) {
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      // Header entrance
-      gsap.fromTo(
-        '.benefits-header',
-        { y: 35, opacity: 0 },
-        {
-          y: 0,
-          opacity: 1,
-          duration: 0.8,
-          ease: 'power2.out',
-          scrollTrigger: {
-            trigger: sectionRef.current,
-            start: 'top 80%',
-            toggleActions: 'play none none reverse',
-          },
-        },
-      );
-
-      // 左右侧入场 (Alternating left and right entry for the 4 cards) + 错峰入场
+      reveal('.benefits-header', { trigger: sectionRef.current });
+      // Cards rise as each one scrolls in; the right-hand card of a row waits one
+      // stagger step so the row reads left to right.
       cardsRef.current.forEach((card, index) => {
-        if (!card) return;
-        const fromX = index % 2 === 0 ? -70 : 70; // Even from Left, Odd from Right
-
-        gsap.fromTo(
-          card,
-          { x: fromX, opacity: 0, y: 20 },
-          {
-            x: 0,
-            y: 0,
-            opacity: 1,
-            duration: 0.85,
-            delay: (index % 2) * 0.15, // Staggered offset
-            ease: 'power3.out',
-            scrollTrigger: {
-              trigger: card,
-              start: 'top 85%',
-              toggleActions: 'play none none reverse',
-            },
-          },
-        );
-
-        // Icon bounce in
-        const iconWrap = card.querySelector('.benefit-icon-wrap');
-        if (iconWrap) {
-          gsap.fromTo(
-            iconWrap,
-            { scale: 0.5, opacity: 0 },
-            {
-              scale: 1,
-              opacity: 1,
-              duration: 0.6,
-              ease: 'back.out(1.7)',
-              scrollTrigger: {
-                trigger: card,
-                start: 'top 80%',
-                toggleActions: 'play none none reverse',
-              },
-            },
-          );
-        }
+        if (card) reveal(card, { delay: (index % 2) * MOTION.stagger });
       });
     }, sectionRef);
 

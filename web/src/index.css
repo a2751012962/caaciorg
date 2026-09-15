@@ -36,6 +36,18 @@
   --font-display: var(--font-caaci-serif);
   --font-display-zh: var(--font-caaci-serif-zh);
   --font-sans: var(--font-caaci-sans);
+
+  /* Motion (mirrors MOTION in src/lib/motion.ts): ease-out utility + durations. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+}
+
+:root {
+  --duration-instant: 150ms;
+  --duration-fast: 250ms;
+  --duration-base: 400ms;
+  --duration-reveal: 600ms;
+  --duration-slow: 900ms;
 }
 
 @layer base {
@@ -109,9 +121,15 @@
 .animate-in {
   animation: zoomIn 0.2s ease-out;
 }
+/* Less motion: keep every state change, drop the travel. Lenis and GSAP check
+   the same query in JS (lib/motion.ts, utils/smoothScroll.ts). */
 @media (prefers-reduced-motion: reduce) {
-  .animate-fadeIn,
-  .animate-in {
-    animation: none;
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

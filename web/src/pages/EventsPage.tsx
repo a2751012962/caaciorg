@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { listExit, listItem, mountIn, riseFromSm } from '../lib/motion';
 import { SubpageHero } from '../components/SubpageHero';
 import { ContactSection } from '../components/ContactSection';
 import {
@@ -815,9 +816,9 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
           {(activeTab === 'all' || activeTab === 'upcoming') && (
             <motion.section
               id="upcoming-events"
-              initial={{ opacity: 0, y: 12 }}
+              initial={riseFromSm}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
+              transition={mountIn}
               className="space-y-5 sm:space-y-6"
             >
               {/* Header: Upcoming Events & Gatherings (Hidden on Mobile) */}
@@ -916,10 +917,10 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                         <motion.div
                           key={event.ev.id}
                           id={event.anchor}
-                          initial={{ opacity: 0, y: 10 }}
+                          initial={riseFromSm}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.98 }}
-                          transition={{ duration: 0.25, delay: Math.min(idx * 0.04, 0.2) }}
+                          exit={listExit}
+                          transition={listItem(idx)}
                           className="p-3.5 sm:p-6 lg:p-7 hover:bg-surface-hover transition-colors relative z-0"
                         >
                           {/* Responsive Layout: Date box on the left, Content in middle, Actions on right for Desktop */}
@@ -1094,9 +1095,9 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
           {(activeTab === 'all' || activeTab === 'past') && (
             <motion.section
               id="past"
-              initial={{ opacity: 0, y: 12 }}
+              initial={riseFromSm}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
+              transition={mountIn}
               className="space-y-5 sm:space-y-6 pt-2"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-neutral-200/80 pt-8 sm:pt-10">
@@ -1144,10 +1145,10 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                         <motion.div
                           key={event.id}
                           id={event.id}
-                          initial={{ opacity: 0, y: 10 }}
+                          initial={riseFromSm}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.98 }}
-                          transition={{ duration: 0.25, delay: Math.min(idx * 0.03, 0.2) }}
+                          exit={listExit}
+                          transition={listItem(idx)}
                           className="p-3.5 sm:p-6 lg:p-7 hover:bg-white transition-colors opacity-95 relative z-0"
                         >
                           {/* Responsive 3-Column Layout: Date on Left, Details in Center, Actions on Right (Desktop) */}

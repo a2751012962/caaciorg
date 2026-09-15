@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { MotionConfig } from 'motion/react';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { Modals, type ModalType } from './components/Modals';
@@ -227,7 +228,12 @@ function Site() {
 export default function App() {
   return (
     <AuthProvider>
-      <Site />
+      {/* reducedMotion="user": every motion/react animation collapses to a plain
+          state change when the OS asks for less motion. GSAP reveals check the
+          same media query in lib/motion.ts. */}
+      <MotionConfig reducedMotion="user">
+        <Site />
+      </MotionConfig>
     </AuthProvider>
   );
 }
