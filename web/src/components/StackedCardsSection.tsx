@@ -7,6 +7,10 @@ import type { CAACIContent } from '../data/content';
 
 gsap.registerPlugin(ScrollTrigger);
 
+// Scroll length (in timeline units; one panel slide = 1) that the first and last
+// statements stay still while the section is pinned.
+const PANEL_HOLD = 0.4;
+
 interface StackedCardsSectionProps {
   content: CAACIContent;
   lang?: 'en' | 'zh';
@@ -109,24 +113,22 @@ export function StackedCardsSection({
           scrub: 0.6,
           anticipatePin: 0,
           onUpdate: (self) => {
-            const numSteps = panels.length - 1;
-            const raw = self.progress * numSteps;
-            const currentStep = Math.min(Math.floor(raw), numSteps - 1);
-            const subProgress = raw - currentStep;
-
-            // 双向更新指示器
-            let step = currentStep;
-            if (self.direction >= 0) {
-              step =
-                subProgress >= 0.5 ? Math.min(currentStep + 1, panels.length - 1) : currentStep;
-            } else {
-              step =
-                subProgress <= 0.5 ? currentStep : Math.min(currentStep + 1, panels.length - 1);
+            // A panel is current once it has slid more than halfway in. The
+            // timeline has holds at both ends, so read the step labels' times.
+            const time = self.progress * tl.duration();
+            let step = 0;
+            for (let i = 1; i < panels.length; i++) {
+              const at = tl.labels[`step-${i}`];
+              if (at !== undefined && time >= at + 0.5) step = i;
             }
             setActiveIndex(step);
           },
         },
       });
+
+      // Keep the first statement still for a while after the section pins, so
+      // it isn't already fading the moment the visitor arrives.
+      tl.to({}, { duration: PANEL_HOLD });
 
       // Panel 0 is in place.
       // Panels 1..3 all slide in from the RIGHT smoothly.
@@ -269,9 +271,20 @@ export function StackedCardsSection({
           }
         }
       });
+
+      // …and the last one before the section unpins.
+      tl.to({}, { duration: PANEL_HOLD });
     }, containerRef);
 
+    // Web fonts (Noto Serif SC) can finish after ScrollTrigger measured the
+    // page; re-measure so the pin starts and ends where the section really is.
+    let alive = true;
+    document.fonts?.ready.then(() => {
+      if (alive) ScrollTrigger.refresh();
+    });
+
     return () => {
+      alive = false;
       ctx.revert();
     };
   }, [lang]);

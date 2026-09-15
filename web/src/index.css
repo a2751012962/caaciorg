@@ -3,7 +3,9 @@
 @layer base {
   html,
   body {
-    overflow-x: hidden;
+    /* clip, not hidden: overflow-x: hidden on both html and body makes body a scroll
+       container, and the sticky header then scrolls away with the page. */
+    overflow-x: clip;
     max-width: 100vw;
   }
 
