@@ -369,13 +369,15 @@ export function StackedCardsSection({
                 <div className="mb-6 origin-top-left will-change-transform">
                   <h3
                     className="panel-headline text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-maroon leading-[1.1] tracking-tight font-serif-caaci origin-top-left flex items-baseline flex-wrap"
-                    style={{ fontFamily: 'var(--font-caaci-serif-zh)' }}
+                    style={{
+                      fontFamily: isZh ? 'var(--font-caaci-serif-zh)' : 'var(--font-caaci-serif)',
+                    }}
                   >
                     {/* 小数字伴随标题：被滚上去时平滑展现 */}
                     <span className="panel-companion-num opacity-0 inline-block overflow-hidden font-mono font-bold text-xl sm:text-2xl md:text-3xl text-brick align-baseline whitespace-nowrap">
                       {item.number}
                     </span>
-                    <span>{isZh ? item.giantZh : item.giantZh}</span>
+                    <span>{isZh ? item.giantZh : item.giantEn}</span>
                   </h3>
                 </div>
 

@@ -88,7 +88,7 @@ export function About({ content, onNavigate }: AboutProps) {
                   onClick={() => onNavigate('about')}
                   className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-brick text-white hover:bg-brick-hover font-poppins font-medium text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-98"
                 >
-                  <span>{content.nav.aboutUs} • 我们的使命与宗旨</span>
+                  <span>{content.welcome.aboutCta}</span>
                   <span>→</span>
                 </button>
               </div>

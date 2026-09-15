@@ -22,6 +22,7 @@ export interface CAACIContent {
   welcome: {
     heading: string;
     description: string;
+    aboutCta: string;
   };
   whyJoin: {
     heading: string;
@@ -93,6 +94,7 @@ export const contentEN: CAACIContent = {
     heading: 'Welcome to the Chinese American Association of Central Illinois (CAACI) website.',
     description:
       'The Chinese American Association of Central Illinois (CAACI) is a not-for-profit, for Chinese and Chinese Americans in Central Illinois. Its goal is to engage in cultural, educational, and social activities, to help members play a more active role in the community and to promote the wellbeing of Chinese and Chinese Americans within the area. It also seeks to cultivate the Chinese people’s understanding and appreciation of Chinese culture, and to encourage communication and friendship between Chinese and other groups.',
+    aboutCta: 'About Us • Our Mission & Purpose',
   },
   whyJoin: {
     heading: 'Why join the Chinese American Association of Central Illinois (CAACI)?',
@@ -185,6 +187,7 @@ export const contentZH: CAACIContent = {
     heading: '欢迎参观伊利诺伊中部华人协会网站',
     description:
       '伊利诺伊中部华人协会（CAACI）是一家面向伊利诺伊中部华人及华裔的非营利组织。其宗旨是开展文化、教育和社交活动，帮助会员在社区中发挥更积极的作用，促进该地区华人及华侨同胞的福祉。协会还致力于培养对中华文化的理解与欣赏，促进华人与其他族群之间的交流与友谊。',
+    aboutCta: '关于我们 • 我们的使命与宗旨',
   },
   whyJoin: {
     heading: '为什么加入伊利诺伊州中部华人协会？',
