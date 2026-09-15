@@ -456,16 +456,18 @@ remains the untouched mirror; `caaci-app.js` still powers its forms.
 ## Event registration (`/events/<slug>/register/`)
 
 Any published event can take registrations, and **no account is needed** to
-register. One standalone bilingual Tabler page (`member-src/event-register.html`,
-wired by `wireEventFormPage` in `src/caaci-member.js`) serves every event.
+register. One bilingual page of the React site (`web/src/pages/EventRegisterPage.tsx`)
+serves every event; it replaced a standalone Tabler page so that registration
+looks like the rest of the site.
 
-- **Routes.** `build.mjs` writes the page to `/event-register/` and a
-  `dist/_redirects` whose 200 rewrites serve it at `/events/<slug>/register/`
-  (with or without the trailing slash). The page takes the slug from its
-  `data-event` attribute, else the path, else `?event=`. `/mid_autumn_festival_form/`
-  — the URL on the printed Mid-Autumn QR codes — is a copy with
-  `data-event="mid-autumn-festival"`. The local static server (`serve-mirror.mjs`)
-  does not apply `_redirects`; preview there with `/event-register/?event=<slug>`.
+- **Routes.** `build.mjs` writes the React site to `/event-register/` (and
+  `/zh/event-register/`) like its other routes, and a `dist/_redirects` whose 200
+  rewrites serve it at `/events/<slug>/register/` (with or without the trailing
+  slash). The page takes the slug from that path, else from `?event=`.
+  `/mid_autumn_festival_form/` — the URL on the printed Mid-Autumn QR codes —
+  is a redirect stub into `/events/mid-autumn-festival/register/` (its `/zh/`
+  copy adds `?lang=zh`). The local static server (`serve-mirror.mjs`) does not
+  apply `_redirects`; preview there with `/event-register/?event=<slug>`.
 - **Setting up an event** (Admin → Events → edit): a Chinese title, the
   "Accept registrations" switch and the question builder — single choice or
   multiple choice (either can offer "Other" with a text box), short text and long

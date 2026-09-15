@@ -139,13 +139,6 @@ const navPartial = await readFile(join(ROOT, 'member-src', '_nav.html'), 'utf8')
 for (const [src, route, event] of [
   ['login.html', 'login-3'],
   ['privacy.html', 'privacy'],
-  // Public event registration (replaced a Google Form), one page for every
-  // event: /events/<slug>/register/ is rewritten onto it (_redirects below)
-  // and the page reads the slug from that path, or from ?event=.
-  ['event-register.html', 'event-register'],
-  // The URL already printed on the Mid-Autumn Festival's QR codes. Its path
-  // names no event, so this copy carries the slug on <body>.
-  ['event-register.html', 'mid_autumn_festival_form', 'mid-autumn-festival'],
 ]) {
   await mkdir(join(DIST, route), { recursive: true });
   let page = await readFile(join(ROOT, 'member-src', src), 'utf8');
@@ -159,8 +152,9 @@ for (const [src, route, event] of [
   await writeFile(join(DIST, route, 'index.html'), page);
 }
 // Cloudflare Pages rules, applied before static assets. Status 200 on a
-// same-site path is a rewrite: /event-register/ is served while the address bar
-// keeps /events/<slug>/register/, which is where the page reads its slug from.
+// same-site path is a rewrite: /event-register/ (the React site, below) is
+// served while the address bar keeps /events/<slug>/register/, which is where
+// the page reads its slug from.
 // Both spellings, since the link may be shared with or without the slash.
 await writeFile(
   join(DIST, '_redirects'),
@@ -189,6 +183,9 @@ const SPA_ROUTES = [
   'community-calendar',
   'business-services',
   'thank-you',
+  // Public event registration. The _redirects rewrites above serve this copy at
+  // /events/<slug>/register/, where the page reads the slug from the path.
+  'event-register',
 ];
 const WEB_DIST = join(ROOT, 'web', 'dist');
 try {
@@ -372,6 +369,23 @@ for (const base of ['', 'zh/']) {
   }
 }
 console.log(`Legacy page stubs into the React site: ${legacy}.`);
+
+// /mid_autumn_festival_form/ is the URL printed on the Mid-Autumn Festival's QR
+// codes. It used to be a second copy of the Tabler form with the slug fixed on
+// <body>; registration is now the React page, so the printed URL becomes a stub
+// into its real route. Neither route is in the mirror, so create the directory.
+for (const [base, extra] of [
+  ['', ''],
+  ['zh/', '?lang=zh'],
+]) {
+  const dir = join(DIST, base + 'mid_autumn_festival_form');
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    join(dir, 'index.html'),
+    legacyStub(`/events/mid-autumn-festival/register/${extra}`),
+  );
+}
+console.log('Printed QR URL /mid_autumn_festival_form/ stubbed into the React site.');
 
 // The login page is a single bilingual document (data-en/data-zh + toggle,
 // like /admin/), so its /zh/ mirror copy becomes a redirect stub into it with

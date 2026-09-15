@@ -495,28 +495,6 @@ h3,
   }
 }
 
-/* ============================================== Hero band (member pages) === */
-/* Matches the mirror's Divi hero: brick gradient under a gold rule. */
-.caaci-hero {
-  background: linear-gradient(135deg, var(--caaci-brick), var(--caaci-brick-dark));
-  border-bottom: 5px solid var(--caaci-gold);
-  color: var(--caaci-surface);
-}
-.caaci-hero h1,
-.caaci-hero h2 {
-  color: var(--caaci-surface);
-}
-.caaci-hero .caaci-hero-eyebrow {
-  color: var(--caaci-gold);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-.caaci-hero p {
-  color: rgba(var(--caaci-surface-rgb), 0.85);
-}
-
 /* ================================================ Long-form legal copy (/privacy/) === */
 .caaci-legal h2 {
   font-size: 1.25rem;

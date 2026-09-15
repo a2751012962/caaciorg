@@ -242,6 +242,17 @@ export function volunteerWhen(startsAt, zh) {
   }
 }
 
+// Element helper for the volunteer picker below. TranslatePress on the /zh/
+// pages blanks text it sees appear (see wireAuthNav); mark every node that
+// carries copy, not just the outer one.
+function promoNode(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text) node.textContent = text;
+  node.setAttribute('data-no-dynamic-translation', '');
+  return node;
+}
+
 // One checkbox row. `slug` is empty for the "Any event" row, which is what the
 // form falls back to when no event is listed or the list could not be loaded.
 function volunteerRow(slug, label, when) {
