@@ -1,24 +1,25 @@
+// Per-plan card copy, keyed by membership_tiers.id. Names and prices come from
+// the live tiers (web/src/lib/tiers.ts); this file only carries the benefit
+// lines. A live tier without an entry here falls back to its description.
+export type TierCopyId = 'free' | 'student' | 'individual' | 'family' | 'business';
+
+export interface TierCopy {
+  period: string;
+  features: string[];
+  isPopular?: boolean;
+}
+
 export interface MembershipPageContent {
   title: string;
   subtitle: string;
   benefitsTitle: string;
   benefits: string[];
   note: string;
-  tiers: {
-    name: string;
-    price: string;
-    period: string;
-    desc: string;
-    features: string[];
-    isPopular?: boolean;
-  }[];
+  inviteNote: string;
+  tiers: Record<TierCopyId, TierCopy>;
   formTitle: string;
-  formName: string;
-  formEmail: string;
-  formPhone: string;
   formTier: string;
   formSubmit: string;
-  successMsg: string;
 }
 
 export const membershipPageDataEN: MembershipPageContent = {
@@ -32,13 +33,19 @@ export const membershipPageDataEN: MembershipPageContent = {
     'Exclusive discounts with partner businesses across Champaign-Urbana, Chicago, and Milwaukee',
     'Access to CAACI Member Directory and private community WeChat groups',
   ],
-  note: '* All prices include standard card-processing fees. Memberships are tax-deductible to the extent permitted by law.',
-  tiers: [
-    {
-      name: 'Student Member',
-      price: '$10',
+  note: '* Prices are annual base dues. Paying by card adds a 3.5% processing fee; each plan shows its card total. Memberships are tax-deductible to the extent permitted by law.',
+  inviteNote: 'Honorable Membership is granted by invitation of the CAACI Board.',
+  tiers: {
+    free: {
+      period: 'no expiry',
+      features: [
+        'Community updates and event announcements',
+        'No card needed, and it never expires',
+        'Upgrade to a paid plan any time for member perks',
+      ],
+    },
+    student: {
       period: 'per year',
-      desc: 'For full-time undergraduate or graduate students.',
       features: [
         'Free or discounted entry to CAACI celebrations',
         'Career mentorship and resume workshops',
@@ -46,11 +53,8 @@ export const membershipPageDataEN: MembershipPageContent = {
         'Member networking WeChat group',
       ],
     },
-    {
-      name: 'Individual Member',
-      price: '$20',
+    individual: {
       period: 'per year',
-      desc: 'For residents, scholars, and individual professionals.',
       features: [
         'Annual Member Meeting with lunch included',
         'Priority registration for cultural festivals',
@@ -59,38 +63,27 @@ export const membershipPageDataEN: MembershipPageContent = {
       ],
       isPopular: true,
     },
-    {
-      name: 'Family Membership',
-      price: '$35',
+    family: {
       period: 'per year',
-      desc: 'Covers parents, children, and seniors in one household.',
       features: [
-        'All Individual privileges for up to 4 family members',
+        'All Individual privileges for up to 3 people, including you',
         'Youth culture workshops and kids activity perks',
         'Senior member care and community support assistance',
         'Group discounts for live theater and concerts',
       ],
     },
-    {
-      name: 'Lifetime / Patron Member',
-      price: '$200',
-      period: 'one-time',
-      desc: "For dedicated supporters wishing to endow CAACI's mission.",
+    business: {
+      period: 'per year',
       features: [
-        'Permanent lifetime membership status',
-        'VIP seating at the Annual Chinese New Year Gala',
-        'Special recognition in annual reports and programs',
-        'Direct participation in CAACI Advisory Council',
+        'Listing in the CAACI Business Directory (after staff review)',
+        'Exposure to the Central Illinois Chinese community',
+        'Renews yearly from your joining date',
       ],
     },
-  ],
-  formTitle: 'Membership Registration & Renewal Application',
-  formName: 'Full Name',
-  formEmail: 'Email Address',
-  formPhone: 'Phone Number',
+  },
+  formTitle: 'Membership Registration & Renewal',
   formTier: 'Select Membership Tier',
-  formSubmit: 'Proceed to Register & Pay',
-  successMsg: 'Thank you! Your membership application has been received. Welcome to CAACI!',
+  formSubmit: 'Continue to payment',
 };
 
 export const membershipPageDataZH: MembershipPageContent = {
@@ -103,13 +96,15 @@ export const membershipPageDataZH: MembershipPageContent = {
     '遍布香槟-厄巴纳、芝加哥、密尔沃基等美中合作商家的专属消费折扣',
     '进入 CAACI 认证会员实名微信群与商业资讯交流圈',
   ],
-  note: '* 费用已包含信用卡交易处理费。捐赠与会费依照 501(c)(3) 非营利法例享有相应免税抵扣资格。',
-  tiers: [
-    {
-      name: '学生会员',
-      price: '$10',
+  note: '* 所示价格为年度基础会费。刷卡支付另加 3.5% 手续费，各方案均列出刷卡合计金额。捐赠与会费依照 501(c)(3) 非营利法例享有相应免税抵扣资格。',
+  inviteNote: '荣誉会员由 CAACI 理事会邀请授予。',
+  tiers: {
+    free: {
+      period: '永不过期',
+      features: ['社区动态与活动通知', '无需付款，永不过期', '可随时升级为付费会员，享受会员福利'],
+    },
+    student: {
       period: '每年',
-      desc: '面向全日制在读本科生、硕士生与博士生。',
       features: [
         '节日联欢活动门票特惠或免费体验',
         '参与名企导师职业讲座与求职指导',
@@ -117,11 +112,8 @@ export const membershipPageDataZH: MembershipPageContent = {
         '加入 CAACI 青年学生交流群',
       ],
     },
-    {
-      name: '个人会员',
-      price: '$20',
+    individual: {
       period: '每年',
-      desc: '面向本地华人居民、访问学者与职场人士。',
       features: [
         '参加年度会员大会（免费享用午餐）',
         '三大中华传统节日优先席位预订',
@@ -130,36 +122,25 @@ export const membershipPageDataZH: MembershipPageContent = {
       ],
       isPopular: true,
     },
-    {
-      name: '家庭会员',
-      price: '$35',
+    family: {
       period: '每年',
-      desc: '全家共享（包含父母、子女及常住长辈）。',
       features: [
-        '全家最多4人同享个人会员全部福利',
+        '最多 3 人（含您本人）同享个人会员全部福利',
         '儿童中华传统文化体验营专享福利',
         '社区长辈生活协助与医疗讲座服务',
         '剧院文艺演出与高品质演出团购优惠',
       ],
     },
-    {
-      name: '终身荣誉会员',
-      price: '$200',
-      period: '一次性',
-      desc: '面向长期热心资助华协公益事业的杰出支持者。',
+    business: {
+      period: '每年',
       features: [
-        '终身享有 CAACI 尊贵会员资格无须年审',
-        '新春联欢晚会 VIP 前排荣誉专席',
-        '协会年度报告与宣传册特别鸣谢',
-        '受邀列席 CAACI 高级顾问委员会会议',
+        '收录于 CAACI 商业名录（经工作人员审核）',
+        '面向伊利诺伊中部华人社区推广',
+        '自加入之日起按年续费',
       ],
     },
-  ],
-  formTitle: 'CAACI 会员注册 / 续费申请',
-  formName: '真实姓名',
-  formEmail: '电子邮箱',
-  formPhone: '联系电话',
+  },
+  formTitle: 'CAACI 会员注册 / 续费',
   formTier: '选择会员类型',
-  formSubmit: '提交申请并完成注册',
-  successMsg: '诚挚感谢！您的会员申请已提交成功，欢迎成为 CAACI 正式会员！',
+  formSubmit: '前往支付',
 };

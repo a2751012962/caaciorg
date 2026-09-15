@@ -34,7 +34,18 @@ import {
   businessServicesDataEN,
   businessServicesDataZH,
   type BusinessMerchant,
+  type BusinessSponsorTier,
 } from '../data/pagesContent';
+import { api } from '../lib/api';
+import { usd } from '../lib/shared';
+import { cardTotal, money, useTiers } from '../lib/tiers';
+import {
+  DIRECTORY_CATEGORIES,
+  LISTING_CATEGORIES,
+  loadApprovedListings,
+  mergeMerchants,
+  type DirectoryRow,
+} from '../lib/directory';
 
 interface BusinessServicesPageProps {
   content: CAACIContent;
@@ -43,6 +54,15 @@ interface BusinessServicesPageProps {
   onNavigate: (page: string) => void;
 }
 
+type InquiryType = 'directory' | 'microloan' | 'sponsor' | 'general';
+
+// Subject line staff see in the /api/contact email and form_submissions row.
+const INQUIRY_LABEL: Record<Exclude<InquiryType, 'directory'>, string> = {
+  microloan: 'Chamber Microloan inquiry',
+  sponsor: 'Corporate partnership inquiry',
+  general: 'General business inquiry',
+};
+
 export function BusinessServicesPage({
   content,
   lang,
@@ -50,47 +70,70 @@ export function BusinessServicesPage({
   onNavigate,
 }: BusinessServicesPageProps) {
   const data = lang === 'en' ? businessServicesDataEN : businessServicesDataZH;
+  const t = (en: string, zh: string) => (lang === 'en' ? en : zh);
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Approved business_directory rows (public read), listed after the static merchants.
+  const [listings, setListings] = useState<DirectoryRow[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void loadApprovedListings().then((rows) => alive && setListings(rows));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const merchants = useMemo(
+    () => mergeMerchants(data.merchants, listings, lang),
+    [data.merchants, listings, lang],
+  );
+
+  // The directory fee is the Business Membership tier: price from the live tiers.
+  const tiers = useTiers();
+  const businessTier = tiers.find((x) => x.id === 'business');
+  const directoryPrice = businessTier ? money(businessTier.price_cents) : '';
+  const directoryCard = businessTier ? usd(cardTotal(businessTier)) : '';
+  const fill = (s: string) =>
+    s
+      .replaceAll('{count}', String(merchants.length))
+      .replaceAll('{price}', directoryPrice)
+      .replaceAll('{card}', directoryCard);
+  // Full page load: the membership page reads ?tier= on arrival.
+  const goToBusinessMembership = () =>
+    window.location.assign(`${lang === 'zh' ? '/zh' : ''}/membership/?tier=business`);
+
   // Business Inquiry Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [inquiryType, setInquiryType] = useState<'directory' | 'microloan' | 'sponsor' | 'general'>(
-    'directory',
-  );
+  const [inquiryType, setInquiryType] = useState<InquiryType>('directory');
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [formError, setFormError] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [notes, setNotes] = useState('');
+  const [listingCategory, setListingCategory] = useState(LISTING_CATEGORIES[0].id);
+  const [address, setAddress] = useState('');
+  const [website, setWebsite] = useState('');
+  const isListing = inquiryType === 'directory';
 
-  // Category filter options based on authentic caaciorg.com directory categories
+  // One pill per category that has at least one listed merchant, so every pill returns results.
   const categories = useMemo(() => {
-    if (lang === 'en') {
-      return [
-        { id: 'all', label: 'All Categories' },
-        { id: 'restaurant', label: 'Dining & Beverages' },
-        { id: 'dental', label: 'Dental Clinics' },
-        { id: 'financial', label: 'Banking & Financial' },
-        { id: 'realestate', label: 'Real Estate & Insurance' },
-        { id: 'education_media', label: 'Education & Media' },
-      ];
-    }
+    const used = new Set(merchants.map((m) => m.category));
     return [
-      { id: 'all', label: '全部类别' },
-      { id: 'restaurant', label: '餐饮与茶饮' },
-      { id: 'dental', label: '牙科诊所' },
-      { id: 'financial', label: '银行与金融' },
-      { id: 'realestate', label: '房产与保险' },
-      { id: 'education_media', label: '教育与传媒' },
+      { id: 'all', label: lang === 'en' ? 'All Categories' : '全部类别' },
+      ...DIRECTORY_CATEGORIES.filter((c) => used.has(c.id)).map((c) => ({
+        id: c.id,
+        label: lang === 'en' ? c.en : c.zh,
+      })),
     ];
-  }, [lang]);
+  }, [merchants, lang]);
 
   // Filter merchants based on category & search query
   const filteredMerchants = useMemo(() => {
-    return data.merchants.filter((m: BusinessMerchant) => {
+    return merchants.filter((m: BusinessMerchant) => {
       const matchCategory = selectedCategory === 'all' || m.category === selectedCategory;
       const q = searchQuery.toLowerCase().trim();
       if (!q) return matchCategory;
@@ -103,27 +146,81 @@ export function BusinessServicesPage({
         m.address.toLowerCase().includes(q);
       return matchCategory && matchSearch;
     });
-  }, [data.merchants, selectedCategory, searchQuery]);
+  }, [merchants, selectedCategory, searchQuery]);
 
-  const handleOpenInquiry = (type: 'directory' | 'microloan' | 'sponsor' | 'general') => {
+  const handleOpenInquiry = (type: InquiryType) => {
     setInquiryType(type);
     setFormSubmitted(false);
+    setFormError('');
     setIsModalOpen(true);
   };
 
-  const handleFormSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    setFormSubmitted(true);
-    setTimeout(() => {
-      setIsModalOpen(false);
-      setFormSubmitted(false);
-      setBusinessName('');
-      setContactName('');
-      setContactEmail('');
-      setContactPhone('');
-      setNotes('');
-    }, 2400);
+  const resetForm = () => {
+    setBusinessName('');
+    setContactName('');
+    setContactEmail('');
+    setContactPhone('');
+    setNotes('');
+    setListingCategory(LISTING_CATEGORIES[0].id);
+    setAddress('');
+    setWebsite('');
   };
+
+  // Directory applications create a pending business_directory row (staff
+  // approve it in the admin panel); every other inquiry goes through the
+  // contact form endpoint, which stores it and emails staff.
+  const handleFormSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (sending) return;
+    setFormError('');
+    setSending(true);
+    const res = isListing
+      ? await api('/api/business-listing', {
+          name: businessName.trim(),
+          email: contactEmail.trim(),
+          category: listingCategory,
+          description: notes.trim(),
+          address: address.trim(),
+          phone: contactPhone.trim(),
+          website: website.trim(),
+          _hp: '',
+        })
+      : await api('/api/contact', {
+          name: contactName.trim(),
+          email: contactEmail.trim(),
+          phone: contactPhone.trim(),
+          message: [
+            `[Business Services: ${INQUIRY_LABEL[inquiryType as Exclude<InquiryType, 'directory'>]}]`,
+            `Business: ${businessName.trim()}`,
+            notes.trim(),
+          ]
+            .filter(Boolean)
+            .join('\n\n'),
+          _hp: '',
+        });
+    setSending(false);
+    if (!res.ok) {
+      setFormError(
+        res.data.error === 'network'
+          ? t('Network error — please try again.', '网络错误，请重试。')
+          : res.data.error || t('Could not send. Please try again.', '发送失败，请重试。'),
+      );
+      return;
+    }
+    setFormSubmitted(true);
+    resetForm();
+  };
+
+  const sponsorLabel = (tier: BusinessSponsorTier) =>
+    tier.action === 'membership'
+      ? t('Get Business Membership', '办理商业会员')
+      : tier.action === 'microloan'
+        ? t('Ask About Microloans', '咨询小额贷款')
+        : t('Apply for Tier', '选择此赞助方案');
+  const sponsorClick = (tier: BusinessSponsorTier) =>
+    tier.action === 'membership'
+      ? goToBusinessMembership()
+      : handleOpenInquiry(tier.action === 'microloan' ? 'microloan' : 'sponsor');
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -361,7 +458,11 @@ export function BusinessServicesPage({
                 className="px-5 py-2.5 rounded-full bg-[#8e2e11]/10 text-[#8e2e11] hover:bg-[#8e2e11]/15 text-xs sm:text-sm font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
               >
                 <FileCheck className="w-4 h-4" />
-                <span>{lang === 'en' ? 'Join Directory ($100/yr)' : '商户入驻登记 ($100/年)'}</span>
+                <span>
+                  {lang === 'en'
+                    ? `Join Directory (${directoryPrice}/yr)`
+                    : `商户入驻登记 (${directoryPrice}/年)`}
+                </span>
               </motion.button>
             </motion.div>
           </motion.div>
@@ -386,7 +487,7 @@ export function BusinessServicesPage({
                     {lang === 'en' ? 'Merchant Directory' : '认证华人商户名录'}
                   </h3>
                   <span className="text-[11px] font-semibold text-[#8e2e11] px-2 py-0.5 rounded-full bg-[#8e2e11]/10">
-                    13+
+                    {merchants.length}
                   </span>
                 </div>
                 <p className="text-xs text-neutral-600 leading-relaxed">
@@ -503,13 +604,13 @@ export function BusinessServicesPage({
                     {lang === 'en' ? 'Directory Membership' : '名录入驻与会费'}
                   </h3>
                   <span className="text-[11px] font-semibold text-purple-800 px-2 py-0.5 rounded-full bg-purple-100">
-                    $100/yr
+                    {directoryPrice}/yr
                   </span>
                 </div>
                 <p className="text-xs text-neutral-600 leading-relaxed">
                   {lang === 'en'
-                    ? 'Business Directory listing fee is $100/yr ($103.50 with card convenience fee). Mail check to P.O. Box 2276, Champaign.'
-                    : '商户名录标准年费为 $100/年（信用卡刷卡手续费后为 $103.50），支票寄送至官方信箱。'}
+                    ? `A Business Directory listing comes with Business Membership: ${directoryPrice}/yr (${directoryCard} by card, incl. 3.5% fee), paid online.`
+                    : `商户名录收录包含在商业会员中：${directoryPrice}/年（刷卡合计 ${directoryCard}，含 3.5% 手续费），在线支付。`}
                 </p>
               </div>
               <div className="pt-4 mt-4 border-t border-neutral-100">
@@ -537,7 +638,7 @@ export function BusinessServicesPage({
                 className="space-y-1"
               >
                 <div className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
-                  {stat.value}
+                  {fill(stat.value)}
                 </div>
                 <div className="text-xs sm:text-sm text-neutral-500 font-medium">{stat.label}</div>
               </motion.div>
@@ -696,10 +797,12 @@ export function BusinessServicesPage({
                         </div>
 
                         <div className="space-y-1.5 text-[11px] text-neutral-500 pt-2.5 border-t border-neutral-100">
-                          <div className="flex items-start gap-1.5">
-                            <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
-                            <span className="line-clamp-1">{merchant.address}</span>
-                          </div>
+                          {merchant.address && (
+                            <div className="flex items-start gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
+                              <span className="line-clamp-1">{merchant.address}</span>
+                            </div>
+                          )}
                           {merchant.phone && (
                             <div className="flex items-center gap-1.5">
                               <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
@@ -809,10 +912,12 @@ export function BusinessServicesPage({
                       </p>
 
                       <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-neutral-500 pt-1">
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                          <span>{merchant.address}</span>
-                        </span>
+                        {merchant.address && (
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                            <span>{merchant.address}</span>
+                          </span>
+                        )}
                         {merchant.phone && (
                           <span className="inline-flex items-center gap-1">
                             <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
@@ -1106,8 +1211,8 @@ export function BusinessServicesPage({
             </h2>
             <p className="mt-3 text-sm text-neutral-600">
               {lang === 'en'
-                ? 'Official CAACI Business Directory annual membership is $100/year ($103.50 with credit card fee). Mail checks payable to CAACI (P.O. Box 2276, Champaign, IL 61825-2136) or email caaci.org@gmail.com.'
-                : '华协商业名录官方入驻标准年费为 $100/年（信用卡在线支付为 $103.50），支票寄送至官方信箱 P.O. Box 2276, Champaign, IL 61825 或致信 caaci.org@gmail.com。'}
+                ? `The CAACI Business Directory listing is part of Business Membership: ${directoryPrice}/year (${directoryCard} with the 3.5% card fee), paid online by card. Questions: caaci.org@gmail.com.`
+                : `华协商业名录收录包含在商业会员中：${directoryPrice}/年（在线刷卡合计 ${directoryCard}，含 3.5% 手续费）。如有疑问请致信 caaci.org@gmail.com。`}
             </p>
           </motion.div>
 
@@ -1134,13 +1239,13 @@ export function BusinessServicesPage({
 
                 <div className="space-y-4">
                   <h3 className="text-xl font-semibold text-[#1d1d1f] tracking-tight">
-                    {tier.name}
+                    {fill(tier.name)}
                   </h3>
-                  <p className="text-xs text-neutral-500 leading-relaxed">{tier.subtitle}</p>
+                  <p className="text-xs text-neutral-500 leading-relaxed">{fill(tier.subtitle)}</p>
 
                   <div className="pt-2 pb-4 border-b border-neutral-200/80 flex items-baseline gap-1">
                     <span className="text-4xl font-semibold tracking-tight text-[#1d1d1f]">
-                      {tier.price}
+                      {fill(tier.price)}
                     </span>
                     <span className="text-xs text-neutral-500 font-medium">/ {tier.period}</span>
                   </div>
@@ -1149,7 +1254,7 @@ export function BusinessServicesPage({
                     {tier.features.map((feat, fIdx) => (
                       <li key={fIdx} className="flex items-start gap-2.5 text-xs text-neutral-700">
                         <Check className="w-4 h-4 text-[#8e2e11] shrink-0 mt-0.5" />
-                        <span>{feat}</span>
+                        <span>{fill(feat)}</span>
                       </li>
                     ))}
                   </ul>
@@ -1160,14 +1265,14 @@ export function BusinessServicesPage({
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     type="button"
-                    onClick={() => handleOpenInquiry('sponsor')}
+                    onClick={() => sponsorClick(tier)}
                     className={`w-full py-3 rounded-full text-xs font-medium tracking-wide uppercase transition-all cursor-pointer ${
                       tier.recommended
                         ? 'bg-[#8e2e11] text-white hover:bg-[#72240d]'
                         : 'border border-neutral-300 text-neutral-800 hover:border-neutral-800 hover:text-[#1d1d1f]'
                     }`}
                   >
-                    {lang === 'en' ? 'Apply for Tier' : '选择此赞助方案'}
+                    {sponsorLabel(tier)}
                   </motion.button>
                 </div>
               </motion.div>
@@ -1207,13 +1312,42 @@ export function BusinessServicesPage({
                     <Check className="w-6 h-6" />
                   </div>
                   <h3 className="text-xl font-semibold text-[#1d1d1f]">
-                    {lang === 'en' ? 'Application Received' : '信息已成功提交'}
+                    {isListing
+                      ? t('Listing Submitted', '商户信息已提交')
+                      : t('Message Sent', '信息已成功发送')}
                   </h3>
                   <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-                    {lang === 'en'
-                      ? 'Thank you! A CAACI business taskforce member will get in touch with you within 2 business days.'
-                      : '感谢您的支持！CAACI 华协商务专员将在 2 个工作日内与您取得联系。'}
+                    {isListing
+                      ? t(
+                          'Thank you! CAACI staff will review your listing before it appears in the directory. Directory listings are included with Business Membership.',
+                          '感谢您的支持！CAACI 工作人员审核通过后，您的商户将显示在名录中。名录收录包含在商业会员中。',
+                        )
+                      : t(
+                          'Thank you! Your inquiry has been sent to CAACI.',
+                          '感谢您的支持！您的咨询已发送至 CAACI。',
+                        )}
                   </p>
+                  <div className="pt-3 flex flex-wrap items-center justify-center gap-2">
+                    {isListing && (
+                      <button
+                        type="button"
+                        onClick={goToBusinessMembership}
+                        className="px-5 py-2.5 rounded-full bg-[#8e2e11] text-white text-xs font-medium hover:bg-[#72240d] transition-colors cursor-pointer"
+                      >
+                        {t(
+                          `Get Business Membership (${directoryPrice}/yr)`,
+                          `办理商业会员 (${directoryPrice}/年)`,
+                        )}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      className="px-5 py-2.5 rounded-full border border-neutral-300 text-neutral-800 hover:border-neutral-800 text-xs font-medium transition-colors cursor-pointer"
+                    >
+                      {t('Close', '关闭')}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -1255,38 +1389,75 @@ export function BusinessServicesPage({
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                          {lang === 'en' ? 'Contact Person' : '联系人姓名'} *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={contactName}
-                          onChange={(e) => setContactName(e.target.value)}
-                          placeholder="e.g. Ying Man Tang"
-                          className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
-                        />
+                    {isListing ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                            {t('Category', '商户类别')} *
+                          </label>
+                          <select
+                            required
+                            value={listingCategory}
+                            onChange={(e) => setListingCategory(e.target.value)}
+                            className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800 bg-white"
+                          >
+                            {LISTING_CATEGORIES.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {lang === 'en' ? c.en : c.zh}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                            {t('Business Phone', '商户电话')}
+                          </label>
+                          <input
+                            type="tel"
+                            value={contactPhone}
+                            onChange={(e) => setContactPhone(e.target.value)}
+                            placeholder="(217) 000-0000"
+                            className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                          {lang === 'en' ? 'Phone Number' : '联系电话'} *
-                        </label>
-                        <input
-                          type="tel"
-                          required
-                          value={contactPhone}
-                          onChange={(e) => setContactPhone(e.target.value)}
-                          placeholder="(217) 000-0000"
-                          className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
-                        />
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                            {lang === 'en' ? 'Contact Person' : '联系人姓名'} *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={contactName}
+                            onChange={(e) => setContactName(e.target.value)}
+                            placeholder="e.g. Ying Man Tang"
+                            className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                            {lang === 'en' ? 'Phone Number' : '联系电话'} *
+                          </label>
+                          <input
+                            type="tel"
+                            required
+                            value={contactPhone}
+                            onChange={(e) => setContactPhone(e.target.value)}
+                            placeholder="(217) 000-0000"
+                            className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <div>
                       <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                        {lang === 'en' ? 'Email Address' : '电子邮箱'} *
+                        {isListing
+                          ? t('Contact Email', '联系邮箱')
+                          : t('Email Address', '电子邮箱')}{' '}
+                        *
                       </label>
                       <input
                         type="email"
@@ -1298,32 +1469,92 @@ export function BusinessServicesPage({
                       />
                     </div>
 
+                    {isListing && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                            {t('Address', '商户地址')}
+                          </label>
+                          <input
+                            type="text"
+                            value={address}
+                            onChange={(e) => setAddress(e.target.value)}
+                            placeholder="123 Main St, Champaign, IL"
+                            className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                            {t('Website', '网站')}
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="url"
+                            value={website}
+                            onChange={(e) => setWebsite(e.target.value)}
+                            placeholder="example.com"
+                            className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                        {lang === 'en'
-                          ? 'Inquiry Details / Proposed Perk'
-                          : '需求简述 / 会员特惠方案'}
+                        {isListing
+                          ? t('Business Description', '商户简介')
+                          : lang === 'en'
+                            ? 'Inquiry Details / Proposed Perk'
+                            : '需求简述 / 会员特惠方案'}
                       </label>
                       <textarea
                         rows={3}
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder={
-                          lang === 'en'
-                            ? 'Describe your services, proposed member discount, or financing requirements...'
-                            : '简述您的主营业务、向华协会员提供的优惠折扣，或贷款意向金额...'
+                          isListing
+                            ? t(
+                                'What your business offers, and any discount for CAACI members...',
+                                '简述您的主营业务，以及向华协会员提供的优惠...',
+                              )
+                            : lang === 'en'
+                              ? 'Describe your services, proposed member discount, or financing requirements...'
+                              : '简述您的主营业务、向华协会员提供的优惠折扣，或贷款意向金额...'
                         }
                         className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
                       />
                     </div>
 
+                    {isListing && (
+                      <p className="text-[11px] text-neutral-500 leading-relaxed">
+                        {t(
+                          'The business phone, address, website and description are shown publicly once CAACI staff approve the listing.',
+                          '工作人员审核通过后，商户电话、地址、网站与简介将公开显示在名录中。',
+                        )}
+                      </p>
+                    )}
+
+                    {formError && (
+                      <p className="text-xs text-red-600" role="alert">
+                        {formError}
+                      </p>
+                    )}
+
                     <div className="pt-2">
                       <button
                         type="submit"
-                        className="w-full py-3 rounded-full bg-[#1d1d1f] text-white text-xs font-medium tracking-wide uppercase hover:bg-neutral-800 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                        disabled={sending}
+                        aria-busy={sending}
+                        className="w-full py-3 rounded-full bg-[#1d1d1f] text-white text-xs font-medium tracking-wide uppercase hover:bg-neutral-800 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-default"
                       >
                         <Send className="w-4 h-4" />
-                        <span>{lang === 'en' ? 'Submit Inquiry' : '确认提交申请'}</span>
+                        <span>
+                          {sending
+                            ? t('Sending…', '提交中…')
+                            : isListing
+                              ? t('Submit Listing', '确认提交申请')
+                              : t('Submit Inquiry', '确认提交申请')}
+                        </span>
                       </button>
                     </div>
                   </form>
