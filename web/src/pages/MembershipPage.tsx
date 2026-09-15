@@ -1,5 +1,5 @@
-import { useState, useRef, type FormEvent, type MouseEvent } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useRef, useEffect, useMemo, type FormEvent, type MouseEvent } from 'react';
+import { motion } from 'motion/react';
 import { ContactSection } from '../components/ContactSection';
 import {
   Check,
@@ -10,12 +10,26 @@ import {
   Utensils,
   ChevronRight,
   ChevronLeft,
-  Sparkles,
-  Smartphone,
-  ArrowRight,
 } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
-import { membershipPageDataEN, membershipPageDataZH } from '../data/pagesContent';
+import { membershipPageDataEN, membershipPageDataZH, type TierCopy } from '../data/pagesContent';
+import { api } from '../lib/api';
+import { loginUrl, useAuth } from '../lib/auth';
+import { statusLabel, usd } from '../lib/shared';
+import {
+  cardTotal,
+  checkoutMode,
+  currentTierId,
+  discountedTotal,
+  isFree,
+  money,
+  purchasable,
+  tierName,
+  useTiers,
+  type Discount,
+  type Tier,
+} from '../lib/tiers';
+import { smoothScrollTo } from '../utils/smoothScroll';
 
 interface MembershipPageProps {
   content: CAACIContent;
@@ -24,16 +38,29 @@ interface MembershipPageProps {
   onNavigate: (page: string) => void;
 }
 
+const scrollToForm = () => smoothScrollTo('membership-form', { offset: -90, duration: 0.9 });
+
 export function MembershipPage({ content, lang, onNavigate }: MembershipPageProps) {
   const data = lang === 'en' ? membershipPageDataEN : membershipPageDataZH;
-  const [selectedTier, setSelectedTier] = useState<
-    'student' | 'individual' | 'family' | 'lifetime'
-  >('family');
-  const [submitted, setSubmitted] = useState(false);
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [wechat, setWechat] = useState('');
+  const t = (en: string, zh: string) => (lang === 'en' ? en : zh);
+  const { ready, user, member, refreshMember } = useAuth();
+  const tiers = useTiers();
+  const plans = useMemo(() => purchasable(tiers), [tiers]);
+  const hasInviteTier = tiers.some((x) => x.invite_only);
+
+  // ?tier=<id> (login round-trip, /register/<tier>/ stubs, Business page CTA)
+  // and ?code=<discount> (flyers / QR codes) are read once on arrival.
+  const [params] = useState(() => new URLSearchParams(window.location.search));
+  const [selectedTier, setSelectedTier] = useState<string>(() => params.get('tier') || 'family');
+  const selected: Tier | undefined =
+    plans.find((x) => x.id === selectedTier) ?? plans.find((x) => x.id === 'family') ?? plans[0];
+
+  const [codeInput, setCodeInput] = useState(() => params.get('code') || '');
+  const [applied, setApplied] = useState<Discount | null>(null);
+  const [codeMsg, setCodeMsg] = useState('');
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   const tierScrollRef = useRef<HTMLDivElement>(null);
   const [currentTierIndex, setCurrentTierIndex] = useState(1);
@@ -41,8 +68,64 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
   const startXRef = useRef(0);
   const scrollLeftRef = useRef(0);
 
+  const copyFor = (tier: Tier): TierCopy => {
+    const copy = (data.tiers as Partial<Record<string, TierCopy>>)[tier.id];
+    if (copy) return copy;
+    const desc = lang === 'zh' ? tier.description_zh || tier.description : tier.description;
+    return { period: t('per year', '每年'), features: desc ? [desc] : [] };
+  };
+  const shortLabel = (tier: Tier) =>
+    lang === 'zh'
+      ? tier.name_zh || tier.name
+      : tier.id.slice(0, 1).toUpperCase() + tier.id.slice(1);
+  const serverError = (msg: string | undefined, fallback: string) =>
+    msg === 'network'
+      ? t('Network error — please try again.', '网络错误，请重试。')
+      : msg || fallback;
+
+  const applyCode = async (raw: string) => {
+    const code = raw.trim();
+    setCodeMsg('');
+    if (!code) {
+      setApplied(null);
+      return;
+    }
+    setCodeBusy(true);
+    const { ok, data: res } = await api<{ code?: string; percent_off?: number }>('/api/discount', {
+      code,
+    });
+    setCodeBusy(false);
+    if (ok && res.code && typeof res.percent_off === 'number') {
+      setApplied({ code: res.code, percent_off: res.percent_off });
+      setCodeInput(res.code);
+    } else {
+      setApplied(null);
+      setCodeMsg(serverError(res.error, t('Invalid discount code.', '折扣码无效。')));
+    }
+  };
+
+  useEffect(() => {
+    const code = params.get('code');
+    if (code) void applyCode(code);
+    if (params.get('tier')) {
+      const timer = setTimeout(scrollToForm, 350);
+      return () => clearTimeout(timer);
+    }
+    // Runs once, for the address the page was opened with.
+  }, []);
+
+  // Coming back from Stripe with the browser's Back button restores this page
+  // from the back-forward cache with the button still disabled.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setBusy(false);
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
+
   const handleTierScroll = () => {
-    if (!tierScrollRef.current || data.tiers.length === 0) return;
+    if (!tierScrollRef.current || plans.length === 0) return;
     const { scrollLeft, scrollWidth, clientWidth } = tierScrollRef.current;
     const maxScroll = scrollWidth - clientWidth;
     if (maxScroll <= 0) {
@@ -50,8 +133,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
       return;
     }
     const approx = Math.min(
-      data.tiers.length,
-      Math.max(1, Math.round((scrollLeft / maxScroll) * (data.tiers.length - 1)) + 1),
+      plans.length,
+      Math.max(1, Math.round((scrollLeft / maxScroll) * (plans.length - 1)) + 1),
     );
     setCurrentTierIndex(approx);
   };
@@ -85,17 +168,153 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
     tierScrollRef.current.scrollBy({ left: offset, behavior: 'smooth' });
   };
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    setSubmitted(true);
+  const selectTier = (id: string) => {
+    setSelectedTier(id);
+    setError('');
   };
 
-  const getTierPrice = (tier: string) => {
-    if (tier === 'student') return '$10';
-    if (tier === 'individual') return '$20';
-    if (tier === 'family') return '$35';
-    return '$200';
+  const mode = ready && selected ? checkoutMode(selected, tiers, !!user, member) : null;
+  const free = isFree(selected);
+  const summary = selected ? discountedTotal(selected, mode === 'switch' ? null : applied) : null;
+  const myTierId = currentTierId(member);
+  const myTier = tiers.find((x) => x.id === myTierId);
+
+  // Where /login-3/ sends the visitor back to: this page, same language, same
+  // plan and code, so they land on the checkout again.
+  const returnPath = (tierId: string) => {
+    const q = new URLSearchParams({ tier: tierId });
+    const code = applied?.code || codeInput.trim();
+    if (code) q.set('code', code);
+    return `${lang === 'zh' ? '/zh' : ''}/membership/?${q.toString()}`;
   };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (busy || !mode || !selected) return;
+    setError('');
+    if (mode === 'signin') {
+      window.location.assign(loginUrl(returnPath(selected.id)));
+      return;
+    }
+    if (mode === 'current' || mode === 'fix-billing' || mode === 'cancel-first') {
+      onNavigate('account');
+      return;
+    }
+    if (!user) return;
+    setBusy(true);
+
+    // Active paid subscriber: re-price the subscription in place (prorated).
+    if (mode === 'switch') {
+      const { ok, data: res } = await api<{ url?: string }>('/api/change-plan', {
+        member_id: user.id,
+        tier_id: selected.id,
+      });
+      if (res.url) {
+        window.location.assign(res.url);
+        return;
+      }
+      if (!ok) {
+        setBusy(false);
+        setError(serverError(res.error, t('Could not change the plan.', '无法更改方案。')));
+        return;
+      }
+      await refreshMember();
+      setBusy(false);
+      onNavigate('account');
+      return;
+    }
+
+    const body: Record<string, unknown> = {
+      tier_id: selected.id,
+      member_id: user.id,
+      email: user.email,
+    };
+    if (mode === 'checkout' && applied) body.discount_code = applied.code;
+    const { ok, data: res } = await api<{ url?: string; activated?: boolean }>(
+      '/api/checkout',
+      body,
+    );
+    if (ok && res.url) {
+      window.location.assign(res.url);
+      return;
+    }
+    // The free tier is activated server-side, no Stripe hop.
+    if (ok && res.activated) {
+      await refreshMember();
+      setBusy(false);
+      onNavigate('account');
+      return;
+    }
+    setBusy(false);
+    setError(
+      serverError(res.error, t('Checkout failed — please try again.', '结账失败，请重试。')),
+    );
+  };
+
+  const submitLabel = (() => {
+    if (busy) return t('Please wait…', '请稍候…');
+    switch (mode) {
+      case null:
+        return t('Loading…', '加载中…');
+      case 'signin':
+        return t('Log in or sign up to continue', '登录或注册后继续');
+      case 'current':
+        return t('Go to my account', '前往我的账户');
+      case 'fix-billing':
+      case 'cancel-first':
+        return t('Manage billing in my account', '在我的账户中管理账单');
+      case 'free':
+        return t('Join for free', '免费加入');
+      case 'switch':
+        return t('Confirm plan change', '确认更改方案');
+      default:
+        return data.formSubmit;
+    }
+  })();
+
+  const modeNote = (() => {
+    switch (mode) {
+      case 'signin':
+        return t(
+          'You will log in or create an account first, then come straight back here to finish.',
+          '需先登录或注册账户，完成后会自动返回本页继续。',
+        );
+      case 'current':
+        return t('You are already on this plan.', '您已是该方案的会员。');
+      case 'fix-billing':
+        return t(
+          'Your last payment failed. Update your card from Manage billing in your account before changing plans.',
+          '上次扣款失败。请先在账户的“管理账单”中更新银行卡，再更改方案。',
+        );
+      case 'cancel-first':
+        return t(
+          'To move to the free membership, cancel your paid plan from Manage billing in your account first.',
+          '如需改为免费会员，请先在账户的“管理账单”中取消付费方案。',
+        );
+      case 'switch':
+        return t(
+          'Your subscription is updated in place — Stripe prorates the difference.',
+          '订阅将原地更新——Stripe 会按比例结算差价。',
+        );
+      default:
+        return '';
+    }
+  })();
+
+  const showCodeEntry = !!selected && !free && (mode === 'checkout' || mode === 'signin');
+  const expiresLabel = (() => {
+    if (!selected) return '';
+    if (free) return t('NEVER', '永不过期');
+    if (member?.status === 'active' && member.tier_id === selected.id && member.expires_at)
+      return new Date(member.expires_at)
+        .toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        })
+        .toUpperCase();
+    return t('12 MONTHS', '12 个月');
+  })();
 
   return (
     <div className="bg-white min-h-screen text-[#1d1d1f] font-sans antialiased selection:bg-neutral-200">
@@ -169,23 +388,18 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             onMouseLeave={handleMouseLeave}
             onMouseUp={handleMouseUp}
             onMouseMove={handleMouseMove}
-            className="flex md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 overflow-x-auto md:overflow-visible no-scrollbar snap-x snap-mandatory md:snap-none -mx-4 px-6 sm:-mx-6 sm:px-8 md:mx-0 md:px-0 pt-5 pb-4 md:pt-0 md:pb-0 overscroll-x-contain cursor-grab active:cursor-grabbing select-none"
+            className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 overflow-x-auto md:overflow-visible no-scrollbar snap-x snap-mandatory md:snap-none -mx-4 px-6 sm:-mx-6 sm:px-8 md:mx-0 md:px-0 pt-5 pb-4 md:pt-0 md:pb-0 overscroll-x-contain cursor-grab active:cursor-grabbing select-none"
           >
-            {data.tiers.map((tier, idx) => {
-              const tierId =
-                idx === 0
-                  ? 'student'
-                  : idx === 1
-                    ? 'individual'
-                    : idx === 2
-                      ? 'family'
-                      : 'lifetime';
-              const isPopular = tier.isPopular || tierId === 'family';
-              const isCurrentSelected = selectedTier === tierId;
+            {plans.map((tier, idx) => {
+              const copy = copyFor(tier);
+              const tierIsFree = isFree(tier);
+              const isPopular = copy.isPopular || tier.id === 'family';
+              const isCurrentSelected = selected?.id === tier.id;
+              const isMyPlan = member?.status === 'active' && member.tier_id === tier.id;
 
               return (
                 <motion.div
-                  key={idx}
+                  key={tier.id}
                   initial={{ opacity: 0, y: 32 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: '-30px' }}
@@ -211,18 +425,26 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-lg font-semibold text-[#1d1d1f] tracking-tight">
-                        {tier.name}
+                        {tierName(tier, lang)}
                       </h3>
                       <div className="mt-2 flex items-baseline gap-1">
                         <span className="text-3xl sm:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
-                          {tier.price}
+                          {tierIsFree ? t('Free', '免费') : money(tier.price_cents)}
                         </span>
-                        <span className="text-xs text-neutral-400">/ {tier.period}</span>
+                        <span className="text-xs text-neutral-400">/ {copy.period}</span>
+                      </div>
+                      <div className="mt-1 text-[11px] text-neutral-500 leading-snug">
+                        {tierIsFree
+                          ? t('No card needed', '无需付款')
+                          : t(
+                              `${usd(cardTotal(tier))} by card, incl. 3.5% fee`,
+                              `刷卡合计 ${usd(cardTotal(tier))}（含 3.5% 手续费）`,
+                            )}
                       </div>
                     </div>
 
                     <ul className="space-y-2.5 pt-4 border-t border-neutral-100">
-                      {tier.features.map((feat, fIdx) => (
+                      {copy.features.map((feat, fIdx) => (
                         <li
                           key={fIdx}
                           className="flex items-start gap-2.5 text-xs text-neutral-600 leading-normal"
@@ -240,9 +462,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                       whileTap={{ scale: 0.97 }}
                       type="button"
                       onClick={() => {
-                        setSelectedTier(tierId as any);
-                        const formElem = document.getElementById('membership-form');
-                        formElem?.scrollIntoView({ behavior: 'smooth' });
+                        selectTier(tier.id);
+                        scrollToForm();
                       }}
                       className={`w-full py-2.5 rounded-full text-xs font-medium tracking-wide transition-all duration-200 cursor-pointer ${
                         isCurrentSelected
@@ -250,13 +471,11 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                           : 'bg-[#f5f5f7] text-[#1d1d1f] hover:bg-neutral-200'
                       }`}
                     >
-                      {isCurrentSelected
-                        ? lang === 'en'
-                          ? 'Selected ✓'
-                          : '已选择 ✓'
-                        : lang === 'en'
-                          ? 'Select Plan'
-                          : '选择此方案'}
+                      {isMyPlan
+                        ? t('Your current plan ✓', '当前方案 ✓')
+                        : isCurrentSelected
+                          ? t('Selected ✓', '已选择 ✓')
+                          : t('Select Plan', '选择此方案')}
                     </motion.button>
                   </div>
                 </motion.div>
@@ -276,22 +495,27 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="text-neutral-600 font-medium tracking-wide text-xs">
-              {currentTierIndex} / {data.tiers.length}
+              {currentTierIndex} / {plans.length}
             </span>
             <button
               type="button"
               onClick={() => scrollTiers('right')}
-              disabled={currentTierIndex >= data.tiers.length}
+              disabled={currentTierIndex >= plans.length}
               className="p-1 rounded-full hover:bg-neutral-200 disabled:opacity-30 disabled:pointer-events-none text-neutral-500 transition-colors cursor-pointer"
               aria-label="Next plan"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+
+          <div className="mt-6 sm:mt-8 max-w-3xl mx-auto text-center text-[11px] sm:text-xs text-neutral-400 space-y-1">
+            <p>{data.note}</p>
+            {hasInviteTier && <p>{data.inviteNote}</p>}
+          </div>
         </div>
       </section>
 
-      {/* 3. Apple Wallet Style Digital Pass & Minimalist Form */}
+      {/* 3. Apple Wallet Style Digital Pass & Checkout */}
       <section
         id="membership-form"
         className="py-16 sm:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-neutral-200/80 overflow-hidden"
@@ -349,7 +573,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 </div>
 
                 <span className="text-[10px] font-semibold uppercase px-2.5 py-0.5 rounded-full bg-white/15 text-neutral-200 flex-shrink-0">
-                  {selectedTier}
+                  {selected ? shortLabel(selected) : ''}
                 </span>
               </div>
 
@@ -359,7 +583,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                     {lang === 'en' ? 'Cardholder Name' : '持卡人姓名'}
                   </div>
                   <div className="text-lg sm:text-xl font-medium tracking-tight text-white mt-0.5 truncate">
-                    {fullName || (lang === 'en' ? 'Guest Member' : '华协新会员')}
+                    {member?.full_name || (lang === 'en' ? 'Guest Member' : '华协新会员')}
                   </div>
                 </div>
 
@@ -369,7 +593,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                       Member ID
                     </div>
                     <div className="font-mono text-neutral-200 mt-0.5 text-xs whitespace-nowrap">
-                      CAACI-2025-8821
+                      CAACI-••••
                     </div>
                   </div>
                   <div>
@@ -377,7 +601,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                       Expires
                     </div>
                     <div className="font-mono text-neutral-200 mt-0.5 text-xs whitespace-nowrap">
-                      DEC 31, 2026
+                      {expiresLabel}
                     </div>
                   </div>
                 </div>
@@ -420,7 +644,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             </motion.div>
           </motion.div>
 
-          {/* Right: Registration & Renewal Form */}
+          {/* Right: Join / Renew / Change plan */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -433,160 +657,181 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             </h3>
             <p className="text-xs sm:text-sm text-neutral-500 mb-8">
               {lang === 'en'
-                ? 'Fill out the details below. We accept Zelle, Check, or Cash payments.'
-                : '请在下方填写您的基本资料。支持 Zelle、支票或现金方式缴费。'}
+                ? 'Choose a plan, then pay securely by card on Stripe. Your membership is activated automatically once payment completes.'
+                : '选择方案后，通过 Stripe 安全刷卡支付。付款完成后会员资格自动生效。'}
             </p>
 
-            {submitted ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.92 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-                className="py-12 text-center space-y-4"
-              >
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: 'spring', damping: 16, stiffness: 380, delay: 0.1 }}
-                  className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center"
-                >
-                  <Check className="w-6 h-6" />
-                </motion.div>
-                <h4 className="text-xl font-semibold text-[#1d1d1f]">
-                  {lang === 'en' ? 'Registration Received!' : '入会申请已成功提交！'}
-                </h4>
-                <p className="text-xs sm:text-sm text-neutral-600 max-w-md mx-auto leading-relaxed">
-                  {lang === 'en'
-                    ? `Thank you, ${fullName || 'Member'}. Your ${selectedTier.toUpperCase()} membership (${getTierPrice(selectedTier)}) is registered. A confirmation has been sent to ${email || 'your email'}.`
-                    : `感谢您，${fullName || '尊敬的会员'}。您选择的【${selectedTier.toUpperCase()}】会员（${getTierPrice(selectedTier)}）申请已收到。我们的财务与会员组将在 24 小时内向 ${email || '您的邮箱'} 发送缴费确认与电子卡开通指引。`}
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 mb-2">
+                  {data.formTier}
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5">
+                  {plans.map((tier) => (
+                    <motion.button
+                      key={tier.id}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      type="button"
+                      onClick={() => selectTier(tier.id)}
+                      aria-pressed={selected?.id === tier.id}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-medium border text-center transition-all cursor-pointer whitespace-nowrap ${
+                        selected?.id === tier.id
+                          ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
+                          : 'border-neutral-200 text-neutral-700 hover:bg-[#f5f5f7]'
+                      }`}
+                    >
+                      {shortLabel(tier)} •{' '}
+                      {isFree(tier) ? t('Free', '免费') : money(tier.price_cents)}
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+
+              {ready && user && (
+                <p className="text-xs text-neutral-600">
+                  {t('Signed in as', '当前登录')}{' '}
+                  <span className="font-semibold text-[#1d1d1f]">{user.email}</span>
+                  {myTier && member?.status
+                    ? ` — ${tierName(myTier, lang)} · ${statusLabel(member.status, lang)}`
+                    : ''}
                 </p>
-                <div className="pt-4">
-                  <motion.button
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    type="button"
-                    onClick={() => {
-                      setSubmitted(false);
-                      onNavigate('account');
-                    }}
-                    className="px-5 py-2.5 rounded-full bg-[#1d1d1f] text-white text-xs font-medium hover:bg-neutral-800 transition-colors cursor-pointer"
-                  >
-                    {lang === 'en' ? 'Go to Member Account' : '前往会员中心'}
-                  </motion.button>
-                </div>
-              </motion.div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-2">
-                    {lang === 'en' ? 'Select Membership Tier' : '选择入会类别'}
-                  </label>
-                  <div className="grid grid-cols-2 xl:grid-cols-4 gap-2 sm:gap-2.5">
-                    {(['student', 'individual', 'family', 'lifetime'] as const).map((tier) => (
-                      <motion.button
-                        key={tier}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        type="button"
-                        onClick={() => setSelectedTier(tier)}
-                        className={`py-2.5 px-3 rounded-xl text-xs font-medium border text-center transition-all cursor-pointer whitespace-nowrap ${
-                          selectedTier === tier
-                            ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
-                            : 'border-neutral-200 text-neutral-700 hover:bg-[#f5f5f7]'
-                        }`}
-                      >
-                        {tier.slice(0, 1).toUpperCase() + tier.slice(1)} • {getTierPrice(tier)}
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
+              )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      {data.formName} *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="e.g. Ying Man Tang / 唐英民"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-1 focus:ring-[#1d1d1f] focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      {data.formEmail} *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="e.g. member@caaciorg.com"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-1 focus:ring-[#1d1d1f] focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      {data.formPhone}
-                    </label>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="(217) 000-0000"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-1 focus:ring-[#1d1d1f] focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      {lang === 'en' ? 'WeChat ID (Optional)' : '微信号（选填）'}
-                    </label>
-                    <input
-                      type="text"
-                      value={wechat}
-                      onChange={(e) => setWechat(e.target.value)}
-                      placeholder="WeChat ID / 微信号"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-1 focus:ring-[#1d1d1f] focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Clean Apple-style payment guidance box */}
-                <div className="p-4 rounded-xl bg-[#f5f5f7] border border-black/[0.04] text-xs text-neutral-600 space-y-1">
+              {/* Order summary */}
+              {selected && summary && (
+                <div className="p-4 rounded-xl bg-[#f5f5f7] border border-black/[0.04] text-xs text-neutral-600 space-y-1.5">
                   <div className="font-semibold text-[#1d1d1f]">
-                    {lang === 'en' ? 'Payment Information' : '缴费方式说明'}
+                    {t('Order Summary', '费用明细')} · {tierName(selected, lang)}
                   </div>
-                  <p>
-                    {lang === 'en'
-                      ? '• Zelle: caaci2000@gmail.com (memo: Name + Membership Tier)'
-                      : '• Zelle 转账：caaci2000@gmail.com（附言请注明姓名与入会类别）'}
-                  </p>
-                  <p>
-                    {lang === 'en'
-                      ? '• Check payable to: CAACI, P.O. Box 7141, Champaign, IL 61826'
-                      : '• 支票邮寄至：CAACI, P.O. Box 7141, Champaign, IL 61826'}
-                  </p>
+                  {free ? (
+                    <>
+                      <div className="flex justify-between gap-3">
+                        <span>{t('Membership', '会费')}</span>
+                        <span>{t('Free', '免费')}</span>
+                      </div>
+                      <p className="pt-1 text-neutral-500">
+                        {t(
+                          'No payment needed and nothing expires. Upgrade to a paid plan any time for the annual meeting and festival perks.',
+                          '无需付款，永不过期。可随时升级为付费会员，享受会员大会和节日福利。',
+                        )}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between gap-3">
+                        <span>{t('Annual membership', '年度会费')}</span>
+                        <span className="tabular-nums">{usd(selected.price_cents)}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span>{t('Card processing fee (3.5%)', '银行卡手续费（3.5%）')}</span>
+                        <span className="tabular-nums">{usd(summary.fee)}</span>
+                      </div>
+                      {mode !== 'switch' && applied && (
+                        <div className="flex justify-between gap-3 text-emerald-700">
+                          <span>
+                            {applied.code} −{applied.percent_off}%
+                          </span>
+                          <span className="tabular-nums">−{usd(summary.off)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between gap-3 pt-1.5 border-t border-black/[0.06] font-semibold text-[#1d1d1f]">
+                        <span>
+                          {mode === 'switch'
+                            ? t('New annual rate', '新年费')
+                            : t('Total today', '今日合计')}
+                        </span>
+                        <span className="tabular-nums">{usd(summary.due)}</span>
+                      </div>
+                      <p className="pt-1 text-neutral-500">
+                        {mode !== 'switch' && applied
+                          ? t(
+                              `Discount applies to your first year only; renews at ${usd(summary.total)}/yr.`,
+                              `折扣仅限首年；续费价为 ${usd(summary.total)}/年。`,
+                            )
+                          : t('Renews yearly; cancel anytime.', '按年续费，可随时取消。')}
+                      </p>
+                    </>
+                  )}
                 </div>
+              )}
 
-                <motion.button
-                  whileHover={{ scale: 1.015 }}
-                  whileTap={{ scale: 0.985 }}
-                  type="submit"
-                  className="w-full py-3.5 px-6 rounded-full bg-[#1d1d1f] hover:bg-neutral-800 text-white text-xs sm:text-sm font-medium tracking-wide transition-colors cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap shadow-sm"
-                >
-                  <span>{data.formSubmit}</span>
-                  <span>({getTierPrice(selectedTier)})</span>
-                </motion.button>
-              </form>
-            )}
+              {showCodeEntry && (
+                <div>
+                  <label
+                    htmlFor="membership-discount"
+                    className="block text-xs font-medium text-neutral-700 mb-1"
+                  >
+                    {t('Discount Code (Optional)', '折扣码（选填）')}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="membership-discount"
+                      type="text"
+                      value={codeInput}
+                      onChange={(e) => {
+                        setCodeInput(e.target.value);
+                        setCodeMsg('');
+                      }}
+                      onKeyDown={(e) => {
+                        // Enter applies the code instead of submitting the checkout.
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void applyCode(codeInput);
+                        }
+                      }}
+                      autoComplete="off"
+                      placeholder={t('Enter code', '输入折扣码')}
+                      className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-1 focus:ring-[#1d1d1f] focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void applyCode(codeInput)}
+                      disabled={codeBusy}
+                      className="shrink-0 px-4 py-2.5 rounded-xl border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-[#f5f5f7] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                    >
+                      {codeBusy ? t('Checking…', '验证中…') : t('Apply', '应用')}
+                    </button>
+                  </div>
+                  {applied && (
+                    <p className="mt-1.5 text-[11px] text-emerald-700">
+                      {applied.code} — {applied.percent_off}% {t('off your first year', '首年折扣')}
+                    </p>
+                  )}
+                  {codeMsg && (
+                    <p className="mt-1.5 text-[11px] text-red-600" role="alert">
+                      {codeMsg}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {modeNote && <p className="text-xs text-neutral-600 leading-relaxed">{modeNote}</p>}
+
+              <motion.button
+                whileHover={{ scale: 1.015 }}
+                whileTap={{ scale: 0.985 }}
+                type="submit"
+                disabled={busy || !mode}
+                aria-busy={busy}
+                className="w-full py-3.5 px-6 rounded-full bg-[#1d1d1f] hover:bg-neutral-800 text-white text-xs sm:text-sm font-medium tracking-wide transition-colors cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap shadow-sm disabled:opacity-60 disabled:cursor-default"
+              >
+                <span>{submitLabel}</span>
+                {!busy && mode === 'checkout' && summary && <span>({usd(summary.due)})</span>}
+              </motion.button>
+
+              {error && (
+                <p className="text-xs text-red-600 text-center" role="alert">
+                  {error}
+                </p>
+              )}
+
+              {!free && (mode === 'checkout' || mode === 'switch') && (
+                <p className="text-[11px] text-neutral-400 text-center">
+                  {t('Secure payment via Stripe', '通过 Stripe 安全支付')}
+                </p>
+              )}
+            </form>
           </motion.div>
         </div>
       </section>

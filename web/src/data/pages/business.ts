@@ -42,8 +42,13 @@ export interface BusinessSponsorTier {
   subtitle: string;
   features: string[];
   recommended?: boolean;
+  /** membership: link to Business Membership checkout; microloan: open the inquiry form */
+  action?: 'membership' | 'microloan';
 }
 
+// Rendered strings may hold {count} (merchants actually listed), {price} (live
+// Business Membership base price) and {card} (that price + 3.5% card fee);
+// BusinessServicesPage fills them in.
 export interface BusinessServicesContent {
   title: string;
   subtitle: string;
@@ -70,10 +75,10 @@ export const businessServicesDataEN: BusinessServicesContent = {
     'Promoting local Chinese businesses, providing publicity, and connecting entrepreneurs with community resources and chamber programs.',
   instruction: 'Explore authentic local businesses and economic development resources.',
   stats: [
-    { value: '13+', label: 'Verified Directory Merchants' },
+    { value: '{count}', label: 'Verified Directory Merchants' },
     { value: '$7.5K - $15K', label: 'Chamber Microloan Support' },
     { value: '2.5% - 3%', label: 'Low Interest Microloan Rate' },
-    { value: '$100/yr', label: 'Business Directory Fee' },
+    { value: '{price}/yr', label: 'Business Directory Fee' },
   ],
   tabs: [
     {
@@ -275,24 +280,26 @@ export const businessServicesDataEN: BusinessServicesContent = {
   sponsorTiers: [
     {
       name: 'Business Directory Membership',
-      price: '$100',
+      price: '{price}',
       period: 'per year',
       subtitle:
-        'Official CAACI Business Directory membership ($103.50 with credit card convenience fee).',
+        'Official CAACI Business Membership, which includes the directory listing ({card} by card, incl. 3.5% processing fee).',
       features: [
-        'Verified permanent listing on caaciorg.com Business Directory',
+        'Listing on the caaciorg.com Business Directory after staff review',
         'Publicity and exposure across Central Illinois Chinese community',
         'Annual rolling membership valid for 12 full months from joining date',
-        'Payment via check to P.O. Box 2276, Champaign, IL 61825-2136 or card',
-        'Contact: caaci.org@gmail.com to submit your business information',
+        'Pay online by card through Business Membership',
+        'Submit your business details with the Join Directory form, or email caaci.org@gmail.com',
       ],
       recommended: true,
+      action: 'membership',
     },
     {
       name: 'Chamber Microloan Program',
       price: 'Up to $15K',
       period: '5-yr term',
       subtitle: 'Affordable financing via Champaign County Chamber of Commerce.',
+      action: 'microloan',
       features: [
         'Low interest rates capped at 3% (2.5% with auto monthly repayment)',
         'Focus on minority and women-owned businesses in Champaign County',
@@ -308,10 +315,10 @@ export const businessServicesDataZH: BusinessServicesContent = {
   subtitle: '推广本地华人商户、提升企业知名度、对接社区资源与商会扶持项目。',
   instruction: '浏览香槟及厄巴纳地区真实商家名录、商会小额贷款扶持与经贸活动信息。',
   stats: [
-    { value: '13+', label: '名录收录商户与机构' },
+    { value: '{count}', label: '名录收录商户与机构' },
     { value: '$7,500 - $15,000', label: '商会小额贷款扶持额度' },
     { value: '2.5% - 3%', label: '扶持性低息贷款年化利率' },
-    { value: '$100/年', label: '商户名录入驻年度会费' },
+    { value: '{price}/年', label: '商户名录入驻年度会费' },
   ],
   tabs: [
     {
@@ -513,23 +520,25 @@ export const businessServicesDataZH: BusinessServicesContent = {
   sponsorTiers: [
     {
       name: '商户名录年度入驻',
-      price: '$100',
+      price: '{price}',
       period: '每年',
-      subtitle: 'CAACI 官方认证华人商业名录标准入驻（信用卡支付手续费后为 $103.50）。',
+      subtitle: 'CAACI 官方商业会员，含商业名录收录（刷卡合计 {card}，含 3.5% 手续费）。',
       features: [
-        '官方网站 caaciorg.com 商业名录常年认证展示',
+        '经工作人员审核后收录于官方网站 caaciorg.com 商业名录',
         '直面伊利诺伊中部广大华人家庭、留学生学者与社区读者',
         '会籍自加入之日起滚动生效整整 12 个月',
-        '可邮寄支票至 P.O. Box 2276, Champaign, IL 或联络在线支付',
-        '名录信息登记与对接邮箱：caaci.org@gmail.com',
+        '通过商业会员在线刷卡支付',
+        '通过“商户入驻”表格提交商户信息，或发送邮件至 caaci.org@gmail.com',
       ],
       recommended: true,
+      action: 'membership',
     },
     {
       name: '香槟县商会小贷扶持',
       price: '最高 $15K',
       period: '最长 5 年期',
       subtitle: '香槟县商会（Champaign County Chamber）联合扶持小微企业资金。',
+      action: 'microloan',
       features: [
         '优惠低息利率不高于 3.0%（绑定每月自动还款享 2.5% 特惠）',
         '重点扶持香槟县少数族裔与女性创业团队及小微企业',
