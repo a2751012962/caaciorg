@@ -172,6 +172,58 @@
                    a fieldset per choice question, a labelled field per text one. -->
               <div id="caaci-ev-questions"></div>
 
+              <!-- Volunteering at this event, asked alongside the registration so
+                   nobody has to fill in the /volunteer/ form as well. The name and
+                   phone only appear once the box is ticked; caaci-member.js sends
+                   them as `volunteer` and pre-fills them for a signed-in visitor
+                   who signed up before. -->
+              <div class="mb-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="caaci-ev-vol" />
+                  <label
+                    class="form-check-label"
+                    for="caaci-ev-vol"
+                    data-en="I'd also like to volunteer at this event"
+                    data-zh="我也想在本次活动做志愿者"
+                    >I'd also like to volunteer at this event</label
+                  >
+                </div>
+                <div id="caaci-ev-vol-fields" hidden>
+                  <div class="mt-2 mb-3">
+                    <label
+                      class="form-label required"
+                      for="caaci-ev-vol-name"
+                      data-en="Your name"
+                      data-zh="姓名"
+                      >Your name</label
+                    >
+                    <input
+                      type="text"
+                      id="caaci-ev-vol-name"
+                      class="form-control"
+                      autocomplete="name"
+                      maxlength="120"
+                    />
+                  </div>
+                  <div class="mb-0">
+                    <label
+                      class="form-label"
+                      for="caaci-ev-vol-phone"
+                      data-en="Phone"
+                      data-zh="电话"
+                      >Phone</label
+                    >
+                    <input
+                      type="tel"
+                      id="caaci-ev-vol-phone"
+                      class="form-control"
+                      autocomplete="tel"
+                      maxlength="40"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <!-- Honeypot: invisible to people and skipped by the keyboard, so only a
                    bot fills it; the API then answers ok without saving anything. Its
                    name means nothing to browser autofill or a password manager (a
@@ -232,6 +284,15 @@
               data-zh="我们已更新您的回答，最初的报名时间保持不变。"
             >
               We updated your answers; your original registration time is kept.
+            </p>
+            <p
+              class="alert alert-success text-start"
+              id="caaci-ev-done-volunteer"
+              hidden
+              data-en="Thank you for volunteering — we'll be in touch."
+              data-zh="感谢您报名志愿者，我们会与您联系。"
+            >
+              Thank you for volunteering — we'll be in touch.
             </p>
             <p class="alert alert-success" id="caaci-ev-perk-counted" hidden></p>
             <div id="caaci-ev-perk-cta" hidden>

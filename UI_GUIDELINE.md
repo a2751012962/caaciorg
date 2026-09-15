@@ -103,11 +103,13 @@ the body stack for parity with the theme settings but is deliberately not loaded
 
 All custom UI is namespaced `.caaci-*` so it can never collide with Divi classes.
 
-| Class            | What it is                                                          | Use for                     |
-| ---------------- | ------------------------------------------------------------------- | --------------------------- |
-| `.caaci-notice`  | Inline feedback line. Add `data-state="error"` for the red variant. | Form success/error messages |
-| `.caaci-eyebrow` | Small uppercase gold label.                                         | Label above a heading       |
-| `.caaci-btn`     | Filled brick button.                                                | Primary actions             |
+| Class                     | What it is                                                                                                                                          | Use for                          |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `.caaci-notice`           | Inline feedback line. Add `data-state="error"` for the red variant.                                                                                 | Form success/error messages      |
+| `.caaci-eyebrow`          | Small uppercase gold label.                                                                                                                         | Label above a heading            |
+| `.caaci-btn`              | Filled brick button.                                                                                                                                | Primary actions                  |
+| `.caaci-volunteer-events` | Bordered `<fieldset>` of checkbox rows with a `<legend>`.                                                                                           | The `/volunteer/` event picker   |
+| `.caaci-check`            | Checkbox row, ≥44px tall so the whole row is a touch target. Wrap the label text in a `<span>`; add `.caaci-check-when` to the muted date after it. | Checkbox lists on mirrored pages |
 
 ### Examples
 

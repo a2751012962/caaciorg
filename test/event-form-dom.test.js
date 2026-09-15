@@ -1011,6 +1011,114 @@ test('event form: a signed-in visitor who already registered sees the success st
   }
 });
 
+test('event form: volunteering is off by default, asks for a name once ticked, and is sent with the registration', async () => {
+  setup();
+  member.__setSupa(supaWith(null));
+  const echoVolunteer = (url, options) =>
+    POST_OK({ volunteer: !!JSON.parse(options.body).volunteer });
+  const fetch = stubApi({ post: echoVolunteer });
+  try {
+    await member.wireEventFormPage();
+    assert.equal(q('#caaci-ev-vol').checked, false);
+    assert.equal(q('#caaci-ev-vol-fields').hidden, true, 'name and phone stay out of the way');
+
+    // Unticked, the registration carries no volunteer key at all.
+    fillForm();
+    await submit();
+    assert.equal('volunteer' in postedBody(fetch), false);
+    assert.equal(q('#caaci-ev-done-volunteer').hidden, true);
+
+    q('#caaci-ev-edit').click();
+    q('#caaci-ev-vol').checked = true;
+    q('#caaci-ev-vol').dispatchEvent(new Event('change', { bubbles: true }));
+    assert.equal(q('#caaci-ev-vol-fields').hidden, false);
+    assert.equal(document.activeElement, q('#caaci-ev-vol-name'), 'focus moves to the name');
+
+    // Ticked but nameless: nothing is sent and the name field is the problem.
+    await submit();
+    assert.equal(posts(fetch).length, 1, 'no second POST');
+    assert.equal(q('#caaci-ev-notice').textContent, 'Enter your name to volunteer.');
+    assert.equal(q('#caaci-ev-vol-name').getAttribute('aria-invalid'), 'true');
+
+    q('#caaci-ev-vol-name').value = '  Mei Lin ';
+    q('#caaci-ev-vol-phone').value = ' 555-0100 ';
+    await submit();
+    assert.deepEqual(postedBody(fetch, 1).volunteer, { name: 'Mei Lin', phone: '555-0100' });
+    assert.ok(shown('#caaci-ev-done-volunteer'));
+    assert.equal(
+      q('#caaci-ev-done-volunteer').textContent.trim(),
+      "Thank you for volunteering — we'll be in touch.",
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event form: a signed-in volunteer sees the box ticked and their details filled in', async () => {
+  setup();
+  member.__setSupa(supaWith(USER));
+  const fetch = stubApi({
+    get: () => ({
+      body: {
+        event: EVENT,
+        signed_in: true,
+        email: 'mei@x.com',
+        registration: { registered_at: '2026-09-10T01:02:03Z' },
+        volunteer: { name: 'Mei Lin', phone: '555-0100', created_at: '2026-09-10T01:02:03Z' },
+      },
+    }),
+  });
+  try {
+    await member.wireEventFormPage();
+    assert.ok(shown('#caaci-ev-done-volunteer'), 'the done card says they volunteered');
+    q('#caaci-ev-edit').click();
+    assert.equal(q('#caaci-ev-vol').checked, true);
+    assert.equal(q('#caaci-ev-vol-fields').hidden, false);
+    assert.equal(q('#caaci-ev-vol-name').value, 'Mei Lin');
+    assert.equal(q('#caaci-ev-vol-phone').value, '555-0100');
+
+    // Resubmitting keeps the sign-up rather than dropping it.
+    fillForm();
+    await submit();
+    assert.deepEqual(postedBody(fetch).volunteer, { name: 'Mei Lin', phone: '555-0100' });
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event form: in Chinese the volunteer question, its fields and the thank-you are Chinese', async () => {
+  member.__setLang('zh');
+  setup();
+  member.__setSupa(supaWith(null));
+  const fetch = stubApi({
+    post: (url, options) => POST_OK({ volunteer: !!JSON.parse(options.body).volunteer }),
+  });
+  try {
+    member.applyLang();
+    await member.wireEventFormPage();
+    assert.equal(q('label[for="caaci-ev-vol"]').textContent, '我也想在本次活动做志愿者');
+    assert.equal(q('label[for="caaci-ev-vol-name"]').textContent, '姓名');
+    assert.equal(q('label[for="caaci-ev-vol-phone"]').textContent, '电话');
+
+    fillForm();
+    q('#caaci-ev-vol').checked = true;
+    q('#caaci-ev-vol').dispatchEvent(new Event('change', { bubbles: true }));
+    await submit();
+    assert.equal(q('#caaci-ev-notice').textContent, '请填写志愿者姓名。');
+
+    q('#caaci-ev-vol-name').value = '林梅';
+    await submit();
+    assert.deepEqual(postedBody(fetch).volunteer, { name: '林梅', phone: '' });
+    assert.equal(
+      q('#caaci-ev-done-volunteer').textContent.trim(),
+      '感谢您报名志愿者，我们会与您联系。',
+    );
+  } finally {
+    fetch.restore();
+    member.__setLang('en');
+  }
+});
+
 test('event form: after the gift deadline the callout says mooncake sign-up closed, and registering still works', async () => {
   const closedPerk = { ...MOONCAKE, deadline: PAST };
   setup();
