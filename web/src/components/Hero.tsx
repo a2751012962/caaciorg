@@ -30,7 +30,16 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
       if (left) gsap.set(left, { x: -50, opacity: 0 });
       if (right) gsap.set(right, { x: 50, opacity: 0 });
       if (items) gsap.set(items, { y: 20, opacity: 0 });
-      if (banners) gsap.set(banners, { y: 30, opacity: 0 });
+      if (banners) {
+        // The buttons' transition-all would turn this jump into a ~150ms sink and
+        // fade before the rise; take the start state with transitions off, flush
+        // style, then hand the transition back for the damped rise itself.
+        const els = Array.from(banners) as HTMLElement[];
+        els.forEach((el) => (el.style.transition = 'none'));
+        gsap.set(els, { y: 30, opacity: 0 });
+        if (els[0]) void getComputedStyle(els[0]).opacity;
+        els.forEach((el) => (el.style.transition = ''));
+      }
     }, sectionRef);
 
     // The motion starts once the first frame has been drawn. On a full load that
@@ -145,6 +154,8 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
       </div>
 
       {/* 3 Restrained Action Banners (Make A Donation, Check Out Events, Become A Member) */}
+      {/* transition-all on the buttons is deliberate: its 150ms CSS transition trails the
+          GSAP rise and gives it the damped feel the owner wants. Don't narrow it. */}
       <div className="relative w-full z-20">
         <div
           ref={bannersRef}
@@ -154,7 +165,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
           <button
             onClick={() => onOpenModal('donate')}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-[filter,scale] cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
             style={{ backgroundColor: '#8e2e11' }}
           >
             <Heart className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
@@ -167,7 +178,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
           <button
             onClick={() => (onNavigate ? onNavigate('events') : onOpenModal('events'))}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-[filter,scale] cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
             style={{ backgroundColor: '#73250e' }}
           >
             <Calendar className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
@@ -180,7 +191,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
           <button
             onClick={() => (onNavigate ? onNavigate('membership') : onOpenModal('membership'))}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-[filter,scale] cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
             style={{ backgroundColor: '#300200' }}
           >
             <UserPlus className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
