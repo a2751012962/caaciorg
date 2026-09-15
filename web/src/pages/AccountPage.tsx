@@ -32,6 +32,10 @@ import { DigitalMemberCard } from '../components/DigitalMemberCard';
 import { FamilySection } from '../components/FamilySection';
 import { SecurityCard } from './account/SecurityCard';
 import { RecoveryNotice } from './account/RecoveryNotice';
+import { ProfileEdit } from './account/ProfileEditModal';
+import { EventFeedback } from './account/EventFeedback';
+import { CancelRsvp } from './account/CancelRsvp';
+import { FEATURES } from '../lib/features';
 import { loginUrl, useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { isFreeTier, statusLabel, usd, withFee } from '../lib/shared';
@@ -779,6 +783,16 @@ export function AccountPage({
                 {events.map((r) => {
                   const over = eventOver(r.event);
                   const canOpenForm = r.source === 'registration' && !!r.event.slug && !over;
+                  // Flagged actions (lib/features.ts). With both flags off the footer
+                  // renders just `signedUp`, as before the flags existed.
+                  const canFeedback = FEATURES.eventFeedback && over;
+                  const canCancel = FEATURES.rsvpCancel && r.source === 'rsvp' && !over;
+                  const signedUp = r.registered_at && (
+                    <span className="text-[11px] text-neutral-400">
+                      {t('Signed up', '报名于')}{' '}
+                      {fmtDate(r.registered_at, lang, { month: 'short', day: 'numeric' })}
+                    </span>
+                  );
                   return (
                     <div
                       key={r.key}
@@ -857,11 +871,22 @@ export function AccountPage({
                             {lang === 'en' ? 'View Details' : '查看详情'}
                           </button>
                         )}
-                        {r.registered_at && (
-                          <span className="text-[11px] text-neutral-400">
-                            {t('Signed up', '报名于')}{' '}
-                            {fmtDate(r.registered_at, lang, { month: 'short', day: 'numeric' })}
-                          </span>
+                        {canFeedback || canCancel ? (
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            {signedUp}
+                            {canFeedback && <EventFeedback lang={lang} registration={r} />}
+                            {canCancel && (
+                              <CancelRsvp
+                                lang={lang}
+                                eventId={r.event.id}
+                                onCancelled={() =>
+                                  setEvents((prev) => prev && prev.filter((x) => x.key !== r.key))
+                                }
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          signedUp
                         )}
                       </div>
                     </div>
@@ -887,19 +912,28 @@ export function AccountPage({
                       {lang === 'en' ? 'Personal Information' : '个人信息'}
                     </h3>
                   </div>
-                  <span className="text-[11px] font-semibold text-neutral-400 flex items-center gap-1">
-                    <Lock className="w-3 h-3 text-neutral-400" />
-                    <span>{lang === 'en' ? 'Read-only' : '仅供查看'}</span>
-                  </span>
+                  {FEATURES.profileEdit ? (
+                    <ProfileEdit lang={lang} member={member} onSaved={refreshMember} />
+                  ) : (
+                    <span className="text-[11px] font-semibold text-neutral-400 flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-neutral-400" />
+                      <span>{lang === 'en' ? 'Read-only' : '仅供查看'}</span>
+                    </span>
+                  )}
                 </div>
 
                 <div className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200/70 text-xs text-neutral-600 flex items-start gap-2.5">
                   <Info className="w-4 h-4 text-neutral-400 shrink-0 mt-0.5" />
                   <p>
-                    {t(
-                      `Your name and phone come from your membership record and can't be edited online. To correct them, email ${content.contact.email}. Your sign-in email can be changed under Account Security.`,
-                      `姓名和电话来自您的会员档案，无法在线修改。如需更正，请发邮件至 ${content.contact.email}。登录邮箱可在“账户安全”中修改。`,
-                    )}
+                    {FEATURES.profileEdit
+                      ? t(
+                          `Your name comes from your membership record and can't be edited online. To correct it, email ${content.contact.email}. Use Edit to update your phone and contact details. Your sign-in email can be changed under Account Security.`,
+                          `姓名来自您的会员档案，无法在线修改。如需更正，请发邮件至 ${content.contact.email}。点击“编辑”可更新电话与联系方式。登录邮箱可在“账户安全”中修改。`,
+                        )
+                      : t(
+                          `Your name and phone come from your membership record and can't be edited online. To correct them, email ${content.contact.email}. Your sign-in email can be changed under Account Security.`,
+                          `姓名和电话来自您的会员档案，无法在线修改。如需更正，请发邮件至 ${content.contact.email}。登录邮箱可在“账户安全”中修改。`,
+                        )}
                   </p>
                 </div>
 
