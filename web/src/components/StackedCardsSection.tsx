@@ -356,7 +356,7 @@ export function StackedCardsSection({
                 <div className="panel-num-line flex items-baseline gap-4 mb-2 origin-top-left">
                   <span
                     className="panel-num text-5xl sm:text-6xl md:text-7xl font-mono font-black text-[#8e2e11]/25 tracking-tighter"
-                    style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
+                    style={{ fontFamily: 'var(--font-caaci-serif)' }}
                   >
                     {item.number}
                   </span>
@@ -367,7 +367,7 @@ export function StackedCardsSection({
                 <div className="mb-6 origin-top-left will-change-transform">
                   <h3
                     className="panel-headline text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-[#300200] leading-[1.1] tracking-tight font-serif-caaci origin-top-left flex items-baseline flex-wrap"
-                    style={{ fontFamily: "'Noto Serif SC', 'Playfair Display', Georgia, serif" }}
+                    style={{ fontFamily: 'var(--font-caaci-serif-zh)' }}
                   >
                     {/* 小数字伴随标题：被滚上去时平滑展现 */}
                     <span className="panel-companion-num opacity-0 inline-block overflow-hidden font-mono font-bold text-xl sm:text-2xl md:text-3xl text-[#8e2e11] align-baseline whitespace-nowrap">

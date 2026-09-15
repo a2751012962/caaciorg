@@ -95,7 +95,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
           >
             <h1
               className="text-xl sm:text-3xl md:text-[34px] font-bold text-[#300200] leading-[1.3] tracking-tight font-serif-caaci"
-              style={{ fontFamily: "'Playfair Display', 'Noto Serif SC', Georgia, serif" }}
+              style={{ fontFamily: 'var(--font-caaci-serif)' }}
             >
               {content.welcome.heading}
             </h1>

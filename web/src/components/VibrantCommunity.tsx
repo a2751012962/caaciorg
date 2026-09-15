@@ -101,7 +101,7 @@ export function VibrantCommunity({ content, onOpenModal }: VibrantCommunityProps
             {/* Main Title */}
             <h2
               className="text-3xl sm:text-4xl md:text-5xl font-bold text-[#300200] leading-[1.2] tracking-tight font-serif-caaci mb-5"
-              style={{ fontFamily: "'Playfair Display', 'Noto Serif SC', Georgia, serif" }}
+              style={{ fontFamily: 'var(--font-caaci-serif)' }}
             >
               {content.community.heading}
             </h2>

@@ -61,7 +61,7 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
 
                 <h3
                   className="text-xl font-bold text-[#300200] font-serif-caaci group-hover:text-[#8e2e11] transition-colors"
-                  style={{ fontFamily: "'Playfair Display', 'Noto Serif SC', Georgia, serif" }}
+                  style={{ fontFamily: 'var(--font-caaci-serif)' }}
                 >
                   {item.title}
                 </h3>

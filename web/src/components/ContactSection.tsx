@@ -158,7 +158,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
               </span>
               <h2
                 className="text-2xl sm:text-3xl font-semibold text-[#1d1d1f] tracking-tight font-serif-caaci"
-                style={{ fontFamily: "'Playfair Display', 'Noto Serif SC', Georgia, serif" }}
+                style={{ fontFamily: 'var(--font-caaci-serif)' }}
               >
                 {content.contact.heading}
               </h2>

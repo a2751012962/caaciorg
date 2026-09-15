@@ -44,7 +44,7 @@ export function CommunityCalendarPage({
           </div>
           <h2
             className="text-xl sm:text-2xl md:text-3xl font-bold text-[#300200] font-serif-caaci"
-            style={{ fontFamily: "'Playfair Display', 'Noto Serif SC', Georgia, serif" }}
+            style={{ fontFamily: 'var(--font-caaci-serif)' }}
           >
             {data.instruction}
           </h2>
@@ -75,7 +75,7 @@ export function CommunityCalendarPage({
 
                 <h3
                   className="text-lg font-bold text-[#300200] font-serif-caaci mb-3 group-hover:text-[#8e2e11] transition-colors"
-                  style={{ fontFamily: "'Playfair Display', 'Noto Serif SC', Georgia, serif" }}
+                  style={{ fontFamily: 'var(--font-caaci-serif)' }}
                 >
                   {cal.name}
                 </h3>

@@ -96,7 +96,7 @@ export function Benefits({ content }: BenefitsProps) {
           </span>
           <h2
             className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-[#1d1d1f]"
-            style={{ fontFamily: "'Playfair Display', 'Noto Serif SC', Georgia, serif" }}
+            style={{ fontFamily: 'var(--font-caaci-serif)' }}
           >
             {content.whyJoin.heading}
           </h2>

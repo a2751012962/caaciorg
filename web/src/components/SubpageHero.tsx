@@ -47,7 +47,7 @@ export function SubpageHero({
 
             <h1
               className="text-3xl sm:text-4xl md:text-5xl font-bold text-[#300200] leading-tight tracking-wide font-serif-caaci"
-              style={{ fontFamily: "'Playfair Display', 'Noto Serif SC', Georgia, serif" }}
+              style={{ fontFamily: 'var(--font-caaci-serif)' }}
             >
               {title}
             </h1>

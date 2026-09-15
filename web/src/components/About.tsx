@@ -89,7 +89,7 @@ export function About({ content, onNavigate }: AboutProps) {
           <div ref={leftColRef} className="lg:col-span-6 space-y-8 will-change-transform">
             <h2
               className="text-2xl sm:text-3xl md:text-[36px] font-bold text-[#300200] leading-[1.35] tracking-wide font-serif-caaci"
-              style={{ fontFamily: "'Playfair Display', 'Noto Serif SC', Georgia, serif" }}
+              style={{ fontFamily: 'var(--font-caaci-serif)' }}
             >
               {content.welcome.heading}
             </h2>
