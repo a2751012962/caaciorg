@@ -143,7 +143,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
 
             <div className="welcome-stagger-item mt-6 sm:mt-8 lg:mt-auto pt-4 sm:pt-6 border-t border-neutral-100 grid grid-cols-2 gap-4 sm:gap-6 text-xs sm:text-sm text-neutral-600 font-poppins">
               <div>
-                <span className="block text-[10px] sm:text-xs uppercase font-bold text-brick tracking-wider mb-1">
+                <span className="block text-[10px] sm:text-xs font-bold text-brick mb-1">
                   {isZh ? '社区宗旨' : 'Community Focus'}
                 </span>
                 <span className="font-medium text-ink">
@@ -151,7 +151,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
                 </span>
               </div>
               <div>
-                <span className="block text-[10px] sm:text-xs uppercase font-bold text-brick tracking-wider mb-1">
+                <span className="block text-[10px] sm:text-xs font-bold text-brick mb-1">
                   {isZh ? '服务地区' : 'Region'}
                 </span>
                 <span className="font-medium text-ink">
