@@ -13,25 +13,19 @@
 //        that decides the free gift; only the first one gets a confirmation.
 //        Signed in, the row is linked to the account (member_id, `linked: true`)
 //        only when the form email is the account's own login email.
+//        An optional `volunteer: { name, phone }` also signs the registrant up
+//        to help at this event (event_volunteers, source 'registration'); the
+//        signed-in GET reports that row so the page can pre-fill the box.
 // A bad or expired token is treated as signed out, never as an error.
 // event_registrations is server-only (0015): read and written here and by
 // /api/admin/event-registrations, with the service-role key.
-import { json, bad, sb, sendEmail, requireUser } from './_lib.js';
+import { json, bad, sb, sendEmail } from './_lib.js';
 import { validateQuestions, validateAnswers, perkOf, registrationOpen } from './_event-form.js';
 import { registrationConfirmation, emailLogo } from './_event-emails.js';
+import { EMAIL_RE, optionalUser, volunteerFields, saveVolunteer } from './_volunteers.js';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EVENT_COLUMNS =
   'id,slug,title,title_zh,description,description_zh,starts_at,ends_at,location,perk_deadline,perk_item_zh,perk_item_en,registration_questions,published';
-
-// The signed-in user behind the bearer token, or null.
-async function optionalUser(request, env) {
-  try {
-    return (await requireUser(request, env)).user || null;
-  } catch {
-    return null; // auth unreachable: carry on signed out
-  }
-}
 
 // The event and its questions → { event, questions }, or { error: Response }.
 // An unpublished event, or one that takes no registrations, is not found.
@@ -82,11 +76,23 @@ export async function onRequestGet({ request, env }) {
     const reg =
       (email && (await DB.selectOne('event_registrations', { event_id: event.id, email }, cols))) ||
       (await DB.selectOne('event_registrations', { event_id: event.id, member_id: user.id }, cols));
+    // The volunteer sign-up is keyed on (event_id, email) only — a row is
+    // never looked up by account, so it follows the address the form uses.
+    const vol = email
+      ? await DB.selectOne(
+          'event_volunteers',
+          { event_id: event.id, email },
+          'name,phone,created_at',
+        )
+      : null;
     return json({
       ...out,
       signed_in: true,
       email: user.email || null,
       registration: reg ? { registered_at: reg.created_at, updated_at: reg.updated_at } : null,
+      volunteer: vol
+        ? { name: vol.name, phone: vol.phone ?? null, created_at: vol.created_at }
+        : null,
     });
   } catch (e) {
     return bad(e.message, 500);
@@ -122,6 +128,15 @@ export async function onRequestPost({ request, env }) {
     if (checked.error) return bad(checked.error);
     const { answers } = checked;
 
+    // "I'd also like to volunteer at this event": absent, null or false leaves
+    // the registration exactly as it was before this field existed.
+    let volunteer = null;
+    if (b.volunteer != null && b.volunteer !== false) {
+      const v = volunteerFields(b.volunteer, { nameRequired: 'Enter your name to volunteer.' });
+      if (v.error) return bad(v.error);
+      volunteer = v;
+    }
+
     // Link the registration to the account only when it is the account's own
     // address: otherwise a signed-in user could register someone else's email
     // and have that row (and its free gift) counted against their account.
@@ -152,6 +167,20 @@ export async function onRequestPost({ request, env }) {
       { onConflict: 'event_id,email' },
     );
 
+    // Only after the registration is saved: the registration is what the
+    // person came for, and the sign-up hangs off it.
+    if (volunteer) {
+      await saveVolunteer(DB, {
+        eventId: event.id,
+        name: volunteer.name,
+        email,
+        phone: volunteer.phone,
+        message: null,
+        source: 'registration',
+        memberId,
+      });
+    }
+
     if (!existing) {
       try {
         const { subject, html } = registrationConfirmation({
@@ -175,6 +204,7 @@ export async function onRequestPost({ request, env }) {
       registered_at: existing?.created_at ?? row?.created_at ?? null,
       signed_in: !!user?.id,
       linked,
+      volunteer: !!volunteer,
       perk: perkOf(event),
     });
   } catch (e) {
