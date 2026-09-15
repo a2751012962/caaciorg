@@ -192,31 +192,41 @@
    checkbox styling (a hidden input plus an `<i>` drawn by its jQuery) only
    applies inside `.et_pb_contact p`, so these rows in a <fieldset> keep the
    browser's native box and are styled here instead. */
+/* Drawn like the Divi fields around it, measured on the live form: no box, a
+   0.8px bottom rule, 16px padding, and the label in the placeholder style Divi
+   gives its inputs (16px, weight 600, uppercase, 2px tracking, 70% black).
+   The question is the "field", the checkbox rows sit under it like the options
+   of a Divi checkbox field would. */
 .caaci-volunteer-events {
   margin: 0 0 3%;
-  padding: 12px 16px;
-  border: 1px solid var(--caaci-line);
-  border-radius: var(--caaci-radius);
+  padding: 0 0 0 3%;
+  border: 0;
   font-family: var(--caaci-font-body);
   color: var(--caaci-body);
 }
 .caaci-volunteer-events legend {
-  /* A default legend is laid *into* the fieldset's border, so the second line
-     of the two-line question is cut through by it. A floated legend renders as
-     an ordinary block inside the box instead, with the border left whole. */
+  /* A default legend is laid *into* the fieldset's border. A floated legend
+     renders as an ordinary block instead, so a two-line question stays whole. */
   float: left;
+  box-sizing: border-box;
   width: 100%;
-  margin: 0 0 8px;
-  padding: 0;
+  margin: 0;
+  padding: 16px;
+  border-bottom: 0.8px solid var(--caaci-line);
   font-size: var(--caaci-fs-sm);
   font-weight: 600;
-  color: var(--caaci-plum);
+  letter-spacing: 2px;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: var(--caaci-body);
 }
 /* A flex container establishes its own formatting context, so it does not sit
    under the floated legend above — it shrinks to whatever is left beside it,
-   which is nothing. Each row clears the float instead. */
+   which is nothing. Each row clears the float instead, and takes the field's
+   own 16px indent so the boxes line up with the typed text above. */
 .caaci-volunteer-events .caaci-check {
   clear: both;
+  padding: 4px 16px 0;
 }
 /* The volunteer form's honeypot (caaci-app.js): a text input bots fill in and
    people never see. Off-screen rather than display:none or hidden, which many
