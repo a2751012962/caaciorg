@@ -367,7 +367,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="text-center max-w-2xl mx-auto mb-8 sm:mb-12"
           >
-            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
+            <span className="text-xs font-semibold text-brick block mb-2">
               {lang === 'en' ? 'Choose Your Plan' : '入会方案'}
             </span>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">
@@ -416,7 +416,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                     <motion.div
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="absolute -top-3 left-6 z-20 bg-ink text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded-full shadow-md whitespace-nowrap"
+                      className="absolute -top-3 left-6 z-20 bg-ink text-white text-[10px] font-semibold px-3 py-0.5 rounded-full shadow-md whitespace-nowrap"
                     >
                       {lang === 'en' ? 'Recommended' : '推荐首选'}
                     </motion.div>
@@ -530,7 +530,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             className="md:col-span-5 w-full max-w-lg md:max-w-none mx-auto md:mx-0 space-y-6"
           >
             <div>
-              <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-1">
+              <span className="text-xs font-semibold text-brick block mb-1">
                 {lang === 'en' ? 'Digital Pass' : '电子会员凭证'}
               </span>
               <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-ink">
@@ -572,14 +572,14 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                   </div>
                 </div>
 
-                <span className="text-[10px] font-semibold uppercase px-2.5 py-0.5 rounded-full bg-white/15 text-neutral-200 flex-shrink-0">
+                <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 text-neutral-200 flex-shrink-0">
                   {selected ? shortLabel(selected) : ''}
                 </span>
               </div>
 
               <div className="py-5 sm:py-6 space-y-4">
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-neutral-400">
+                  <div className="text-[10px] text-neutral-400">
                     {lang === 'en' ? 'Cardholder Name' : '持卡人姓名'}
                   </div>
                   <div className="text-lg sm:text-xl font-medium tracking-tight text-white mt-0.5 truncate">
@@ -589,17 +589,13 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
                 <div className="grid grid-cols-2 gap-3 sm:gap-4 text-xs">
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-neutral-400">
-                      Member ID
-                    </div>
+                    <div className="text-[10px] text-neutral-400">Member ID</div>
                     <div className="font-mono text-neutral-200 mt-0.5 text-xs whitespace-nowrap">
                       CAACI-••••
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-neutral-400">
-                      Expires
-                    </div>
+                    <div className="text-[10px] text-neutral-400">Expires</div>
                     <div className="font-mono text-neutral-200 mt-0.5 text-xs whitespace-nowrap">
                       {expiresLabel}
                     </div>
@@ -848,7 +844,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="max-w-3xl mb-14"
         >
-          <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
+          <span className="text-xs font-semibold text-brick block mb-2">
             {lang === 'en' ? 'Community Privileges' : '会员专享礼遇'}
           </span>
           <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">

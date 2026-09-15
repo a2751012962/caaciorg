@@ -44,9 +44,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
           {/* Left: Mission & Story */}
           <div className="lg:col-span-7 space-y-6">
-            <span className="text-xs font-semibold tracking-widest text-brick uppercase block">
-              {data.missionTitle}
-            </span>
+            <span className="text-xs font-semibold text-brick block">{data.missionTitle}</span>
 
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink leading-snug">
               “{data.missionText}”
@@ -90,7 +88,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex items-end p-6">
                 <div className="text-white space-y-0.5">
-                  <span className="text-[11px] uppercase tracking-widest text-neutral-300 font-medium block">
+                  <span className="text-[11px] text-neutral-300 font-medium block">
                     {lang === 'en' ? 'Leadership & Community' : '华协理事会与义工团队'}
                   </span>
                   <div className="text-base font-semibold text-white">CAACI Central Illinois</div>
@@ -105,7 +103,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       <section className="py-16 sm:py-24 bg-surface-2 border-b border-neutral-200/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mb-14">
-            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
+            <span className="text-xs font-semibold text-brick block mb-2">
               {lang === 'en' ? 'Our Principles' : '核心价值观'}
             </span>
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
@@ -145,7 +143,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       <section className="py-16 sm:py-24 bg-white border-b border-neutral-200/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mb-12">
-            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
+            <span className="text-xs font-semibold text-brick block mb-2">
               {lang === 'en' ? 'Community Action' : '实现途径与活动开展'}
             </span>
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
@@ -156,7 +154,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
-              <span className="text-[11px] font-semibold tracking-wider text-brick uppercase">
+              <span className="text-[11px] font-semibold text-brick">
                 {lang === 'en' ? 'Annual Celebration' : '千人盛宴'}
               </span>
               <h4 className="text-base font-semibold text-ink">
@@ -170,7 +168,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
             </div>
 
             <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
-              <span className="text-[11px] font-semibold tracking-wider text-brick uppercase">
+              <span className="text-[11px] font-semibold text-brick">
                 {lang === 'en' ? 'Folk Heritage' : '传统民俗'}
               </span>
               <h4 className="text-base font-semibold text-ink">
@@ -184,7 +182,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
             </div>
 
             <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
-              <span className="text-[11px] font-semibold tracking-wider text-brick uppercase">
+              <span className="text-[11px] font-semibold text-brick">
                 {lang === 'en' ? 'Autumn Harvest' : '游园盛会'}
               </span>
               <h4 className="text-base font-semibold text-ink">
@@ -198,7 +196,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
             </div>
 
             <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
-              <span className="text-[11px] font-semibold tracking-wider text-brick uppercase">
+              <span className="text-[11px] font-semibold text-brick">
                 {lang === 'en' ? 'Civic & Professional' : '政商与求职'}
               </span>
               <h4 className="text-base font-semibold text-ink">
@@ -219,7 +217,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 pb-10 border-b border-white/10 mb-10">
             <div className="space-y-2 max-w-2xl">
-              <span className="text-xs font-semibold tracking-widest text-gold uppercase block">
+              <span className="text-xs font-semibold text-gold block">
                 {lang === 'en' ? 'Official Video' : '官方回顾视频'}
               </span>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-white">
@@ -309,7 +307,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       <section className="py-16 sm:py-24 bg-surface-2 border-b border-neutral-200/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mb-14">
-            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
+            <span className="text-xs font-semibold text-brick block mb-2">
               {lang === 'en' ? 'Leadership' : '协会治理'}
             </span>
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
@@ -325,7 +323,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 className="bg-white p-7 rounded-2xl border border-neutral-200/80 shadow-sm flex flex-col justify-between space-y-4"
               >
                 <div>
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-brick block mb-1">
+                  <span className="text-[11px] font-semibold text-brick block mb-1">
                     {member.role}
                   </span>
                   <h4 className="text-lg font-semibold text-ink">{member.name}</h4>
@@ -341,7 +339,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       <section className="py-16 sm:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mb-12">
-            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
+            <span className="text-xs font-semibold text-brick block mb-2">
               {lang === 'en' ? 'Heritage & Honor' : '光荣传承'}
             </span>
             <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-ink">

@@ -312,7 +312,7 @@ export function StackedCardsSection({
         <div className="flex items-center justify-between pb-4 border-b border-neutral-200/70 relative z-20">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-brick" />
-            <span className="text-xs sm:text-sm font-mono font-bold tracking-widest text-brick uppercase">
+            <span className="text-xs sm:text-sm font-mono font-bold text-brick">
               CAACI · 2000 — {new Date().getFullYear()}
             </span>
           </div>

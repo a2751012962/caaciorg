@@ -102,17 +102,19 @@
 
 - 界面文字默认 `text-xs`，不要小于 `10px`（`9px`/`8px` 各 5/2 次，属于待清理）。
 - 段落用 `leading-relaxed`（53）；标题用 `tracking-tight`（51）。
-- 全大写标签必须带字距：`uppercase tracking-wider`（67）或 `tracking-widest`（21）。
+- 全大写（已定 2026-09-15）：**只允许导航项和主按钮**（`bg-brick text-white`，含首页 / 子页三联横幅）。
+  区块 eyebrow、表单 label、页脚栏目标题、卡片小标一律正常大小写，并去掉 `tracking-wider/widest`。
+  全大写处必须带 `tracking-wider`。
 
 ### 2.2 固定文字模式
 
-| 模式                    | 类                                                                                       |
-| ----------------------- | ---------------------------------------------------------------------------------------- |
-| Eyebrow（区块上方小标） | `text-xs font-semibold tracking-widest text-brick uppercase block mb-2`                  |
-| 装饰短横线              | `w-12 h-0.5 bg-brick mt-3 rounded-full`（Hero/子页用 `w-16 h-1`）                        |
-| 表单 label              | `block text-xs uppercase font-bold text-neutral-500 mb-2`                                |
-| 导航项                  | `px-3 py-2 text-sm font-semibold uppercase tracking-wider`                               |
-| 页脚栏目标题            | `font-bold text-white uppercase tracking-wider text-xs border-b border-neutral-700 pb-2` |
+| 模式                    | 类                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| Eyebrow（区块上方小标） | `text-xs font-semibold text-brick block mb-2`（正常大小写）                   |
+| 装饰短横线              | `w-12 h-0.5 bg-brick mt-3 rounded-full`（Hero/子页用 `w-16 h-1`）             |
+| 表单 label              | `block text-xs font-bold text-neutral-500 mb-2`（正常大小写）                 |
+| 导航项                  | `px-3 py-2 text-sm font-semibold uppercase tracking-wider`                    |
+| 页脚栏目标题            | `font-bold text-white text-xs border-b border-neutral-700 pb-2`（正常大小写） |
 
 字重：`font-semibold`（227）为默认强调，`font-medium`（136）次之，`font-bold`（94）用于标题与 label。
 
@@ -201,7 +203,9 @@
 
 ### 5.4 徽章 / 标签
 
-- 状态徽章：`text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200`
+- 状态（已定 2026-09-15）：**色点 + 文字，无底色无边框无胶囊**。
+  `inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 before:content-[''] before:w-1.5 before:h-1.5 before:rounded-full before:bg-current`
+  颜色：有效 `emerald-700`、待处理 `amber-800`、失效 `rose-700`、中性 `neutral-500`。
 - 悬浮标签（Most Popular）：`absolute -top-3 left-6 bg-ink text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded-full shadow-md`
 - 序号圆点：`w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs`
 
@@ -292,3 +296,16 @@ lucide-react。尺寸：行内 `w-3.5 h-3.5`，按钮 `w-4 h-4`，卡片 `w-5 h-
 - 不在浅色底上用 `gold` / `tan`。
 - 不出现小于 10px 的文字。
 - 不给中文加 `uppercase`。
+
+---
+
+## 10. 决策记录
+
+| 日期       | 项                                                         | 决定                                | 状态                                            |
+| ---------- | ---------------------------------------------------------- | ----------------------------------- | ----------------------------------------------- |
+| 2026-09-15 | 状态徽章                                                   | 色点 + 文字，去掉胶囊 / 底色 / 边框 | 已落地                                          |
+| 2026-09-15 | 全大写                                                     | 只留导航与主按钮                    | 已落地（Hero.tsx 两处小标待另一会话收尾后再改） |
+| 2026-09-15 | 二选一控件                                                 | 保留分段胶囊                        | 维持现状                                        |
+| 2026-09-15 | 反馈提示、列表卡片、会员等级、账户 Tab、圆角档位、最小字号 | 再议                                | 待用户给方向                                    |
+
+总方向（用户原话）：少卡片、少无用胶囊、简洁表达。

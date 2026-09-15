@@ -38,7 +38,7 @@ export function CommunityCalendarPage({
       {/* Instruction Banner */}
       <section className="py-12 bg-surface-warm border-b border-neutral-200 text-center">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brick/10 text-brick text-xs font-bold uppercase tracking-wider mb-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brick/10 text-brick text-xs font-bold mb-3">
             <CalendarDays className="w-3.5 h-3.5" />
             <span>Community Portals</span>
           </div>
@@ -83,7 +83,7 @@ export function CommunityCalendarPage({
                 <p className="text-xs text-neutral-600 font-poppins leading-relaxed">{cal.desc}</p>
               </div>
 
-              <div className="mt-8 pt-4 border-t border-neutral-100 flex items-center justify-center gap-1 text-xs font-bold text-brick font-poppins uppercase tracking-wider group-hover:underline">
+              <div className="mt-8 pt-4 border-t border-neutral-100 flex items-center justify-center gap-1 text-xs font-bold text-brick font-poppins group-hover:underline">
                 <span>{lang === 'en' ? 'Open Calendar' : '进入日历'}</span>
                 <ExternalLink className="w-3.5 h-3.5 ml-1" />
               </div>

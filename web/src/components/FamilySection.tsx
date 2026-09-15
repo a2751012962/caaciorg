@@ -87,7 +87,7 @@ const PLAN_BADGE: Record<string, string> = {
 
 const inputSm =
   'w-full min-h-[40px] px-3 py-2 text-xs bg-white border border-neutral-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brick disabled:bg-neutral-100 disabled:text-neutral-400';
-const sectionLabel = 'text-xs font-bold uppercase tracking-wider text-neutral-700 block';
+const sectionLabel = 'text-xs font-bold text-neutral-700 block';
 
 // One pending invitation: Cancel, and Resend with a 60 s cooldown per address
 // (kept across reloads; a 429 from the server starts it too).
@@ -383,9 +383,7 @@ export function FamilySection({
       </div>
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div>
-          <span className="text-neutral-400 block uppercase tracking-wider text-[10px]">
-            {t('Family plan', '家庭会员')}
-          </span>
+          <span className="text-neutral-400 block text-[10px]">{t('Family plan', '家庭会员')}</span>
           <span
             className={`inline-block mt-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold ${
               plan.status && Object.hasOwn(PLAN_BADGE, plan.status)
@@ -397,7 +395,7 @@ export function FamilySection({
           </span>
         </div>
         <div>
-          <span className="text-neutral-400 block uppercase tracking-wider text-[10px]">
+          <span className="text-neutral-400 block text-[10px]">
             {plan.status === 'active' ? t('Valid through', '有效期至') : t('Expires', '到期日期')}
           </span>
           <span className="font-semibold text-neutral-800 block mt-1">
@@ -406,9 +404,7 @@ export function FamilySection({
         </div>
         {extra && (
           <div className="col-span-2">
-            <span className="text-neutral-400 block uppercase tracking-wider text-[10px]">
-              {extra.label}
-            </span>
+            <span className="text-neutral-400 block text-[10px]">{extra.label}</span>
             <span className="font-semibold text-neutral-800 block mt-1 font-mono break-all">
               {extra.value}
             </span>
@@ -437,7 +433,7 @@ export function FamilySection({
         noValidate
         className="p-4 bg-neutral-50/80 rounded-2xl border border-neutral-200/80 space-y-3"
       >
-        <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800 uppercase tracking-wider">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800">
           <UserPlus className="w-4 h-4 text-brick" />
           <span>{t('Invite by email', '通过邮箱邀请')}</span>
         </div>
@@ -512,7 +508,7 @@ export function FamilySection({
         className="p-4 bg-neutral-50/80 rounded-2xl border border-neutral-200/80 space-y-3"
       >
         <div className="space-y-0.5">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800 uppercase tracking-wider">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800">
             <Users className="w-4 h-4 text-brick" />
             <span>{t('Add someone without an account', '添加没有账号的家人')}</span>
           </div>
@@ -752,11 +748,11 @@ export function FamilySection({
                           </span>
                         )}
                         {p.linked ? (
-                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 before:content-[''] before:w-1.5 before:h-1.5 before:rounded-full before:bg-current">
                             {t('Linked account', '已关联账号')}
                           </span>
                         ) : (
-                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 border border-neutral-200">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 before:content-[''] before:w-1.5 before:h-1.5 before:rounded-full before:bg-current">
                             {t('Not linked to an account', '未关联账号')}
                           </span>
                         )}
@@ -885,7 +881,7 @@ export function FamilySection({
           {/* Family activity log */}
           {family.events.length > 0 && (
             <div className="space-y-2 pt-2 border-t border-neutral-200">
-              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-neutral-700 pt-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-700 pt-2">
                 <History className="w-3.5 h-3.5 text-neutral-400" />
                 <span>{t('Family Activity Log', '家庭动态记录')}</span>
               </div>

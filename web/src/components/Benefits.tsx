@@ -91,7 +91,7 @@ export function Benefits({ content }: BenefitsProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Title Header */}
         <div className="benefits-header max-w-3xl mb-14">
-          <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
+          <span className="text-xs font-semibold text-brick block mb-2">
             Why Join CAACI · 为什么加入华协
           </span>
           <h2

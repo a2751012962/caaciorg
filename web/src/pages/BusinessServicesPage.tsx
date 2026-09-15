@@ -396,7 +396,7 @@ export function BusinessServicesPage({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.05 }}
-              className="text-xs font-semibold tracking-widest text-brick uppercase mb-3"
+              className="text-xs font-semibold text-brick mb-3"
             >
               {lang === 'en'
                 ? 'CAACI Business Directory & Regional Resources'
@@ -662,7 +662,7 @@ export function BusinessServicesPage({
             className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 pb-6 sm:pb-8 lg:pb-10 border-b border-neutral-200/80"
           >
             <div>
-              <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-1.5 p-0">
+              <span className="text-xs font-semibold text-brick block mb-1.5 p-0">
                 {lang === 'en' ? 'Verified Directory' : '官方认证商业名录'}
               </span>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">
@@ -769,7 +769,7 @@ export function BusinessServicesPage({
                     >
                       <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[10px] font-medium tracking-wide uppercase px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
                             {merchant.categoryLabel}
                           </span>
                           {merchant.featured && (
@@ -885,7 +885,7 @@ export function BusinessServicesPage({
                   >
                     <div className="space-y-2 max-w-2xl">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-[11px] font-medium tracking-wide uppercase px-2.5 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
+                        <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
                           {merchant.categoryLabel}
                         </span>
                         {merchant.featured && (
@@ -976,7 +976,7 @@ export function BusinessServicesPage({
             transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-6"
           >
-            <span className="text-xs font-semibold tracking-widest text-brick uppercase block">
+            <span className="text-xs font-semibold text-brick block">
               {lang === 'en' ? 'Financing Assistance' : '小微金融扶持'}
             </span>
 
@@ -1115,7 +1115,7 @@ export function BusinessServicesPage({
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="max-w-3xl mb-12"
           >
-            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
+            <span className="text-xs font-semibold text-brick block mb-2">
               {lang === 'en' ? 'Programs & Networking' : '经贸活动与导师计划'}
             </span>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">
@@ -1201,7 +1201,7 @@ export function BusinessServicesPage({
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="text-center max-w-2xl mx-auto mb-14"
           >
-            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
+            <span className="text-xs font-semibold text-brick block mb-2">
               {lang === 'en' ? 'Official Membership & Financing' : '官方入驻与扶持通道'}
             </span>
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
@@ -1232,7 +1232,7 @@ export function BusinessServicesPage({
                 }`}
               >
                 {tier.recommended && (
-                  <div className="absolute -top-3 left-8 bg-ink text-white text-[11px] font-medium tracking-wide uppercase px-3 py-0.5 rounded-full">
+                  <div className="absolute -top-3 left-8 bg-ink text-white text-[11px] font-medium px-3 py-0.5 rounded-full">
                     {lang === 'en' ? 'Recommended' : '推荐方案'}
                   </div>
                 )}
@@ -1352,7 +1352,7 @@ export function BusinessServicesPage({
               ) : (
                 <div>
                   <div className="mb-6">
-                    <span className="text-[11px] font-semibold text-brick uppercase tracking-wider block mb-1">
+                    <span className="text-[11px] font-semibold text-brick block mb-1">
                       {lang === 'en' ? 'Direct Application' : '在线咨询与入驻申请'}
                     </span>
                     <h3 className="text-2xl font-semibold tracking-tight text-ink">
@@ -1545,7 +1545,7 @@ export function BusinessServicesPage({
                         type="submit"
                         disabled={sending}
                         aria-busy={sending}
-                        className="w-full py-3 rounded-full bg-ink text-white text-xs font-medium tracking-wide uppercase hover:bg-neutral-800 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-default"
+                        className="w-full py-3 rounded-full bg-ink text-white text-xs font-medium hover:bg-neutral-800 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-default"
                       >
                         <Send className="w-4 h-4" />
                         <span>

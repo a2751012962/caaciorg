@@ -438,7 +438,7 @@ export function AccountPage({
               <button
                 type="button"
                 onClick={() => window.location.assign(loginUrl(here(), true))}
-                className="w-full sm:w-auto min-h-[44px] px-8 py-3 rounded-full bg-white border border-neutral-300 hover:border-neutral-900 text-neutral-800 font-semibold text-xs uppercase tracking-wider transition-all cursor-pointer inline-flex items-center justify-center gap-2 active:scale-98"
+                className="w-full sm:w-auto min-h-[44px] px-8 py-3 rounded-full bg-white border border-neutral-300 hover:border-neutral-900 text-neutral-800 font-semibold text-xs transition-all cursor-pointer inline-flex items-center justify-center gap-2 active:scale-98"
               >
                 <UserPlus className="w-4 h-4 text-brick" />
                 <span>{lang === 'en' ? 'Create Account' : '注册账号'}</span>
@@ -710,7 +710,7 @@ export function AccountPage({
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
                     <Award className="w-4 h-4 text-brick" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-neutral-800">
+                    <span className="text-xs font-bold text-neutral-800">
                       {lang === 'en' ? 'Official Member Pass' : 'CAACI 官方会员通行证'}
                     </span>
                   </div>
@@ -984,7 +984,7 @@ export function AccountPage({
 
                   <div className="flex items-center">
                     {pastDue ? (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-700">
                         <span className="w-2 h-2 rounded-full bg-rose-500" />
                         <span>{statusLabel('past_due', lang)}</span>
                       </span>
@@ -1039,7 +1039,7 @@ export function AccountPage({
                 {shownTier || viaFamily ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 text-xs">
                     <div>
-                      <span className="text-neutral-400 block uppercase tracking-wider text-[10px]">
+                      <span className="text-neutral-400 block text-[10px]">
                         {lang === 'en' ? 'Plan Tier' : '当前方案'}
                       </span>
                       <span className="font-bold text-neutral-900 text-sm mt-0.5 block">
@@ -1058,7 +1058,7 @@ export function AccountPage({
                     </div>
 
                     <div>
-                      <span className="text-neutral-400 block uppercase tracking-wider text-[10px]">
+                      <span className="text-neutral-400 block text-[10px]">
                         {shownTier && shownTier.price_cents > 0 && !viaFamily
                           ? t('Annual Dues (incl. 3.5% card fee)', '年度会费（含 3.5% 手续费）')
                           : t('Price', '价格')}
@@ -1073,16 +1073,14 @@ export function AccountPage({
                     </div>
 
                     <div>
-                      <span className="text-neutral-400 block uppercase tracking-wider text-[10px]">
-                        {expiryTitle}
-                      </span>
+                      <span className="text-neutral-400 block text-[10px]">{expiryTitle}</span>
                       <span className="font-semibold text-neutral-800 text-xs mt-0.5 block">
                         {expiryValue}
                       </span>
                     </div>
 
                     <div>
-                      <span className="text-neutral-400 block uppercase tracking-wider text-[10px]">
+                      <span className="text-neutral-400 block text-[10px]">
                         {lang === 'en' ? 'Status' : '状态'}
                       </span>
                       <span className="font-semibold text-neutral-800 text-xs mt-0.5 block">
@@ -1202,7 +1200,7 @@ export function AccountPage({
                                     : t('Partially refunded', '部分退款')}
                                 </span>
                               ) : (
-                                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-200">
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 before:content-[''] before:w-1.5 before:h-1.5 before:rounded-full before:bg-current">
                                   {lang === 'en' ? 'Paid' : '已支付'}
                                 </span>
                               )}

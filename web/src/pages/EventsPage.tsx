@@ -510,7 +510,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
               }
             >
               <div className="space-y-3 max-w-3xl">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-gold text-xs font-semibold uppercase tracking-wider">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-gold text-xs font-semibold">
                   <Sparkles className="w-3.5 h-3.5 text-gold" />
                   <span>{lang === 'en' ? 'Upcoming Spotlight' : '近期重点活动推荐'}</span>
                 </div>
@@ -597,7 +597,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
               {/* Top Row: Title + Filter Tabs and Search Bar/Button on the SAME LINE */}
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <div>
-                  <span className="text-[10px] sm:text-xs font-semibold tracking-widest text-brick uppercase block">
+                  <span className="text-[10px] sm:text-xs font-semibold text-brick block">
                     {lang === 'en' ? 'Schedule & Archive' : '活动日程与档案'}
                   </span>
                   <h2 className="text-base sm:text-2xl font-bold tracking-tight text-ink">
@@ -927,7 +927,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                             {/* Left: Calendar Date Box */}
                             <div className="flex sm:block items-center gap-3 w-full sm:w-auto shrink-0">
                               <div className="w-16 sm:w-20 lg:w-24 rounded-2xl bg-surface-3 border border-neutral-200/80 p-2 sm:p-3 text-center shrink-0 shadow-xs transition-transform duration-200 group-hover:scale-105">
-                                <span className="text-[9px] sm:text-[11px] font-bold tracking-wider uppercase text-brick block">
+                                <span className="text-[9px] sm:text-[11px] font-bold text-brick block">
                                   {month}
                                 </span>
                                 <span className="text-xl sm:text-3xl font-bold text-ink tracking-tight block my-0.5 sm:my-1 leading-none">
@@ -1156,7 +1156,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                             <div className="flex sm:block items-center gap-3 w-full sm:w-auto shrink-0">
                               {/* Date Box */}
                               <div className="w-16 sm:w-20 lg:w-24 rounded-2xl bg-white border border-neutral-200/90 p-2 sm:p-3 text-center shrink-0 shadow-xs">
-                                <span className="text-[9px] sm:text-[11px] font-semibold tracking-wider uppercase text-neutral-500 block">
+                                <span className="text-[9px] sm:text-[11px] font-semibold text-neutral-500 block">
                                   {month}
                                 </span>
                                 <span className="text-xl sm:text-3xl font-semibold text-neutral-700 tracking-tight block my-0.5 sm:my-1 leading-none">

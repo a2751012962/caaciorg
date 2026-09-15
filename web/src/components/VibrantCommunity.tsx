@@ -93,7 +93,7 @@ export function VibrantCommunity({ content, onOpenModal }: VibrantCommunityProps
           >
             {/* Tagline / Subtitle */}
             <div className="mb-3">
-              <span className="font-poppins font-bold uppercase text-xs sm:text-[13px] tracking-[2px] text-brick">
+              <span className="font-poppins font-bold text-xs sm:text-[13px] tracking-[2px] text-brick">
                 {content.community.tag}
               </span>
             </div>

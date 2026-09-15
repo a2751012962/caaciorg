@@ -117,17 +117,13 @@ export function About({ content, onNavigate }: AboutProps) {
 
             <div className="about-stagger-item mt-6 sm:mt-8 pt-4 sm:pt-8 border-t border-neutral-100 grid grid-cols-2 gap-4 sm:gap-6 text-xs sm:text-sm text-neutral-600 font-poppins">
               <div>
-                <span className="block text-xs uppercase font-bold text-brick tracking-wider mb-1">
-                  Community Focus
-                </span>
+                <span className="block text-xs font-bold text-brick mb-1">Community Focus</span>
                 <span className="font-medium text-ink">
                   Cultural, Educational & Social Exchange
                 </span>
               </div>
               <div>
-                <span className="block text-xs uppercase font-bold text-brick tracking-wider mb-1">
-                  Region
-                </span>
+                <span className="block text-xs font-bold text-brick mb-1">Region</span>
                 <span className="font-medium text-ink">Champaign-Urbana & Central Illinois</span>
               </div>
             </div>

@@ -30,7 +30,7 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
       <section className="py-14 bg-surface-warm border-b border-neutral-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl">
-            <span className="text-xs font-bold uppercase tracking-[2px] text-brick font-poppins">
+            <span className="text-xs font-bold tracking-[2px] text-brick font-poppins">
               {lang === 'en' ? 'Welcome to Central Illinois' : '欢迎来到伊利诺伊州中部'}
             </span>
             <p className="mt-3 text-base sm:text-lg text-neutral-800 font-poppins leading-relaxed">
@@ -53,9 +53,7 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-brick font-poppins">
-                    {item.category}
-                  </span>
+                  <span className="text-xs font-bold text-brick font-poppins">{item.category}</span>
                   <ExternalLink className="w-4 h-4 text-neutral-400 group-hover:text-brick transition-colors" />
                 </div>
 
@@ -69,7 +67,7 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
                 <p className="text-sm text-neutral-600 font-poppins leading-relaxed">{item.desc}</p>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-neutral-100 flex items-center text-xs font-bold text-brick font-poppins uppercase tracking-wider group-hover:translate-x-1 transition-transform">
+              <div className="mt-6 pt-4 border-t border-neutral-100 flex items-center text-xs font-bold text-brick font-poppins group-hover:translate-x-1 transition-transform">
                 <span>{lang === 'en' ? 'Visit Official Portal' : '访问官方站点'}</span>
                 <span className="ml-1">→</span>
               </div>

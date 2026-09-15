@@ -46,7 +46,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
 
           {/* Quick Links */}
           <div className="md:col-span-4 space-y-3 font-poppins text-sm">
-            <h4 className="font-bold text-white uppercase tracking-wider text-xs border-b border-neutral-700 pb-2">
+            <h4 className="font-bold text-white text-xs border-b border-neutral-700 pb-2">
               {content.footer.quickLinks}
             </h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -125,7 +125,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
 
           {/* Contact Details */}
           <div className="md:col-span-3 space-y-3 font-poppins text-sm">
-            <h4 className="font-bold text-white uppercase tracking-wider text-xs border-b border-neutral-700 pb-2">
+            <h4 className="font-bold text-white text-xs border-b border-neutral-700 pb-2">
               Contact
             </h4>
             <div className="space-y-3 text-neutral-400">

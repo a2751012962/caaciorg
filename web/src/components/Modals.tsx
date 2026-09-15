@@ -124,7 +124,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
       <p className="text-sm text-neutral-600 leading-relaxed">{content.modals.donateDesc}</p>
 
       <div>
-        <label className="block text-xs uppercase font-bold text-neutral-500 mb-2">
+        <label className="block text-xs font-bold text-neutral-500 mb-2">
           {en ? 'Frequency' : '捐款频率'}
         </label>
         <div
@@ -151,7 +151,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
       </div>
 
       <div>
-        <label className="block text-xs uppercase font-bold text-neutral-500 mb-2">
+        <label className="block text-xs font-bold text-neutral-500 mb-2">
           {en ? 'Select Donation Amount' : '选择捐款金额'}
         </label>
         <div className="grid grid-cols-4 gap-3">
@@ -421,7 +421,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
       />
 
       <fieldset>
-        <legend className="block text-xs uppercase font-bold text-neutral-500 mb-2">
+        <legend className="block text-xs font-bold text-neutral-500 mb-2">
           {en ? 'Areas of Interest' : '感兴趣的志愿领域'}
         </legend>
         <div className="flex flex-wrap gap-2">
@@ -440,7 +440,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
       </fieldset>
 
       <fieldset>
-        <legend className="block text-xs uppercase font-bold text-neutral-500 mb-2">
+        <legend className="block text-xs font-bold text-neutral-500 mb-2">
           {en ? 'Availability' : '可服务时间'}
         </legend>
         <div className="flex flex-wrap gap-2">

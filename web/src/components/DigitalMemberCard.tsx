@@ -270,7 +270,7 @@ export function DigitalMemberCard({
             </div>
           </div>
 
-          <span className="text-[10px] font-semibold uppercase px-2.5 py-0.5 rounded-full bg-white/15 text-neutral-200">
+          <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 text-neutral-200">
             {shortTier}
           </span>
         </div>
@@ -278,7 +278,7 @@ export function DigitalMemberCard({
         {/* Member Name */}
         <div className="py-6 space-y-4">
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-neutral-400">
+            <div className="text-[10px] text-neutral-400">
               {lang === 'en' ? 'Cardholder Name' : '持卡人姓名'}
             </div>
             <div className="text-xl font-medium tracking-tight text-white mt-0.5 break-words">
@@ -294,13 +294,13 @@ export function DigitalMemberCard({
           {/* Member ID & Expires Grid */}
           <div className="grid grid-cols-2 gap-4 text-xs">
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-neutral-400">
+              <div className="text-[10px] text-neutral-400">
                 {lang === 'en' ? 'Member ID' : '会员编号'}
               </div>
               <div className="font-mono text-neutral-200 mt-0.5">{shortId}</div>
             </div>
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-neutral-400">
+              <div className="text-[10px] text-neutral-400">
                 {lang === 'en' ? 'Valid Through' : '有效期至'}
               </div>
               <div className="text-neutral-200 mt-0.5">{validThrough}</div>
@@ -397,7 +397,7 @@ export function DigitalMemberCard({
             </button>
 
             <div className="space-y-1 pt-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+              <div className="inline-flex items-center gap-1.5 text-emerald-700 text-xs font-semibold">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>{t('Scan to verify membership', '扫码实时验证会员资格')}</span>
               </div>

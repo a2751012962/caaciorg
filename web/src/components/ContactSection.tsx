@@ -153,7 +153,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
             className="lg:col-span-6 bg-white p-8 sm:p-10 rounded-2xl border border-neutral-200/80 shadow-xs will-change-transform"
           >
             <div className="mb-8 text-center">
-              <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-1">
+              <span className="text-xs font-semibold text-brick block mb-1">
                 Get In Touch · 联络我们
               </span>
               <h2
