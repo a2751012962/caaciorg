@@ -168,8 +168,7 @@ Every Tabler page links, in this order: `tabler.min.css` → `caaci-ui.css` (tok
 | --------------- | --------------------- | ----------------------------------------------- |
 | Site navigation | `.caaci-sitenav`      | admin header                                    |
 | Site header     | `.caaci-sitenav-site` | `member-src/_nav.html` (login, privacy, events) |
-| Hero band       | `.caaci-hero`         | `/membership/`, `/account/`                     |
-| Membership card | `.caaci-mcard2`       | `/account/` (rendered by `caaci-member.js`)     |
+| Hero band       | `.caaci-hero`         | event registration (`/events/<slug>/register/`) |
 | Long-form copy  | `.caaci-legal`        | `/privacy/`                                     |
 
 A page that needs something new gets a section here, written in tokens — not a

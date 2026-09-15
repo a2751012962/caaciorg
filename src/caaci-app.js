@@ -6,11 +6,11 @@
 //
 // Scope: the contact form, the donation checkout and accessibility repairs.
 // Membership sign-up, login, plan choice and the account page are NOT handled
-// here: build.mjs replaces /membership/, /account/ and /login-3/ with the
-// standalone Tabler pages (member-src/ + caaci-member.js) and turns every other
-// login / register / account route into a redirect stub, so no mirrored page can
-// reach that flow any more. Nothing in this module needs the Supabase client;
-// wireAuthNav only reads the session supabase-js already stored.
+// here: /membership/ and /account/ are the React site (web/), /login-3/ is a
+// standalone Tabler page (member-src/ + caaci-member.js), and build.mjs turns
+// every other login / register / account route into a redirect stub, so no
+// mirrored page can reach that flow any more. Nothing in this module needs the
+// Supabase client; wireAuthNav only reads the session supabase-js already stored.
 import { usd } from './caaci-shared.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -369,169 +369,6 @@ export function wireAuthNav() {
   }
 }
 
-// ---------- Festival registration promo (homepage + events page) ----------
-// The mirrored homepage and events calendar predate the Mid-Autumn Festival
-// registration form, so both link to it: a section right after the homepage
-// hero, and on the events page an "Upcoming Events" entry above "Latest Past
-// Events", in place of the calendar's "There are no upcoming events". Both
-// stop appearing once the festival is over, so nothing has to be removed by
-// hand.
-const FESTIVAL_PROMO = {
-  path: '/mid_autumn_festival_form/',
-  until: Date.parse('2026-09-28T00:00:00Z'), // 7:00 PM in Champaign, when the festival ends
-  date: '2026-09-27',
-  venue: 'Siebel Center for Design',
-  en: {
-    eyebrow: 'Sun, Sept 27 · 2–7 PM · Siebel Center for Design',
-    title: 'Mid-Autumn Festival registration is open',
-    text: 'Register for the festival, and create a free CAACI account by 2:00 PM Central Time on September 27 to pick up a free mooncake.',
-    cta: 'Register now',
-    upcoming: 'Upcoming Events',
-    event: 'Mid-Autumn Festival',
-    month: 'Sep',
-    when: 'September 27, 2026 @ 2:00 pm - 7:00 pm',
-  },
-  zh: {
-    eyebrow: '9月27日（周日）下午2点–7点 · Siebel Center for Design',
-    title: '中秋节活动报名中',
-    text: '欢迎报名参加中秋节活动。9月27日下午2点（美国中部时间）前报名并注册 CAACI 网站账户，现场免费领一份月饼。',
-    cta: '立即报名',
-    upcoming: '即将举行的活动',
-    event: '中秋节活动',
-    month: '9 月',
-    // The same date format the calendar uses for the past events below.
-    when: '9 月 27, 2026 @ 2:00 下午 - 7:00 下午',
-  },
-};
-
-function promoNode(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text) node.textContent = text;
-  // TranslatePress on the /zh/ pages blanks text it sees appear (see
-  // wireAuthNav); mark every node that carries copy, not just the outer one.
-  node.setAttribute('data-no-dynamic-translation', '');
-  return node;
-}
-
-// Built from the homepage's own Divi section / row / column / text-module
-// markup (two half columns, like the "Welcome" section below it), so Divi lays
-// it out and stacks it on phones. The numbered classes (et_pb_section_1,
-// et_pb_row_2, et_pb_text_4…) are left out: they carry one-off rules for those
-// modules, such as a -65px row margin.
-function festivalSection(copy, href) {
-  const textModule = (...children) => {
-    const inner = promoNode('div', 'et_pb_text_inner');
-    inner.append(...children);
-    const module = promoNode(
-      'div',
-      'et_pb_module et_pb_text et_pb_text_align_left et_pb_bg_layout_light',
-    );
-    module.append(inner);
-    return module;
-  };
-  const cta = promoNode('a', 'caaci-btn', `${copy.cta} →`);
-  cta.href = href;
-
-  const left = promoNode('div', 'et_pb_column et_pb_column_1_2');
-  left.append(
-    textModule(
-      promoNode('div', 'caaci-promo-eyebrow', copy.eyebrow),
-      promoNode('h2', '', copy.title),
-    ),
-  );
-  const right = promoNode('div', 'et_pb_column et_pb_column_1_2 et-last-child');
-  right.append(textModule(promoNode('p', '', copy.text), cta));
-  // The "Welcome" row's wider gutter, so the columns line up with it too.
-  const row = promoNode('div', 'et_pb_row et_pb_gutters4');
-  row.append(left, right);
-  const section = promoNode('div', 'caaci-promo et_pb_section et_section_regular');
-  section.append(row);
-  return section;
-}
-
-// Built from the same markup and classes as the calendar's past-event rows,
-// so the calendar's own CSS gives it their look.
-function festivalUpcomingEvent(copy, href) {
-  const p = 'tribe-events-calendar-latest-past';
-  const section = promoNode('div', `caaci-promo-upcoming ${p}`);
-  const row = promoNode('div', `tribe-common-g-row ${p}__event-row`);
-
-  const tag = promoNode('div', `${p}__event-date-tag tribe-common-g-col`);
-  const tagTime = promoNode('time', `${p}__event-date-tag-datetime`);
-  tagTime.setAttribute('datetime', FESTIVAL_PROMO.date);
-  tagTime.setAttribute('aria-hidden', 'true');
-  tagTime.append(
-    promoNode('span', `${p}__event-date-tag-month`, copy.month),
-    promoNode(
-      'span',
-      `${p}__event-date-tag-daynum tribe-common-h5 tribe-common-h4--min-medium`,
-      '27',
-    ),
-    promoNode('span', `${p}__event-date-tag-year`, '2026'),
-  );
-  tag.append(tagTime);
-
-  const when = promoNode('time', `${p}__event-datetime`, copy.when);
-  when.setAttribute('datetime', FESTIVAL_PROMO.date);
-  const whenWrapper = promoNode('div', `${p}__event-datetime-wrapper tribe-common-b2`);
-  whenWrapper.append(when);
-  const titleLink = promoNode('a', `${p}__event-title-link tribe-common-anchor-thin`, copy.event);
-  titleLink.href = href;
-  const title = promoNode('h3', `${p}__event-title tribe-common-h6 tribe-common-h4--min-medium`);
-  title.append(titleLink);
-  const header = promoNode('header', `${p}__event-header`);
-  header.append(
-    whenWrapper,
-    title,
-    promoNode('div', 'tribe-common-b2 tribe-common-b2--bold', FESTIVAL_PROMO.venue),
-  );
-
-  // Unlike the past rows, no tribe-common-a11y-hidden: the calendar hides
-  // those descriptions on phones, and the mooncake rule has to stay readable.
-  const description = promoNode('div', `${p}__event-description tribe-common-b2`);
-  description.append(promoNode('p', '', copy.text));
-  const cta = promoNode('a', 'tribe-common-c-btn caaci-promo-upcoming-cta', `${copy.cta} →`);
-  cta.href = href;
-
-  const details = promoNode('div', `${p}__event-details tribe-common-g-col`);
-  details.append(header, description, cta);
-  const event = promoNode('article', `${p}__event tribe-common-g-row tribe-common-g-row--gutters`);
-  event.append(details);
-  const wrapper = promoNode('div', `${p}__event-wrapper tribe-common-g-col`);
-  wrapper.append(event);
-  row.append(tag, wrapper);
-
-  section.append(
-    promoNode('h2', `${p}__heading tribe-common-h5 tribe-common-h3--min-medium`, copy.upcoming),
-    row,
-  );
-  return section;
-}
-
-export function wireFestivalPromo(now = Date.now()) {
-  if (now > FESTIVAL_PROMO.until || document.querySelector('.caaci-promo, .caaci-promo-upcoming'))
-    return;
-  const path = location.pathname;
-  const zh = /^\/zh(\/|$)/.test(path);
-  const copy = FESTIVAL_PROMO[zh ? 'zh' : 'en'];
-  // Open the form in the language of the page the visitor is reading.
-  const href = `${FESTIVAL_PROMO.path}?lang=${zh ? 'zh' : 'en'}`;
-
-  if (/^\/(zh\/?)?$/.test(path)) {
-    const hero = document.querySelector('.et_pb_section_0');
-    if (hero) hero.after(festivalSection(copy, href));
-  } else if (/^\/(zh\/)?events\/?$/.test(path)) {
-    const past = document.querySelector('.tribe-events-calendar-latest-past');
-    if (!past) return;
-    past.before(festivalUpcomingEvent(copy, href));
-    // With an upcoming event listed, "There are no upcoming events" (the
-    // desktop and the mobile copy) would contradict it.
-    for (const notice of document.querySelectorAll('.tribe-events-header__messages'))
-      notice.style.display = 'none';
-  }
-}
-
 // ---------- Bootstrap ----------
 // Runs every wiring fn. Each is feature-detected + isolated so a missing form
 // just no-ops and one failing page never blocks the others.
@@ -541,7 +378,6 @@ export function init() {
     wireAuthNav,
     wireClickableModules,
     wireBusinessServiceTiles,
-    wireFestivalPromo,
     wireDonate,
     wireContact,
   ]) {
