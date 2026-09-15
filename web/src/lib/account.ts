@@ -250,6 +250,69 @@ export function errorText(res: ApiResult<unknown>, lang: Lang): string {
   return e ? String(e) : t('Something went wrong — please try again.', '出错了，请重试。');
 }
 
+// ---------- actions with no backend yet (lib/features.ts) ----------
+// The flagged account features call these and nothing else, so each one is the
+// single place to wire its endpoint (see the flag's comment for what to build).
+// Until then they answer not_available and send nothing: no Supabase write
+// (members and rsvps are not browser-writable since 0014 / 0013) and no request.
+export type AccountActionError = 'not_available';
+// `error?: never` on success keeps `res.error` typed without strictNullChecks
+// (web/tsconfig.json is not strict, so `ok` alone does not narrow the union).
+export type AccountActionResult =
+  { ok: true; error?: never } | { ok: false; error: AccountActionError };
+
+const notAvailable = async (): Promise<AccountActionResult> => ({
+  ok: false,
+  error: 'not_available',
+});
+
+// Every error an action can answer needs its bilingual message here.
+const ACTION_ERRORS: Record<AccountActionError, [en: string, zh: string]> = {
+  not_available: [
+    'Not available yet — this is still being set up, so nothing was saved or sent.',
+    '暂未开放——此功能仍在建设中，未保存或提交任何内容。',
+  ],
+};
+
+export const actionErrorText = (error: AccountActionError, lang: Lang): string =>
+  tr(lang)(...ACTION_ERRORS[error]);
+
+// Contact details a member may change themselves. Only `phone` is a members
+// column today; the others need the migration listed at FEATURES.profileEdit.
+export interface ProfileUpdate {
+  phone: string;
+  secondary_phone: string;
+  wechat: string;
+  mailing_address: string;
+  interests: string;
+}
+
+// FEATURES.profileEdit. To wire: e.g. api('/api/profile', update, { auth: true }).
+export function updateProfile(update: ProfileUpdate): Promise<AccountActionResult> {
+  void update;
+  return notAvailable();
+}
+
+export interface EventFeedbackInput {
+  event_id: string;
+  rating: number; // 1–5
+  tags: string[]; // tag ids from pages/account/EventFeedback.tsx
+  comment: string;
+}
+
+// FEATURES.eventFeedback. To wire: e.g. api('/api/event-feedback', input, { auth: true }).
+export function submitEventFeedback(input: EventFeedbackInput): Promise<AccountActionResult> {
+  void input;
+  return notAvailable();
+}
+
+// FEATURES.rsvpCancel. To wire: e.g.
+// api('/api/rsvp', { event_id: eventId }, { method: 'DELETE', auth: true }).
+export function cancelRsvp(eventId: string): Promise<AccountActionResult> {
+  void eventId;
+  return notAvailable();
+}
+
 // ---------- Apple Wallet ----------
 // GET answers 204 only once the signing certificates are configured. Probed
 // once per page load however many card components mount.
