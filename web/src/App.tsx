@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { Modals, type ModalType } from './components/Modals';
@@ -7,15 +7,27 @@ import { initSmoothScroll, destroySmoothScroll, scrollToTop } from './utils/smoo
 import { AuthProvider, loginUrl, useAuth } from './lib/auth';
 import { initialLang, isZhPath, storeLang, type Lang } from './lib/lang';
 
-// Subpages
+// The home page ships in the main bundle; every other page loads on first visit.
 import { HomePage } from './pages/HomePage';
-import { AboutPage } from './pages/AboutPage';
-import { EventsPage } from './pages/EventsPage';
-import { MembershipPage } from './pages/MembershipPage';
-import { AccountPage } from './pages/AccountPage';
-import { ResourcesPage } from './pages/ResourcesPage';
-import { CommunityCalendarPage } from './pages/CommunityCalendarPage';
-import { BusinessServicesPage } from './pages/BusinessServicesPage';
+const AboutPage = lazy(() => import('./pages/AboutPage').then((m) => ({ default: m.AboutPage })));
+const EventsPage = lazy(() =>
+  import('./pages/EventsPage').then((m) => ({ default: m.EventsPage })),
+);
+const MembershipPage = lazy(() =>
+  import('./pages/MembershipPage').then((m) => ({ default: m.MembershipPage })),
+);
+const AccountPage = lazy(() =>
+  import('./pages/AccountPage').then((m) => ({ default: m.AccountPage })),
+);
+const ResourcesPage = lazy(() =>
+  import('./pages/ResourcesPage').then((m) => ({ default: m.ResourcesPage })),
+);
+const CommunityCalendarPage = lazy(() =>
+  import('./pages/CommunityCalendarPage').then((m) => ({ default: m.CommunityCalendarPage })),
+);
+const BusinessServicesPage = lazy(() =>
+  import('./pages/BusinessServicesPage').then((m) => ({ default: m.BusinessServicesPage })),
+);
 
 export type PageId =
   | 'home'
@@ -164,14 +176,7 @@ function Site() {
       case 'membership':
         return <MembershipPage {...pageProps} />;
       case 'account':
-        return (
-          <AccountPage
-            {...pageProps}
-            isLoggedIn={!!auth.user}
-            onLogin={() => window.location.assign(loginUrl())}
-            onLogout={handleLogout}
-          />
-        );
+        return <AccountPage {...pageProps} onLogout={handleLogout} />;
       case 'resources':
         return <ResourcesPage {...pageProps} />;
       case 'community-calendar':
@@ -203,7 +208,9 @@ function Site() {
         onLogout={handleLogout}
       />
 
-      <main className="flex-1">{renderCurrentPage()}</main>
+      <main className="flex-1">
+        <Suspense fallback={<div className="min-h-[70vh]" />}>{renderCurrentPage()}</Suspense>
+      </main>
 
       <Footer content={content} onOpenModal={handleOpenModal} onNavigate={navigateTo} />
 

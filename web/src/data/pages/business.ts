@@ -57,13 +57,6 @@ export interface BusinessServicesContent {
     value: string;
     label: string;
   }[];
-  tabs: {
-    id: string;
-    title: string;
-    heading: string;
-    content: string[];
-    actionText?: string;
-  }[];
   merchants: BusinessMerchant[];
   events: BusinessEventItem[];
   sponsorTiers: BusinessSponsorTier[];
@@ -79,52 +72,6 @@ export const businessServicesDataEN: BusinessServicesContent = {
     { value: '$7.5K - $15K', label: 'Chamber Microloan Support' },
     { value: '2.5% - 3%', label: 'Low Interest Microloan Rate' },
     { value: '{price}/yr', label: 'Business Directory Fee' },
-  ],
-  tabs: [
-    {
-      id: 'directory',
-      title: 'Business Directory',
-      heading: 'CAACI Local Chinese Business Directory',
-      content: [
-        'The Chinese American Association of Central Illinois (CAACI) features an official Business Directory to support and promote local Chinese businesses across Urbana, Champaign, and Central Illinois.',
-        'The directory increases publicity for participating businesses, fosters connections with community members, and provides opportunities for networking and development.',
-        'Categories include authentic restaurants, beverage shops, dental offices, education consulting, financial services, accounting firms, real estate, insurance, and media production.',
-      ],
-      actionText: 'Explore Directory',
-    },
-    {
-      id: 'microloan',
-      title: 'Chamber Microloan',
-      heading: 'Champaign County Chamber Microloan Program',
-      content: [
-        'Featured by CAACI in our Business Services section: The Champaign County Chamber Microloan Program provides accessible financial support for Champaign County entrepreneurs, with a focus on minority and women-owned businesses.',
-        'Borrowers can receive up to $7,500 (with some programs up to $15,000) with flexible repayment terms spanning five years and low interest rates not exceeding 3.0% (2.5% with automatic monthly repayment).',
-        'Eligibility requires a registered EIN, good standing with the Illinois Secretary of State, and a completed one-page business plan. The program prioritizes character, reputation, and capacity to repay over strict conventional collateral.',
-      ],
-      actionText: 'Chamber Loan Details',
-    },
-    {
-      id: 'events',
-      title: 'Career & Commercial Events',
-      heading: 'All-State Agencies Job Fair & Community Opportunities',
-      content: [
-        'CAACI partners with state and local institutions to bring meaningful professional and employment opportunities to community members.',
-        'In partnership with the Illinois Department of Public Health (IDPH), CAACI co-hosts the All-State Agencies Job Fair at the Siebel Center for Design on the UIUC campus.',
-        'Job seekers connect directly with recruiters from Illinois state government agencies, receive resume tips, and explore civil service career pathways.',
-      ],
-      actionText: 'View Upcoming Event',
-    },
-    {
-      id: 'registration',
-      title: 'Directory Membership',
-      heading: 'Join the CAACI Business Directory',
-      content: [
-        'Local businesses can join the CAACI Business Directory for $100 per year ($103.50 if paying by credit card with convenience fee).',
-        'Membership is on a rolling basis with the anniversary date set to the joining date.',
-        'Payments can be made via check payable to CAACI (Mailing Address: P.O. Box 2276, Champaign, IL 61825-2136) or credit card. For directory registration and inquiries, contact caaci.org@gmail.com.',
-      ],
-      actionText: 'Register Business',
-    },
   ],
   merchants: [
     {
@@ -319,52 +266,6 @@ export const businessServicesDataZH: BusinessServicesContent = {
     { value: '$7,500 - $15,000', label: '商会小额贷款扶持额度' },
     { value: '2.5% - 3%', label: '扶持性低息贷款年化利率' },
     { value: '{price}/年', label: '商户名录入驻年度会费' },
-  ],
-  tabs: [
-    {
-      id: 'directory',
-      title: '商业名录',
-      heading: 'CAACI 官方认证华人商业名录',
-      content: [
-        '美中伊利诺伊华人协会（CAACI）官方网站开设“商业名录（Business Directory）”，旨在扶持与推广厄巴纳、香槟及伊利诺伊中部地区的华人企业与商户。',
-        '入驻名录可有效提升商户在本地社区的知名度与美誉度，促进与华人家庭、留学生及主流社区的沟通对接，并获得商会管理培训及政府扶持资金信息。',
-        '名录主要分为餐饮（Restaurant）与服务（Service）两大板块，涵盖地道风味餐厅、茶饮简餐、牙科诊所、信用社金融、会计报税、房地产经纪、保险顾问、留学咨询与影视摄制等领域。',
-      ],
-      actionText: '浏览名录商户',
-    },
-    {
-      id: 'microloan',
-      title: '商会小额贷款',
-      heading: '香槟县商会小额贷款扶持计划 (Microloan Program)',
-      content: [
-        'CAACI 官网重点推荐的商业扶持资源：香槟县商会小额贷款项目（Champaign County Chamber Microloan Program）为香槟县创业者和小微企业提供低息资金支持，特别重点扶持少数族裔与女性拥有的商业项目。',
-        '贷款额度最高可达 $7,500（部分项目最高可达 $15,000），还款期长达 5 年，年化利率不超过 3.0%（绑定每月自动还款可享 2.5% 优惠利率）。',
-        '申请要求：在香槟县合法经营、持有联邦雇主识别号（EIN）、在伊利诺伊州务卿办公室良好合规注册，并提交一份单页商业计划书/申请表。评审注重申请人信用声誉与还款能力，无需复杂繁重的传统抵押物。',
-      ],
-      actionText: '查看商会贷款政策',
-    },
-    {
-      id: 'events',
-      title: '经贸活动与招聘',
-      heading: '伊利诺伊全州政府机构招聘会',
-      content: [
-        'CAACI 携手主流机构与州政府部门，为社区成员和青年毕业生提供就业与职业发展支持。',
-        '由 CAACI 与伊利诺伊州公共卫生部（IDPH）联合主办的“全州政府机构招聘会（All-State Agencies Job Fair）”在伊利诺伊大学厄巴纳-香槟分校（UIUC）Siebel 设计中心举行。',
-        '求职者可直接与各州政府机构招聘专员面对面沟通，了解公务员公职机会，并免费获取现场简历辅导与面试建议。',
-      ],
-      actionText: '查看招聘会详情',
-    },
-    {
-      id: 'registration',
-      title: '商户入驻申请',
-      heading: '商户加入名录政策与会费说明',
-      content: [
-        'CAACI 商业名录面向本地商户开放申请，仅加入名录商户会费为 $100/年（如使用信用卡支付需另加 3.5% 手续费，合计 $103.50）。',
-        '会员资格按滚动周期计算，到期日为加入之日起满一整年。',
-        '付款方式可邮寄支票（抬头写 CAACI，邮寄地址：P.O. Box 2276, Champaign, IL 61825-2136）或通过官方邮箱联络线上刷卡。商户登记请发送邮件至 caaci.org@gmail.com。',
-      ],
-      actionText: '申请商户入驻',
-    },
   ],
   merchants: [
     {
