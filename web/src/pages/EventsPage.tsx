@@ -91,6 +91,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [rsvp, setRsvp] = useState<Record<string, RsvpState>>({});
   const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
+  const copiedTimer = useRef<number | undefined>(undefined);
   const [feedback, setFeedback] = useState<{ message: string; key: number }>();
   const [isNavVisible, setIsNavVisible] = useState<boolean>(true);
   const lastScrollY = useRef(0);
@@ -202,7 +203,11 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
       if (!navigator.clipboard) throw new Error('clipboard unavailable');
       await navigator.clipboard.writeText(url);
       setCopiedEventId(id);
-      window.setTimeout(() => setCopiedEventId((cur) => (cur === id ? null : cur)), 2000);
+      window.clearTimeout(copiedTimer.current);
+      copiedTimer.current = window.setTimeout(
+        () => setCopiedEventId((cur) => (cur === id ? null : cur)),
+        2000,
+      );
     } catch {
       window.prompt(en ? 'Copy this link:' : '复制此链接：', url);
     }
@@ -564,13 +569,11 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                   >
                     <MorphIcon
                       icon={copiedEventId === spotlightEvent.ev.id ? CheckData : ShareData}
-                      spring="snappy"
-                      className={`w-4 h-4 ${copiedEventId === spotlightEvent.ev.id ? 'text-emerald-400' : 'text-white/80'}`}
+                      spring="smooth"
+                      className={`w-4 h-4 ${copiedEventId === spotlightEvent.ev.id ? 'text-white' : 'text-white/80'}`}
                     />
                     {copiedEventId === spotlightEvent.ev.id ? (
-                      <span className="text-emerald-300">
-                        {lang === 'en' ? 'Link Copied' : '链接已复制'}
-                      </span>
+                      <span>{lang === 'en' ? 'Link Copied' : '链接已复制'}</span>
                     ) : (
                       <span>{lang === 'en' ? 'Share' : '分享'}</span>
                     )}
@@ -1014,7 +1017,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   onClick={() => shareUpcoming(event)}
                                   className={`h-8 px-2.5 min-[420px]:px-3 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer inline-flex items-center justify-center gap-1.5 shrink-0 shadow-xs active:scale-95 whitespace-nowrap ${
                                     isCopied
-                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-300'
+                                      ? 'bg-neutral-100 text-neutral-900 border border-neutral-300'
                                       : 'border border-neutral-200 bg-white text-neutral-600 hover:text-neutral-900'
                                   }`}
                                   title={lang === 'en' ? 'Share' : '分享'}
@@ -1022,11 +1025,11 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 >
                                   <MorphIcon
                                     icon={isCopied ? CheckData : ShareData}
-                                    spring="snappy"
-                                    className={`w-3.5 h-3.5 ${isCopied ? 'text-emerald-600' : 'text-neutral-500'}`}
+                                    spring="smooth"
+                                    className={`w-3.5 h-3.5 ${isCopied ? 'text-neutral-900' : 'text-neutral-500'}`}
                                   />
                                   {isCopied ? (
-                                    <span className="hidden min-[420px]:inline font-semibold text-emerald-700">
+                                    <span className="hidden min-[420px]:inline font-semibold">
                                       {lang === 'en' ? 'Copied' : '已复制'}
                                     </span>
                                   ) : (
@@ -1058,18 +1061,18 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 onClick={() => shareUpcoming(event)}
                                 className={`w-full min-h-[32px] text-xs font-medium rounded-full transition-all duration-200 cursor-pointer inline-flex items-center justify-center gap-1.5 shrink-0 shadow-xs active:scale-95 ${
                                   isCopied
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 ring-1 ring-emerald-300/50'
+                                    ? 'bg-neutral-100 text-neutral-900 border border-neutral-300'
                                     : 'border border-neutral-200 bg-white text-neutral-600 hover:text-neutral-900 hover:border-neutral-400'
                                 }`}
                                 title={lang === 'en' ? 'Share event' : '分享活动'}
                               >
                                 <MorphIcon
                                   icon={isCopied ? CheckData : ShareData}
-                                  spring="snappy"
-                                  className={`w-3.5 h-3.5 ${isCopied ? 'text-emerald-600' : 'text-neutral-400'}`}
+                                  spring="smooth"
+                                  className={`w-3.5 h-3.5 ${isCopied ? 'text-neutral-900' : 'text-neutral-400'}`}
                                 />
                                 {isCopied ? (
-                                  <span className="font-semibold text-emerald-700">
+                                  <span className="font-semibold">
                                     {lang === 'en' ? 'Copied' : '已复制'}
                                   </span>
                                 ) : (
@@ -1280,7 +1283,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   onClick={() => sharePast(event.id)}
                                   className={`h-8 px-2.5 min-[420px]:px-3.5 text-xs font-medium rounded-full transition-all duration-200 cursor-pointer inline-flex items-center justify-center gap-1.5 shrink-0 shadow-xs active:scale-95 whitespace-nowrap ${
                                     isCopied
-                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-300'
+                                      ? 'bg-neutral-100 text-neutral-900 border border-neutral-300'
                                       : 'border border-neutral-200 bg-white text-neutral-600 hover:text-neutral-900'
                                   }`}
                                   title={lang === 'en' ? 'Share' : '分享'}
@@ -1288,11 +1291,11 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 >
                                   <MorphIcon
                                     icon={isCopied ? CheckData : ShareData}
-                                    spring="snappy"
-                                    className={`w-3.5 h-3.5 ${isCopied ? 'text-emerald-600' : 'text-neutral-500'}`}
+                                    spring="smooth"
+                                    className={`w-3.5 h-3.5 ${isCopied ? 'text-neutral-900' : 'text-neutral-500'}`}
                                   />
                                   {isCopied ? (
-                                    <span className="hidden min-[420px]:inline font-semibold text-emerald-700">
+                                    <span className="hidden min-[420px]:inline font-semibold">
                                       {lang === 'en' ? 'Copied' : '已复制'}
                                     </span>
                                   ) : (
@@ -1333,18 +1336,18 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 onClick={() => sharePast(event.id)}
                                 className={`w-full min-h-[34px] text-xs font-medium rounded-full transition-all duration-200 cursor-pointer inline-flex items-center justify-center gap-1.5 shrink-0 shadow-xs active:scale-95 ${
                                   isCopied
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 ring-1 ring-emerald-300/50'
+                                    ? 'bg-neutral-100 text-neutral-900 border border-neutral-300'
                                     : 'border border-neutral-200 bg-white text-neutral-600 hover:text-neutral-900 hover:border-neutral-300'
                                 }`}
                                 title={lang === 'en' ? 'Share archive' : '分享此活动档案'}
                               >
                                 <MorphIcon
                                   icon={isCopied ? CheckData : ShareData}
-                                  spring="snappy"
-                                  className={`w-3.5 h-3.5 ${isCopied ? 'text-emerald-600' : 'text-neutral-400'}`}
+                                  spring="smooth"
+                                  className={`w-3.5 h-3.5 ${isCopied ? 'text-neutral-900' : 'text-neutral-400'}`}
                                 />
                                 {isCopied ? (
-                                  <span className="font-semibold text-emerald-700">
+                                  <span className="font-semibold">
                                     {lang === 'en' ? 'Copied' : '已复制'}
                                   </span>
                                 ) : (
