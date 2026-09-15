@@ -43,7 +43,12 @@ export interface CAACIContent {
     messagePlaceholder: string;
     submitBtn: string;
     sending: string;
+    sentTitle: string;
     sentSuccess: string;
+    sendAnother: string;
+    requiredError: string;
+    sendFailed: string;
+    networkError: string;
     addressLine1: string;
     addressLine2: string;
     email: string;
@@ -52,12 +57,12 @@ export interface CAACIContent {
     copyright: string;
     quickLinks: string;
     aboutText: string;
+    nonProfit: string;
+    facebook: string;
   };
   modals: {
     donateTitle: string;
     donateDesc: string;
-    eventsTitle: string;
-    membershipTitle: string;
     close: string;
   };
 }
@@ -128,7 +133,13 @@ export const contentEN: CAACIContent = {
     messagePlaceholder: 'Message',
     submitBtn: 'SEND',
     sending: 'SENDING...',
-    sentSuccess: 'Thank you! Your message has been sent to caaci.org@gmail.com.',
+    sentTitle: 'Message Received!',
+    sentSuccess:
+      'Thank you! Your message has been sent to CAACI. We will get back to you by email.',
+    sendAnother: 'Send Another Message',
+    requiredError: 'Please fill in all required fields (Name, Email, Message).',
+    sendFailed: 'Sorry, your message could not be sent. Please try again, or email us directly.',
+    networkError: 'Network error. Please check your connection and try again.',
     addressLine1: 'P.O. Box 2276',
     addressLine2: 'Champaign, IL 61825-2136',
     email: 'caaci.org@gmail.com',
@@ -138,13 +149,13 @@ export const contentEN: CAACIContent = {
     quickLinks: 'Quick Links',
     aboutText:
       'A community not-for-profit organization dedicated to fostering cultural exchange, professional development, and mutual assistance in the Champaign-Urbana area.',
+    nonProfit: 'Not-for-profit organization',
+    facebook: 'CAACI on Facebook',
   },
   modals: {
     donateTitle: 'Make A Donation to CAACI',
     donateDesc:
-      'Your tax-deductible contribution supports our community festivals, educational workshops, senior assistance, and youth cultural programs.',
-    eventsTitle: 'CAACI Community Events',
-    membershipTitle: 'Become A CAACI Member',
+      'Your contribution supports our community festivals, educational workshops, senior assistance, and youth cultural programs.',
     close: 'Close',
   },
 };
@@ -214,7 +225,12 @@ export const contentZH: CAACIContent = {
     messagePlaceholder: '留言内容',
     submitBtn: '发送留言',
     sending: '发送中...',
-    sentSuccess: '非常感谢！您的信息已成功发送至 caaci.org@gmail.com。',
+    sentTitle: '留言已收到！',
+    sentSuccess: '非常感谢！您的留言已发送给华人协会，我们会通过邮件回复您。',
+    sendAnother: '再发一条留言',
+    requiredError: '请填写所有必填项（姓名、电子邮箱、留言内容）。',
+    sendFailed: '抱歉，留言发送失败。请重试，或直接发邮件联系我们。',
+    networkError: '网络错误，请检查网络连接后重试。',
     addressLine1: 'P.O. Box 2276',
     addressLine2: 'Champaign, IL 61825-2136',
     email: 'caaci.org@gmail.com',
@@ -224,13 +240,12 @@ export const contentZH: CAACIContent = {
     quickLinks: '快捷导航',
     aboutText:
       '致力于在香槟-厄巴纳地区促进中华文化交流、专业职业发展与华人同胞互助共荣的非营利性社区组织。',
+    nonProfit: '非营利组织',
+    facebook: 'CAACI Facebook 主页',
   },
   modals: {
     donateTitle: '向 CAACI 捐赠支持',
-    donateDesc:
-      '您的免税捐款将直接用于资助传统文化节日、青年与老人福利项目、教育讲座与社区公共服务。',
-    eventsTitle: 'CAACI 社区活动精选',
-    membershipTitle: '加入 CAACI 会员',
+    donateDesc: '您的捐款将直接用于资助传统文化节日、青年与老人福利项目、教育讲座与社区公共服务。',
     close: '关闭',
   },
 };

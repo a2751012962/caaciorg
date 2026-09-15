@@ -155,15 +155,15 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
           <div>{content.footer.copyright}</div>
           <div className="flex items-center gap-4">
             <a
-              href="https://www.facebook.com/groups/caaci/"
+              href="https://www.facebook.com/profile.php?id=61558646710024"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[#d3a971] hover:underline"
             >
-              CAACI Facebook Community
+              {content.footer.facebook}
             </a>
             <span>•</span>
-            <span>Non-Profit 501(c)(3)</span>
+            <span>{content.footer.nonProfit}</span>
           </div>
         </div>
       </div>

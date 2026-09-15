@@ -3,26 +3,39 @@ import { Send, CheckCircle, Mail, MapPin } from 'lucide-react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type { CAACIContent } from '../data/content';
+import { api } from '../lib/api';
 
 gsap.registerPlugin(ScrollTrigger);
 
 interface ContactSectionProps {
   content: CAACIContent;
+  /** Puts `message` in the message box (e.g. feedback on a past event); a new `key` applies it again. */
+  prefill?: { message: string; key: number };
 }
 
-export function ContactSection({ content }: ContactSectionProps) {
+const EMPTY_FORM = { name: '', email: '', phone: '', message: '' };
+
+// Sends to /api/contact, which stores the message in form_submissions and
+// emails the CAACI inbox with the sender as reply-to.
+export function ContactSection({ content, prefill }: ContactSectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const leftColRef = useRef<HTMLDivElement>(null);
   const rightColRef = useRef<HTMLDivElement>(null);
+  const messageRef = useRef<HTMLTextAreaElement>(null);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    message: '',
-  });
-  const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [honeypot, setHoneypot] = useState('');
+  const [status, setStatus] = useState<'idle' | 'sending' | 'success'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (!prefill) return;
+    setStatus('idle');
+    setErrorMessage('');
+    setFormData((prev) => ({ ...prev, message: prefill.message }));
+    const timer = window.setTimeout(() => messageRef.current?.focus({ preventScroll: true }), 500);
+    return () => window.clearTimeout(timer);
+  }, [prefill]);
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -87,20 +100,43 @@ export function ContactSection({ content }: ContactSectionProps) {
     return () => ctx.revert();
   }, [content]);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
-      setErrorMessage('Please fill in all required fields (Name, Email, Message).');
+    if (status === 'sending') return;
+    const name = formData.name.trim();
+    const email = formData.email.trim();
+    const message = formData.message.trim();
+    if (!name || !email || !message) {
+      setErrorMessage(content.contact.requiredError);
       return;
     }
 
     setErrorMessage('');
     setStatus('sending');
-
-    setTimeout(() => {
+    const {
+      ok,
+      status: code,
+      data,
+    } = await api('/api/contact', {
+      name,
+      email,
+      phone: formData.phone.trim(),
+      message,
+      _hp: honeypot,
+    });
+    if (ok) {
       setStatus('success');
-      setFormData({ name: '', email: '', phone: '', message: '' });
-    }, 800);
+      setFormData(EMPTY_FORM);
+      return;
+    }
+    setStatus('idle');
+    setErrorMessage(
+      code === 0
+        ? content.contact.networkError
+        : code < 500 && data.error
+          ? data.error
+          : content.contact.sendFailed,
+    );
   };
 
   return (
@@ -129,10 +165,13 @@ export function ContactSection({ content }: ContactSectionProps) {
             </div>
 
             {status === 'success' ? (
-              <div className="p-8 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center space-y-3 animate-in fade-in">
+              <div
+                role="status"
+                className="p-8 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center space-y-3 animate-in fade-in"
+              >
                 <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto" />
                 <h4 className="font-semibold text-emerald-900 font-poppins text-lg">
-                  Message Received!
+                  {content.contact.sentTitle}
                 </h4>
                 <p className="text-emerald-700 font-poppins text-xs sm:text-sm leading-relaxed">
                   {content.contact.sentSuccess}
@@ -142,13 +181,16 @@ export function ContactSection({ content }: ContactSectionProps) {
                   onClick={() => setStatus('idle')}
                   className="mt-4 inline-block px-6 py-2.5 text-xs font-medium text-emerald-900 bg-white border border-emerald-300 rounded-full hover:bg-emerald-100 transition-colors cursor-pointer"
                 >
-                  Send Another Message
+                  {content.contact.sendAnother}
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="relative space-y-4">
                 {errorMessage && (
-                  <div className="p-3 bg-red-50 text-red-700 text-xs font-medium rounded-xl border border-red-200">
+                  <div
+                    role="alert"
+                    className="p-3 bg-red-50 text-red-700 text-xs font-medium rounded-xl border border-red-200"
+                  >
                     {errorMessage}
                   </div>
                 )}
@@ -161,6 +203,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                     id="contact-name"
                     type="text"
                     required
+                    autoComplete="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder={`${content.contact.namePlaceholder} *`}
@@ -176,6 +219,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                     id="contact-email"
                     type="email"
                     required
+                    autoComplete="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder={`${content.contact.emailPlaceholder} *`}
@@ -190,6 +234,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                   <input
                     id="contact-phone"
                     type="tel"
+                    autoComplete="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder={content.contact.phonePlaceholder}
@@ -203,6 +248,7 @@ export function ContactSection({ content }: ContactSectionProps) {
                   </label>
                   <textarea
                     id="contact-message"
+                    ref={messageRef}
                     required
                     rows={4}
                     value={formData.message}
@@ -212,11 +258,27 @@ export function ContactSection({ content }: ContactSectionProps) {
                   />
                 </div>
 
+                {/* Honeypot: people never see or fill it; /api/contact drops messages that have it. */}
+                <div
+                  aria-hidden="true"
+                  className="absolute -left-[9999px] top-0 w-px h-px overflow-hidden"
+                >
+                  <label htmlFor="contact-website">Website</label>
+                  <input
+                    id="contact-website"
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                  />
+                </div>
+
                 <div className="contact-input-field pt-2">
                   <button
                     type="submit"
                     disabled={status === 'sending'}
-                    className="w-full sm:w-auto px-8 py-3 font-poppins font-medium uppercase text-xs sm:text-sm tracking-wider text-white transition-all shadow-xs hover:bg-[#a63715] active:scale-98 flex items-center justify-center gap-2 rounded-full cursor-pointer bg-[#8e2e11]"
+                    className="w-full sm:w-auto px-8 py-3 font-poppins font-medium uppercase text-xs sm:text-sm tracking-wider text-white transition-all shadow-xs hover:bg-[#a63715] active:scale-98 flex items-center justify-center gap-2 rounded-full cursor-pointer bg-[#8e2e11] disabled:opacity-70 disabled:cursor-wait"
                   >
                     <Send className="w-4 h-4" />
                     <span>
@@ -236,10 +298,6 @@ export function ContactSection({ content }: ContactSectionProps) {
                 src="/images/contact-photo.jpg"
                 alt="CAACI Community Event"
                 className="w-full h-[280px] md:h-[320px] object-cover transition-transform duration-500 group-hover:scale-101"
-                onError={(e) => {
-                  e.currentTarget.src =
-                    'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80';
-                }}
               />
             </div>
 

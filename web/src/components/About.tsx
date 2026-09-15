@@ -99,10 +99,6 @@ export function About({ content, onNavigate }: AboutProps) {
                 src="/images/about-group.jpg"
                 alt="CAACI Members Group Gathering"
                 className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-[1.01]"
-                onError={(e) => {
-                  e.currentTarget.src =
-                    'https://images.unsplash.com/photo-1511632765486-a01980e01a18?auto=format&fit=crop&w=1200&q=80';
-                }}
               />
               <div className="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-2xl pointer-events-none" />
             </div>

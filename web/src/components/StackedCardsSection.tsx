@@ -35,7 +35,7 @@ const statements: GiantStatement[] = [
     descEn:
       'Cultivate understanding and appreciation of Chinese culture through signature festivals and heritage programs in Central Illinois.',
     actionZh: '查看近期活动',
-    actionEn: '查看近期活动',
+    actionEn: 'See upcoming events',
     targetPage: 'events',
   },
   {
@@ -47,7 +47,7 @@ const statements: GiantStatement[] = [
     descEn:
       'Promote the wellbeing of Chinese and Chinese Americans across Champaign-Urbana, empowering members to play an active role.',
     actionZh: '了解宗旨与使命',
-    actionEn: '了解宗旨与使命',
+    actionEn: 'Our mission',
     targetPage: 'about',
   },
   {
@@ -59,7 +59,7 @@ const statements: GiantStatement[] = [
     descEn:
       'Encourage meaningful communication, mutual respect, and lasting friendship between the Chinese community and diverse regional groups.',
     actionZh: '浏览社区资源',
-    actionEn: '浏览社区资源',
+    actionEn: 'Browse community resources',
     targetPage: 'resources',
   },
   {
@@ -71,7 +71,7 @@ const statements: GiantStatement[] = [
     descEn:
       'Provide local residents, scholars, and students with valuable opportunities to connect, share experiences, and grow together.',
     actionZh: '成为协会会员',
-    actionEn: '成为协会会员',
+    actionEn: 'Become a member',
     targetPage: 'membership',
   },
 ];
@@ -298,7 +298,7 @@ export function StackedCardsSection({
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#8e2e11]" />
             <span className="text-xs sm:text-sm font-mono font-bold tracking-widest text-[#8e2e11] uppercase">
-              CAACI · 1990 — 2026
+              CAACI · 2000 — {new Date().getFullYear()}
             </span>
           </div>
 
