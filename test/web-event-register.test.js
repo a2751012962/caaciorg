@@ -190,3 +190,10 @@ test('App.tsx serves the page at /event-register/ and /events/<slug>/register/',
   assert.match(src, /setRoute\(window\.location\.pathname \+ window\.location\.search\);/);
   assert.match(src, /<EventRegisterPage key=\{route\} \{\.\.\.pageProps\} \/>/);
 });
+
+test('the hero carries no Donate / Events / Membership banners, like the events page', async () => {
+  const src = await read('pages/EventRegisterPage.tsx');
+  const start = src.indexOf('<SubpageHero');
+  const hero = src.slice(start, src.indexOf('/>', start));
+  assert.match(hero, /showActionBanners=\{false\}/);
+});

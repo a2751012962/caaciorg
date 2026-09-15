@@ -910,6 +910,7 @@ export function EventRegisterPage({
         onOpenModal={onOpenModal}
         onNavigate={onNavigate}
         currentPage="events"
+        showActionBanners={false}
       />
 
       <motion.section
