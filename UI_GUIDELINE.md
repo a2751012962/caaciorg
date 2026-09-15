@@ -110,6 +110,7 @@ All custom UI is namespaced `.caaci-*` so it can never collide with Divi classes
 | `.caaci-btn`              | Filled brick button.                                                                                                                                | Primary actions                  |
 | `.caaci-volunteer-events` | Bordered `<fieldset>` of checkbox rows with a `<legend>`.                                                                                           | The `/volunteer/` event picker   |
 | `.caaci-check`            | Checkbox row, ≥44px tall so the whole row is a touch target. Wrap the label text in a `<span>`; add `.caaci-check-when` to the muted date after it. | Checkbox lists on mirrored pages |
+| `.caaci-hp`               | Off-screen honeypot input — visible to bots, never to people or screen readers (pair it with `tabindex="-1"` and `aria-hidden="true"`).             | Spam trap on mirrored forms      |
 
 ### Examples
 

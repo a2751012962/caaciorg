@@ -895,7 +895,7 @@ test('event-register GET: a DB error -> 500', async () => {
 // event_volunteers row (0021) next to the registration, source 'registration'.
 
 test('event-register POST: no volunteer field -> volunteer false and no event_volunteers call', async () => {
-  for (const volunteer of [undefined, null, false]) {
+  for (const volunteer of [undefined, null]) {
     const fetch = mockFetch(route());
     try {
       const r = await post({ ...VALID, volunteer });
@@ -905,6 +905,32 @@ test('event-register POST: no volunteer field -> volunteer false and no event_vo
     } finally {
       fetch.restore();
     }
+  }
+});
+
+test('event-register POST: volunteer false removes the sign-up, after the registration is saved', async () => {
+  const fetch = mockFetch(route({ volunteer: { name: 'Pat Lee', phone: null } }));
+  try {
+    const r = await post({ ...VALID, volunteer: false });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).volunteer, false);
+
+    // The page only sends `false` when the box it pre-filled was un-ticked, so
+    // this is the one way someone can take themselves off the list again.
+    const calls = volunteerCalls(fetch);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].options.method, 'DELETE');
+    assert.equal(
+      calls[0].url,
+      'https://db.example/rest/v1/event_volunteers?event_id=eq.e1&email=eq.pat%40example.com',
+    );
+    // The registration is what they came for: it is saved first either way.
+    assert.ok(
+      fetch.calls.indexOf(upsertCall(fetch)) < fetch.calls.indexOf(calls[0]),
+      'registration written before the sign-up is dropped',
+    );
+  } finally {
+    fetch.restore();
   }
 });
 
@@ -943,29 +969,54 @@ test('event-register POST: volunteer -> a registration row and a sign-up on (eve
     assert.equal((await r.json()).volunteer, true);
 
     const calls = volunteerCalls(fetch);
-    assert.equal(calls.length, 1);
+    // One read (what source is already on the row?) and one upsert.
+    assert.equal(calls.length, 2);
+    const write = calls.find((c) => c.options.method === 'POST');
     assert.equal(
-      calls[0].url,
+      write.url,
       'https://db.example/rest/v1/event_volunteers?on_conflict=event_id,email',
     );
-    assert.equal(
-      calls[0].options.headers.prefer,
-      'resolution=merge-duplicates,return=representation',
-    );
+    assert.equal(write.options.headers.prefer, 'resolution=merge-duplicates,return=representation');
     const { updated_at, ...row } = volunteerUpsertBody(fetch);
     assert.deepEqual(row, {
       event_id: 'e1',
       name: 'Pat Lee',
       email: 'pat@example.com',
       phone: '217-555-0101',
-      message: null,
       source: 'registration',
     });
-    for (const key of ['created_at', 'member_id'])
+    // This form has no message field, so it must not send one: a null would
+    // wipe the "how I can help" note the same person left on /volunteer/.
+    for (const key of ['created_at', 'member_id', 'message'])
       assert.equal(key in row, false, `${key} is never sent`);
     assert.ok(Date.parse(updated_at) >= before - 1000 && Date.parse(updated_at) <= Date.now());
   } finally {
     fetch.restore();
+  }
+});
+
+test('event-register POST: an existing volunteer-page sign-up keeps its source', async () => {
+  for (const [existing, source] of [
+    [{ source: 'volunteer' }, 'volunteer'],
+    [{ source: 'registration' }, 'registration'],
+    [null, 'registration'],
+  ]) {
+    const fetch = mockFetch(route({ volunteer: existing }));
+    try {
+      const r = await post({ ...VALID, volunteer: { name: 'Pat Lee' } });
+      assert.equal(r.status, 200);
+      // An upsert has to send source, so without reading the row first this
+      // box would relabel a /volunteer/ sign-up as a registration one and the
+      // admin list would credit the wrong form.
+      assert.equal(volunteerUpsertBody(fetch).source, source);
+      const read = volunteerCalls(fetch).find((c) => c.options.method !== 'POST');
+      assert.match(
+        decodeURIComponent(read.url),
+        /select=source&event_id=eq\.e1&email=eq\.pat@example\.com/,
+      );
+    } finally {
+      fetch.restore();
+    }
   }
 });
 

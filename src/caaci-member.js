@@ -2942,6 +2942,9 @@ export async function wireEventFormPage() {
   const volFields = $('#caaci-ev-vol-fields');
   const volName = $('#caaci-ev-vol-name');
   const volPhone = $('#caaci-ev-vol-phone');
+  // Set when the signed-in GET pre-ticked the box: only then does an un-ticked
+  // box mean "take me off the list" rather than "I never asked".
+  let volunteerPrefilled = false;
   volBox.addEventListener('change', () => {
     volFields.hidden = !volBox.checked;
     if (volBox.checked) volName.focus();
@@ -3157,6 +3160,11 @@ export async function wireEventFormPage() {
       if (!volunteerName)
         return stop(t('Enter your name to volunteer.', '请填写志愿者姓名。'), volName);
       body.volunteer = { name: volunteerName, phone: volPhone.value.trim() };
+    } else if (volunteerPrefilled) {
+      // The box came back ticked from the API and was un-ticked here, so this
+      // resubmission is how someone withdraws. Left out otherwise, so a plain
+      // registration never touches the volunteer list.
+      body.volunteer = false;
     }
 
     note.hidden = true;
@@ -3234,6 +3242,7 @@ export async function wireEventFormPage() {
     // Signed up to volunteer before: show it as it stands, so a resubmission
     // does not silently drop it.
     if (info.volunteer) {
+      volunteerPrefilled = true;
       volBox.checked = true;
       volFields.hidden = false;
       volName.value = info.volunteer.name || '';

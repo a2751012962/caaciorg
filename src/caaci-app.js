@@ -35,6 +35,9 @@ export function notice(el, msg, good = true) {
   if (!n) {
     n = document.createElement('p');
     n.className = 'caaci-notice';
+    // TranslatePress blanks text it sees appear on the /zh/ pages, which would
+    // leave the confirmation an empty line — the one thing the form has to say.
+    n.setAttribute('data-no-dynamic-translation', '');
     el.appendChild(n);
   }
   n.textContent = msg;
@@ -278,7 +281,24 @@ export async function wireVolunteer() {
     }
   }
 
-  const picker = promoNode('fieldset', 'caaci-field caaci-volunteer-events');
+  // Bound before the first await, like the claim above: a submit while the
+  // event list is still loading must post to /api/volunteer, not fall through
+  // to Divi's own handler and reload the page with the form's contents lost.
+  // Everything onSubmit reads is therefore initialised before that await too.
+  const submitBtn = form.querySelector('.et_pb_contact_submit, [type=submit]');
+  form.addEventListener('submit', onSubmit);
+
+  // Bots fill in every field they can find; a real visitor never sees this one.
+  // Off-screen through .caaci-hp rather than an inline style (UI_GUIDELINE §4).
+  const hp = promoNode('input', 'caaci-hp');
+  hp.type = 'text';
+  hp.name = '_hp';
+  hp.tabIndex = -1;
+  hp.autocomplete = 'off';
+  hp.setAttribute('aria-hidden', 'true');
+  form.append(hp);
+
+  const picker = promoNode('fieldset', 'caaci-volunteer-events');
   picker.append(promoNode('legend', '', copy.legend));
   if (messageBox) messageBox.before(picker);
   else form.prepend(picker);
@@ -317,8 +337,10 @@ export async function wireVolunteer() {
   picker.append(anyRow);
   setDefault();
 
-  const submitBtn = form.querySelector('.et_pb_contact_submit, [type=submit]');
-  form.addEventListener('submit', async (e) => {
+  // A function declaration so the listener above can be bound before any of
+  // this exists; every const it reads is assigned before the fetch below, so a
+  // submit during that fetch finds them all initialised.
+  async function onSubmit(e) {
     e.preventDefault();
     if (submitBtn?.disabled) return;
     const v = (sel) => (form.querySelector(sel) || {}).value || '';
@@ -335,6 +357,7 @@ export async function wireVolunteer() {
       events: eventBoxes()
         .filter((b) => b.checked)
         .map((b) => b.value),
+      _hp: hp.value,
     });
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -345,7 +368,7 @@ export async function wireVolunteer() {
       form.reset();
       setDefault();
     }
-  });
+  }
 }
 
 // ---------- Divi contact form -> /api/contact ----------

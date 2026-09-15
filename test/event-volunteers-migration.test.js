@@ -90,4 +90,8 @@ test('the header explains itself in the 0015/0018 style', async () => {
   assert.match(header, /Run via: paste into the Supabase SQL editor/);
   assert.match(header, /Idempotent/);
   assert.match(header, /service-role/);
+  // `nulls not distinct` is a Postgres 15 feature: on an older project the
+  // create index fails with a syntax error, so whoever pastes this has to be
+  // told to check the version first.
+  assert.match(header, /Postgres 15/);
 });

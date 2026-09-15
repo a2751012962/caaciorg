@@ -24,6 +24,10 @@
 -- grants anon/authenticated every privilege on a new table in public by
 -- default, so, as 0013, 0014 and 0015 did for older tables: RLS on with no
 -- policies, and every table privilege revoked from both browser roles.
+-- Needs Postgres 15 or later: `nulls not distinct` on a unique index is a
+-- Postgres 15 feature, and on 14 or older the create index fails with a syntax
+-- error, so check the project's version (Supabase dashboard -> Settings ->
+-- Infrastructure) before pasting this.
 -- Idempotent (if not exists / revoke), so pasting it twice is safe.
 -- Run via: paste into the Supabase SQL editor (never supabase db push on this project; see SETUP.md)
 

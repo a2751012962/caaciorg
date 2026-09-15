@@ -1086,6 +1086,56 @@ test('event form: a signed-in volunteer sees the box ticked and their details fi
   }
 });
 
+test('event form: un-ticking a pre-filled volunteer box sends volunteer:false to withdraw', async () => {
+  setup();
+  member.__setSupa(supaWith(USER));
+  const fetch = stubApi({
+    get: () => ({
+      body: {
+        event: EVENT,
+        signed_in: true,
+        email: 'mei@x.com',
+        registration: { registered_at: '2026-09-10T01:02:03Z' },
+        volunteer: { name: 'Mei Lin', phone: '555-0100', created_at: '2026-09-10T01:02:03Z' },
+      },
+    }),
+    post: (url, options) => POST_OK({ volunteer: !!JSON.parse(options.body).volunteer }),
+  });
+  try {
+    await member.wireEventFormPage();
+    q('#caaci-ev-edit').click();
+    assert.equal(q('#caaci-ev-vol').checked, true);
+
+    // Un-ticked, this is the only way off the volunteer list without asking an
+    // admin — so it has to be said explicitly, not by omitting the key.
+    q('#caaci-ev-vol').checked = false;
+    q('#caaci-ev-vol').dispatchEvent(new window.Event('change', { bubbles: true }));
+    fillForm();
+    await submit();
+    assert.equal(postedBody(fetch).volunteer, false);
+    assert.equal(q('#caaci-ev-done-volunteer').hidden, true);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('event form: a never-volunteered box that stays un-ticked sends no volunteer key at all', async () => {
+  setup();
+  member.__setSupa(supaWith(USER));
+  const fetch = stubApi({
+    get: () => ({ body: { event: EVENT, signed_in: true, email: 'mei@x.com', volunteer: null } }),
+    post: (url, options) => POST_OK({ volunteer: !!JSON.parse(options.body).volunteer }),
+  });
+  try {
+    await member.wireEventFormPage();
+    fillForm();
+    await submit();
+    assert.equal('volunteer' in postedBody(fetch), false);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('event form: in Chinese the volunteer question, its fields and the thank-you are Chinese', async () => {
   member.__setLang('zh');
   setup();

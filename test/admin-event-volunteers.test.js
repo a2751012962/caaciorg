@@ -285,13 +285,13 @@ test('admin volunteers: no query at all behaves like scope=all', async () => {
 test('admin volunteers: DELETE removes one sign-up by id, from the body or the query', async () => {
   const fetch = mockFetch(route());
   try {
-    const r = await del({ id: 'v-mei.lin@example.com' });
+    const r = await del({ id: '11111111-1111-4111-8111-111111111111' });
     assert.equal(r.status, 200);
     assert.deepEqual(await r.json(), { ok: true });
     const call = fetch.calls.find((c) => c.options.method === 'DELETE');
     assert.equal(
       call.url,
-      'https://db.example/rest/v1/event_volunteers?id=eq.v-mei.lin%40example.com',
+      'https://db.example/rest/v1/event_volunteers?id=eq.11111111-1111-4111-8111-111111111111',
     );
 
     const missing = await del({});
@@ -300,15 +300,37 @@ test('admin volunteers: DELETE removes one sign-up by id, from the body or the q
 
     const viaQuery = await onRequestDelete({
       request: fakeRequest({
-        url: 'https://caaci.example/api/admin/event-volunteers?id=v-2',
+        url: 'https://caaci.example/api/admin/event-volunteers?id=22222222-2222-4222-8222-222222222222',
         headers: { authorization: 'Bearer tok' },
       }),
       env: fakeEnv(),
     });
     assert.equal(viaQuery.status, 200);
     assert.ok(
-      fetch.calls.some((c) => c.url.endsWith('event_volunteers?id=eq.v-2')),
+      fetch.calls.some((c) =>
+        c.url.endsWith('event_volunteers?id=eq.22222222-2222-4222-8222-222222222222'),
+      ),
       'the query string works when there is no body',
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin volunteers: DELETE with a malformed id is a 404, not a database cast error', async () => {
+  const fetch = mockFetch(route());
+  try {
+    // event_volunteers.id is a uuid; PostgREST answers `id=eq.not-a-uuid` with a
+    // 400 cast error, which this endpoint would have surfaced as a 500.
+    for (const id of ['v-1', 'not-a-uuid', '11111111-1111-4111-8111-111111111111x', 42]) {
+      const r = await del({ id });
+      assert.equal(r.status, 404, String(id));
+      assert.equal((await r.json()).error, 'Volunteer not found.');
+    }
+    assert.equal(
+      fetch.calls.filter((c) => c.options.method === 'DELETE').length,
+      0,
+      'nothing reached the database',
     );
   } finally {
     fetch.restore();
@@ -326,7 +348,7 @@ test('admin volunteers: a database error is a 500', async () => {
     assert.equal(r.status, 500);
     assert.match((await r.json()).error, /event_volunteers: 503/);
 
-    const d = await del({ id: 'v-1' });
+    const d = await del({ id: '11111111-1111-4111-8111-111111111111' });
     assert.equal(d.status, 500);
     assert.match((await d.json()).error, /event_volunteers: 503/);
   } finally {

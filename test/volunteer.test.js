@@ -249,7 +249,7 @@ test('volunteer POST: no events -> one row with event_id null, the "wherever nee
   }
 });
 
-test('volunteer POST: an empty phone/message is stored as null, and an empty events list is "any event"', async () => {
+test('volunteer POST: an empty phone is stored as null, an empty message is left alone, and an empty events list is "any event"', async () => {
   for (const events of [undefined, [], null]) {
     const fetch = mockFetch(route());
     try {
@@ -263,8 +263,11 @@ test('volunteer POST: an empty phone/message is stored as null, and an empty eve
       assert.equal(r.status, 200);
       const [row] = upserts(fetch);
       assert.equal(row.phone, null);
-      assert.equal(row.message, null);
       assert.equal(row.event_id, null);
+      // An upsert sends the whole row, so a null message would overwrite the
+      // note this person may have left last time (and the registration form,
+      // which has no message field at all, would wipe it on every sign-up).
+      assert.equal('message' in row, false, 'no message, no message column');
     } finally {
       fetch.restore();
     }

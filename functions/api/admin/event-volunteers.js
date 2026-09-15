@@ -21,8 +21,9 @@ const ROW_COLUMNS = 'id,event_id,name,email,phone,message,source,member_id,creat
 // The events FK (0021) makes this embed resolvable, so one request carries the
 // event of every sign-up instead of one lookup per distinct event_id.
 const ROW_COLUMNS_WITH_EVENT = `${ROW_COLUMNS},events(slug,title,title_zh,starts_at)`;
-// events.id is a uuid: anything else can't match, and PostgREST would answer a
-// malformed one with a cast error (500) rather than an empty result.
+// events.id and event_volunteers.id are uuids: anything else can't match, and
+// PostgREST would answer a malformed one with a cast error (500) rather than an
+// empty result.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const eventOf = (e) =>
@@ -123,6 +124,9 @@ export async function onRequestDelete({ request, env }) {
     }
   }
   if (!id) return bad('Volunteer id is required.');
+  // event_volunteers.id is a uuid too: PostgREST answers a malformed one with a
+  // cast error (500) rather than deleting nothing, so check it here.
+  if (!UUID.test(id)) return bad('Volunteer not found.', 404);
   try {
     await sb(env).del('event_volunteers', { id });
     return json({ ok: true });

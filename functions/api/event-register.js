@@ -15,7 +15,9 @@
 //        only when the form email is the account's own login email.
 //        An optional `volunteer: { name, phone }` also signs the registrant up
 //        to help at this event (event_volunteers, source 'registration'); the
-//        signed-in GET reports that row so the page can pre-fill the box.
+//        signed-in GET reports that row so the page can pre-fill the box, and
+//        an explicit `volunteer: false` (the pre-filled box un-ticked) removes
+//        the sign-up again.
 // A bad or expired token is treated as signed out, never as an error.
 // event_registrations is server-only (0015): read and written here and by
 // /api/admin/event-registrations, with the service-role key.
@@ -128,8 +130,12 @@ export async function onRequestPost({ request, env }) {
     if (checked.error) return bad(checked.error);
     const { answers } = checked;
 
-    // "I'd also like to volunteer at this event": absent, null or false leaves
-    // the registration exactly as it was before this field existed.
+    // "I'd also like to volunteer at this event": an absent or null key leaves
+    // the registration exactly as it was before this field existed. An explicit
+    // `false` is the page saying the box was un-ticked after a pre-filled GET,
+    // which has to remove the sign-up — otherwise the only way off the
+    // volunteer list is to ask an admin.
+    const unvolunteer = b.volunteer === false;
     let volunteer = null;
     if (b.volunteer != null && b.volunteer !== false) {
       const v = volunteerFields(b.volunteer, { nameRequired: 'Enter your name to volunteer.' });
@@ -170,15 +176,27 @@ export async function onRequestPost({ request, env }) {
     // Only after the registration is saved: the registration is what the
     // person came for, and the sign-up hangs off it.
     if (volunteer) {
+      // An upsert has to send every column it wants to keep, so a box ticked
+      // here would rewrite source to 'registration' on a row that /volunteer/
+      // created — and the admin list would then credit the wrong form. Read
+      // the existing row first and send back its own source; only a sign-up
+      // this form actually creates is a 'registration' one.
+      const prior = await DB.selectOne('event_volunteers', { event_id: event.id, email }, 'source');
       await saveVolunteer(DB, {
         eventId: event.id,
         name: volunteer.name,
         email,
         phone: volunteer.phone,
         message: null,
-        source: 'registration',
+        source: prior?.source || 'registration',
         memberId,
       });
+    } else if (unvolunteer) {
+      // Same order for the same reason: the registration is saved first, and
+      // dropping the sign-up cannot undo it. Deleting a row that is not there
+      // is a no-op, so an un-ticked box on a first registration costs one
+      // harmless request.
+      await DB.del('event_volunteers', { event_id: event.id, email });
     }
 
     if (!existing) {

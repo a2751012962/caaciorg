@@ -2816,6 +2816,18 @@ function buildVolunteerFilter() {
   sel.value = [...sel.options].some((o) => o.value === want) ? want : '';
 }
 
+// What the table says when the filter leaves nothing. Naming the event matters
+// when the Events tab sent us here: "No volunteers yet." next to a filter set
+// to one event reads as "nobody has ever volunteered", which is a different
+// (and usually wrong) statement.
+function emptyVolunteersLabel() {
+  const sel = $('#caaci-vol-event');
+  const pick = sel?.value || '';
+  if (!pick || pick === ANY_EVENT) return t('No volunteers yet.', '暂无志愿者报名。');
+  const title = sel.selectedOptions[0]?.textContent || pick;
+  return t(`No volunteers for ${title} yet.`, `暂无“${title}”的志愿者报名。`);
+}
+
 function renderVolunteers() {
   const rows = shownVolunteers();
   const account = (a) =>
@@ -2837,7 +2849,7 @@ function renderVolunteers() {
   const body = $('#caaci-vol-body');
   body.innerHTML =
     html.join('') ||
-    `<tr><td colspan="9" class="text-secondary">${t('No volunteers yet.', '暂无志愿者报名。')}</td></tr>`;
+    `<tr><td colspan="9" class="text-secondary">${esc(emptyVolunteersLabel())}</td></tr>`;
   for (const tr of $$('tr[data-id]', body)) {
     const row = rows.find((r) => String(r.id) === tr.dataset.id);
     tr.querySelector('[data-act="delete"]').addEventListener('click', () => deleteVolunteer(row));
@@ -2891,11 +2903,21 @@ async function loadVolunteers() {
 }
 
 // The Events tab's "Volunteers" button: show the tab with this event picked.
+// The filter is built from the sign-ups that exist, so an event nobody has
+// volunteered for yet is not in it — falling back to the unfiltered list would
+// then answer "here is everyone" to a question about one event. Add the option
+// from the event row instead, so the list shows this event's empty state.
 async function openVolunteers(ev) {
   $('[data-tab="volunteers"]').click(); // wireTabs swaps the panels; wireVolunteers loads
   await volLoading;
   const sel = $('#caaci-vol-event');
-  if ([...sel.options].some((o) => o.value === ev.slug)) sel.value = ev.slug;
+  if (![...sel.options].some((o) => o.value === ev.slug)) {
+    const o = document.createElement('option');
+    o.value = ev.slug;
+    o.textContent = eventTitleIn(ev);
+    sel.appendChild(o);
+  }
+  sel.value = ev.slug;
   renderVolunteers();
 }
 

@@ -2253,6 +2253,32 @@ test('admin volunteers: an event row opens the tab already filtered to that even
   }
 });
 
+test('admin volunteers: an event nobody has volunteered for gets its own empty state, not the whole list', async () => {
+  const fetch = mockFetch(volunteerRoutes(VOLUNTEERS));
+  const $ = (s) => document.querySelector(s);
+  try {
+    $('[data-tab="events"]').click();
+    await tick();
+    // The filter is built from the sign-ups that exist, so Picnic is not in it;
+    // without adding it, the button fell back to the unfiltered list and
+    // answered "here is everyone" to a question about one event.
+    const row = document.querySelectorAll('#caaci-events-body tr')[1];
+    assert.equal(row.querySelectorAll('td')[0].textContent.startsWith('Picnic'), true);
+    row.querySelector('[data-act="volunteers"]').click();
+    await tick();
+
+    const sel = $('#caaci-vol-event');
+    assert.equal(sel.value, 'picnic');
+    assert.equal(sel.selectedOptions[0].textContent, 'Picnic');
+    const bodyRows = [...document.querySelectorAll('#caaci-vol-body tr')];
+    assert.equal(bodyRows.length, 1);
+    assert.equal(bodyRows[0].textContent, 'No volunteers for Picnic yet.');
+    assert.equal($('#caaci-vol-csv').disabled, true);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('admin volunteers: the CSV has a BOM, Chicago times, RFC 4180 quoting and "Any event"', async () => {
   const { volunteersCsv } = await import('../src/caaci-admin.js'); // already booted
   const csv = volunteersCsv({

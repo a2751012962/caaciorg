@@ -40,6 +40,9 @@ export function volunteerFields(value, { nameRequired = 'Enter your name.' } = {
 // Upsert one sign-up. Never sends created_at (the first sign-up time must
 // survive a second submission) and never member_id: null (a signed-out
 // resubmission must not unlink the account an earlier signed-in one recorded).
+// `message` is left out the same way when there is none: the registration
+// form has no message field at all, so sending null there would wipe the "how
+// I can help" note the same person wrote on /volunteer/.
 // The unique index is (event_id, email) `nulls not distinct`, so the event_id
 // null "wherever needed" row merges like any other.
 export function saveVolunteer(DB, { eventId, name, email, phone, message, source, memberId }) {
@@ -50,9 +53,9 @@ export function saveVolunteer(DB, { eventId, name, email, phone, message, source
       name,
       email,
       phone: phone ?? null,
-      message: message ?? null,
       source,
       updated_at: new Date().toISOString(),
+      ...(message == null || message === '' ? {} : { message }),
       ...(memberId ? { member_id: memberId } : {}),
     },
     { onConflict: 'event_id,email' },

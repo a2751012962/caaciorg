@@ -571,7 +571,12 @@ Both write `event_volunteers`.
 - **Migration:** `0021_event_volunteers.sql`. Paste it into the Supabase SQL
   editor (never `supabase db push`) **before** deploying this code — both public
   endpoints write the new table. It only adds, so the previously deployed code
-  keeps working once it is applied.
+  keeps working once it is applied. It **needs Postgres 15 or later**: the unique
+  index uses `nulls not distinct` (added in Postgres 15), which is what stops the
+  "any event" sign-up stacking up a new row per submission. Check the project's
+  version under **Supabase dashboard → Settings → Infrastructure** before
+  pasting; on Postgres 14 or older the `create unique index` fails with a syntax
+  error and nothing else in the file is applied.
 - **Testing on a preview deployment:** as for registrations, preview uses the
   live Supabase database and sends real email. Sign up there against a separate,
   temporary published event, then delete that event (its volunteers cascade).

@@ -44,6 +44,9 @@ test('notice() creates a .caaci-notice once and toggles the error state', () => 
   notice(host, 'All good');
   let n = host.querySelector('.caaci-notice');
   assert.equal(n.textContent, 'All good');
+  // TranslatePress blanks text it sees appear on /zh/ pages; the confirmation
+  // is the one line the form has to keep.
+  assert.ok(n.hasAttribute('data-no-dynamic-translation'));
   assert.equal(n.getAttribute('data-state'), null);
 
   notice(host, 'Something broke', false);
@@ -201,12 +204,85 @@ test('wireVolunteer builds the event picker on /volunteer/ and posts the chosen 
       phone: '555-0100',
       message: 'Weekends work best',
       events: ['mid-autumn-festival'],
+      _hp: '',
     });
     assert.match(form.querySelector('.caaci-notice').textContent, /Thank you for volunteering/);
     assert.equal(form.querySelector('.caaci-notice').getAttribute('data-state'), null);
     assert.equal(form.querySelector('.et_pb_contact_submit').disabled, false, 'button released');
     assert.equal(form.querySelector('.et_pb_contact_submit').textContent, 'send');
     assert.equal(boxes().filter((b) => b.checked).length, 0, 'the picker is back to default');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wireVolunteer binds the submit handler before the event list arrives', async () => {
+  // The picker's GET is left hanging: a submit while it is in flight must still
+  // be ours, or Divi's own handler reloads the page and loses what was typed.
+  let release;
+  const fetch = mockFetch((url, options = {}) => {
+    if (url === '/api/volunteer' && options.method === 'POST') return { body: { ok: true } };
+    return new Promise((r) => {
+      release = () => r({ body: { events: VOL_EVENTS } });
+    });
+  });
+  try {
+    setup(VOLUNTEER_FORM, '/volunteer/');
+    const wiring = wireVolunteer();
+    await tick();
+    const form = document.querySelector('.et_pb_contact_form');
+    form.querySelector('[name*=name]').value = 'Pat Lin';
+    form.querySelector('[name*=email]').value = 'pat@x.com';
+    const e = new Event('submit', { cancelable: true });
+    form.dispatchEvent(e);
+    await tick();
+    assert.equal(e.defaultPrevented, true, 'the browser submit was stopped');
+    const call = fetch.calls.find((c) => c.options?.method === 'POST');
+    assert.ok(call, 'posted to /api/volunteer while the list was still loading');
+    assert.equal(JSON.parse(call.options.body).name, 'Pat Lin');
+    release();
+    await wiring;
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wireVolunteer sends a honeypot field that is off-screen, not a hidden input', async () => {
+  const fetch = volunteerApi();
+  try {
+    setup(VOLUNTEER_FORM, '/volunteer/');
+    await wireVolunteer();
+    const form = document.querySelector('.et_pb_contact_form');
+    const hp = form.querySelector('input[name="_hp"]');
+    assert.ok(hp, 'honeypot injected');
+    // Bots skip display:none / type=hidden fields; .caaci-hp moves it off-screen
+    // instead (no inline style — UI_GUIDELINE §4).
+    assert.equal(hp.type, 'text');
+    assert.equal(hp.className, 'caaci-hp');
+    assert.equal(hp.getAttribute('style'), null);
+    assert.equal(hp.getAttribute('aria-hidden'), 'true');
+    assert.equal(hp.tabIndex, -1);
+
+    hp.value = 'https://spam.example';
+    form.querySelector('[name*=email]').value = 'bot@x.com';
+    form.dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick();
+    const sent = JSON.parse(fetch.calls.find((c) => c.options.method === 'POST').options.body);
+    assert.equal(sent._hp, 'https://spam.example', 'what the bot typed reaches the API');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('wireVolunteer: the picker is not a .caaci-field, so the checkbox rows stay flex', async () => {
+  const fetch = volunteerApi();
+  try {
+    setup(VOLUNTEER_FORM, '/volunteer/');
+    await wireVolunteer();
+    // `.caaci-field label { display: block }` outranks `.caaci-check`, which
+    // collapsed the gap between each box and its text.
+    const picker = document.querySelector('.caaci-volunteer-events');
+    assert.equal(picker.classList.contains('caaci-field'), false);
   } finally {
     fetch.restore();
   }
