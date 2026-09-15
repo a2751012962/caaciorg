@@ -21,73 +21,62 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
   const bannersRef = useRef<HTMLDivElement>(null);
   const isZh = lang === 'zh';
 
-  // Layout effect, not useEffect: on a full page load React paints before running
-  // passive effects, so the hero was shown in its final state for a frame (often
-  // the ~100ms first-layout frame) and then hidden by the tweens' start values.
   useLayoutEffect(() => {
+    const left = leftColRef.current;
+    const right = rightColRef.current;
+    const items = right?.querySelectorAll('.welcome-stagger-item');
+    const banners = bannersRef.current?.children;
+
+    // Start states in a layout effect, not useEffect: on a full page load React
+    // paints before running passive effects, so the hero was shown in its final
+    // state for a frame (often the ~100ms first-layout frame) and then hidden.
     const ctx = gsap.context(() => {
-      // Left Column enters from Left
-      if (leftColRef.current) {
-        gsap.fromTo(
-          leftColRef.current,
-          { x: -50, opacity: 0 },
-          {
-            x: 0,
-            opacity: 1,
-            duration: 0.9,
-            ease: 'power3.out',
-            delay: 0.1,
-          },
-        );
-      }
-
-      // Right Column enters from Right
-      if (rightColRef.current) {
-        gsap.fromTo(
-          rightColRef.current,
-          { x: 50, opacity: 0 },
-          {
-            x: 0,
-            opacity: 1,
-            duration: 0.9,
-            ease: 'power3.out',
-            delay: 0.2,
-          },
-        );
-
-        // Stagger inner items
-        gsap.fromTo(
-          rightColRef.current.querySelectorAll('.welcome-stagger-item'),
-          { y: 20, opacity: 0 },
-          {
-            y: 0,
-            opacity: 1,
-            duration: 0.7,
-            stagger: 0.1,
-            ease: 'power2.out',
-            delay: 0.35,
-          },
-        );
-      }
-
-      // 3 Action banners enter with staggered cascade
-      if (bannersRef.current) {
-        gsap.fromTo(
-          bannersRef.current.children,
-          { y: 30, opacity: 0 },
-          {
-            y: 0,
-            opacity: 1,
-            duration: 0.8,
-            stagger: 0.1,
-            ease: BANNER_EASE,
-            delay: 0.5,
-          },
-        );
-      }
+      if (left) gsap.set(left, { x: -50, opacity: 0 });
+      if (right) gsap.set(right, { x: 50, opacity: 0 });
+      if (items) gsap.set(items, { y: 20, opacity: 0 });
+      if (banners) gsap.set(banners, { y: 30, opacity: 0 });
     }, sectionRef);
 
-    return () => ctx.revert();
+    // The motion starts once the first frame has been drawn. On a full load that
+    // frame carries the page's first layout (~120ms), and a tween already running
+    // would jump ahead by that much when it ends.
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        ctx.add(() => {
+          // Left column enters from the left, right column from the right
+          if (left)
+            gsap.to(left, { x: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.1 });
+          if (right)
+            gsap.to(right, { x: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.2 });
+          if (items)
+            gsap.to(items, {
+              y: 0,
+              opacity: 1,
+              duration: 0.7,
+              stagger: 0.1,
+              ease: 'power2.out',
+              delay: 0.35,
+            });
+          // The 3 action banners rise in a staggered cascade
+          if (banners)
+            gsap.to(banners, {
+              y: 0,
+              opacity: 1,
+              duration: 0.8,
+              stagger: 0.1,
+              ease: BANNER_EASE,
+              delay: 0.5,
+            });
+        });
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+      ctx.revert();
+    };
   }, [content]);
 
   return (
