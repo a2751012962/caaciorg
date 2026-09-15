@@ -274,8 +274,8 @@ export function AccountPage({
         const el = document.getElementById(targetId);
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          el.classList.add('ring-2', 'ring-[#8e2e11]', 'ring-offset-2');
-          setTimeout(() => el.classList.remove('ring-2', 'ring-[#8e2e11]', 'ring-offset-2'), 1800);
+          el.classList.add('ring-2', 'ring-brick', 'ring-offset-2');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-brick', 'ring-offset-2'), 1800);
         }
       }, 80);
     }
@@ -293,7 +293,7 @@ export function AccountPage({
   const tabClass = (tab: MobileTab) =>
     `min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0 ${
       activeMobileTab === tab
-        ? 'bg-[#8e2e11] text-white shadow-sm'
+        ? 'bg-brick text-white shadow-sm'
         : 'bg-white text-neutral-700 hover:bg-neutral-100 border border-neutral-200/80'
     }`;
   const shownOn = (tab: MobileTab) =>
@@ -323,7 +323,7 @@ export function AccountPage({
       <button
         type="button"
         onClick={() => onNavigate('membership')}
-        className="min-h-[44px] px-6 py-2.5 rounded-full bg-[#8e2e11] text-white text-xs font-semibold cursor-pointer active:scale-98"
+        className="min-h-[44px] px-6 py-2.5 rounded-full bg-brick text-white text-xs font-semibold cursor-pointer active:scale-98"
       >
         {shownTier
           ? t('Renew or Change Plan', '续费或更改方案')
@@ -345,7 +345,7 @@ export function AccountPage({
   );
 
   return (
-    <div className="min-h-screen bg-[#fafafc] pb-24 overflow-x-hidden">
+    <div className="min-h-screen bg-surface-hover pb-24 overflow-x-hidden">
       {/* Editorial Header - Desktop Only to keep Mobile clean & focused */}
       <div className="hidden sm:block">
         <SubpageHero
@@ -372,7 +372,7 @@ export function AccountPage({
             role="status"
             className="bg-white rounded-3xl border border-neutral-200/90 shadow-xl p-10 sm:p-12 flex items-center justify-center gap-2 text-sm text-neutral-500"
           >
-            <RefreshCw className="w-4 h-4 animate-spin text-[#8e2e11]" />
+            <RefreshCw className="w-4 h-4 animate-spin text-brick" />
             <span>{t('Loading your account…', '正在加载您的账户…')}</span>
           </div>
         </section>
@@ -395,7 +395,7 @@ export function AccountPage({
             </div>
 
             <div className="space-y-2 max-w-md mx-auto">
-              <h2 className="text-xl sm:text-2xl font-bold font-serif-caaci text-[#1d1d1f]">
+              <h2 className="text-xl sm:text-2xl font-bold font-serif-caaci text-ink">
                 {lang === 'en' ? 'You are not logged in' : '您尚未登录'}
               </h2>
               <p className="text-xs sm:text-sm text-neutral-500 leading-relaxed">
@@ -429,7 +429,7 @@ export function AccountPage({
               <button
                 type="button"
                 onClick={() => window.location.assign(loginUrl(here()))}
-                className="w-full sm:w-auto min-h-[44px] px-8 py-3 rounded-full bg-[#8e2e11] hover:brightness-110 text-white font-semibold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md inline-flex items-center justify-center gap-2 active:scale-98"
+                className="w-full sm:w-auto min-h-[44px] px-8 py-3 rounded-full bg-brick hover:brightness-110 text-white font-semibold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md inline-flex items-center justify-center gap-2 active:scale-98"
               >
                 <KeyRound className="w-4 h-4" />
                 <span>{lang === 'en' ? 'Log In' : '登录'}</span>
@@ -440,7 +440,7 @@ export function AccountPage({
                 onClick={() => window.location.assign(loginUrl(here(), true))}
                 className="w-full sm:w-auto min-h-[44px] px-8 py-3 rounded-full bg-white border border-neutral-300 hover:border-neutral-900 text-neutral-800 font-semibold text-xs uppercase tracking-wider transition-all cursor-pointer inline-flex items-center justify-center gap-2 active:scale-98"
               >
-                <UserPlus className="w-4 h-4 text-[#8e2e11]" />
+                <UserPlus className="w-4 h-4 text-brick" />
                 <span>{lang === 'en' ? 'Create Account' : '注册账号'}</span>
               </button>
             </div>
@@ -449,7 +449,7 @@ export function AccountPage({
               <button
                 type="button"
                 onClick={() => onNavigate('membership')}
-                className="min-h-[36px] text-xs text-[#8e2e11] hover:underline font-semibold inline-flex items-center gap-1 cursor-pointer"
+                className="min-h-[36px] text-xs text-brick hover:underline font-semibold inline-flex items-center gap-1 cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>{lang === 'en' ? 'See membership plans' : '查看会员方案'}</span>
@@ -468,7 +468,7 @@ export function AccountPage({
               {/* Left: Avatar & User Identity */}
               <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
                 <div className="relative shrink-0">
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-[#8e2e11] to-[#5c1c0a] text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-xs">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-brick to-brick-800 text-white flex items-center justify-center font-bold text-lg sm:text-xl shadow-xs">
                     {displayName.slice(0, 1).toUpperCase() || '?'}
                   </div>
                   <span
@@ -485,10 +485,10 @@ export function AccountPage({
 
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-baseline gap-2">
-                    <h2 className="text-base sm:text-xl font-bold text-[#1d1d1f] tracking-tight break-words">
+                    <h2 className="text-base sm:text-xl font-bold text-ink tracking-tight break-words">
                       {displayName}
                     </h2>
-                    <span className="text-xs sm:text-sm font-medium text-[#8e2e11]">
+                    <span className="text-xs sm:text-sm font-medium text-brick">
                       {shownTierName || t('No membership yet', '尚未加入会员')}
                     </span>
                   </div>
@@ -515,7 +515,7 @@ export function AccountPage({
                   onClick={() => handleJumpToSection('events', 'registered-events')}
                   className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0 shadow-2xs active:scale-95 ${
                     activeMobileTab === 'events'
-                      ? 'bg-[#8e2e11] text-white'
+                      ? 'bg-brick text-white'
                       : 'bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-200/90'
                   }`}
                   title={lang === 'en' ? 'Jump to Registered Events' : '直接跳转至活动日程'}
@@ -530,7 +530,7 @@ export function AccountPage({
                   onClick={() => handleJumpToSection('pass')}
                   className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0 shadow-2xs active:scale-95 ${
                     activeMobileTab === 'pass'
-                      ? 'bg-[#8e2e11] text-white'
+                      ? 'bg-brick text-white'
                       : 'bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-200/90'
                   }`}
                   title={lang === 'en' ? 'Digital Member Pass Status' : '会员通行证状态'}
@@ -620,7 +620,7 @@ export function AccountPage({
             )}
 
             {/* Mobile Sticky Segmented Quick Tabs */}
-            <div className="lg:hidden sticky top-16 z-30 bg-[#fafafc]/95 backdrop-blur-md py-1.5 -mx-3.5 px-3.5 border-y border-neutral-200/70 shadow-xs">
+            <div className="lg:hidden sticky top-16 z-30 bg-surface-hover/95 backdrop-blur-md py-1.5 -mx-3.5 px-3.5 border-y border-neutral-200/70 shadow-xs">
               <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
                 <button
                   type="button"
@@ -709,7 +709,7 @@ export function AccountPage({
               >
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
-                    <Award className="w-4 h-4 text-[#8e2e11]" />
+                    <Award className="w-4 h-4 text-brick" />
                     <span className="text-xs font-bold uppercase tracking-wider text-neutral-800">
                       {lang === 'en' ? 'Official Member Pass' : 'CAACI 官方会员通行证'}
                     </span>
@@ -719,7 +719,7 @@ export function AccountPage({
                     onClick={() => setShowQrZoomModal(true)}
                     className="min-h-[34px] px-3 py-1 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs active:scale-98"
                   >
-                    <Maximize2 className="w-3.5 h-3.5 text-[#edbb5f]" />
+                    <Maximize2 className="w-3.5 h-3.5 text-gold" />
                     <span>{lang === 'en' ? 'Enlarge QR' : '放大二维码'}</span>
                   </button>
                 </div>
@@ -737,15 +737,15 @@ export function AccountPage({
           >
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
-                <Ticket className="w-5 h-5 text-[#8e2e11]" />
-                <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f]">
+                <Ticket className="w-5 h-5 text-brick" />
+                <h3 className="text-base sm:text-lg font-bold text-ink">
                   {lang === 'en' ? 'My Registered Events' : '我报名的活动'}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => onNavigate('events')}
-                className="min-h-[36px] text-xs text-[#8e2e11] hover:underline font-semibold inline-flex items-center gap-1 cursor-pointer py-1"
+                className="min-h-[36px] text-xs text-brick hover:underline font-semibold inline-flex items-center gap-1 cursor-pointer py-1"
               >
                 <span>{lang === 'en' ? 'Browse All Events' : '浏览更多社区活动'}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -773,7 +773,7 @@ export function AccountPage({
                 <button
                   type="button"
                   onClick={() => onNavigate('events')}
-                  className="mt-3 min-h-[36px] text-xs font-semibold text-[#8e2e11] hover:underline cursor-pointer"
+                  className="mt-3 min-h-[36px] text-xs font-semibold text-brick hover:underline cursor-pointer"
                 >
                   {lang === 'en' ? 'Explore CAACI Events' : '立即浏览活动日程'}
                 </button>
@@ -858,7 +858,7 @@ export function AccountPage({
                                 `/events/${encodeURIComponent(r.event.slug as string)}/register/`,
                               )
                             }
-                            className="min-h-[36px] text-xs text-[#8e2e11] hover:underline font-semibold cursor-pointer inline-flex items-center"
+                            className="min-h-[36px] text-xs text-brick hover:underline font-semibold cursor-pointer inline-flex items-center"
                           >
                             {t('View Registration', '查看报名')}
                           </button>
@@ -866,7 +866,7 @@ export function AccountPage({
                           <button
                             type="button"
                             onClick={() => onNavigate(over ? 'events#past' : 'events')}
-                            className="min-h-[36px] text-xs text-[#8e2e11] hover:underline font-semibold cursor-pointer inline-flex items-center"
+                            className="min-h-[36px] text-xs text-brick hover:underline font-semibold cursor-pointer inline-flex items-center"
                           >
                             {lang === 'en' ? 'View Details' : '查看详情'}
                           </button>
@@ -907,8 +907,8 @@ export function AccountPage({
               >
                 <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
                   <div className="flex items-center gap-2">
-                    <User className="w-5 h-5 text-[#8e2e11]" />
-                    <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f]">
+                    <User className="w-5 h-5 text-brick" />
+                    <h3 className="text-base sm:text-lg font-bold text-ink">
                       {lang === 'en' ? 'Personal Information' : '个人信息'}
                     </h3>
                   </div>
@@ -976,8 +976,8 @@ export function AccountPage({
               >
                 <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
                   <div className="flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-[#8e2e11]" />
-                    <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f]">
+                    <CreditCard className="w-5 h-5 text-brick" />
+                    <h3 className="text-base sm:text-lg font-bold text-ink">
                       {lang === 'en' ? 'Membership Subscription' : '会员订阅与会费方案'}
                     </h3>
                   </div>
@@ -1063,7 +1063,7 @@ export function AccountPage({
                           ? t('Annual Dues (incl. 3.5% card fee)', '年度会费（含 3.5% 手续费）')
                           : t('Price', '价格')}
                       </span>
-                      <span className="font-bold text-[#8e2e11] text-sm mt-0.5 block">
+                      <span className="font-bold text-brick text-sm mt-0.5 block">
                         {viaFamily
                           ? t('Covered by the family plan', '由家庭会员共享')
                           : shownTier
@@ -1119,7 +1119,7 @@ export function AccountPage({
                     onClick={() => onNavigate('membership')}
                     className={
                       !shownTier
-                        ? 'min-h-[44px] px-6 py-2.5 rounded-full bg-[#8e2e11] hover:brightness-110 text-white font-semibold text-xs cursor-pointer shadow-xs active:scale-98'
+                        ? 'min-h-[44px] px-6 py-2.5 rounded-full bg-brick hover:brightness-110 text-white font-semibold text-xs cursor-pointer shadow-xs active:scale-98'
                         : 'min-h-[42px] px-5 py-2.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-xs cursor-pointer inline-flex items-center gap-1.5 active:scale-98'
                     }
                   >
@@ -1135,7 +1135,7 @@ export function AccountPage({
                       disabled={billingBusy}
                       className="min-h-[42px] px-5 py-2.5 rounded-full bg-white border border-neutral-300 hover:border-neutral-900 text-neutral-800 font-semibold text-xs cursor-pointer inline-flex items-center gap-1.5 active:scale-98 disabled:opacity-60"
                     >
-                      <ExternalLink className="w-3.5 h-3.5 text-[#8e2e11]" />
+                      <ExternalLink className="w-3.5 h-3.5 text-brick" />
                       <span>
                         {billingBusy
                           ? t('Opening…', '正在打开…')
@@ -1152,8 +1152,8 @@ export function AccountPage({
               >
                 <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
                   <div className="flex items-center gap-2">
-                    <History className="w-5 h-5 text-[#8e2e11]" />
-                    <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f]">
+                    <History className="w-5 h-5 text-brick" />
+                    <h3 className="text-base sm:text-lg font-bold text-ink">
                       {lang === 'en' ? 'Payment History' : '付款记录'}
                     </h3>
                   </div>

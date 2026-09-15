@@ -305,14 +305,14 @@ export function StackedCardsSection({
     <section
       ref={containerRef}
       id="pillars"
-      className="relative min-h-screen bg-[#fcfbf9] border-t border-b border-neutral-200/80 overflow-hidden flex flex-col justify-between py-10 sm:py-14"
+      className="relative min-h-screen bg-surface-cream border-t border-b border-neutral-200/80 overflow-hidden flex flex-col justify-between py-10 sm:py-14"
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col flex-1 justify-between relative z-10">
         {/* Top Minimalist Stepper Track */}
         <div className="flex items-center justify-between pb-4 border-b border-neutral-200/70 relative z-20">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#8e2e11]" />
-            <span className="text-xs sm:text-sm font-mono font-bold tracking-widest text-[#8e2e11] uppercase">
+            <span className="w-2 h-2 rounded-full bg-brick" />
+            <span className="text-xs sm:text-sm font-mono font-bold tracking-widest text-brick uppercase">
               CAACI · 2000 — {new Date().getFullYear()}
             </span>
           </div>
@@ -323,14 +323,14 @@ export function StackedCardsSection({
               <div key={s.number} className="flex items-center gap-1.5 font-mono text-xs">
                 <span
                   className={`transition-colors duration-300 ${
-                    activeIndex === i ? 'text-[#8e2e11] font-bold' : 'text-neutral-400 font-normal'
+                    activeIndex === i ? 'text-brick font-bold' : 'text-neutral-400 font-normal'
                   }`}
                 >
                   {s.number}
                 </span>
                 <span
                   className={`h-1.5 rounded-full transition-all duration-300 ${
-                    activeIndex === i ? 'w-8 bg-[#8e2e11]' : 'w-3 bg-neutral-300'
+                    activeIndex === i ? 'w-8 bg-brick' : 'w-3 bg-neutral-300'
                   }`}
                 />
               </div>
@@ -357,22 +357,22 @@ export function StackedCardsSection({
                 {/* 1. Giant Numeral Line Accent */}
                 <div className="panel-num-line flex items-baseline gap-4 mb-2 origin-top-left">
                   <span
-                    className="panel-num text-5xl sm:text-6xl md:text-7xl font-mono font-black text-[#8e2e11]/25 tracking-tighter"
+                    className="panel-num text-5xl sm:text-6xl md:text-7xl font-mono font-black text-brick/25 tracking-tighter"
                     style={{ fontFamily: 'var(--font-caaci-serif)' }}
                   >
                     {item.number}
                   </span>
-                  <div className="h-[2px] flex-1 max-w-[140px] bg-[#8e2e11]/30" />
+                  <div className="h-[2px] flex-1 max-w-[140px] bg-brick/30" />
                 </div>
 
                 {/* 3. Typography Headline Block with Companion Small Number */}
                 <div className="mb-6 origin-top-left will-change-transform">
                   <h3
-                    className="panel-headline text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-[#300200] leading-[1.1] tracking-tight font-serif-caaci origin-top-left flex items-baseline flex-wrap"
+                    className="panel-headline text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-maroon leading-[1.1] tracking-tight font-serif-caaci origin-top-left flex items-baseline flex-wrap"
                     style={{ fontFamily: 'var(--font-caaci-serif-zh)' }}
                   >
                     {/* 小数字伴随标题：被滚上去时平滑展现 */}
-                    <span className="panel-companion-num opacity-0 inline-block overflow-hidden font-mono font-bold text-xl sm:text-2xl md:text-3xl text-[#8e2e11] align-baseline whitespace-nowrap">
+                    <span className="panel-companion-num opacity-0 inline-block overflow-hidden font-mono font-bold text-xl sm:text-2xl md:text-3xl text-brick align-baseline whitespace-nowrap">
                       {item.number}
                     </span>
                     <span>{isZh ? item.giantZh : item.giantZh}</span>
@@ -389,7 +389,7 @@ export function StackedCardsSection({
                     <button
                       type="button"
                       onClick={() => handleActionClick(item.targetPage)}
-                      className="group inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-[#8e2e11] text-white hover:bg-[#a63715] text-xs sm:text-sm font-medium uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-98"
+                      className="group inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-brick text-white hover:bg-brick-hover text-xs sm:text-sm font-medium uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-98"
                     >
                       <span>{isZh ? item.actionZh : item.actionEn}</span>
                       <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />

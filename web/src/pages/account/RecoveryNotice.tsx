@@ -153,8 +153,8 @@ export function RecoveryNotice({
   return (
     <div className="bg-white rounded-2xl sm:rounded-3xl border border-amber-200 p-4.5 sm:p-7 shadow-xs space-y-4 text-left">
       <div className="flex items-center gap-2 pb-3 border-b border-neutral-100">
-        <KeyRound className="w-5 h-5 text-[#8e2e11]" />
-        <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f]">
+        <KeyRound className="w-5 h-5 text-brick" />
+        <h3 className="text-base sm:text-lg font-bold text-ink">
           {t('Set a new password', '设置新密码')}
         </h3>
       </div>
@@ -182,7 +182,7 @@ export function RecoveryNotice({
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full min-h-[44px] px-3.5 py-2 text-sm bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#8e2e11]"
+              className="w-full min-h-[44px] px-3.5 py-2 text-sm bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brick"
             />
           </div>
           <div>
@@ -198,14 +198,14 @@ export function RecoveryNotice({
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="w-full min-h-[44px] px-3.5 py-2 text-sm bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#8e2e11]"
+              className="w-full min-h-[44px] px-3.5 py-2 text-sm bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brick"
             />
           </div>
         </div>
         <button
           type="submit"
           disabled={saving}
-          className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-full bg-[#8e2e11] text-white hover:brightness-110 text-xs font-semibold cursor-pointer active:scale-98 disabled:opacity-60"
+          className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-full bg-brick text-white hover:brightness-110 text-xs font-semibold cursor-pointer active:scale-98 disabled:opacity-60"
         >
           {saving ? t('Saving…', '保存中…') : t('Save password', '保存密码')}
         </button>

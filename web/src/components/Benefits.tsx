@@ -91,16 +91,16 @@ export function Benefits({ content }: BenefitsProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Title Header */}
         <div className="benefits-header max-w-3xl mb-14">
-          <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-2">
+          <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
             Why Join CAACI · 为什么加入华协
           </span>
           <h2
-            className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-[#1d1d1f]"
+            className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-ink"
             style={{ fontFamily: 'var(--font-caaci-serif)' }}
           >
             {content.whyJoin.heading}
           </h2>
-          <div className="w-12 h-0.5 bg-[#8e2e11] mt-3 rounded-full" />
+          <div className="w-12 h-0.5 bg-brick mt-3 rounded-full" />
         </div>
 
         {/* 4 Card Blurbs - styled identically to Community Privileges in /membership/ */}
@@ -113,15 +113,15 @@ export function Benefits({ content }: BenefitsProps) {
                 ref={(el) => {
                   cardsRef.current[index] = el;
                 }}
-                className="bg-[#fbfbfd] p-8 sm:p-9 rounded-2xl border border-neutral-200/80 space-y-4 hover:border-neutral-300 transition-colors will-change-transform shadow-xs"
+                className="bg-surface-2 p-8 sm:p-9 rounded-2xl border border-neutral-200/80 space-y-4 hover:border-neutral-300 transition-colors will-change-transform shadow-xs"
               >
                 {/* Clean Circular Icon Badge identical to /membership/ */}
-                <div className="benefit-icon-wrap w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-[#1d1d1f] shadow-2xs">
-                  <Icon className="w-5 h-5 text-[#8e2e11]" />
+                <div className="benefit-icon-wrap w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs">
+                  <Icon className="w-5 h-5 text-brick" />
                 </div>
 
                 {/* Blurb Header */}
-                <h3 className="text-lg sm:text-xl font-semibold text-[#1d1d1f] tracking-tight">
+                <h3 className="text-lg sm:text-xl font-semibold text-ink tracking-tight">
                   {blurb.title}
                 </h3>
 

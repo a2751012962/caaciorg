@@ -18,7 +18,7 @@ interface ProfileEditProps {
 const SAVED_CLOSE_MS = 700;
 
 const inputClass =
-  'w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-neutral-50 border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#8e2e11]';
+  'w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-neutral-50 border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-brick';
 
 // Prefilled only from columns members really has; the rest start empty.
 const fromMember = (member: MemberRow | null): ProfileUpdate => ({
@@ -83,7 +83,7 @@ export function ProfileEdit({ lang, member, onSaved }: ProfileEditProps) {
         onClick={show}
         className="min-h-[36px] px-3 py-1 rounded-full text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 transition-all bg-neutral-100 hover:bg-neutral-200 text-neutral-800 border border-neutral-200/80 active:scale-95 shadow-2xs"
       >
-        <Edit3 className="w-3.5 h-3.5 text-[#8e2e11]" />
+        <Edit3 className="w-3.5 h-3.5 text-brick" />
         <span>{t('Edit', '编辑')}</span>
       </button>
 
@@ -96,7 +96,7 @@ export function ProfileEdit({ lang, member, onSaved }: ProfileEditProps) {
           <form onSubmit={save} className="space-y-5">
             <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-full bg-[#8e2e11]/10 text-[#8e2e11] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-brick/10 text-brick flex items-center justify-center">
                   <Edit3 className="w-5 h-5" />
                 </div>
                 <div>
@@ -222,7 +222,7 @@ export function ProfileEdit({ lang, member, onSaved }: ProfileEditProps) {
               <button
                 type="submit"
                 disabled={busy || saved}
-                className="flex-1 min-h-[44px] py-2.5 rounded-full bg-[#8e2e11] hover:bg-[#72240d] text-white text-xs font-semibold cursor-pointer shadow-xs active:scale-98 disabled:opacity-60"
+                className="flex-1 min-h-[44px] py-2.5 rounded-full bg-brick hover:bg-brick-pressed text-white text-xs font-semibold cursor-pointer shadow-xs active:scale-98 disabled:opacity-60"
               >
                 {busy ? t('Saving…', '正在保存…') : t('Save Changes', '保存修改')}
               </button>

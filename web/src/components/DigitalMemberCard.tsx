@@ -250,7 +250,7 @@ export function DigitalMemberCard({
   return (
     <div className="space-y-4">
       {/* Visual Digital Member Card */}
-      <div className="bg-[#1d1d1f] text-white rounded-2xl p-6 sm:p-7 shadow-xl border border-white/10 relative overflow-hidden select-none">
+      <div className="bg-ink text-white rounded-2xl p-6 sm:p-7 shadow-xl border border-white/10 relative overflow-hidden select-none">
         {/* Top Header */}
         <div className="flex justify-between items-center pb-6 border-b border-white/10">
           <div className="flex items-center gap-2.5">
@@ -285,7 +285,7 @@ export function DigitalMemberCard({
               {name}
             </div>
             {viaFamily && (
-              <div className="text-[11px] text-[#d3a971] mt-1">
+              <div className="text-[11px] text-tan mt-1">
                 {lang === 'en' ? 'Covered by a family plan' : '由家庭会员共享'}
               </div>
             )}
@@ -318,7 +318,7 @@ export function DigitalMemberCard({
           <button
             type="button"
             onClick={() => setZoom(true)}
-            className="shrink-0 p-1 rounded-lg bg-white hover:ring-2 hover:ring-[#d3a971] transition-all cursor-pointer"
+            className="shrink-0 p-1 rounded-lg bg-white hover:ring-2 hover:ring-tan transition-all cursor-pointer"
             title={lang === 'en' ? 'Enlarge QR code' : '放大二维码'}
           >
             <QrCodeSvg text={qrText} className="w-14 h-14 block" />
@@ -332,9 +332,9 @@ export function DigitalMemberCard({
           type="button"
           onClick={handleDownloadPNG}
           disabled={downloading}
-          className="w-full sm:flex-1 min-h-[44px] py-2.5 px-4 rounded-full bg-[#1d1d1f] text-white hover:bg-neutral-800 text-xs font-semibold tracking-wide transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-xs border border-neutral-700 disabled:opacity-70"
+          className="w-full sm:flex-1 min-h-[44px] py-2.5 px-4 rounded-full bg-ink text-white hover:bg-neutral-800 text-xs font-semibold tracking-wide transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-xs border border-neutral-700 disabled:opacity-70"
         >
-          <Download className="w-4 h-4 text-[#d3a971]" />
+          <Download className="w-4 h-4 text-tan" />
           <span>
             {downloading
               ? lang === 'en'
@@ -351,7 +351,7 @@ export function DigitalMemberCard({
             type="button"
             onClick={handleWallet}
             disabled={walletBusy}
-            className="w-full sm:flex-1 min-h-[44px] py-2.5 px-4 rounded-full bg-[#f5f5f7] text-[#1d1d1f] hover:bg-neutral-200 text-xs font-semibold tracking-wide transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-xs border border-neutral-200 disabled:opacity-70"
+            className="w-full sm:flex-1 min-h-[44px] py-2.5 px-4 rounded-full bg-surface-3 text-ink hover:bg-neutral-200 text-xs font-semibold tracking-wide transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-xs border border-neutral-200 disabled:opacity-70"
           >
             {/* Apple Logo Icon SVG */}
             <svg className="w-4 h-4 fill-current" viewBox="0 0 170 170">
@@ -425,7 +425,7 @@ export function DigitalMemberCard({
             <button
               type="button"
               onClick={() => setZoom(false)}
-              className="w-full min-h-[44px] py-2.5 rounded-full bg-[#8e2e11] hover:bg-[#72240d] text-white text-xs font-semibold cursor-pointer shadow-xs active:scale-98"
+              className="w-full min-h-[44px] py-2.5 rounded-full bg-brick hover:bg-brick-pressed text-white text-xs font-semibold cursor-pointer shadow-xs active:scale-98"
             >
               {t('Close', '关闭')}
             </button>

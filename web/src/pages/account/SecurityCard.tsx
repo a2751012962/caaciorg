@@ -35,7 +35,7 @@ function NoticeLine({ notice }: { notice: Notice }) {
 }
 
 const inputCls =
-  'w-full min-h-[44px] px-3.5 py-2 text-sm bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#8e2e11]';
+  'w-full min-h-[44px] px-3.5 py-2 text-sm bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brick';
 
 // Change / set password (with Supabase's reauthentication code when it asks for
 // one) and change email — securityCard in src/caaci-member.js.
@@ -258,8 +258,8 @@ export function SecurityCard({
       className={`${className} bg-white rounded-2xl sm:rounded-3xl border border-neutral-200/90 p-4.5 sm:p-7 shadow-xs space-y-6 scroll-mt-24`}
     >
       <div className="flex items-center gap-2 pb-3 border-b border-neutral-100">
-        <Shield className="w-5 h-5 text-[#8e2e11]" />
-        <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f]">
+        <Shield className="w-5 h-5 text-brick" />
+        <h3 className="text-base sm:text-lg font-bold text-ink">
           {t('Account Security', '账户安全')}
         </h3>
       </div>
@@ -381,7 +381,7 @@ export function SecurityCard({
                   type="button"
                   onClick={handleConfirm}
                   disabled={confirming}
-                  className="min-h-[44px] px-5 py-2 rounded-xl bg-[#8e2e11] text-white hover:brightness-110 text-xs font-semibold cursor-pointer whitespace-nowrap active:scale-98 disabled:opacity-60"
+                  className="min-h-[44px] px-5 py-2 rounded-xl bg-brick text-white hover:brightness-110 text-xs font-semibold cursor-pointer whitespace-nowrap active:scale-98 disabled:opacity-60"
                 >
                   {confirming ? t('Confirming…', '确认中…') : t('Confirm', '确认')}
                 </button>

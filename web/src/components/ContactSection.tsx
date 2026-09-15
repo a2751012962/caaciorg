@@ -143,7 +143,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
     <section
       ref={sectionRef}
       id="contact"
-      className="relative py-20 md:py-28 bg-[#fbf9f6] border-t border-neutral-200/80 overflow-hidden"
+      className="relative py-20 md:py-28 bg-surface-warm-2 border-t border-neutral-200/80 overflow-hidden"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
@@ -153,11 +153,11 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
             className="lg:col-span-6 bg-white p-8 sm:p-10 rounded-2xl border border-neutral-200/80 shadow-xs will-change-transform"
           >
             <div className="mb-8 text-center">
-              <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-1">
+              <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-1">
                 Get In Touch · 联络我们
               </span>
               <h2
-                className="text-2xl sm:text-3xl font-semibold text-[#1d1d1f] tracking-tight font-serif-caaci"
+                className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight font-serif-caaci"
                 style={{ fontFamily: 'var(--font-caaci-serif)' }}
               >
                 {content.contact.heading}
@@ -207,7 +207,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder={`${content.contact.namePlaceholder} *`}
-                    className="w-full px-4 py-3 text-sm rounded-xl bg-[#fbfbfd] border border-neutral-200/80 text-[#1d1d1f] placeholder-neutral-400 focus:outline-none focus:border-[#1d1d1f] focus:ring-1 focus:ring-[#1d1d1f] focus:bg-white font-poppins transition-all"
+                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-poppins transition-all"
                   />
                 </div>
 
@@ -223,7 +223,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder={`${content.contact.emailPlaceholder} *`}
-                    className="w-full px-4 py-3 text-sm rounded-xl bg-[#fbfbfd] border border-neutral-200/80 text-[#1d1d1f] placeholder-neutral-400 focus:outline-none focus:border-[#1d1d1f] focus:ring-1 focus:ring-[#1d1d1f] focus:bg-white font-poppins transition-all"
+                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-poppins transition-all"
                   />
                 </div>
 
@@ -238,7 +238,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder={content.contact.phonePlaceholder}
-                    className="w-full px-4 py-3 text-sm rounded-xl bg-[#fbfbfd] border border-neutral-200/80 text-[#1d1d1f] placeholder-neutral-400 focus:outline-none focus:border-[#1d1d1f] focus:ring-1 focus:ring-[#1d1d1f] focus:bg-white font-poppins transition-all"
+                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-poppins transition-all"
                   />
                 </div>
 
@@ -254,7 +254,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                     value={formData.message}
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                     placeholder={`${content.contact.messagePlaceholder} *`}
-                    className="w-full px-4 py-3 text-sm rounded-xl bg-[#fbfbfd] border border-neutral-200/80 text-[#1d1d1f] placeholder-neutral-400 focus:outline-none focus:border-[#1d1d1f] focus:ring-1 focus:ring-[#1d1d1f] focus:bg-white font-poppins resize-none transition-all"
+                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-poppins resize-none transition-all"
                   />
                 </div>
 
@@ -278,7 +278,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                   <button
                     type="submit"
                     disabled={status === 'sending'}
-                    className="w-full sm:w-auto px-8 py-3 font-poppins font-medium uppercase text-xs sm:text-sm tracking-wider text-white transition-all shadow-xs hover:bg-[#a63715] active:scale-98 flex items-center justify-center gap-2 rounded-full cursor-pointer bg-[#8e2e11] disabled:opacity-70 disabled:cursor-wait"
+                    className="w-full sm:w-auto px-8 py-3 font-poppins font-medium uppercase text-xs sm:text-sm tracking-wider text-white transition-all shadow-xs hover:bg-brick-hover active:scale-98 flex items-center justify-center gap-2 rounded-full cursor-pointer bg-brick disabled:opacity-70 disabled:cursor-wait"
                   >
                     <Send className="w-4 h-4" />
                     <span>
@@ -302,10 +302,10 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
             </div>
 
             {/* Restrained Info Card matching /membership/ Apple Dark Card style */}
-            <div className="p-8 rounded-2xl text-center text-white shadow-sm border border-white/10 bg-[#1d1d1f] transition-all">
+            <div className="p-8 rounded-2xl text-center text-white shadow-sm border border-white/10 bg-ink transition-all">
               <div className="space-y-2.5 font-poppins">
                 <div className="flex items-center justify-center gap-2 text-white/90 text-sm">
-                  <MapPin className="w-4 h-4 text-[#8e2e11]" />
+                  <MapPin className="w-4 h-4 text-brick" />
                   <span className="font-medium text-base sm:text-lg">
                     {content.contact.addressLine1}
                   </span>
@@ -318,7 +318,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                     href={`mailto:${content.contact.email}`}
                     className="inline-flex items-center gap-2 text-white font-medium text-base tracking-wide hover:underline hover:text-neutral-200 transition-colors"
                   >
-                    <Mail className="w-4 h-4 text-[#8e2e11]" />
+                    <Mail className="w-4 h-4 text-brick" />
                     <span>{content.contact.email}</span>
                   </a>
                 </div>

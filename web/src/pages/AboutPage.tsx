@@ -27,7 +27,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
   const [isPlayingVideo, setIsPlayingVideo] = useState(false);
 
   return (
-    <div className="bg-white min-h-screen text-[#1d1d1f] font-sans antialiased selection:bg-neutral-200">
+    <div className="bg-white min-h-screen text-ink font-sans antialiased selection:bg-neutral-200">
       {/* 1. Clean Subpage Parallax Header */}
       <SubpageHero
         title={data.title}
@@ -44,11 +44,11 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
           {/* Left: Mission & Story */}
           <div className="lg:col-span-7 space-y-6">
-            <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block">
+            <span className="text-xs font-semibold tracking-widest text-brick uppercase block">
               {data.missionTitle}
             </span>
 
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-[#1d1d1f] leading-snug">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink leading-snug">
               “{data.missionText}”
             </h2>
 
@@ -62,7 +62,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
               <button
                 type="button"
                 onClick={() => onNavigate('membership')}
-                className="px-5 py-2.5 rounded-full bg-[#1d1d1f] text-white text-xs font-medium tracking-wide hover:bg-neutral-800 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                className="px-5 py-2.5 rounded-full bg-ink text-white text-xs font-medium tracking-wide hover:bg-neutral-800 transition-colors cursor-pointer inline-flex items-center gap-1.5"
               >
                 <span>{lang === 'en' ? 'Join CAACI Today' : '加入华协大家庭'}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -102,13 +102,13 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       </section>
 
       {/* 3. Apple-Style Core Values (Clean 3-Column Columns with Hairline Borders) */}
-      <section className="py-16 sm:py-24 bg-[#fbfbfd] border-b border-neutral-200/80">
+      <section className="py-16 sm:py-24 bg-surface-2 border-b border-neutral-200/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mb-14">
-            <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-2">
+            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
               {lang === 'en' ? 'Our Principles' : '核心价值观'}
             </span>
-            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
+            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
               {data.valuesTitle}
             </h2>
           </div>
@@ -120,21 +120,19 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 className="bg-white rounded-2xl p-8 border border-neutral-200/80 shadow-sm flex flex-col justify-between space-y-6"
               >
                 <div className="space-y-4">
-                  <div className="w-10 h-10 rounded-full bg-[#f5f5f7] flex items-center justify-center text-[#1d1d1f]">
+                  <div className="w-10 h-10 rounded-full bg-surface-3 flex items-center justify-center text-ink">
                     {idx === 0 && <Users className="w-5 h-5" />}
                     {idx === 1 && <HeartHandshake className="w-5 h-5" />}
                     {idx === 2 && <Award className="w-5 h-5" />}
                   </div>
 
-                  <h3 className="text-xl font-semibold tracking-tight text-[#1d1d1f]">
-                    {val.title}
-                  </h3>
+                  <h3 className="text-xl font-semibold tracking-tight text-ink">{val.title}</h3>
 
                   <p className="text-sm text-neutral-600 leading-relaxed">{val.desc}</p>
                 </div>
 
                 <div className="pt-4 border-t border-neutral-100 flex items-center gap-2 text-xs font-medium text-neutral-400">
-                  <ShieldCheck className="w-4 h-4 text-[#8e2e11]" />
+                  <ShieldCheck className="w-4 h-4 text-brick" />
                   <span>Value 0{idx + 1}</span>
                 </div>
               </div>
@@ -147,21 +145,21 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       <section className="py-16 sm:py-24 bg-white border-b border-neutral-200/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl mb-12">
-            <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-2">
+            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
               {lang === 'en' ? 'Community Action' : '实现途径与活动开展'}
             </span>
-            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
+            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
               {data.howWeDoItTitle}
             </h2>
             <p className="mt-4 text-base text-neutral-600 leading-relaxed">{data.howWeDoItText}</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="p-6 rounded-2xl bg-[#f5f5f7] border border-black/[0.04] space-y-2">
-              <span className="text-[11px] font-semibold tracking-wider text-[#8e2e11] uppercase">
+            <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
+              <span className="text-[11px] font-semibold tracking-wider text-brick uppercase">
                 {lang === 'en' ? 'Annual Celebration' : '千人盛宴'}
               </span>
-              <h4 className="text-base font-semibold text-[#1d1d1f]">
+              <h4 className="text-base font-semibold text-ink">
                 {lang === 'en' ? 'Spring Festival Gala' : '农历新春晚会'}
               </h4>
               <p className="text-xs text-neutral-500 leading-relaxed">
@@ -171,11 +169,11 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
               </p>
             </div>
 
-            <div className="p-6 rounded-2xl bg-[#f5f5f7] border border-black/[0.04] space-y-2">
-              <span className="text-[11px] font-semibold tracking-wider text-[#8e2e11] uppercase">
+            <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
+              <span className="text-[11px] font-semibold tracking-wider text-brick uppercase">
                 {lang === 'en' ? 'Folk Heritage' : '传统民俗'}
               </span>
-              <h4 className="text-base font-semibold text-[#1d1d1f]">
+              <h4 className="text-base font-semibold text-ink">
                 {lang === 'en' ? 'Dragon Boat Gathering' : '端午民俗传统聚会'}
               </h4>
               <p className="text-xs text-neutral-500 leading-relaxed">
@@ -185,11 +183,11 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
               </p>
             </div>
 
-            <div className="p-6 rounded-2xl bg-[#f5f5f7] border border-black/[0.04] space-y-2">
-              <span className="text-[11px] font-semibold tracking-wider text-[#8e2e11] uppercase">
+            <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
+              <span className="text-[11px] font-semibold tracking-wider text-brick uppercase">
                 {lang === 'en' ? 'Autumn Harvest' : '游园盛会'}
               </span>
-              <h4 className="text-base font-semibold text-[#1d1d1f]">
+              <h4 className="text-base font-semibold text-ink">
                 {lang === 'en' ? 'Mid-Autumn Lantern Festival' : '中秋文化游园灯会'}
               </h4>
               <p className="text-xs text-neutral-500 leading-relaxed">
@@ -199,11 +197,11 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
               </p>
             </div>
 
-            <div className="p-6 rounded-2xl bg-[#f5f5f7] border border-black/[0.04] space-y-2">
-              <span className="text-[11px] font-semibold tracking-wider text-[#8e2e11] uppercase">
+            <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
+              <span className="text-[11px] font-semibold tracking-wider text-brick uppercase">
                 {lang === 'en' ? 'Civic & Professional' : '政商与求职'}
               </span>
-              <h4 className="text-base font-semibold text-[#1d1d1f]">
+              <h4 className="text-base font-semibold text-ink">
                 {lang === 'en' ? 'Career Fairs & Seminars' : '全州招聘会与法税论坛'}
               </h4>
               <p className="text-xs text-neutral-500 leading-relaxed">
@@ -217,11 +215,11 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       </section>
 
       {/* 5. Apple Theater Video Showcase (Sleek Obsidian Cinema Frame, No Cheesy Gradients) */}
-      <section className="py-16 sm:py-24 bg-[#161617] text-white">
+      <section className="py-16 sm:py-24 bg-ink-deep text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 pb-10 border-b border-white/10 mb-10">
             <div className="space-y-2 max-w-2xl">
-              <span className="text-xs font-semibold tracking-widest text-[#edbb5f] uppercase block">
+              <span className="text-xs font-semibold tracking-widest text-gold uppercase block">
                 {lang === 'en' ? 'Official Video' : '官方回顾视频'}
               </span>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-white">
@@ -239,9 +237,9 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 href={`https://youtu.be/${data.yearInReviewVideoId}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-5 py-2.5 rounded-full bg-white text-[#1d1d1f] hover:bg-neutral-200 text-xs font-medium tracking-wide transition-colors inline-flex items-center gap-2"
+                className="px-5 py-2.5 rounded-full bg-white text-ink hover:bg-neutral-200 text-xs font-medium tracking-wide transition-colors inline-flex items-center gap-2"
               >
-                <Play className="w-3.5 h-3.5 fill-[#1d1d1f]" />
+                <Play className="w-3.5 h-3.5 fill-ink" />
                 <span>{lang === 'en' ? 'Watch on YouTube' : '在 YouTube 观看'}</span>
                 <ExternalLink className="w-3.5 h-3.5 text-neutral-500" />
               </a>
@@ -262,9 +260,9 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                   <button
                     type="button"
                     aria-label="Play video"
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/90 text-[#1d1d1f] flex items-center justify-center shadow-lg group-hover:scale-105 group-hover:bg-white transition-all backdrop-blur-sm cursor-pointer"
+                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/90 text-ink flex items-center justify-center shadow-lg group-hover:scale-105 group-hover:bg-white transition-all backdrop-blur-sm cursor-pointer"
                   >
-                    <Play className="w-6 h-6 fill-[#1d1d1f] translate-x-0.5" />
+                    <Play className="w-6 h-6 fill-ink translate-x-0.5" />
                   </button>
 
                   <div className="absolute bottom-5 left-5 right-5 flex items-center justify-between text-xs text-white/80">
@@ -308,13 +306,13 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       </section>
 
       {/* 6. Apple-Style Leadership Directory (管理架构与理事会名录) */}
-      <section className="py-16 sm:py-24 bg-[#fbfbfd] border-b border-neutral-200/80">
+      <section className="py-16 sm:py-24 bg-surface-2 border-b border-neutral-200/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mb-14">
-            <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-2">
+            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
               {lang === 'en' ? 'Leadership' : '协会治理'}
             </span>
-            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
+            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
               {data.managementTitle}
             </h2>
             <p className="mt-2 text-sm text-neutral-500">{data.managementSubtitle}</p>
@@ -327,10 +325,10 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 className="bg-white p-7 rounded-2xl border border-neutral-200/80 shadow-sm flex flex-col justify-between space-y-4"
               >
                 <div>
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8e2e11] block mb-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-brick block mb-1">
                     {member.role}
                   </span>
-                  <h4 className="text-lg font-semibold text-[#1d1d1f]">{member.name}</h4>
+                  <h4 className="text-lg font-semibold text-ink">{member.name}</h4>
                   <p className="text-xs text-neutral-600 mt-2 leading-relaxed">{member.desc}</p>
                 </div>
               </div>
@@ -343,10 +341,10 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       <section className="py-16 sm:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mb-12">
-            <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-2">
+            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
               {lang === 'en' ? 'Heritage & Honor' : '光荣传承'}
             </span>
-            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f]">
+            <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-ink">
               {data.pastPresidentsTitle}
             </h2>
             <p className="mt-2 text-xs sm:text-sm text-neutral-500">
@@ -359,12 +357,12 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
             {data.pastPresidents.map((p, idx) => (
               <div
                 key={idx}
-                className="p-4 rounded-xl border border-neutral-200/80 bg-[#fbfbfd] hover:bg-neutral-100 transition-colors"
+                className="p-4 rounded-xl border border-neutral-200/80 bg-surface-2 hover:bg-neutral-100 transition-colors"
               >
                 <span className="text-xs font-semibold text-neutral-400 block font-mono">
                   {p.year}
                 </span>
-                <span className="font-semibold text-sm text-[#1d1d1f] mt-0.5 block">{p.name}</span>
+                <span className="font-semibold text-sm text-ink mt-0.5 block">{p.name}</span>
               </div>
             ))}
           </div>

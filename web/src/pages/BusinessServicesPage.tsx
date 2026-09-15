@@ -314,7 +314,7 @@ export function BusinessServicesPage({
   return (
     <div
       ref={containerRef}
-      className="bg-white min-h-screen text-[#1d1d1f] font-sans antialiased selection:bg-neutral-200"
+      className="bg-white min-h-screen text-ink font-sans antialiased selection:bg-neutral-200"
     >
       {/* 1. Top Return / Breadcrumb & Status Bar (Sticky to Top) */}
       <div
@@ -333,10 +333,10 @@ export function BusinessServicesPage({
                 onNavigate('home');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="inline-flex items-center gap-0.5 sm:gap-1 font-medium text-neutral-700 hover:text-[#8e2e11] transition-colors cursor-pointer group shrink-0"
+              className="inline-flex items-center gap-0.5 sm:gap-1 font-medium text-neutral-700 hover:text-brick transition-colors cursor-pointer group shrink-0"
               title={lang === 'en' ? 'Back to Menu' : '返回菜单'}
             >
-              <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-400 group-hover:text-[#8e2e11] shrink-0" />
+              <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-400 group-hover:text-brick shrink-0" />
               <span className="hidden sm:inline">
                 {lang === 'en' ? 'Back to Menu' : '返回菜单'}
               </span>
@@ -348,12 +348,12 @@ export function BusinessServicesPage({
                 onNavigate('home');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="hover:text-[#8e2e11] transition-colors cursor-pointer text-neutral-500 shrink-0 hidden md:inline"
+              className="hover:text-brick transition-colors cursor-pointer text-neutral-500 shrink-0 hidden md:inline"
             >
               {content.nav.welcome}
             </button>
             <span className="text-neutral-300 shrink-0">/</span>
-            <span className="text-[#8e2e11] font-semibold truncate max-w-[120px] xs:max-w-[170px] sm:max-w-none">
+            <span className="text-brick font-semibold truncate max-w-[120px] xs:max-w-[170px] sm:max-w-none">
               {content.nav.businessServices}
             </span>
           </nav>
@@ -383,7 +383,7 @@ export function BusinessServicesPage({
       </div>
 
       {/* 2. Information Hub Header & 4-Pillar Services Overview */}
-      <section className="py-12 sm:py-16 border-b border-neutral-200/80 bg-gradient-to-b from-[#fbfbfd] via-white to-white overflow-hidden">
+      <section className="py-12 sm:py-16 border-b border-neutral-200/80 bg-gradient-to-b from-surface-2 via-white to-white overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Main Title & Value Proposition */}
           <motion.div
@@ -396,7 +396,7 @@ export function BusinessServicesPage({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.05 }}
-              className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase mb-3"
+              className="text-xs font-semibold tracking-widest text-brick uppercase mb-3"
             >
               {lang === 'en'
                 ? 'CAACI Business Directory & Regional Resources'
@@ -406,7 +406,7 @@ export function BusinessServicesPage({
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-              className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-[#1d1d1f] leading-[1.15]"
+              className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-ink leading-[1.15]"
             >
               {lang === 'en'
                 ? 'Commerce, Capital & Community Directory.'
@@ -435,7 +435,7 @@ export function BusinessServicesPage({
                 whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={() => scrollToSection('section-directory', 'directory')}
-                className="px-5 py-2.5 rounded-full bg-[#1d1d1f] text-white text-xs sm:text-sm font-medium hover:bg-neutral-800 transition-colors inline-flex items-center gap-2 cursor-pointer shadow-xs"
+                className="px-5 py-2.5 rounded-full bg-ink text-white text-xs sm:text-sm font-medium hover:bg-neutral-800 transition-colors inline-flex items-center gap-2 cursor-pointer shadow-xs"
               >
                 <Store className="w-4 h-4" />
                 <span>{lang === 'en' ? 'Explore Directory' : '浏览本地名录商户'}</span>
@@ -447,7 +447,7 @@ export function BusinessServicesPage({
                 onClick={() => scrollToSection('section-microloan', 'microloan')}
                 className="px-5 py-2.5 rounded-full bg-white border border-neutral-300 text-neutral-800 hover:border-neutral-800 text-xs sm:text-sm font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
               >
-                <Coins className="w-4 h-4 text-[#8e2e11]" />
+                <Coins className="w-4 h-4 text-brick" />
                 <span>{lang === 'en' ? 'Chamber Microloan Info' : '查看商会小额贷款'}</span>
               </motion.button>
               <motion.button
@@ -455,7 +455,7 @@ export function BusinessServicesPage({
                 whileTap={{ scale: 0.98 }}
                 type="button"
                 onClick={() => handleOpenInquiry('directory')}
-                className="px-5 py-2.5 rounded-full bg-[#8e2e11]/10 text-[#8e2e11] hover:bg-[#8e2e11]/15 text-xs sm:text-sm font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-full bg-brick/10 text-brick hover:bg-brick/15 text-xs sm:text-sm font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
               >
                 <FileCheck className="w-4 h-4" />
                 <span>
@@ -479,14 +479,14 @@ export function BusinessServicesPage({
               className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs hover:shadow-md hover:border-neutral-300 transition-all flex flex-col justify-between group"
             >
               <div className="space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-[#f5f5f7] flex items-center justify-center text-[#8e2e11] group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-surface-3 flex items-center justify-center text-brick group-hover:scale-105 transition-transform">
                   <Store className="w-5 h-5" />
                 </div>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-[#1d1d1f]">
+                  <h3 className="text-base font-semibold text-ink">
                     {lang === 'en' ? 'Merchant Directory' : '认证华人商户名录'}
                   </h3>
-                  <span className="text-[11px] font-semibold text-[#8e2e11] px-2 py-0.5 rounded-full bg-[#8e2e11]/10">
+                  <span className="text-[11px] font-semibold text-brick px-2 py-0.5 rounded-full bg-brick/10">
                     {merchants.length}
                   </span>
                 </div>
@@ -500,7 +500,7 @@ export function BusinessServicesPage({
                 <button
                   type="button"
                   onClick={() => scrollToSection('section-directory', 'directory')}
-                  className="text-xs font-medium text-neutral-900 hover:text-[#8e2e11] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                  className="text-xs font-medium text-neutral-900 hover:text-brick inline-flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <span>{lang === 'en' ? 'View Directory' : '查看名录'}</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
@@ -522,7 +522,7 @@ export function BusinessServicesPage({
                   <Coins className="w-5 h-5" />
                 </div>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-[#1d1d1f]">
+                  <h3 className="text-base font-semibold text-ink">
                     {lang === 'en' ? 'Chamber Microloans' : '商会小额扶持贷款'}
                   </h3>
                   <span className="text-[11px] font-semibold text-amber-800 px-2 py-0.5 rounded-full bg-amber-100">
@@ -539,7 +539,7 @@ export function BusinessServicesPage({
                 <button
                   type="button"
                   onClick={() => scrollToSection('section-microloan', 'microloan')}
-                  className="text-xs font-medium text-neutral-900 hover:text-[#8e2e11] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                  className="text-xs font-medium text-neutral-900 hover:text-brick inline-flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <span>{lang === 'en' ? 'Loan Details' : '了解贷款政策'}</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
@@ -561,7 +561,7 @@ export function BusinessServicesPage({
                   <Users className="w-5 h-5" />
                 </div>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-[#1d1d1f]">
+                  <h3 className="text-base font-semibold text-ink">
                     {lang === 'en' ? 'Job Fair & Events' : '全州招聘会与活动'}
                   </h3>
                   <span className="text-[11px] font-semibold text-blue-800 px-2 py-0.5 rounded-full bg-blue-100">
@@ -578,7 +578,7 @@ export function BusinessServicesPage({
                 <button
                   type="button"
                   onClick={() => scrollToSection('section-mentorship', 'mentorship')}
-                  className="text-xs font-medium text-neutral-900 hover:text-[#8e2e11] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                  className="text-xs font-medium text-neutral-900 hover:text-brick inline-flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <span>{lang === 'en' ? 'View Events' : '查看招聘会详情'}</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
@@ -600,7 +600,7 @@ export function BusinessServicesPage({
                   <Briefcase className="w-5 h-5" />
                 </div>
                 <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-[#1d1d1f]">
+                  <h3 className="text-base font-semibold text-ink">
                     {lang === 'en' ? 'Directory Membership' : '名录入驻与会费'}
                   </h3>
                   <span className="text-[11px] font-semibold text-purple-800 px-2 py-0.5 rounded-full bg-purple-100">
@@ -617,7 +617,7 @@ export function BusinessServicesPage({
                 <button
                   type="button"
                   onClick={() => scrollToSection('section-sponsorship', 'sponsorship')}
-                  className="text-xs font-medium text-neutral-900 hover:text-[#8e2e11] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                  className="text-xs font-medium text-neutral-900 hover:text-brick inline-flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <span>{lang === 'en' ? 'Membership Info' : '查看入驻说明'}</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
@@ -637,7 +637,7 @@ export function BusinessServicesPage({
                 transition={{ duration: 0.5, delay: 0.1 + idx * 0.08, ease: [0.22, 1, 0.36, 1] }}
                 className="space-y-1"
               >
-                <div className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
+                <div className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">
                   {fill(stat.value)}
                 </div>
                 <div className="text-xs sm:text-sm text-neutral-500 font-medium">{stat.label}</div>
@@ -650,7 +650,7 @@ export function BusinessServicesPage({
       {/* 4. Section: Chinese Business Directory (Apple-Style List & Search) */}
       <section
         id="section-directory"
-        className="py-10 sm:py-16 lg:py-20 bg-[#fbfbfd] border-b border-neutral-200/80"
+        className="py-10 sm:py-16 lg:py-20 bg-surface-2 border-b border-neutral-200/80"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header & Filter Controls */}
@@ -662,10 +662,10 @@ export function BusinessServicesPage({
             className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 pb-6 sm:pb-8 lg:pb-10 border-b border-neutral-200/80"
           >
             <div>
-              <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-1.5 p-0">
+              <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-1.5 p-0">
                 {lang === 'en' ? 'Verified Directory' : '官方认证商业名录'}
               </span>
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">
                 {lang === 'en'
                   ? 'Central Illinois Chinese Business Directory'
                   : '伊利诺伊中部华人商业名录'}
@@ -695,7 +695,7 @@ export function BusinessServicesPage({
                 whileTap={{ scale: 0.97 }}
                 type="button"
                 onClick={() => handleOpenInquiry('directory')}
-                className="px-3 sm:px-4 py-2 text-xs font-medium rounded-full bg-[#8e2e11] text-white hover:bg-[#72240d] transition-colors cursor-pointer inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
+                className="px-3 sm:px-4 py-2 text-xs font-medium rounded-full bg-brick text-white hover:bg-brick-pressed transition-colors cursor-pointer inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">
@@ -723,7 +723,7 @@ export function BusinessServicesPage({
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                   selectedCategory === cat.id
-                    ? 'bg-[#1d1d1f] text-white'
+                    ? 'bg-ink text-white'
                     : 'bg-white border border-neutral-200 text-neutral-600 hover:text-neutral-950 hover:border-neutral-300'
                 }`}
               >
@@ -774,21 +774,21 @@ export function BusinessServicesPage({
                           </span>
                           {merchant.featured && (
                             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-900 text-white flex items-center gap-1">
-                              <ShieldCheck className="w-3 h-3 text-[#edbb5f]" />
+                              <ShieldCheck className="w-3 h-3 text-gold" />
                               <span>Verified</span>
                             </span>
                           )}
                           {merchant.discount &&
                             !merchant.discount.toLowerCase().includes('official directory') &&
                             !merchant.discount.includes('名录') && (
-                              <span className="text-[10px] font-semibold text-[#8e2e11] px-2 py-0.5 rounded-full bg-[#8e2e11]/10">
+                              <span className="text-[10px] font-semibold text-brick px-2 py-0.5 rounded-full bg-brick/10">
                                 {merchant.discount}
                               </span>
                             )}
                         </div>
 
                         <div>
-                          <h3 className="text-base font-semibold text-[#1d1d1f] tracking-tight line-clamp-1">
+                          <h3 className="text-base font-semibold text-ink tracking-tight line-clamp-1">
                             {merchant.name}
                           </h3>
                           <p className="text-xs text-neutral-600 leading-relaxed mt-1.5 line-clamp-3">
@@ -836,7 +836,7 @@ export function BusinessServicesPage({
                           rel="noopener noreferrer"
                           className="flex-1 py-2 text-center text-xs font-medium rounded-full bg-neutral-900 text-white hover:bg-neutral-800 transition-colors inline-flex items-center justify-center gap-1 shadow-xs"
                         >
-                          <Navigation className="w-3 h-3 text-[#edbb5f]" />
+                          <Navigation className="w-3 h-3 text-gold" />
                           <span>{lang === 'en' ? 'Directions' : '导航'}</span>
                         </a>
                       </div>
@@ -881,7 +881,7 @@ export function BusinessServicesPage({
                       delay: Math.min(idx * 0.04, 0.28),
                       ease: [0.22, 1, 0.36, 1],
                     }}
-                    className="p-6 sm:p-8 hover:bg-[#fafafc] transition-colors flex flex-col md:flex-row md:items-center justify-between gap-6"
+                    className="p-6 sm:p-8 hover:bg-surface-hover transition-colors flex flex-col md:flex-row md:items-center justify-between gap-6"
                   >
                     <div className="space-y-2 max-w-2xl">
                       <div className="flex flex-wrap items-center gap-2">
@@ -890,20 +890,20 @@ export function BusinessServicesPage({
                         </span>
                         {merchant.featured && (
                           <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-neutral-900 text-white flex items-center gap-1">
-                            <ShieldCheck className="w-3 h-3 text-[#edbb5f]" />
+                            <ShieldCheck className="w-3 h-3 text-gold" />
                             <span>CAACI Verified</span>
                           </span>
                         )}
                         {merchant.discount &&
                           !merchant.discount.toLowerCase().includes('official directory') &&
                           !merchant.discount.includes('名录') && (
-                            <span className="text-[11px] font-semibold text-[#8e2e11] px-2.5 py-0.5 rounded-full bg-[#8e2e11]/10">
+                            <span className="text-[11px] font-semibold text-brick px-2.5 py-0.5 rounded-full bg-brick/10">
                               {merchant.discount}
                             </span>
                           )}
                       </div>
 
-                      <h3 className="text-lg sm:text-xl font-semibold text-[#1d1d1f] tracking-tight">
+                      <h3 className="text-lg sm:text-xl font-semibold text-ink tracking-tight">
                         {merchant.name}
                       </h3>
 
@@ -951,7 +951,7 @@ export function BusinessServicesPage({
                         rel="noopener noreferrer"
                         className="px-4 py-2 text-xs font-medium rounded-full bg-neutral-100 text-neutral-800 hover:bg-neutral-200 transition-colors inline-flex items-center gap-1.5"
                       >
-                        <Navigation className="w-3.5 h-3.5 text-[#8e2e11]" />
+                        <Navigation className="w-3.5 h-3.5 text-brick" />
                         <span>{lang === 'en' ? 'Directions' : '导航路线'}</span>
                       </a>
                     </div>
@@ -976,11 +976,11 @@ export function BusinessServicesPage({
             transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
             className="space-y-6"
           >
-            <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block">
+            <span className="text-xs font-semibold tracking-widest text-brick uppercase block">
               {lang === 'en' ? 'Financing Assistance' : '小微金融扶持'}
             </span>
 
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-[#1d1d1f] leading-snug">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink leading-snug">
               {lang === 'en'
                 ? 'Champaign County Chamber Microloan Assistance'
                 : '香槟县商会小额贷款扶持计划'}
@@ -1014,11 +1014,11 @@ export function BusinessServicesPage({
                 transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
                 className="flex items-start gap-3.5"
               >
-                <span className="w-6 h-6 rounded-full bg-[#8e2e11]/10 text-[#8e2e11] font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                <span className="w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
                   1
                 </span>
                 <div>
-                  <h4 className="font-semibold text-[#1d1d1f] text-sm">
+                  <h4 className="font-semibold text-ink text-sm">
                     {lang === 'en' ? 'Step 1: Prepare Required Materials' : '第一步：准备申请材料'}
                   </h4>
                   <p className="text-neutral-600 mt-0.5 leading-relaxed">
@@ -1036,11 +1036,11 @@ export function BusinessServicesPage({
                 transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
                 className="flex items-start gap-3.5"
               >
-                <span className="w-6 h-6 rounded-full bg-[#8e2e11]/10 text-[#8e2e11] font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                <span className="w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
                   2
                 </span>
                 <div>
-                  <h4 className="font-semibold text-[#1d1d1f] text-sm">
+                  <h4 className="font-semibold text-ink text-sm">
                     {lang === 'en'
                       ? 'Step 2: Direct Submission to Chamber'
                       : '第二步：直接联系商会申请'}
@@ -1060,11 +1060,11 @@ export function BusinessServicesPage({
                 transition={{ duration: 0.5, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
                 className="flex items-start gap-3.5"
               >
-                <span className="w-6 h-6 rounded-full bg-[#8e2e11]/10 text-[#8e2e11] font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                <span className="w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
                   3
                 </span>
                 <div>
-                  <h4 className="font-semibold text-[#1d1d1f] text-sm">
+                  <h4 className="font-semibold text-ink text-sm">
                     {lang === 'en'
                       ? 'Step 3: Review & Disbursement'
                       : '第三步：评审委员会评估与放款'}
@@ -1083,7 +1083,7 @@ export function BusinessServicesPage({
                 whileHover={{ scale: 1.02, y: -1 }}
                 whileTap={{ scale: 0.98 }}
                 href="mailto:lauraw@champaigncounty.org?subject=Champaign%20County%20Chamber%20Microloan%20Inquiry"
-                className="px-6 py-3 rounded-full bg-[#1d1d1f] text-white text-xs sm:text-sm font-medium hover:bg-neutral-800 transition-colors cursor-pointer inline-flex items-center gap-2"
+                className="px-6 py-3 rounded-full bg-ink text-white text-xs sm:text-sm font-medium hover:bg-neutral-800 transition-colors cursor-pointer inline-flex items-center gap-2"
               >
                 <Mail className="w-4 h-4" />
                 <span>lauraw@champaigncounty.org</span>
@@ -1105,7 +1105,7 @@ export function BusinessServicesPage({
       {/* 6. Section: Commercial Events & Mentorship (Apple Editorial Rows with Motion) */}
       <section
         id="section-mentorship"
-        className="py-16 sm:py-24 bg-[#fbfbfd] border-b border-neutral-200/80"
+        className="py-16 sm:py-24 bg-surface-2 border-b border-neutral-200/80"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
@@ -1115,10 +1115,10 @@ export function BusinessServicesPage({
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="max-w-3xl mb-12"
           >
-            <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-2">
+            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
               {lang === 'en' ? 'Programs & Networking' : '经贸活动与导师计划'}
             </span>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">
               {lang === 'en'
                 ? 'Commercial Events & Entrepreneur Mentorship'
                 : '商业经贸活动与青年创业导师'}
@@ -1139,16 +1139,16 @@ export function BusinessServicesPage({
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-20px' }}
                 transition={{ duration: 0.5, delay: idx * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                className="p-6 sm:p-8 hover:bg-[#fafafc] transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-6"
+                className="p-6 sm:p-8 hover:bg-surface-hover transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-6"
               >
                 <div className="space-y-2 max-w-2xl">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold text-[#8e2e11] px-2.5 py-0.5 rounded-full bg-[#8e2e11]/10">
+                    <span className="text-xs font-semibold text-brick px-2.5 py-0.5 rounded-full bg-brick/10">
                       {evt.organizer}
                     </span>
                   </div>
 
-                  <h3 className="text-lg sm:text-xl font-semibold text-[#1d1d1f] tracking-tight">
+                  <h3 className="text-lg sm:text-xl font-semibold text-ink tracking-tight">
                     {evt.title}
                   </h3>
 
@@ -1176,7 +1176,7 @@ export function BusinessServicesPage({
                     whileTap={{ scale: 0.97 }}
                     type="button"
                     onClick={() => onNavigate('events')}
-                    className="px-5 py-2.5 text-xs font-medium rounded-full bg-[#1d1d1f] text-white hover:bg-neutral-800 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                    className="px-5 py-2.5 text-xs font-medium rounded-full bg-ink text-white hover:bg-neutral-800 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>{lang === 'en' ? 'View Event / RSVP' : '查看详情与预约'}</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -1201,10 +1201,10 @@ export function BusinessServicesPage({
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="text-center max-w-2xl mx-auto mb-14"
           >
-            <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-2">
+            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
               {lang === 'en' ? 'Official Membership & Financing' : '官方入驻与扶持通道'}
             </span>
-            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
+            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
               {lang === 'en'
                 ? 'Directory Listing & Chamber Financing'
                 : '商户名录入驻与商会扶持说明'}
@@ -1227,24 +1227,24 @@ export function BusinessServicesPage({
                 whileHover={{ y: -6, transition: { duration: 0.2 } }}
                 className={`rounded-2xl p-8 flex flex-col justify-between transition-all relative ${
                   tier.recommended
-                    ? 'bg-[#f5f5f7] border-2 border-[#1d1d1f] shadow-md'
+                    ? 'bg-surface-3 border-2 border-ink shadow-md'
                     : 'bg-white border border-neutral-200/90'
                 }`}
               >
                 {tier.recommended && (
-                  <div className="absolute -top-3 left-8 bg-[#1d1d1f] text-white text-[11px] font-medium tracking-wide uppercase px-3 py-0.5 rounded-full">
+                  <div className="absolute -top-3 left-8 bg-ink text-white text-[11px] font-medium tracking-wide uppercase px-3 py-0.5 rounded-full">
                     {lang === 'en' ? 'Recommended' : '推荐方案'}
                   </div>
                 )}
 
                 <div className="space-y-4">
-                  <h3 className="text-xl font-semibold text-[#1d1d1f] tracking-tight">
+                  <h3 className="text-xl font-semibold text-ink tracking-tight">
                     {fill(tier.name)}
                   </h3>
                   <p className="text-xs text-neutral-500 leading-relaxed">{fill(tier.subtitle)}</p>
 
                   <div className="pt-2 pb-4 border-b border-neutral-200/80 flex items-baseline gap-1">
-                    <span className="text-4xl font-semibold tracking-tight text-[#1d1d1f]">
+                    <span className="text-4xl font-semibold tracking-tight text-ink">
                       {fill(tier.price)}
                     </span>
                     <span className="text-xs text-neutral-500 font-medium">/ {tier.period}</span>
@@ -1253,7 +1253,7 @@ export function BusinessServicesPage({
                   <ul className="space-y-3 pt-2">
                     {tier.features.map((feat, fIdx) => (
                       <li key={fIdx} className="flex items-start gap-2.5 text-xs text-neutral-700">
-                        <Check className="w-4 h-4 text-[#8e2e11] shrink-0 mt-0.5" />
+                        <Check className="w-4 h-4 text-brick shrink-0 mt-0.5" />
                         <span>{fill(feat)}</span>
                       </li>
                     ))}
@@ -1268,8 +1268,8 @@ export function BusinessServicesPage({
                     onClick={() => sponsorClick(tier)}
                     className={`w-full py-3 rounded-full text-xs font-medium tracking-wide uppercase transition-all cursor-pointer ${
                       tier.recommended
-                        ? 'bg-[#8e2e11] text-white hover:bg-[#72240d]'
-                        : 'border border-neutral-300 text-neutral-800 hover:border-neutral-800 hover:text-[#1d1d1f]'
+                        ? 'bg-brick text-white hover:bg-brick-pressed'
+                        : 'border border-neutral-300 text-neutral-800 hover:border-neutral-800 hover:text-ink'
                     }`}
                   >
                     {sponsorLabel(tier)}
@@ -1311,7 +1311,7 @@ export function BusinessServicesPage({
                   <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
                     <Check className="w-6 h-6" />
                   </div>
-                  <h3 className="text-xl font-semibold text-[#1d1d1f]">
+                  <h3 className="text-xl font-semibold text-ink">
                     {isListing
                       ? t('Listing Submitted', '商户信息已提交')
                       : t('Message Sent', '信息已成功发送')}
@@ -1332,7 +1332,7 @@ export function BusinessServicesPage({
                       <button
                         type="button"
                         onClick={goToBusinessMembership}
-                        className="px-5 py-2.5 rounded-full bg-[#8e2e11] text-white text-xs font-medium hover:bg-[#72240d] transition-colors cursor-pointer"
+                        className="px-5 py-2.5 rounded-full bg-brick text-white text-xs font-medium hover:bg-brick-pressed transition-colors cursor-pointer"
                       >
                         {t(
                           `Get Business Membership (${directoryPrice}/yr)`,
@@ -1352,10 +1352,10 @@ export function BusinessServicesPage({
               ) : (
                 <div>
                   <div className="mb-6">
-                    <span className="text-[11px] font-semibold text-[#8e2e11] uppercase tracking-wider block mb-1">
+                    <span className="text-[11px] font-semibold text-brick uppercase tracking-wider block mb-1">
                       {lang === 'en' ? 'Direct Application' : '在线咨询与入驻申请'}
                     </span>
-                    <h3 className="text-2xl font-semibold tracking-tight text-[#1d1d1f]">
+                    <h3 className="text-2xl font-semibold tracking-tight text-ink">
                       {inquiryType === 'directory'
                         ? lang === 'en'
                           ? 'Join the Business Directory'
@@ -1545,7 +1545,7 @@ export function BusinessServicesPage({
                         type="submit"
                         disabled={sending}
                         aria-busy={sending}
-                        className="w-full py-3 rounded-full bg-[#1d1d1f] text-white text-xs font-medium tracking-wide uppercase hover:bg-neutral-800 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-default"
+                        className="w-full py-3 rounded-full bg-ink text-white text-xs font-medium tracking-wide uppercase hover:bg-neutral-800 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-60 disabled:cursor-default"
                       >
                         <Send className="w-4 h-4" />
                         <span>

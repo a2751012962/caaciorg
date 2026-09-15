@@ -37,22 +37,22 @@ export function SubpageHero({
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3 font-poppins">
               <button
                 onClick={() => onNavigate('home')}
-                className="hover:text-[#8e2e11] transition-colors cursor-pointer"
+                className="hover:text-brick transition-colors cursor-pointer"
               >
                 {content.nav.welcome}
               </button>
               <span>/</span>
-              <span className="text-[#8e2e11] font-bold">{title}</span>
+              <span className="text-brick font-bold">{title}</span>
             </div>
 
             <h1
-              className="text-3xl sm:text-4xl md:text-5xl font-bold text-[#300200] leading-tight tracking-wide font-serif-caaci"
+              className="text-3xl sm:text-4xl md:text-5xl font-bold text-maroon leading-tight tracking-wide font-serif-caaci"
               style={{ fontFamily: 'var(--font-caaci-serif)' }}
             >
               {title}
             </h1>
 
-            <div className="w-16 h-1 bg-[#8e2e11] my-4 rounded-full" />
+            <div className="w-16 h-1 bg-brick my-4 rounded-full" />
 
             {subtitle && (
               <p className="font-poppins text-neutral-700 text-sm sm:text-base leading-relaxed">
@@ -71,8 +71,7 @@ export function SubpageHero({
             <button
               onClick={() => onOpenModal('donate')}
               type="button"
-              className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
-              style={{ backgroundColor: '#8e2e11' }}
+              className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-brick"
             >
               <Heart className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
               <span className="font-poppins font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
@@ -86,8 +85,7 @@ export function SubpageHero({
               type="button"
               className={`group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none ${
                 currentPage === 'events' ? 'brightness-110 ring-2 ring-white/50 inset-ring' : ''
-              }`}
-              style={{ backgroundColor: '#73250e' }}
+              } bg-brick-deep`}
             >
               <Calendar className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
               <span className="font-poppins font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
@@ -101,8 +99,7 @@ export function SubpageHero({
               type="button"
               className={`group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none ${
                 currentPage === 'membership' ? 'brightness-110 ring-2 ring-white/50 inset-ring' : ''
-              }`}
-              style={{ backgroundColor: '#300200' }}
+              } bg-maroon`}
             >
               <UserPlus className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
               <span className="font-poppins font-semibold text-xs sm:text-[13px] tracking-wider uppercase">

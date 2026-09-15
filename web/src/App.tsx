@@ -194,7 +194,7 @@ function Site() {
     : undefined;
 
   return (
-    <div className="min-h-screen bg-white text-neutral-800 font-poppins selection:bg-[#8e2e11] selection:text-white flex flex-col justify-between">
+    <div className="min-h-screen bg-white text-neutral-800 font-poppins selection:bg-brick selection:text-white flex flex-col justify-between">
       <Navbar
         content={content}
         lang={lang}

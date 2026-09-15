@@ -36,19 +36,19 @@ export function CommunityCalendarPage({
       />
 
       {/* Instruction Banner */}
-      <section className="py-12 bg-[#fbf9f8] border-b border-neutral-200 text-center">
+      <section className="py-12 bg-surface-warm border-b border-neutral-200 text-center">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#8e2e11]/10 text-[#8e2e11] text-xs font-bold uppercase tracking-wider mb-3">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brick/10 text-brick text-xs font-bold uppercase tracking-wider mb-3">
             <CalendarDays className="w-3.5 h-3.5" />
             <span>Community Portals</span>
           </div>
           <h2
-            className="text-xl sm:text-2xl md:text-3xl font-bold text-[#300200] font-serif-caaci"
+            className="text-xl sm:text-2xl md:text-3xl font-bold text-maroon font-serif-caaci"
             style={{ fontFamily: 'var(--font-caaci-serif)' }}
           >
             {data.instruction}
           </h2>
-          <div className="w-16 h-1 bg-[#8e2e11] mx-auto mt-4 rounded-full" />
+          <div className="w-16 h-1 bg-brick mx-auto mt-4 rounded-full" />
         </div>
       </section>
 
@@ -61,7 +61,7 @@ export function CommunityCalendarPage({
               href={cal.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="group bg-white rounded-2xl border border-neutral-200 p-8 shadow-sm hover:shadow-2xl hover:border-[#8e2e11]/50 transition-all flex flex-col justify-between text-center"
+              className="group bg-white rounded-2xl border border-neutral-200 p-8 shadow-sm hover:shadow-2xl hover:border-brick/50 transition-all flex flex-col justify-between text-center"
             >
               <div>
                 {/* Institutional Logo Frame */}
@@ -74,7 +74,7 @@ export function CommunityCalendarPage({
                 </div>
 
                 <h3
-                  className="text-lg font-bold text-[#300200] font-serif-caaci mb-3 group-hover:text-[#8e2e11] transition-colors"
+                  className="text-lg font-bold text-maroon font-serif-caaci mb-3 group-hover:text-brick transition-colors"
                   style={{ fontFamily: 'var(--font-caaci-serif)' }}
                 >
                   {cal.name}
@@ -83,7 +83,7 @@ export function CommunityCalendarPage({
                 <p className="text-xs text-neutral-600 font-poppins leading-relaxed">{cal.desc}</p>
               </div>
 
-              <div className="mt-8 pt-4 border-t border-neutral-100 flex items-center justify-center gap-1 text-xs font-bold text-[#8e2e11] font-poppins uppercase tracking-wider group-hover:underline">
+              <div className="mt-8 pt-4 border-t border-neutral-100 flex items-center justify-center gap-1 text-xs font-bold text-brick font-poppins uppercase tracking-wider group-hover:underline">
                 <span>{lang === 'en' ? 'Open Calendar' : '进入日历'}</span>
                 <ExternalLink className="w-3.5 h-3.5 ml-1" />
               </div>

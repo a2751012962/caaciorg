@@ -98,7 +98,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
             className="lg:col-span-6 space-y-4 sm:space-y-6 will-change-transform"
           >
             <h1
-              className="text-xl sm:text-3xl md:text-[34px] font-bold text-[#300200] leading-[1.3] tracking-tight font-serif-caaci"
+              className="text-xl sm:text-3xl md:text-[34px] font-bold text-maroon leading-[1.3] tracking-tight font-serif-caaci"
               style={{ fontFamily: 'var(--font-caaci-serif)' }}
             >
               {content.welcome.heading}
@@ -126,7 +126,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
           {/* Right Column: Accent Divider + Authentic Description + Focus Details */}
           <div ref={rightColRef} className="lg:col-span-6 lg:pt-4 will-change-transform">
             {/* Signature terracotta accent divider */}
-            <div className="welcome-stagger-item w-[40px] sm:w-[50px] h-[3px] bg-[#8e2e11] mb-4 sm:mb-6 rounded-full" />
+            <div className="welcome-stagger-item w-[40px] sm:w-[50px] h-[3px] bg-brick mb-4 sm:mb-6 rounded-full" />
 
             <div className="welcome-stagger-item max-w-[580px]">
               <p className="font-poppins text-neutral-700 text-xs sm:text-sm md:text-base lg:text-[17px] leading-relaxed sm:leading-[1.8] lg:leading-[1.9] tracking-normal sm:tracking-[0.3px]">
@@ -136,18 +136,18 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
 
             <div className="welcome-stagger-item mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-neutral-100 grid grid-cols-2 gap-4 sm:gap-6 text-xs sm:text-sm text-neutral-600 font-poppins">
               <div>
-                <span className="block text-[10px] sm:text-xs uppercase font-bold text-[#8e2e11] tracking-wider mb-1">
+                <span className="block text-[10px] sm:text-xs uppercase font-bold text-brick tracking-wider mb-1">
                   {isZh ? '社区宗旨' : 'Community Focus'}
                 </span>
-                <span className="font-medium text-[#1d1d1f]">
+                <span className="font-medium text-ink">
                   {isZh ? '文化、教育与社交交流' : 'Cultural, Educational & Social Exchange'}
                 </span>
               </div>
               <div>
-                <span className="block text-[10px] sm:text-xs uppercase font-bold text-[#8e2e11] tracking-wider mb-1">
+                <span className="block text-[10px] sm:text-xs uppercase font-bold text-brick tracking-wider mb-1">
                   {isZh ? '服务地区' : 'Region'}
                 </span>
-                <span className="font-medium text-[#1d1d1f]">
+                <span className="font-medium text-ink">
                   {isZh ? '香槟-厄巴纳及伊利诺伊中部' : 'Champaign-Urbana & Central Illinois'}
                 </span>
               </div>
@@ -168,8 +168,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
           <button
             onClick={() => onOpenModal('donate')}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
-            style={{ backgroundColor: '#8e2e11' }}
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-brick"
           >
             <Heart className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
             <span className="font-poppins font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
@@ -181,8 +180,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
           <button
             onClick={() => (onNavigate ? onNavigate('events') : onOpenModal('events'))}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
-            style={{ backgroundColor: '#73250e' }}
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-brick-deep"
           >
             <Calendar className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
             <span className="font-poppins font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
@@ -194,8 +192,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
           <button
             onClick={() => (onNavigate ? onNavigate('membership') : onOpenModal('membership'))}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none"
-            style={{ backgroundColor: '#300200' }}
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-maroon"
           >
             <UserPlus className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
             <span className="font-poppins font-semibold text-xs sm:text-[13px] tracking-wider uppercase">

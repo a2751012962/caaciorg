@@ -86,7 +86,7 @@ const PLAN_BADGE: Record<string, string> = {
 };
 
 const inputSm =
-  'w-full min-h-[40px] px-3 py-2 text-xs bg-white border border-neutral-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#8e2e11] disabled:bg-neutral-100 disabled:text-neutral-400';
+  'w-full min-h-[40px] px-3 py-2 text-xs bg-white border border-neutral-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-brick disabled:bg-neutral-100 disabled:text-neutral-400';
 const sectionLabel = 'text-xs font-bold uppercase tracking-wider text-neutral-700 block';
 
 // One pending invitation: Cancel, and Resend with a 60 s cooldown per address
@@ -151,7 +151,7 @@ function PendingInviteRow({
           type="button"
           onClick={resend}
           disabled={sending || cooldown.left > 0}
-          className="min-h-[36px] text-xs text-neutral-700 hover:text-[#8e2e11] cursor-pointer font-semibold hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
+          className="min-h-[36px] text-xs text-neutral-700 hover:text-brick cursor-pointer font-semibold hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
         >
           {sending
             ? t('Sending…', '发送中…')
@@ -438,7 +438,7 @@ export function FamilySection({
         className="p-4 bg-neutral-50/80 rounded-2xl border border-neutral-200/80 space-y-3"
       >
         <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800 uppercase tracking-wider">
-          <UserPlus className="w-4 h-4 text-[#8e2e11]" />
+          <UserPlus className="w-4 h-4 text-brick" />
           <span>{t('Invite by email', '通过邮箱邀请')}</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -496,7 +496,7 @@ export function FamilySection({
           <button
             type="submit"
             disabled={full || !!busy}
-            className="min-h-[40px] px-4 py-2 rounded-lg bg-[#8e2e11] hover:brightness-110 text-white text-xs font-semibold cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            className="min-h-[40px] px-4 py-2 rounded-lg bg-brick hover:brightness-110 text-white text-xs font-semibold cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="w-3.5 h-3.5" />
             <span>
@@ -513,7 +513,7 @@ export function FamilySection({
       >
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800 uppercase tracking-wider">
-            <Users className="w-4 h-4 text-[#8e2e11]" />
+            <Users className="w-4 h-4 text-brick" />
             <span>{t('Add someone without an account', '添加没有账号的家人')}</span>
           </div>
           <p className="text-[11px] text-neutral-500">
@@ -557,7 +557,7 @@ export function FamilySection({
             disabled={full || !!busy}
             className="min-h-[40px] px-4 py-2 rounded-lg bg-white border border-neutral-300 hover:border-neutral-900 text-neutral-800 text-xs font-semibold cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <UserPlus className="w-3.5 h-3.5 text-[#8e2e11]" />
+            <UserPlus className="w-3.5 h-3.5 text-brick" />
             <span>{busy === 'add' ? t('Working…', '处理中…') : t('Add person', '添加')}</span>
           </button>
         </div>
@@ -571,7 +571,7 @@ export function FamilySection({
   return (
     <div className="bg-white rounded-2xl border border-neutral-200/90 p-6 sm:p-7 shadow-xs space-y-6">
       <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
-        <h3 className="text-base sm:text-lg font-bold text-[#1d1d1f]">
+        <h3 className="text-base sm:text-lg font-bold text-ink">
           {lang === 'en' ? 'Family Plan & Shared Benefits' : '家庭方案与权益共享'}
         </h3>
         {showSeats && (
@@ -615,7 +615,7 @@ export function FamilySection({
                 ref={focused ? focusRef : undefined}
                 aria-current={focused ? 'true' : undefined}
                 className={`p-4 sm:p-5 rounded-2xl bg-amber-50 border space-y-3 ${
-                  focused ? 'border-[#8e2e11] ring-2 ring-[#8e2e11]/25' : 'border-amber-200/90'
+                  focused ? 'border-brick ring-2 ring-brick/25' : 'border-amber-200/90'
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -747,7 +747,7 @@ export function FamilySection({
                         </span>
                         {rel && <span className="text-xs text-neutral-500">{rel}</span>}
                         {p.is_founder && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#8e2e11]/10 text-[#8e2e11]">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brick/10 text-brick">
                             {t('Founder', '创建人')}
                           </span>
                         )}
@@ -796,7 +796,7 @@ export function FamilySection({
                               setRowInvite(p.id);
                               setRowEmail('');
                             }}
-                            className="text-[#8e2e11] font-semibold hover:underline cursor-pointer disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
+                            className="text-brick font-semibold hover:underline cursor-pointer disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
                           >
                             {t('Invite by email', '用邮箱邀请')}
                           </button>
@@ -828,7 +828,7 @@ export function FamilySection({
                             <button
                               type="submit"
                               disabled={!!busy}
-                              className="min-h-[40px] px-3.5 py-2 rounded-lg bg-[#8e2e11] hover:brightness-110 text-white text-xs font-semibold cursor-pointer whitespace-nowrap disabled:opacity-50"
+                              className="min-h-[40px] px-3.5 py-2 rounded-lg bg-brick hover:brightness-110 text-white text-xs font-semibold cursor-pointer whitespace-nowrap disabled:opacity-50"
                             >
                               {busy === `row-invite:${p.id}`
                                 ? t('Working…', '处理中…')
@@ -919,7 +919,7 @@ export function FamilySection({
                 <button
                   type="button"
                   onClick={() => setShowAllEvents((v) => !v)}
-                  className="text-xs text-[#8e2e11] font-semibold hover:underline cursor-pointer py-1"
+                  className="text-xs text-brick font-semibold hover:underline cursor-pointer py-1"
                 >
                   {showAllEvents
                     ? t('Show less', '收起')
@@ -979,7 +979,7 @@ export function FamilySection({
       {canStart && (
         <div className="space-y-4">
           <div className="p-5 bg-gradient-to-br from-neutral-50 to-amber-50/40 rounded-2xl border border-neutral-200 space-y-2 text-center">
-            <div className="w-11 h-11 rounded-full bg-[#8e2e11]/10 text-[#8e2e11] flex items-center justify-center mx-auto">
+            <div className="w-11 h-11 rounded-full bg-brick/10 text-brick flex items-center justify-center mx-auto">
               <Sparkles className="w-5 h-5" />
             </div>
             <h4 className="text-base font-bold text-neutral-900">
@@ -1013,7 +1013,7 @@ export function FamilySection({
           <button
             type="button"
             onClick={() => onNavigate('membership')}
-            className="min-h-[40px] px-4 py-2 rounded-full bg-white border border-neutral-300 text-neutral-800 hover:border-[#8e2e11] text-xs font-semibold cursor-pointer"
+            className="min-h-[40px] px-4 py-2 rounded-full bg-white border border-neutral-300 text-neutral-800 hover:border-brick text-xs font-semibold cursor-pointer"
           >
             {t('Explore Family Plan', '了解家庭方案详情')}
           </button>

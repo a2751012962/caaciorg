@@ -29,9 +29,9 @@ export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 bg-neutral-50">
           <div className="flex items-center gap-2">
-            {modalType === 'donate' && <Heart className="w-5 h-5 text-[#8e2e11]" />}
-            {modalType === 'volunteer' && <HandHeart className="w-5 h-5 text-[#8e2e11]" />}
-            <h3 className="font-serif-caaci font-bold text-lg text-[#300200]">
+            {modalType === 'donate' && <Heart className="w-5 h-5 text-brick" />}
+            {modalType === 'volunteer' && <HandHeart className="w-5 h-5 text-brick" />}
+            <h3 className="font-serif-caaci font-bold text-lg text-maroon">
               {modalType === 'donate' && content.modals.donateTitle}
               {modalType === 'volunteer' &&
                 (lang === 'en' ? 'Volunteer with CAACI' : '加入 CAACI 志愿者')}
@@ -140,7 +140,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
               onClick={() => setRecurring(monthly)}
               className={`h-8 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                 recurring === monthly
-                  ? 'bg-white text-[#8e2e11] shadow-xs'
+                  ? 'bg-white text-brick shadow-xs'
                   : 'text-neutral-600 hover:text-neutral-900'
               }`}
             >
@@ -163,7 +163,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
               onClick={() => setSelectedAmount(amt)}
               className={`py-3 rounded font-bold text-sm border transition-all ${
                 selectedAmount === amt
-                  ? 'border-[#8e2e11] bg-[#8e2e11] text-white shadow-sm'
+                  ? 'border-brick bg-brick text-white shadow-sm'
                   : 'border-neutral-200 hover:border-neutral-400 text-neutral-800'
               }`}
             >
@@ -176,7 +176,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
             onClick={() => setSelectedAmount('custom')}
             className={`py-3 rounded font-bold text-sm border transition-all ${
               selectedAmount === 'custom'
-                ? 'border-[#8e2e11] bg-[#8e2e11] text-white shadow-sm'
+                ? 'border-brick bg-brick text-white shadow-sm'
                 : 'border-neutral-200 hover:border-neutral-400 text-neutral-800'
             }`}
           >
@@ -202,7 +202,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
             value={customAmount}
             onChange={(e) => setCustomAmount(e.target.value)}
             placeholder={en ? 'e.g. 150' : '例如 150'}
-            className="w-full px-4 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#8e2e11]"
+            className="w-full px-4 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-brick"
           />
         </div>
       )}
@@ -221,7 +221,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
             autoComplete="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#8e2e11]"
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
           />
         </div>
         <div>
@@ -237,7 +237,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#8e2e11]"
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
           />
         </div>
       </div>
@@ -254,7 +254,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
       <button
         type="submit"
         disabled={busy}
-        className="w-full py-3.5 rounded-full font-bold uppercase tracking-wider text-xs sm:text-sm text-white shadow-xs transition-all hover:bg-[#a63715] active:scale-98 cursor-pointer bg-[#8e2e11] disabled:opacity-70 disabled:cursor-wait"
+        className="w-full py-3.5 rounded-full font-bold uppercase tracking-wider text-xs sm:text-sm text-white shadow-xs transition-all hover:bg-brick-hover active:scale-98 cursor-pointer bg-brick disabled:opacity-70 disabled:cursor-wait"
       >
         {payLabel}
       </button>
@@ -366,7 +366,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
         </p>
         <button
           onClick={onClose}
-          className="mt-3 px-5 py-2 bg-[#8e2e11] text-white rounded text-xs font-bold"
+          className="mt-3 px-5 py-2 bg-brick text-white rounded text-xs font-bold"
         >
           {en ? 'Done' : '完成'}
         </button>
@@ -377,7 +377,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
   const chip = (active: boolean) =>
     `px-3 py-1.5 rounded-full text-xs font-medium border transition-all cursor-pointer ${
       active
-        ? 'border-[#8e2e11] bg-[#8e2e11] text-white shadow-xs'
+        ? 'border-brick bg-brick text-white shadow-xs'
         : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400'
     }`;
 
@@ -397,7 +397,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={en ? 'Your Name *' : '姓名 *'}
-          className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#8e2e11]"
+          className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
         />
         <input
           type="email"
@@ -407,7 +407,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder={en ? 'Your Email *' : '电子邮箱 *'}
-          className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#8e2e11]"
+          className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
         />
       </div>
       <input
@@ -417,7 +417,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         placeholder={en ? 'Phone (optional)' : '电话（选填）'}
-        className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#8e2e11]"
+        className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
       />
 
       <fieldset>
@@ -468,7 +468,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
             ? 'Skills or areas of interest (e.g., photography, event planning)'
             : '您的专长或感兴趣的志愿领域（如：摄影、活动策划、翻译等）'
         }
-        className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#8e2e11] resize-none"
+        className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick resize-none"
       />
 
       {/* Honeypot: people never see or fill it; /api/contact drops messages that have it. */}
@@ -496,7 +496,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
       <button
         type="submit"
         disabled={busy}
-        className="w-full py-3 rounded-full font-bold uppercase tracking-wider text-xs text-white shadow-xs transition-all hover:bg-[#a63715] active:scale-98 cursor-pointer bg-[#8e2e11] disabled:opacity-70 disabled:cursor-wait"
+        className="w-full py-3 rounded-full font-bold uppercase tracking-wider text-xs text-white shadow-xs transition-all hover:bg-brick-hover active:scale-98 cursor-pointer bg-brick disabled:opacity-70 disabled:cursor-wait"
       >
         {busy ? (en ? 'Sending…' : '发送中…') : en ? 'Sign Up to Volunteer' : '报名成为志愿者'}
       </button>

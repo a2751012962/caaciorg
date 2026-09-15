@@ -16,7 +16,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
   };
 
   return (
-    <footer className="bg-[#222222] text-neutral-300 border-t border-neutral-800">
+    <footer className="bg-footer text-neutral-300 border-t border-neutral-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-8">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-10 pb-12 border-b border-neutral-800">
           {/* Logo & Description */}
@@ -109,7 +109,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
               <button
                 type="button"
                 onClick={() => onOpenModal('donate')}
-                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer text-[#d3a971]"
+                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer text-tan"
               >
                 {content.nav.donate}
               </button>
@@ -130,7 +130,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
             </h4>
             <div className="space-y-3 text-neutral-400">
               <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-[#ce4327] mt-1 shrink-0" />
+                <MapPin className="w-4 h-4 text-rust mt-1 shrink-0" />
                 <span>
                   {content.contact.addressLine1}
                   <br />
@@ -138,7 +138,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
                 </span>
               </div>
               <div className="flex items-center gap-2.5">
-                <Mail className="w-4 h-4 text-[#ce4327] shrink-0" />
+                <Mail className="w-4 h-4 text-rust shrink-0" />
                 <a
                   href={`mailto:${content.contact.email}`}
                   className="hover:text-white transition-colors"
@@ -158,7 +158,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
               href="https://www.facebook.com/profile.php?id=61558646710024"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#d3a971] hover:underline"
+              className="text-tan hover:underline"
             >
               {content.footer.facebook}
             </a>

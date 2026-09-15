@@ -109,7 +109,7 @@ export function EventFeedback({ lang, registration }: EventFeedbackProps) {
           {/* Header */}
           <div className="flex items-start justify-between pb-3 border-b border-neutral-100">
             <div className="flex items-start gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-[#8e2e11]/10 text-[#8e2e11] flex items-center justify-center shrink-0 mt-0.5">
+              <div className="w-10 h-10 rounded-full bg-brick/10 text-brick flex items-center justify-center shrink-0 mt-0.5">
                 <MessageSquare className="w-5 h-5" />
               </div>
               <div className="min-w-0">
@@ -207,7 +207,7 @@ export function EventFeedback({ lang, registration }: EventFeedbackProps) {
                         aria-pressed={selected}
                         className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-all border active:scale-95 ${
                           selected
-                            ? 'bg-[#8e2e11] text-white border-[#8e2e11]'
+                            ? 'bg-brick text-white border-brick'
                             : 'bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-neutral-100'
                         }`}
                       >
@@ -235,7 +235,7 @@ export function EventFeedback({ lang, registration }: EventFeedbackProps) {
                     'Share your thoughts, memorable moments, or suggestions for next year...',
                     '请写下您对本次活动的感受、难忘瞬间或对下届活动形式的建议...',
                   )}
-                  className="w-full p-3 text-xs bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8e2e11] text-neutral-900 resize-none"
+                  className="w-full p-3 text-xs bg-neutral-50 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brick text-neutral-900 resize-none"
                 />
               </div>
 
@@ -254,7 +254,7 @@ export function EventFeedback({ lang, registration }: EventFeedbackProps) {
                 <button
                   type="submit"
                   disabled={busy}
-                  className="flex-1 min-h-[44px] py-2.5 rounded-full bg-[#8e2e11] hover:brightness-110 text-white text-xs font-semibold cursor-pointer shadow-xs active:scale-98 disabled:opacity-60"
+                  className="flex-1 min-h-[44px] py-2.5 rounded-full bg-brick hover:brightness-110 text-white text-xs font-semibold cursor-pointer shadow-xs active:scale-98 disabled:opacity-60"
                 >
                   {busy ? t('Submitting…', '正在提交…') : t('Submit Feedback', '提交反馈评价')}
                 </button>

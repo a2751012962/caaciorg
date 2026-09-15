@@ -11,6 +11,33 @@
   --font-caaci-serif-zh: 'Noto Serif SC', 'Playfair Display', 'SimSun', 'Songti SC', serif;
 }
 
+/* ---- Design tokens (see web/DESIGN_SYSTEM.md). Use bg-brick, text-ink, etc.;
+   never write the hex in a className. ---- */
+@theme {
+  --color-brick: #8e2e11; /* primary action, eyebrows, icons, focus ring */
+  --color-brick-hover: #a63715; /* primary hover */
+  --color-brick-pressed: #72240d; /* primary pressed / deep hover */
+  --color-brick-deep: #73250e; /* action banner, middle cell */
+  --color-brick-700: #6a220c;
+  --color-brick-800: #5c1c0a;
+  --color-maroon: #300200; /* display headings, banner right cell */
+  --color-rust: #ce4327; /* footer contact icons */
+  --color-gold: #edbb5f; /* on dark panels only */
+  --color-tan: #d3a971; /* member card / footer accent, dark only */
+  --color-ink: #1d1d1f; /* sans headings, dark panels */
+  --color-ink-deep: #161617;
+  --color-footer: #222222;
+  --color-surface-2: #fbfbfd; /* cards on white */
+  --color-surface-3: #f5f5f7; /* alternating sections */
+  --color-surface-hover: #fafafc;
+  --color-surface-warm: #fbf9f8;
+  --color-surface-warm-2: #fbf9f6;
+  --color-surface-cream: #fcfbf9;
+  --font-display: var(--font-caaci-serif);
+  --font-display-zh: var(--font-caaci-serif-zh);
+  --font-sans: var(--font-caaci-sans);
+}
+
 @layer base {
   html,
   body {
@@ -53,4 +80,38 @@
 .no-scrollbar {
   -ms-overflow-style: none !important;
   scrollbar-width: none !important;
+}
+
+/* Entrance animations referenced by dropdowns and modals. */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes zoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.18s ease-out;
+}
+.animate-in {
+  animation: zoomIn 0.2s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-fadeIn,
+  .animate-in {
+    animation: none;
+  }
 }

@@ -27,10 +27,10 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
       />
 
       {/* Intro statement */}
-      <section className="py-14 bg-[#fbf9f8] border-b border-neutral-200">
+      <section className="py-14 bg-surface-warm border-b border-neutral-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl">
-            <span className="text-xs font-bold uppercase tracking-[2px] text-[#8e2e11] font-poppins">
+            <span className="text-xs font-bold uppercase tracking-[2px] text-brick font-poppins">
               {lang === 'en' ? 'Welcome to Central Illinois' : '欢迎来到伊利诺伊州中部'}
             </span>
             <p className="mt-3 text-base sm:text-lg text-neutral-800 font-poppins leading-relaxed">
@@ -49,18 +49,18 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
               href={item.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="group p-8 rounded-2xl bg-white border border-neutral-200 shadow-sm hover:shadow-xl hover:border-[#8e2e11]/40 transition-all flex flex-col justify-between"
+              className="group p-8 rounded-2xl bg-white border border-neutral-200 shadow-sm hover:shadow-xl hover:border-brick/40 transition-all flex flex-col justify-between"
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-[#8e2e11] font-poppins">
+                  <span className="text-xs font-bold uppercase tracking-wider text-brick font-poppins">
                     {item.category}
                   </span>
-                  <ExternalLink className="w-4 h-4 text-neutral-400 group-hover:text-[#8e2e11] transition-colors" />
+                  <ExternalLink className="w-4 h-4 text-neutral-400 group-hover:text-brick transition-colors" />
                 </div>
 
                 <h3
-                  className="text-xl font-bold text-[#300200] font-serif-caaci group-hover:text-[#8e2e11] transition-colors"
+                  className="text-xl font-bold text-maroon font-serif-caaci group-hover:text-brick transition-colors"
                   style={{ fontFamily: 'var(--font-caaci-serif)' }}
                 >
                   {item.title}
@@ -69,7 +69,7 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
                 <p className="text-sm text-neutral-600 font-poppins leading-relaxed">{item.desc}</p>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-neutral-100 flex items-center text-xs font-bold text-[#8e2e11] font-poppins uppercase tracking-wider group-hover:translate-x-1 transition-transform">
+              <div className="mt-6 pt-4 border-t border-neutral-100 flex items-center text-xs font-bold text-brick font-poppins uppercase tracking-wider group-hover:translate-x-1 transition-transform">
                 <span>{lang === 'en' ? 'Visit Official Portal' : '访问官方站点'}</span>
                 <span className="ml-1">→</span>
               </div>

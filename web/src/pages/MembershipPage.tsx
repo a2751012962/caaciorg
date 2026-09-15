@@ -317,13 +317,13 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
   })();
 
   return (
-    <div className="bg-white min-h-screen text-[#1d1d1f] font-sans antialiased selection:bg-neutral-200">
+    <div className="bg-white min-h-screen text-ink font-sans antialiased selection:bg-neutral-200">
       {/* Top-Left Return / Breadcrumb Path */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="border-b border-neutral-200/80 bg-[#fbfbfd]/80 backdrop-blur-xs"
+        className="border-b border-neutral-200/80 bg-surface-2/80 backdrop-blur-xs"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
           <nav
@@ -335,10 +335,10 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 onNavigate('home');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="inline-flex items-center gap-1.5 font-medium text-neutral-700 hover:text-[#8e2e11] transition-colors cursor-pointer group"
+              className="inline-flex items-center gap-1.5 font-medium text-neutral-700 hover:text-brick transition-colors cursor-pointer group"
               title={lang === 'en' ? 'Back to Menu' : '返回菜单'}
             >
-              <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-400 group-hover:text-[#8e2e11]" />
+              <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-400 group-hover:text-brick" />
               <span>{lang === 'en' ? 'Back to Menu' : '返回菜单'}</span>
             </button>
             <span className="text-neutral-300">/</span>
@@ -347,18 +347,18 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 onNavigate('home');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="hover:text-[#8e2e11] transition-colors cursor-pointer text-neutral-500"
+              className="hover:text-brick transition-colors cursor-pointer text-neutral-500"
             >
               {content.nav.welcome}
             </button>
             <span className="text-neutral-300">/</span>
-            <span className="text-[#8e2e11] font-semibold">{content.nav.membership}</span>
+            <span className="text-brick font-semibold">{content.nav.membership}</span>
           </nav>
         </div>
       </motion.div>
 
       {/* 1. Apple-Style Pricing Tiers (Clean Apple One / iCloud+ Style Layout) */}
-      <section className="py-10 sm:py-16 lg:py-20 bg-[#fbfbfd] border-b border-neutral-200/80 overflow-hidden">
+      <section className="py-10 sm:py-16 lg:py-20 bg-surface-2 border-b border-neutral-200/80 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
@@ -367,10 +367,10 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="text-center max-w-2xl mx-auto mb-8 sm:mb-12"
           >
-            <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-2">
+            <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
               {lang === 'en' ? 'Choose Your Plan' : '入会方案'}
             </span>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">
               {lang === 'en' ? 'Membership Tiers & Annual Dues' : '会员类别与年度会费'}
             </h2>
             <p className="mt-2 text-sm text-neutral-500">
@@ -408,7 +408,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                   whileTap={{ scale: 0.98 }}
                   className={`w-[82vw] max-w-[310px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-white rounded-2xl p-6 sm:p-7 border transition-all duration-300 flex flex-col justify-between relative ${
                     isCurrentSelected
-                      ? 'border-[#1d1d1f] shadow-lg ring-1 ring-[#1d1d1f]'
+                      ? 'border-ink shadow-lg ring-1 ring-ink'
                       : 'border-neutral-200/80 shadow-xs hover:border-neutral-300'
                   }`}
                 >
@@ -416,7 +416,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                     <motion.div
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="absolute -top-3 left-6 z-20 bg-[#1d1d1f] text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded-full shadow-md whitespace-nowrap"
+                      className="absolute -top-3 left-6 z-20 bg-ink text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded-full shadow-md whitespace-nowrap"
                     >
                       {lang === 'en' ? 'Recommended' : '推荐首选'}
                     </motion.div>
@@ -424,11 +424,11 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-[#1d1d1f] tracking-tight">
+                      <h3 className="text-lg font-semibold text-ink tracking-tight">
                         {tierName(tier, lang)}
                       </h3>
                       <div className="mt-2 flex items-baseline gap-1">
-                        <span className="text-3xl sm:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
+                        <span className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
                           {tierIsFree ? t('Free', '免费') : money(tier.price_cents)}
                         </span>
                         <span className="text-xs text-neutral-400">/ {copy.period}</span>
@@ -449,7 +449,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                           key={fIdx}
                           className="flex items-start gap-2.5 text-xs text-neutral-600 leading-normal"
                         >
-                          <Check className="w-3.5 h-3.5 text-[#1d1d1f] shrink-0 mt-0.5" />
+                          <Check className="w-3.5 h-3.5 text-ink shrink-0 mt-0.5" />
                           <span>{feat}</span>
                         </li>
                       ))}
@@ -467,8 +467,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                       }}
                       className={`w-full py-2.5 rounded-full text-xs font-medium tracking-wide transition-all duration-200 cursor-pointer ${
                         isCurrentSelected
-                          ? 'bg-[#1d1d1f] text-white shadow-sm'
-                          : 'bg-[#f5f5f7] text-[#1d1d1f] hover:bg-neutral-200'
+                          ? 'bg-ink text-white shadow-sm'
+                          : 'bg-surface-3 text-ink hover:bg-neutral-200'
                       }`}
                     >
                       {isMyPlan
@@ -530,10 +530,10 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             className="md:col-span-5 w-full max-w-lg md:max-w-none mx-auto md:mx-0 space-y-6"
           >
             <div>
-              <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-1">
+              <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-1">
                 {lang === 'en' ? 'Digital Pass' : '电子会员凭证'}
               </span>
-              <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1d1d1f]">
+              <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-ink">
                 {lang === 'en' ? 'Apple Wallet Pass' : '电子会员卡实时预览'}
               </h2>
               <p className="mt-2 text-xs sm:text-sm text-neutral-500">
@@ -550,7 +550,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               viewport={{ once: true }}
               transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
               whileHover={{ y: -5, scale: 1.01, transition: { duration: 0.25 } }}
-              className="bg-[#1d1d1f] text-white rounded-2xl p-5 sm:p-6 lg:p-7 shadow-xl border border-white/10 relative overflow-hidden group"
+              className="bg-ink text-white rounded-2xl p-5 sm:p-6 lg:p-7 shadow-xl border border-white/10 relative overflow-hidden group"
             >
               <div className="flex justify-between items-center pb-5 sm:pb-6 border-b border-white/10 gap-2">
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -620,10 +620,10 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
               whileHover={{ y: -2 }}
-              className="p-3.5 sm:p-4 rounded-xl bg-[#f5f5f7] border border-black/[0.04] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+              className="p-3.5 sm:p-4 rounded-xl bg-surface-3 border border-black/[0.04] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
             >
               <div className="min-w-0">
-                <div className="text-xs font-semibold text-[#1d1d1f]">
+                <div className="text-xs font-semibold text-ink">
                   {lang === 'en' ? 'Already a member?' : '已经是华协会员？'}
                 </div>
                 <div className="text-[11px] text-neutral-500 leading-snug">
@@ -637,7 +637,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 whileTap={{ scale: 0.97 }}
                 type="button"
                 onClick={() => onNavigate('account')}
-                className="flex-shrink-0 px-3.5 py-1.5 rounded-full bg-white border border-neutral-200 text-xs font-medium text-[#1d1d1f] hover:bg-neutral-100 transition-colors cursor-pointer whitespace-nowrap"
+                className="flex-shrink-0 px-3.5 py-1.5 rounded-full bg-white border border-neutral-200 text-xs font-medium text-ink hover:bg-neutral-100 transition-colors cursor-pointer whitespace-nowrap"
               >
                 {lang === 'en' ? 'Member Portal' : '进入会员专区'}
               </motion.button>
@@ -652,7 +652,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             transition={{ duration: 0.65, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
             className="md:col-span-7 bg-white p-6 sm:p-8 lg:p-10 rounded-2xl border border-neutral-200/80 shadow-sm"
           >
-            <h3 className="text-2xl font-semibold tracking-tight text-[#1d1d1f] mb-1">
+            <h3 className="text-2xl font-semibold tracking-tight text-ink mb-1">
               {data.formTitle}
             </h3>
             <p className="text-xs sm:text-sm text-neutral-500 mb-8">
@@ -677,8 +677,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                       aria-pressed={selected?.id === tier.id}
                       className={`py-2.5 px-3 rounded-xl text-xs font-medium border text-center transition-all cursor-pointer whitespace-nowrap ${
                         selected?.id === tier.id
-                          ? 'bg-[#1d1d1f] text-white border-[#1d1d1f]'
-                          : 'border-neutral-200 text-neutral-700 hover:bg-[#f5f5f7]'
+                          ? 'bg-ink text-white border-ink'
+                          : 'border-neutral-200 text-neutral-700 hover:bg-surface-3'
                       }`}
                     >
                       {shortLabel(tier)} •{' '}
@@ -691,7 +691,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               {ready && user && (
                 <p className="text-xs text-neutral-600">
                   {t('Signed in as', '当前登录')}{' '}
-                  <span className="font-semibold text-[#1d1d1f]">{user.email}</span>
+                  <span className="font-semibold text-ink">{user.email}</span>
                   {myTier && member?.status
                     ? ` — ${tierName(myTier, lang)} · ${statusLabel(member.status, lang)}`
                     : ''}
@@ -700,8 +700,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
               {/* Order summary */}
               {selected && summary && (
-                <div className="p-4 rounded-xl bg-[#f5f5f7] border border-black/[0.04] text-xs text-neutral-600 space-y-1.5">
-                  <div className="font-semibold text-[#1d1d1f]">
+                <div className="p-4 rounded-xl bg-surface-3 border border-black/[0.04] text-xs text-neutral-600 space-y-1.5">
+                  <div className="font-semibold text-ink">
                     {t('Order Summary', '费用明细')} · {tierName(selected, lang)}
                   </div>
                   {free ? (
@@ -735,7 +735,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                           <span className="tabular-nums">−{usd(summary.off)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between gap-3 pt-1.5 border-t border-black/[0.06] font-semibold text-[#1d1d1f]">
+                      <div className="flex justify-between gap-3 pt-1.5 border-t border-black/[0.06] font-semibold text-ink">
                         <span>
                           {mode === 'switch'
                             ? t('New annual rate', '新年费')
@@ -782,13 +782,13 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                       }}
                       autoComplete="off"
                       placeholder={t('Enter code', '输入折扣码')}
-                      className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-1 focus:ring-[#1d1d1f] focus:outline-none"
+                      className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-1 focus:ring-ink focus:outline-none"
                     />
                     <button
                       type="button"
                       onClick={() => void applyCode(codeInput)}
                       disabled={codeBusy}
-                      className="shrink-0 px-4 py-2.5 rounded-xl border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-[#f5f5f7] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                      className="shrink-0 px-4 py-2.5 rounded-xl border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-surface-3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
                     >
                       {codeBusy ? t('Checking…', '验证中…') : t('Apply', '应用')}
                     </button>
@@ -814,7 +814,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 type="submit"
                 disabled={busy || !mode}
                 aria-busy={busy}
-                className="w-full py-3.5 px-6 rounded-full bg-[#1d1d1f] hover:bg-neutral-800 text-white text-xs sm:text-sm font-medium tracking-wide transition-colors cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap shadow-sm disabled:opacity-60 disabled:cursor-default"
+                className="w-full py-3.5 px-6 rounded-full bg-ink hover:bg-neutral-800 text-white text-xs sm:text-sm font-medium tracking-wide transition-colors cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap shadow-sm disabled:opacity-60 disabled:cursor-default"
               >
                 <span>{submitLabel}</span>
                 {!busy && mode === 'checkout' && summary && <span>({usd(summary.due)})</span>}
@@ -848,10 +848,10 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="max-w-3xl mb-14"
         >
-          <span className="text-xs font-semibold tracking-widest text-[#8e2e11] uppercase block mb-2">
+          <span className="text-xs font-semibold tracking-widest text-brick uppercase block mb-2">
             {lang === 'en' ? 'Community Privileges' : '会员专享礼遇'}
           </span>
-          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-[#1d1d1f]">
+          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
             {data.benefitsTitle}
           </h2>
           <p className="mt-3 text-base text-neutral-600 leading-relaxed">
@@ -868,13 +868,13 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             viewport={{ once: true, margin: '-20px' }}
             transition={{ duration: 0.55, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
             whileHover={{ y: -6, transition: { duration: 0.2 } }}
-            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-[#fbfbfd] p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
+            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
           >
             <div className="space-y-4">
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-[#1d1d1f] shadow-2xs group-hover:scale-110 transition-transform duration-300">
-                <Utensils className="w-5 h-5 text-[#8e2e11]" />
+              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs group-hover:scale-110 transition-transform duration-300">
+                <Utensils className="w-5 h-5 text-brick" />
               </div>
-              <h3 className="text-base sm:text-lg font-semibold text-[#1d1d1f] tracking-tight">
+              <h3 className="text-base sm:text-lg font-semibold text-ink tracking-tight">
                 {lang === 'en' ? 'Annual Meeting Free Luncheon' : '年度大会免费午宴'}
               </h3>
               <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed">
@@ -891,13 +891,13 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             viewport={{ once: true, margin: '-20px' }}
             transition={{ duration: 0.55, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
             whileHover={{ y: -6, transition: { duration: 0.2 } }}
-            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-[#fbfbfd] p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
+            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
           >
             <div className="space-y-4">
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-[#1d1d1f] shadow-2xs group-hover:scale-110 transition-transform duration-300">
-                <Gift className="w-5 h-5 text-[#8e2e11]" />
+              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs group-hover:scale-110 transition-transform duration-300">
+                <Gift className="w-5 h-5 text-brick" />
               </div>
-              <h3 className="text-base sm:text-lg font-semibold text-[#1d1d1f] tracking-tight">
+              <h3 className="text-base sm:text-lg font-semibold text-ink tracking-tight">
                 {lang === 'en' ? 'Festival Ticket Discounts' : '节日盛典门票特惠'}
               </h3>
               <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed">
@@ -914,13 +914,13 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             viewport={{ once: true, margin: '-20px' }}
             transition={{ duration: 0.55, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
             whileHover={{ y: -6, transition: { duration: 0.2 } }}
-            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-[#fbfbfd] p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
+            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
           >
             <div className="space-y-4">
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-[#1d1d1f] shadow-2xs group-hover:scale-110 transition-transform duration-300">
-                <Star className="w-5 h-5 text-[#8e2e11]" />
+              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs group-hover:scale-110 transition-transform duration-300">
+                <Star className="w-5 h-5 text-brick" />
               </div>
-              <h3 className="text-base sm:text-lg font-semibold text-[#1d1d1f] tracking-tight">
+              <h3 className="text-base sm:text-lg font-semibold text-ink tracking-tight">
                 {lang === 'en' ? 'Partner Business Discounts' : '本地商户专属立减'}
               </h3>
               <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed">
@@ -937,13 +937,13 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             viewport={{ once: true, margin: '-20px' }}
             transition={{ duration: 0.55, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
             whileHover={{ y: -6, transition: { duration: 0.2 } }}
-            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-[#fbfbfd] p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
+            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
           >
             <div className="space-y-4">
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-[#1d1d1f] shadow-2xs group-hover:scale-110 transition-transform duration-300">
-                <ShieldCheck className="w-5 h-5 text-[#8e2e11]" />
+              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs group-hover:scale-110 transition-transform duration-300">
+                <ShieldCheck className="w-5 h-5 text-brick" />
               </div>
-              <h3 className="text-base sm:text-lg font-semibold text-[#1d1d1f] tracking-tight">
+              <h3 className="text-base sm:text-lg font-semibold text-ink tracking-tight">
                 {lang === 'en' ? 'Verified WeChat Network' : '实名认证微信互助社群'}
               </h3>
               <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed">

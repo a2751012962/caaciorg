@@ -93,21 +93,21 @@ export function VibrantCommunity({ content, onOpenModal }: VibrantCommunityProps
           >
             {/* Tagline / Subtitle */}
             <div className="mb-3">
-              <span className="font-poppins font-bold uppercase text-xs sm:text-[13px] tracking-[2px] text-[#8e2e11]">
+              <span className="font-poppins font-bold uppercase text-xs sm:text-[13px] tracking-[2px] text-brick">
                 {content.community.tag}
               </span>
             </div>
 
             {/* Main Title */}
             <h2
-              className="text-3xl sm:text-4xl md:text-5xl font-bold text-[#300200] leading-[1.2] tracking-tight font-serif-caaci mb-5"
+              className="text-3xl sm:text-4xl md:text-5xl font-bold text-maroon leading-[1.2] tracking-tight font-serif-caaci mb-5"
               style={{ fontFamily: 'var(--font-caaci-serif)' }}
             >
               {content.community.heading}
             </h2>
 
             {/* Characteristic 60px Terracotta Divider Line */}
-            <div className="w-16 h-[2.5px] bg-[#8e2e11] mb-6" />
+            <div className="w-16 h-[2.5px] bg-brick mb-6" />
 
             {/* Body Description Text */}
             <p className="font-poppins text-neutral-700 text-base sm:text-lg leading-relaxed mb-8">
@@ -119,7 +119,7 @@ export function VibrantCommunity({ content, onOpenModal }: VibrantCommunityProps
               <button
                 type="button"
                 onClick={() => onOpenModal('membership')}
-                className="inline-flex items-center gap-2 px-7 py-3 rounded-full font-poppins font-semibold uppercase text-xs sm:text-[13px] tracking-wider text-white transition-all hover:bg-[#a63715] active:scale-98 cursor-pointer bg-[#8e2e11] shadow-xs"
+                className="inline-flex items-center gap-2 px-7 py-3 rounded-full font-poppins font-semibold uppercase text-xs sm:text-[13px] tracking-wider text-white transition-all hover:bg-brick-hover active:scale-98 cursor-pointer bg-brick shadow-xs"
               >
                 <span>{content.hero.btnMembership}</span>
                 <ArrowRight className="w-4 h-4" />
@@ -128,7 +128,7 @@ export function VibrantCommunity({ content, onOpenModal }: VibrantCommunityProps
               <button
                 type="button"
                 onClick={() => onOpenModal('volunteer')}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-poppins font-semibold uppercase text-xs sm:text-[13px] tracking-wider text-[#8e2e11] border-2 border-[#8e2e11] hover:bg-[#8e2e11] hover:text-white transition-all cursor-pointer active:scale-98"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full font-poppins font-semibold uppercase text-xs sm:text-[13px] tracking-wider text-brick border-2 border-brick hover:bg-brick hover:text-white transition-all cursor-pointer active:scale-98"
               >
                 <HandHeart className="w-4 h-4" />
                 <span>{content.nav.volunteer}</span>

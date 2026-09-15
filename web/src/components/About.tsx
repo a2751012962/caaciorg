@@ -88,7 +88,7 @@ export function About({ content, onNavigate }: AboutProps) {
           {/* Left Column (左右侧入场 - Enters from Left): Heading + Group Photograph */}
           <div ref={leftColRef} className="lg:col-span-6 space-y-8 will-change-transform">
             <h2
-              className="text-2xl sm:text-3xl md:text-[36px] font-bold text-[#300200] leading-[1.35] tracking-wide font-serif-caaci"
+              className="text-2xl sm:text-3xl md:text-[36px] font-bold text-maroon leading-[1.35] tracking-wide font-serif-caaci"
               style={{ fontFamily: 'var(--font-caaci-serif)' }}
             >
               {content.welcome.heading}
@@ -107,7 +107,7 @@ export function About({ content, onNavigate }: AboutProps) {
           {/* Right Column (左右侧入场 - Enters from Right): Accent Divider + Authentic Description */}
           <div ref={rightColRef} className="lg:col-span-6 lg:pt-16 will-change-transform">
             {/* The signature 60px terracotta accent divider from caaciorg.com */}
-            <div className="about-stagger-item w-[40px] sm:w-[60px] h-[3px] bg-[#8e2e11] mb-4 sm:mb-8 rounded-full" />
+            <div className="about-stagger-item w-[40px] sm:w-[60px] h-[3px] bg-brick mb-4 sm:mb-8 rounded-full" />
 
             <div className="about-stagger-item max-w-[580px]">
               <p className="font-poppins text-neutral-700 text-xs sm:text-sm md:text-base lg:text-lg leading-relaxed sm:leading-[1.9] lg:leading-[2] tracking-normal sm:tracking-[0.5px]">
@@ -117,20 +117,18 @@ export function About({ content, onNavigate }: AboutProps) {
 
             <div className="about-stagger-item mt-6 sm:mt-8 pt-4 sm:pt-8 border-t border-neutral-100 grid grid-cols-2 gap-4 sm:gap-6 text-xs sm:text-sm text-neutral-600 font-poppins">
               <div>
-                <span className="block text-xs uppercase font-bold text-[#8e2e11] tracking-wider mb-1">
+                <span className="block text-xs uppercase font-bold text-brick tracking-wider mb-1">
                   Community Focus
                 </span>
-                <span className="font-medium text-[#1d1d1f]">
+                <span className="font-medium text-ink">
                   Cultural, Educational & Social Exchange
                 </span>
               </div>
               <div>
-                <span className="block text-xs uppercase font-bold text-[#8e2e11] tracking-wider mb-1">
+                <span className="block text-xs uppercase font-bold text-brick tracking-wider mb-1">
                   Region
                 </span>
-                <span className="font-medium text-[#1d1d1f]">
-                  Champaign-Urbana & Central Illinois
-                </span>
+                <span className="font-medium text-ink">Champaign-Urbana & Central Illinois</span>
               </div>
             </div>
 
@@ -139,7 +137,7 @@ export function About({ content, onNavigate }: AboutProps) {
                 <button
                   type="button"
                   onClick={() => onNavigate('about')}
-                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[#8e2e11] text-white hover:bg-[#a63715] font-poppins font-medium text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-98"
+                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-brick text-white hover:bg-brick-hover font-poppins font-medium text-xs uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-98"
                 >
                   <span>{content.nav.aboutUs} • 我们的使命与宗旨</span>
                   <span>→</span>

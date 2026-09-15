@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Menu, X, Globe, User, LogOut } from 'lucide-react';
+import { Globe, User, LogOut } from 'lucide-react';
+import { MorphIcon } from 'morphicons/react';
+import { ChevronDown, ChevronUp, Menu, X } from 'lucide'; // icon data for morphing, not components
 import type { CAACIContent } from '../data/content';
 import { addSmoothScrollListener } from '../utils/smoothScroll';
 
@@ -152,7 +154,7 @@ export function Navbar({
                 }}
               />
               <div className="flex flex-col">
-                <span className="font-bold text-lg leading-tight tracking-tight text-[#300200] font-serif-caaci">
+                <span className="font-bold text-lg leading-tight tracking-tight text-maroon font-serif-caaci">
                   CAACI
                 </span>
                 <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-poppins hidden sm:inline">
@@ -169,8 +171,8 @@ export function Navbar({
               onClick={() => handleNavClick('home')}
               className={`px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                 currentPage === 'home'
-                  ? 'text-[#8e2e11] font-bold border-b-2 border-[#8e2e11]'
-                  : 'text-neutral-700 hover:text-[#8e2e11]'
+                  ? 'text-brick font-bold border-b-2 border-brick'
+                  : 'text-neutral-700 hover:text-brick'
               }`}
             >
               {content.nav.welcome}
@@ -187,18 +189,22 @@ export function Navbar({
                 onClick={() => handleNavClick('about')}
                 className={`flex items-center gap-1 px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                   currentPage === 'about'
-                    ? 'text-[#8e2e11] font-bold border-b-2 border-[#8e2e11]'
-                    : 'text-neutral-700 hover:text-[#8e2e11]'
+                    ? 'text-brick font-bold border-b-2 border-brick'
+                    : 'text-neutral-700 hover:text-brick'
                 }`}
               >
                 <span>{content.nav.aboutUs}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-neutral-400 group-hover:text-[#8e2e11] transition-transform" />
+                <MorphIcon
+                  icon={aboutDropdownOpen ? ChevronUp : ChevronDown}
+                  spring="snappy"
+                  className="w-3.5 h-3.5 text-neutral-400 group-hover:text-brick"
+                />
               </button>
               {aboutDropdownOpen && (
                 <div className="absolute left-0 mt-0 w-48 bg-white border border-neutral-200/80 shadow-lg py-2 rounded-2xl z-50 animate-fadeIn">
                   <button
                     onClick={() => handleNavClick('about')}
-                    className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-[#8e2e11] transition-colors cursor-pointer"
+                    className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.aboutUs}
                   </button>
@@ -207,7 +213,7 @@ export function Navbar({
                       setAboutDropdownOpen(false);
                       onOpenModal('volunteer');
                     }}
-                    className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-[#8e2e11] transition-colors cursor-pointer"
+                    className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.volunteer}
                   </button>
@@ -216,7 +222,7 @@ export function Navbar({
                       setAboutDropdownOpen(false);
                       onOpenModal('donate');
                     }}
-                    className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-[#8e2e11] transition-colors cursor-pointer"
+                    className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.donate}
                   </button>
@@ -229,8 +235,8 @@ export function Navbar({
               onClick={() => handleNavClick('events')}
               className={`px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                 currentPage === 'events'
-                  ? 'text-[#8e2e11] font-bold border-b-2 border-[#8e2e11]'
-                  : 'text-neutral-700 hover:text-[#8e2e11]'
+                  ? 'text-brick font-bold border-b-2 border-brick'
+                  : 'text-neutral-700 hover:text-brick'
               }`}
             >
               {content.nav.events}
@@ -241,8 +247,8 @@ export function Navbar({
               onClick={() => handleNavClick('membership')}
               className={`px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                 currentPage === 'membership'
-                  ? 'text-[#8e2e11] font-bold border-b-2 border-[#8e2e11]'
-                  : 'text-neutral-700 hover:text-[#8e2e11]'
+                  ? 'text-brick font-bold border-b-2 border-brick'
+                  : 'text-neutral-700 hover:text-brick'
               }`}
             >
               {content.nav.membership}
@@ -259,24 +265,28 @@ export function Navbar({
                 onClick={() => handleNavClick('resources')}
                 className={`flex items-center gap-1 px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                   currentPage === 'resources' || currentPage === 'community-calendar'
-                    ? 'text-[#8e2e11] font-bold border-b-2 border-[#8e2e11]'
-                    : 'text-neutral-700 hover:text-[#8e2e11]'
+                    ? 'text-brick font-bold border-b-2 border-brick'
+                    : 'text-neutral-700 hover:text-brick'
                 }`}
               >
                 <span>{content.nav.resources}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-neutral-400 group-hover:text-[#8e2e11] transition-transform" />
+                <MorphIcon
+                  icon={resourcesDropdownOpen ? ChevronUp : ChevronDown}
+                  spring="snappy"
+                  className="w-3.5 h-3.5 text-neutral-400 group-hover:text-brick"
+                />
               </button>
               {resourcesDropdownOpen && (
                 <div className="absolute left-0 mt-0 w-56 bg-white border border-neutral-200/80 shadow-lg py-2 rounded-2xl z-50 animate-fadeIn">
                   <button
                     onClick={() => handleNavClick('resources')}
-                    className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-[#8e2e11] transition-colors cursor-pointer"
+                    className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.resources}
                   </button>
                   <button
                     onClick={() => handleNavClick('community-calendar')}
-                    className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-[#8e2e11] transition-colors cursor-pointer"
+                    className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.communityCalendar}
                   </button>
@@ -289,8 +299,8 @@ export function Navbar({
               onClick={() => handleNavClick('business-services')}
               className={`px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                 currentPage === 'business-services'
-                  ? 'text-[#8e2e11] font-bold border-b-2 border-[#8e2e11]'
-                  : 'text-neutral-700 hover:text-[#8e2e11]'
+                  ? 'text-brick font-bold border-b-2 border-brick'
+                  : 'text-neutral-700 hover:text-brick'
               }`}
             >
               {content.nav.businessServices}
@@ -308,15 +318,13 @@ export function Navbar({
                   onClick={() => handleNavClick('account')}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all cursor-pointer ${
                     currentPage === 'account'
-                      ? 'bg-[#8e2e11] text-white shadow-xs'
+                      ? 'bg-brick text-white shadow-xs'
                       : 'bg-neutral-100 text-neutral-800 hover:bg-neutral-200 border border-neutral-200'
                   }`}
                 >
                   <div
                     className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                      currentPage === 'account'
-                        ? 'bg-white text-[#8e2e11]'
-                        : 'bg-[#8e2e11] text-white'
+                      currentPage === 'account' ? 'bg-white text-brick' : 'bg-brick text-white'
                     }`}
                   >
                     {user.name.slice(0, 1)}
@@ -324,7 +332,11 @@ export function Navbar({
                   <span className="truncate max-w-[120px]">
                     {lang === 'en' ? 'My Account' : '我的账户'}
                   </span>
-                  <ChevronDown className="w-3 h-3 opacity-60 group-hover:opacity-100" />
+                  <MorphIcon
+                    icon={userDropdownOpen ? ChevronUp : ChevronDown}
+                    spring="snappy"
+                    className="w-3 h-3 opacity-60 group-hover:opacity-100"
+                  />
                 </button>
 
                 {userDropdownOpen && (
@@ -340,9 +352,9 @@ export function Navbar({
                         setUserDropdownOpen(false);
                         handleNavClick('account');
                       }}
-                      className="w-full text-left px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 hover:text-[#8e2e11] transition-colors cursor-pointer flex items-center gap-2"
+                      className="w-full text-left px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer flex items-center gap-2"
                     >
-                      <User className="w-3.5 h-3.5 text-[#8e2e11]" />
+                      <User className="w-3.5 h-3.5 text-brick" />
                       <span>{lang === 'en' ? 'Member Portal' : '会员中心'}</span>
                     </button>
                     {onLogout && (
@@ -365,8 +377,8 @@ export function Navbar({
                 onClick={() => (onLogin ? onLogin() : handleNavClick('account'))}
                 className={`px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                   currentPage === 'account'
-                    ? 'text-[#8e2e11] font-bold border-b-2 border-[#8e2e11]'
-                    : 'text-neutral-700 hover:text-[#8e2e11]'
+                    ? 'text-brick font-bold border-b-2 border-brick'
+                    : 'text-neutral-700 hover:text-brick'
                 }`}
               >
                 {content.nav.login}
@@ -376,10 +388,10 @@ export function Navbar({
             {/* Language Switcher pill in header */}
             <button
               onClick={onToggleLang}
-              className="ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-300 text-xs font-semibold text-neutral-700 hover:border-[#8e2e11] hover:text-[#8e2e11] transition-all bg-neutral-50 cursor-pointer shrink-0"
+              className="ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-300 text-xs font-semibold text-neutral-700 hover:border-brick hover:text-brick transition-all bg-neutral-50 cursor-pointer shrink-0"
               title="Switch Language / 切换语言"
             >
-              <Globe className="w-3.5 h-3.5 text-[#8e2e11]" />
+              <Globe className="w-3.5 h-3.5 text-brick" />
               <span className="font-semibold">{lang === 'en' ? '中' : 'En'}</span>
             </button>
           </nav>
@@ -390,15 +402,15 @@ export function Navbar({
               onClick={onToggleLang}
               className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-neutral-300 text-xs font-semibold text-neutral-700 bg-neutral-50 cursor-pointer shrink-0"
             >
-              <Globe className="w-3.5 h-3.5 text-[#8e2e11]" />
+              <Globe className="w-3.5 h-3.5 text-brick" />
               <span>{lang === 'en' ? '中' : 'En'}</span>
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-neutral-700 hover:text-[#8e2e11] focus:outline-none cursor-pointer"
+              className="p-2 text-neutral-700 hover:text-brick focus:outline-none cursor-pointer"
               aria-label="Toggle Navigation Menu"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              <MorphIcon icon={mobileMenuOpen ? X : Menu} spring="snappy" className="w-6 h-6" />
             </button>
           </div>
         </div>
@@ -410,7 +422,7 @@ export function Navbar({
           <button
             onClick={() => handleNavClick('home')}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
-              currentPage === 'home' ? 'text-[#8e2e11]' : 'text-neutral-700'
+              currentPage === 'home' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.welcome}
@@ -420,7 +432,7 @@ export function Navbar({
             <button
               onClick={() => handleNavClick('about')}
               className={`block w-full text-left py-1 text-sm font-semibold uppercase ${
-                currentPage === 'about' ? 'text-[#8e2e11]' : 'text-neutral-700'
+                currentPage === 'about' ? 'text-brick' : 'text-neutral-700'
               }`}
             >
               {content.nav.aboutUs}
@@ -430,7 +442,7 @@ export function Navbar({
                 setMobileMenuOpen(false);
                 onOpenModal('volunteer');
               }}
-              className="block w-full text-left py-1 text-xs text-neutral-600 hover:text-[#8e2e11]"
+              className="block w-full text-left py-1 text-xs text-neutral-600 hover:text-brick"
             >
               {content.nav.volunteer}
             </button>
@@ -439,7 +451,7 @@ export function Navbar({
                 setMobileMenuOpen(false);
                 onOpenModal('donate');
               }}
-              className="block w-full text-left py-1 text-xs text-neutral-600 hover:text-[#8e2e11]"
+              className="block w-full text-left py-1 text-xs text-neutral-600 hover:text-brick"
             >
               {content.nav.donate}
             </button>
@@ -448,7 +460,7 @@ export function Navbar({
           <button
             onClick={() => handleNavClick('events')}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
-              currentPage === 'events' ? 'text-[#8e2e11]' : 'text-neutral-700'
+              currentPage === 'events' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.events}
@@ -457,7 +469,7 @@ export function Navbar({
           <button
             onClick={() => handleNavClick('membership')}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
-              currentPage === 'membership' ? 'text-[#8e2e11]' : 'text-neutral-700'
+              currentPage === 'membership' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.membership}
@@ -466,7 +478,7 @@ export function Navbar({
           <button
             onClick={() => handleNavClick('resources')}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
-              currentPage === 'resources' ? 'text-[#8e2e11]' : 'text-neutral-700'
+              currentPage === 'resources' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.resources}
@@ -475,7 +487,7 @@ export function Navbar({
           <button
             onClick={() => handleNavClick('community-calendar')}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
-              currentPage === 'community-calendar' ? 'text-[#8e2e11]' : 'text-neutral-700'
+              currentPage === 'community-calendar' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.communityCalendar}
@@ -484,7 +496,7 @@ export function Navbar({
           <button
             onClick={() => handleNavClick('business-services')}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
-              currentPage === 'business-services' ? 'text-[#8e2e11]' : 'text-neutral-700'
+              currentPage === 'business-services' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.businessServices}
@@ -495,7 +507,7 @@ export function Navbar({
               <button
                 onClick={() => handleNavClick('account')}
                 className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
-                  currentPage === 'account' ? 'text-[#8e2e11]' : 'text-neutral-700'
+                  currentPage === 'account' ? 'text-brick' : 'text-neutral-700'
                 }`}
               >
                 {lang === 'en' ? 'My Account' : '我的账户'}
@@ -516,7 +528,7 @@ export function Navbar({
             <button
               onClick={() => (onLogin ? onLogin() : handleNavClick('account'))}
               className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
-                currentPage === 'account' ? 'text-[#8e2e11]' : 'text-neutral-700'
+                currentPage === 'account' ? 'text-brick' : 'text-neutral-700'
               }`}
             >
               {content.nav.login}
