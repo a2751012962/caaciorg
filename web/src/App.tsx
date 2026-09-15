@@ -6,7 +6,7 @@ import { contentEN, contentZH } from './data/content';
 import { initSmoothScroll, destroySmoothScroll, scrollToTop } from './utils/smoothScroll';
 import { AuthProvider, loginUrl, useAuth } from './lib/auth';
 import { initialLang, isZhPath, storeLang, type Lang } from './lib/lang';
-import { withViewTransition } from './lib/viewTransition';
+import { fadeLang } from './lib/langFade';
 
 // The home page ships in the main bundle; every other page loads on first visit.
 import { HomePage } from './pages/HomePage';
@@ -143,9 +143,9 @@ function Site() {
   const toggleLang = () => {
     const nextLang = lang === 'en' ? 'zh' : 'en';
     storeLang(nextLang);
-    // Cross-fade the whole page: the old wording fades out where it stands and
-    // the new one fades in over it. The page stays mounted and keeps its scroll.
-    withViewTransition(() => setLang(nextLang));
+    // Text by text: the old wording fades out, the new one rises into place.
+    // Layout, images and the scroll position stay put; nothing remounts.
+    fadeLang(() => setLang(nextLang));
     window.history.replaceState(
       null,
       '',
