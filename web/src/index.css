@@ -1,0 +1,43 @@
+@import 'tailwindcss';
+
+@layer base {
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  body {
+    font-family: 'Poppins', Helvetica, Arial, Lucida, sans-serif;
+    color: #333333;
+    background-color: #ffffff;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: 'Playfair Display', 'Noto Serif SC', Georgia, 'Times New Roman', serif;
+  }
+}
+
+.font-poppins {
+  font-family: 'Poppins', Helvetica, Arial, Lucida, sans-serif;
+}
+
+.font-serif-caaci {
+  font-family: 'Playfair Display', 'Noto Serif SC', Georgia, 'Times New Roman', serif;
+}
+
+/* Custom Scrollbar Utilities */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}

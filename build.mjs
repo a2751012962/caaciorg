@@ -15,6 +15,7 @@ import {
 } from 'node:fs/promises';
 import { join, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { mirrorLangScript } from './src/caaci-shared.js';
 import { planAssetVersions, versionAssetRefs } from './asset-versions.mjs';
@@ -134,10 +135,9 @@ await copyFile(join(ROOT, 'src', 'caaci-member.js'), join(DIST, 'assets', 'caaci
 // no submenus), so the navigation changed as you moved through the site.
 const navPartial = await readFile(join(ROOT, 'member-src', '_nav.html'), 'utf8');
 // [source, route, event slug fixed on <body> (optional)]
+// /membership/ and /account/ are served by the React site (web/) below.
 for (const [src, route, event] of [
   ['login.html', 'login-3'],
-  ['membership.html', 'membership'],
-  ['account.html', 'account'],
   ['privacy.html', 'privacy'],
   // Public event registration (replaced a Google Form), one page for every
   // event: /events/<slug>/register/ is rewritten onto it (_redirects below)
@@ -170,6 +170,52 @@ await writeFile(
     '',
   ].join('\n'),
 );
+
+// The React site (web/): home, about, events, membership, account, resources,
+// community calendar and business services, in English and under /zh/. It is
+// one page that routes on location.pathname, so the same index.html is written
+// at every route (no reliance on rewrites) and replaces the mirrored copy there.
+// /thank-you/ is Stripe Checkout's success_url; the app forwards it (see App.tsx).
+// Its index.html carries the literal token caaci-app.js, which opts it out of
+// the mirror injection below; its bundles live in /app/ with hashed names.
+const SPA_ROUTES = [
+  '',
+  'about',
+  'events',
+  'membership',
+  'account',
+  'resources',
+  'community-calendar',
+  'business-services',
+  'thank-you',
+];
+const WEB_DIST = join(ROOT, 'web', 'dist');
+try {
+  await stat(join(WEB_DIST, 'index.html'));
+} catch {
+  // `npm run build` builds web/ first; a bare `node build.mjs` (the tests) on a
+  // fresh checkout builds it here.
+  console.log('web/dist/ missing — building web/…');
+  execFileSync('npm', ['run', 'build', '-w', 'web'], {
+    cwd: ROOT,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+}
+const spaPage = await readFile(join(WEB_DIST, 'index.html'), 'utf8');
+if (!spaPage.includes('caaci-app.js'))
+  throw new Error('web/index.html lost its caaci-app.js opt-out token');
+await cp(join(WEB_DIST, 'app'), join(DIST, 'app'), { recursive: true });
+await cp(join(WEB_DIST, 'images'), join(DIST, 'images'), { recursive: true });
+for (const base of ['', 'zh/']) {
+  const page = base ? spaPage.replace('<html lang="en">', '<html lang="zh-CN">') : spaPage;
+  for (const route of SPA_ROUTES) {
+    const dir = join(DIST, base + route);
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, 'index.html'), page);
+  }
+}
+console.log(`React site written at ${SPA_ROUTES.length * 2} routes.`);
 
 // The mirror layer needs no Supabase client or runtime config any more: it wires
 // the contact form, the donation checkout and accessibility fixes, all of which
@@ -301,10 +347,35 @@ for (const base of ['', 'zh/']) {
 }
 console.log(`Consolidated ${r} duplicate login/account pages.`);
 
-// The member pages are single bilingual documents (data-en/data-zh + toggle,
-// like /admin/), so their /zh/ mirror copies and the old per-tier /register/
-// pages become redirect stubs into them. ?lang=zh preselects Chinese; ?tier=
-// opens the checkout for that tier directly. Existing query strings survive.
+// Mirrored pages the React site replaced with a dialog or a section: donate and
+// volunteer open their dialog on the home page (/donate/ is also the donation
+// checkout's cancel_url), past events are a section of /events/.
+const LEGACY_PAGES = {
+  donate: '?modal=donate',
+  volunteer: '?modal=volunteer',
+  'past-events': 'events/#past',
+};
+const legacyStub = (url) =>
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Redirecting…</title><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0; url=${url}"><script>location.replace(${JSON.stringify(url)})</script></head><body>Redirecting to <a href="${url}">${url}</a>…</body></html>\n`;
+let legacy = 0;
+for (const base of ['', 'zh/']) {
+  for (const [from, to] of Object.entries(LEGACY_PAGES)) {
+    const dir = join(DIST, base + from);
+    try {
+      await stat(dir); // skip if not in the mirror
+      await writeFile(join(dir, 'index.html'), legacyStub(`/${base}${to}`));
+      legacy++;
+    } catch {
+      /* page absent */
+    }
+  }
+}
+console.log(`Legacy page stubs into the React site: ${legacy}.`);
+
+// The login page is a single bilingual document (data-en/data-zh + toggle,
+// like /admin/), so its /zh/ mirror copy becomes a redirect stub into it with
+// ?lang=zh. The old per-tier /register/ pages open that tier on the React
+// membership page (?tier=), in their own language. Existing query strings survive.
 const paramStub = (to, extra) => {
   const url = `/${to}/`;
   const dest = `${url}?${extra}`;
@@ -312,8 +383,7 @@ const paramStub = (to, extra) => {
 };
 let m = 0;
 const memberStubs = [];
-for (const route of ['login-3', 'membership', 'account'])
-  memberStubs.push([`zh/${route}`, route, 'lang=zh']);
+memberStubs.push(['zh/login-3', 'login-3', 'lang=zh']);
 for (const [slug, id] of Object.entries({
   'student-membership': 'student',
   'individual-membership': 'individual',
@@ -321,7 +391,7 @@ for (const [slug, id] of Object.entries({
   'business-membership': 'business',
 })) {
   memberStubs.push([`register/${slug}`, 'membership', `tier=${id}`]);
-  memberStubs.push([`zh/register/${slug}`, 'membership', `tier=${id}&lang=zh`]);
+  memberStubs.push([`zh/register/${slug}`, 'zh/membership', `tier=${id}`]);
 }
 for (const [from, to, extra] of memberStubs) {
   const dir = join(DIST, from);

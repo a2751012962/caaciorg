@@ -13,8 +13,66 @@ import { fileURLToPath } from 'node:url';
 const ROOT = new URL('../', import.meta.url);
 const dist = (path) => readFile(new URL(`dist/${path}`, ROOT), 'utf8');
 
+// One build for the whole file. A fresh checkout has no web/dist/ yet, and
+// build.mjs then runs the Vite build itself, which takes several seconds.
+const built = promisify(execFile)(process.execPath, ['build.mjs'], {
+  cwd: fileURLToPath(ROOT),
+  maxBuffer: 16 * 1024 * 1024,
+});
+
+test('build: the React site is written at every route it serves, in English and under /zh/', async () => {
+  await built;
+  const routes = [
+    '',
+    'about/',
+    'events/',
+    'membership/',
+    'account/',
+    'resources/',
+    'community-calendar/',
+    'business-services/',
+    'thank-you/',
+  ];
+  const home = await dist('index.html');
+  assert.match(home, /<div id="root"><\/div>/);
+  assert.match(home, /<script type="module" crossorigin src="\/app\/[^"]+\.js"><\/script>/);
+  assert.match(home, /<script src="\/assets\/caaci-config\.js(\?v=[0-9a-f]{12})?"><\/script>/);
+  assert.equal(
+    home.includes('<script type="module" src="/assets/caaci-app.js">'),
+    false,
+    'opted out of the mirror injection',
+  );
+  for (const route of routes) {
+    assert.equal(await dist(`${route}index.html`), home, `/${route}`);
+    assert.equal(
+      await dist(`zh/${route}index.html`),
+      home.replace('<html lang="en">', '<html lang="zh-CN">'),
+      `/zh/${route}`,
+    );
+  }
+});
+
+test('build: the login page stays Tabler; old pages point into the React site', async () => {
+  await built;
+  const login = await dist('login-3/index.html');
+  assert.match(login, /tabler\.min\.css/);
+  assert.match(await dist('zh/login-3/index.html'), /location\.replace\("\/login-3\/"/);
+  assert.match(await dist('zh/login-3/index.html'), /"lang=zh"/);
+  // Stripe's donation cancel_url, and the volunteer page: their dialog on the home page.
+  assert.match(await dist('donate/index.html'), /location\.replace\("\/\?modal=donate"\)/);
+  assert.match(
+    await dist('zh/volunteer/index.html'),
+    /location\.replace\("\/zh\/\?modal=volunteer"\)/,
+  );
+  assert.match(await dist('past-events/index.html'), /location\.replace\("\/events\/#past"\)/);
+  // Printed per-tier links open that tier on the membership page, in their language.
+  assert.match(await dist('register/family-membership/index.html'), /"\/membership\/"/);
+  assert.match(await dist('zh/register/family-membership/index.html'), /"\/zh\/membership\/"/);
+  assert.match(await dist('zh/register/family-membership/index.html'), /"tier=family"/);
+});
+
 test('build: _redirects rewrites /events/<slug>/register onto /event-register/, and both registration routes are written', async () => {
-  await promisify(execFile)(process.execPath, ['build.mjs'], { cwd: fileURLToPath(ROOT) });
+  await built;
 
   // Cloudflare Pages: one "from to status" rule per line; 200 is a rewrite.
   const rules = (await dist('_redirects'))
