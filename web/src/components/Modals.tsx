@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { X, Check, Heart, HandHeart, Lock } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
@@ -286,24 +286,78 @@ const AVAILABILITY = [
   { en: 'Weekends', zh: '周末' },
 ];
 
-// A volunteer sign-up is a contact-form message (/api/contact stores it in
-// form_submissions and emails the CAACI inbox), marked as a sign-up on its
-// first line. The live /volunteer/ page was the same contact form.
+// An upcoming event as GET /api/volunteer lists it: published and not over yet.
+interface VolunteerEvent {
+  slug: string;
+  title: string;
+  title_zh: string | null;
+  starts_at: string;
+}
+
+// The event's date the way the site's calendar rows show it. An unreadable
+// date drops out of the label instead of showing "Invalid Date".
+function eventDate(startsAt: string, en: boolean): string {
+  const at = Date.parse(startsAt || '');
+  if (Number.isNaN(at)) return '';
+  try {
+    return new Date(at).toLocaleDateString(en ? 'en-US' : 'zh-CN', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'America/Chicago',
+    });
+  } catch {
+    return '';
+  }
+}
+
+// /api/volunteer refuses with English sentences; the ones a person can act on
+// get a Chinese counterpart on /zh/.
+const VOLUNTEER_ERRORS_ZH: Record<string, string> = {
+  'Enter your name.': '请填写姓名。',
+  'Enter a valid email address.': '请输入有效的电子邮箱。',
+  'Event not found.': '所选活动已不可报名，请关闭后重新打开再试。',
+  'Too many events selected.': '选择的活动太多了。',
+};
+
+// A volunteer sign-up goes to /api/volunteer: one event_volunteers row per event
+// picked (or one "wherever needed" row), a staff notification and a thank-you
+// email to the volunteer. The picker only offers the events GET /api/volunteer
+// lists — published ones that have not happened yet — so nobody signs up for a
+// past event; with none listed (or the list failing to load) "any event" is
+// the only choice, the same fallback the old /volunteer/ page had.
 function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: () => void }) {
   const en = lang === 'en';
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [events, setEvents] = useState<VolunteerEvent[] | null>(null);
+  const [chosen, setChosen] = useState<string[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
   const [availability, setAvailability] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
   const [hp, setHp] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<VolunteerEvent[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api<{ events?: VolunteerEvent[] }>('/api/volunteer').then(({ ok, data }) => {
+      if (!alive) return;
+      const list = ok && Array.isArray(data.events) ? data.events : [];
+      // Only events that can still be helped with: the API filters by
+      // (ends_at ?? starts_at) >= now, and a stale entry is dropped here too.
+      setEvents(list.filter((ev) => ev && typeof ev.slug === 'string' && ev.slug));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const toggle = (list: string[], set: (next: string[]) => void, key: string) =>
     set(list.includes(key) ? list.filter((k) => k !== key) : [...list, key]);
+  const anyEvent = chosen.length === 0;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -316,36 +370,44 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
       items
         .filter((i) => keys.includes(i.en))
         .map((i) => `${i.en} / ${i.zh}`)
-        .join(', ') || '-';
+        .join(', ');
     const message = [
-      '[Volunteer sign-up · 志愿者报名]',
-      `Interests · 意向: ${picked(INTERESTS, interests)};`,
-      `Availability · 可服务时间: ${picked(AVAILABILITY, availability)};`,
-      `Site language · 网站语言: ${en ? 'English' : '中文'};`,
-      `Notes · 备注: ${notes.trim() || '-'}`,
-    ].join('\n');
+      picked(INTERESTS, interests) && `Interests · 意向: ${picked(INTERESTS, interests)}`,
+      picked(AVAILABILITY, availability) &&
+        `Availability · 可服务时间: ${picked(AVAILABILITY, availability)}`,
+      notes.trim(),
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     setError('');
     setBusy(true);
-    const { ok, status, data } = await api('/api/contact', {
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      message,
-      _hp: hp,
-    });
+    const { ok, status, data } = await api<{ ok?: boolean; events?: VolunteerEvent[] }>(
+      '/api/volunteer',
+      {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        message,
+        events: chosen,
+        _hp: hp,
+      },
+    );
     setBusy(false);
     if (ok) {
-      setSubmitted(true);
+      setSubmitted(Array.isArray(data.events) ? data.events : []);
       return;
     }
+    const server = data.error;
     setError(
       status === 0
         ? en
           ? 'Network error. Please check your connection and try again.'
           : '网络错误，请检查网络连接后重试。'
-        : status < 500 && data.error
-          ? data.error
+        : status < 500 && server
+          ? en
+            ? server
+            : VOLUNTEER_ERRORS_ZH[server] || '抱歉，报名信息发送失败，请重试。'
           : en
             ? 'Sorry, your sign-up could not be sent. Please try again.'
             : '抱歉，报名信息发送失败，请重试。',
@@ -353,6 +415,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
   };
 
   if (submitted) {
+    const names = submitted.map((ev) => (en ? ev.title : ev.title_zh || ev.title));
     return (
       <div role="status" className="text-center py-6 space-y-3 font-poppins">
         <Check className="w-12 h-12 text-green-600 mx-auto" />
@@ -360,9 +423,16 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
           {en ? 'Thank You for Volunteering!' : '感谢您支持社区志愿服务！'}
         </h4>
         <p className="text-xs text-neutral-600">
-          {en
-            ? 'Your sign-up has been sent to CAACI. We will contact you by email about volunteer opportunities.'
-            : '您的报名信息已发送给华人协会，我们会通过邮件与您联系志愿服务机会。'}
+          {names.length
+            ? en
+              ? `You're signed up to help with ${names.join(', ')}. We'll be in touch by email before the event.`
+              : `您已报名参与「${names.join('、')}」的志愿服务，活动前我们会通过邮件与您联系。`
+            : en
+              ? "You're on our volunteer list. We'll be in touch by email when we need a hand."
+              : '您已加入志愿者名单，需要帮手时我们会通过邮件与您联系。'}
+        </p>
+        <p className="text-[11px] text-neutral-500">
+          {en ? 'A confirmation has been emailed to you.' : '确认邮件已发送到您的邮箱。'}
         </p>
         <button
           onClick={onClose}
@@ -422,6 +492,47 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
 
       <fieldset>
         <legend className="block text-xs font-bold text-neutral-500 mb-2">
+          {en ? 'Which event(s) would you like to help with?' : '您想为哪些活动做志愿者？'}
+        </legend>
+        {events === null ? (
+          <p className="text-neutral-500">{en ? 'Loading events…' : '正在加载活动…'}</p>
+        ) : (
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="accent-brick"
+                checked={anyEvent}
+                onChange={() => setChosen([])}
+              />
+              <span className="text-neutral-800">
+                {en ? 'Any event / wherever needed' : '任何活动均可'}
+              </span>
+            </label>
+            {events.map((ev) => {
+              const when = eventDate(ev.starts_at, en);
+              return (
+                <label key={ev.slug} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="accent-brick"
+                    value={ev.slug}
+                    checked={chosen.includes(ev.slug)}
+                    onChange={() => toggle(chosen, setChosen, ev.slug)}
+                  />
+                  <span className="text-neutral-800">
+                    {en ? ev.title : ev.title_zh || ev.title}
+                  </span>
+                  {when && <span className="text-neutral-500">· {when}</span>}
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </fieldset>
+
+      <fieldset>
+        <legend className="block text-xs font-bold text-neutral-500 mb-2">
           {en ? 'Areas of Interest' : '感兴趣的志愿领域'}
         </legend>
         <div className="flex flex-wrap gap-2">
@@ -471,7 +582,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
         className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick resize-none"
       />
 
-      {/* Honeypot: people never see or fill it; /api/contact drops messages that have it. */}
+      {/* Honeypot: people never see or fill it; /api/volunteer drops sign-ups that have it. */}
       <div aria-hidden="true" className="absolute -left-[9999px] top-0 w-px h-px overflow-hidden">
         <label htmlFor="volunteer-website">Website</label>
         <input
