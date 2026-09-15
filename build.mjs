@@ -174,7 +174,8 @@ await writeFile(
 // The React site (web/): home, about, events, membership, account, resources,
 // community calendar and business services, in English and under /zh/. It is
 // one page that routes on location.pathname, so the same index.html is written
-// at every route (no reliance on rewrites) and replaces the mirrored copy there.
+// at every route (no reliance on rewrites). The mirror's own copies of these
+// pages were deleted from mirror/ once the React site replaced them.
 // /thank-you/ is Stripe Checkout's success_url; the app forwards it (see App.tsx).
 // Its index.html carries the literal token caaci-app.js, which opts it out of
 // the mirror injection below; its bundles live in /app/ with hashed names.

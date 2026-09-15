@@ -29,8 +29,9 @@
 
 # mirror/ is a byte-for-byte capture of the live caaciorg.com and must never be
 # rewritten — the whole point of that tree is that the served bytes match the
-# original site. mirror/zh/events/index.html genuinely contains mixed line
-# endings, and normalising it would change bytes the mirror exists to preserve.
+# original site. A captured page can genuinely contain mixed line endings (the
+# since-removed mirror/zh/events/index.html did), and normalising it would change
+# bytes the mirror exists to preserve.
 #
 # Last matching pattern wins in gitattributes, so this block stays at the bottom
 # to override the `* text=auto eol=lf` rule above for everything under mirror/.

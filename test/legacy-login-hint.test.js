@@ -8,20 +8,19 @@
 // wrong password, and refuses a code for an address with no account — so none
 // of this may reveal whether an account exists.
 //
-// Boots the real login/membership pages and module in jsdom, as
-// caaci-member-dom.test.js does.
+// Boots the real login page and module in jsdom, as caaci-member-dom.test.js
+// does.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
-import { mockFetch } from './helpers.js';
 import { buildAuthPatch, loadTemplates } from '../push-auth-emails.mjs';
 
 globalThis.window = { __CAACI_TEST__: true }; // block auto-boot at import
 const member = await import('../src/caaci-member.js');
 
 const PAGES = {};
-for (const p of ['login', 'membership'])
+for (const p of ['login'])
   PAGES[p] = await readFile(new URL(`../member-src/${p}.html`, import.meta.url), 'utf8');
 
 const tick = () => new Promise((r) => setTimeout(r, 15));
@@ -390,155 +389,6 @@ test('login page: a wrong or expired code says so and frees the button', async (
   } finally {
     member.__setLang('en');
   }
-});
-
-// ---------------------------------------------------------------- checkout modal
-
-const STRIPE_URL = 'https://checkout.stripe.test/session';
-
-// Membership page → Individual checkout → log-in mode → Continue with a bad password.
-async function failedCheckoutLogin(stub, email = 'mei@x.com') {
-  setup('membership');
-  member.__setSupa(stub);
-  await member.wireMembershipPage();
-  q('[data-tier="individual"]').click();
-  await tick();
-  q('#caaci-email').value = email;
-  q('#caaci-auth-toggle').click();
-  q('#caaci-pwd').value = 'wrongpass1';
-  q('#caaci-pay').click();
-  await tick();
-}
-
-test('membership checkout: a failed log-in shows the hint; a code sign-in continues checkout with that uid', async (t) => {
-  mockClock(t);
-  const fetch = mockFetch((u) =>
-    u.includes('/api/checkout') ? { body: { url: STRIPE_URL } } : {},
-  );
-  try {
-    const stub = supaStub();
-    await failedCheckoutLogin(stub);
-    const checkoutCalls = () => fetch.calls.filter((c) => c.url.includes('/api/checkout'));
-
-    assert.equal(q('#caaci-co-notice').textContent, 'Invalid login credentials');
-    assert.equal(q('#caaci-co-legacy-hint').hidden, false);
-    assert.equal(q('#caaci-co-legacy-hint').textContent, HINT_EN);
-    assert.equal(q('#caaci-co-code-wrap').hidden, false);
-    assert.equal(q('#caaci-co-forgot').textContent, 'Email me a reset link');
-    assert.equal(q('#caaci-co-code-send').textContent, 'Email me a sign-in code');
-    assert.equal(q('#caaci-co-code-form').hidden, true);
-    assert.equal(q('#caaci-pay').disabled, false);
-    assert.equal(checkoutCalls().length, 0);
-
-    // The reset link is the modal's own forgot-password button.
-    q('#caaci-co-forgot').click();
-    await tick();
-    assert.deepEqual(callsTo(stub, 'resetPasswordForEmail'), [['mei@x.com', RESET_REDIRECT]]);
-    assert.equal(q('#caaci-co-forgot').textContent, 'Resend in 60s');
-
-    q('#caaci-co-code-send').click();
-    await tick();
-    assert.deepEqual(callsTo(stub, 'signInWithOtp'), [
-      [
-        {
-          email: 'mei@x.com',
-          options: {
-            shouldCreateUser: false,
-            emailRedirectTo: 'https://caaci.example/membership/',
-          },
-        },
-      ],
-    ]);
-    assert.equal(q('#caaci-co-notice').textContent, SENT_CODE);
-    assert.equal(q('#caaci-co-code-send').textContent, 'Resend in 60s');
-    assert.equal(q('#caaci-co-code-form').hidden, false);
-    const input = q('#caaci-co-code');
-    assert.equal(input.getAttribute('inputmode'), 'numeric');
-    assert.equal(input.getAttribute('autocomplete'), 'one-time-code');
-
-    input.value = GOOD_CODE;
-    submit('#caaci-co-code-form');
-    await tick();
-    assert.deepEqual(callsTo(stub, 'verifyOtp'), [
-      [{ email: 'mei@x.com', token: GOOD_CODE, type: 'email' }],
-    ]);
-    assert.equal(checkoutCalls().length, 1);
-    assert.deepEqual(JSON.parse(checkoutCalls()[0].options.body), {
-      type: 'membership',
-      tier_id: 'individual',
-      email: 'mei@x.com',
-      member_id: 'u-code',
-    });
-    assert.equal(location.href, STRIPE_URL);
-    assert.equal(callsTo(stub, 'signInWithPassword').length, 1, 'the password is not tried again');
-  } finally {
-    fetch.restore();
-  }
-});
-
-test('membership checkout: a code request for an address with no account reads like a real send', async (t) => {
-  mockClock(t);
-  for (const error of NO_ACCOUNT_ERRORS) {
-    await failedCheckoutLogin(
-      supaStub({ auth: { signInWithOtp: async () => ({ data: {}, error }) } }),
-    );
-    q('#caaci-co-code-send').click();
-    await tick();
-    assert.equal(q('#caaci-co-notice').textContent, SENT_CODE);
-    assert.match(q('#caaci-co-notice').className, /alert-success/);
-    assert.equal(q('#caaci-co-code-form').hidden, false);
-  }
-});
-
-test('membership checkout: a wrong code keeps checkout waiting; the hint hides on a new email or sign-up mode', async (t) => {
-  mockClock(t);
-  const fetch = mockFetch(() => ({ body: { url: STRIPE_URL } }));
-  try {
-    const stub = supaStub();
-    await failedCheckoutLogin(stub);
-
-    typeInto('#caaci-email', 'ada@x.com');
-    assert.equal(q('#caaci-co-legacy-hint').hidden, true);
-    assert.equal(q('#caaci-co-code-wrap').hidden, true);
-    assert.equal(q('#caaci-co-forgot').textContent, 'Forgot password?', 'back to its own label');
-
-    q('#caaci-pay').click();
-    await tick();
-    assert.equal(q('#caaci-co-legacy-hint').hidden, false);
-    q('#caaci-co-code-send').click();
-    await tick();
-    q('#caaci-co-code').value = '000000';
-    submit('#caaci-co-code-form');
-    await tick();
-    assert.equal(q('#caaci-co-notice').textContent, WRONG_CODE);
-    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/checkout')).length, 0);
-    assert.equal(q('#caaci-co-code-verify').disabled, false);
-    assert.equal(location.href, '');
-
-    q('#caaci-auth-toggle').click(); // back to creating an account
-    assert.equal(q('#caaci-co-legacy-hint').hidden, true);
-    assert.equal(q('#caaci-co-code-wrap').hidden, true);
-  } finally {
-    fetch.restore();
-  }
-});
-
-test('membership checkout: the duplicate-account message points old-site members to a new password or a code', async (t) => {
-  mockClock(t);
-  setup('membership');
-  member.__setSupa(supaStub());
-  await member.wireMembershipPage();
-  q('[data-tier="individual"]').click();
-  await tick();
-  q('#caaci-email').value = 'taken@x.com';
-  q('#caaci-pwd').value = 'longenough1';
-  q('#caaci-pay').click();
-  await tick();
-  const text = q('#caaci-co-notice').textContent;
-  assert.match(text, /already has an account — log in instead/);
-  assert.match(text, /old caaciorg\.com site/);
-  assert.match(text, /set a new password/i);
-  assert.match(text, /one-time code/);
 });
 
 // ---------------------------------------------------------------- email template
