@@ -153,8 +153,8 @@ h3,
 }
 
 /* ================================================ Site header (public pages) === */
-/* member-src/_nav.html on /login-3/, /privacy/ and the event registration
-   pages: a copy of the React site's header (web/src/components/Navbar.tsx),
+/* member-src/_nav.html on /login-3/ and /privacy/: a copy of the React
+   site's header (web/src/components/Navbar.tsx),
    value for value from its Tailwind classes. A 72px translucent white bar with
    a hairline and a small shadow; the logo beside the CAACI wordmark; 14px/600
    uppercase links with 0.05em tracking, brick on hover and underlined when

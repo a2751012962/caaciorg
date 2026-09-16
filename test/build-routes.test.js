@@ -59,6 +59,14 @@ test('build: the login page stays Tabler; old pages point into the React site', 
   assert.match(login, /tabler\.min\.css/);
   assert.match(await dist('zh/login-3/index.html'), /location\.replace\("\/login-3\/"/);
   assert.match(await dist('zh/login-3/index.html'), /"lang=zh"/);
+  // The /zh/ login duplicates go straight to the bilingual page in one hop,
+  // not via the /zh/login-3/ stub.
+  assert.match(await dist('zh/login/index.html'), /location\.replace\("\/login-3\/"/);
+  assert.match(await dist('zh/login/index.html'), /"lang=zh"/);
+  assert.match(
+    await dist('login/index.html'),
+    /location\.replace\("\/login-3\/" \+ location\.search/,
+  );
   // Stripe's donation cancel_url, and the volunteer page: their dialog on the home page.
   assert.match(await dist('donate/index.html'), /location\.replace\("\/\?modal=donate"\)/);
   assert.match(
