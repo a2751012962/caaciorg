@@ -56,6 +56,34 @@ export const otherFieldId = (q) => `ev-q-${q.id}-other-text`;
 export const questionLabel = (item, lang) =>
   lang === 'zh' ? item.label_zh || item.label_en : item.label_en;
 
+/** The question types answered by typing into one box (state is a string). */
+export const TYPED_TYPES = new Set(['text', 'textarea', 'number', 'phone', 'date']);
+export const isTypedQuestion = (q) => TYPED_TYPES.has(q?.type);
+
+// The API's rules for the typed kinds (functions/api/_event-form.js), mirrored
+// so a slip is caught before the round trip: a whole number within the
+// question's bounds; a phone number of 7–15 digits with the usual punctuation.
+const WHOLE_NUMBER = /^-?\d{1,10}$/;
+const PHONE = /^\+?[\d\s().-]+$/;
+const PHONE_DIGITS = { min: 7, max: 15 };
+const MAX_PHONE = 40;
+
+// The refusal for a number outside the question's bounds, in `lang`.
+function numberRangeError(q, label, lang) {
+  const { min, max } = q;
+  if (min != null && max != null)
+    return lang === 'zh'
+      ? `请填写 ${min} 到 ${max} 之间的整数：${label}`
+      : `Enter a whole number from ${min} to ${max} for: ${q.label_en}`;
+  if (min != null)
+    return lang === 'zh'
+      ? `请填写不小于 ${min} 的整数：${label}`
+      : `Enter a whole number of at least ${min} for: ${q.label_en}`;
+  return lang === 'zh'
+    ? `请填写不大于 ${max} 的整数：${label}`
+    : `Enter a whole number of at most ${max} for: ${q.label_en}`;
+}
+
 /**
  * The answers in the API's shape — a text answer as a string, a single choice
  * as { option } or { other }, a multiple choice as { options, other? }, and an
@@ -63,8 +91,9 @@ export const questionLabel = (item, lang) =>
  * The API checks all of it again; asking here saves a round trip on a phone.
  *
  * `state` is the page's plain answer state, one entry per question id:
- * a string for text/textarea, and `{ picked: string[], other: string|null }`
- * for a choice question (`other: null` means the Other box is not ticked).
+ * a string for the typed kinds (text, textarea, number, phone, date — a number
+ * is sent as a number), and `{ picked: string[], other: string|null }` for a
+ * choice question (`other: null` means the Other box is not ticked).
  * `field` is the id of the input to focus, never an element.
  *
  * @param {Array<any>} questions
@@ -80,10 +109,44 @@ export function readAnswers(questions, state, lang) {
       error: lang === 'zh' ? `请回答：${label}` : `Answer the question: ${q.label_en}`,
       field,
     });
-    if (q.type === 'text' || q.type === 'textarea') {
+    if (isTypedQuestion(q)) {
       const value = String(state?.[q.id] ?? '').trim();
-      if (value) answers[q.id] = value;
-      else if (q.required) return unanswered(questionFieldId(q));
+      const field = questionFieldId(q);
+      if (!value) {
+        if (q.required) return unanswered(field);
+        continue;
+      }
+      if (q.type === 'number') {
+        if (!WHOLE_NUMBER.test(value))
+          return {
+            error:
+              lang === 'zh' ? `请填写整数：${label}` : `Enter a whole number for: ${q.label_en}`,
+            field,
+          };
+        const n = Number(value);
+        if ((q.min != null && n < q.min) || (q.max != null && n > q.max))
+          return { error: numberRangeError(q, label, lang), field };
+        answers[q.id] = n;
+        continue;
+      }
+      if (q.type === 'phone') {
+        const digits = value.replace(/\D/g, '').length;
+        if (
+          value.length > MAX_PHONE ||
+          !PHONE.test(value) ||
+          digits < PHONE_DIGITS.min ||
+          digits > PHONE_DIGITS.max
+        )
+          return {
+            error:
+              lang === 'zh'
+                ? `请填写有效的电话号码：${label}`
+                : `Enter a valid phone number for: ${q.label_en}`,
+            field,
+          };
+      }
+      // A date input only ever yields YYYY-MM-DD; the API checks the day exists.
+      answers[q.id] = value;
       continue;
     }
     if (q.type !== 'single' && q.type !== 'multi') continue;

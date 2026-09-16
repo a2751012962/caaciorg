@@ -415,6 +415,43 @@ test('event-register POST: optional questions may be left out, and the length li
   }
 });
 
+test('event-register POST: a number answer is stored as a number, within the question’s bounds', async () => {
+  const guests = {
+    id: 'guests',
+    type: 'number',
+    required: true,
+    label_en: 'How many guests?',
+    label_zh: '几位客人？',
+    min: 1,
+    max: 6,
+  };
+  const event = { ...EVENT, registration_questions: [...QUESTIONS, guests] };
+  let fetch = mockFetch(route({ event }));
+  try {
+    // From the page's <input type="number"> the value arrives as text.
+    const r = await post({ ...VALID, answers: { ...ANSWERS, guests: '3' } });
+    assert.equal(r.status, 200);
+    assert.deepEqual(upsertBody(fetch).answers, { ...ANSWERS, guests: 3 });
+  } finally {
+    fetch.restore();
+  }
+  for (const [label, guests, error] of [
+    ['above the bound', 7, 'Invalid answer for: How many guests?'],
+    ['a fraction', '2.5', 'Invalid answer for: How many guests?'],
+    ['left out', undefined, 'Answer the question: How many guests?'],
+  ]) {
+    fetch = mockFetch(route({ event }));
+    try {
+      const r = await post({ ...VALID, answers: { ...ANSWERS, guests } });
+      assert.equal(r.status, 400, label);
+      assert.deepEqual(await r.json(), { error }, label);
+      assert.equal(callsTo(fetch, '/rest/v1/event_registrations').length, 0, 'nothing written');
+    } finally {
+      fetch.restore();
+    }
+  }
+});
+
 test('event-register POST: an event with no gift answers perk null; with no perk_deadline the deadline is the start', async () => {
   let fetch = mockFetch(route({ event: { ...EVENT, perk_item_en: null } }));
   try {

@@ -473,8 +473,9 @@ looks like the rest of the site.
   apply `_redirects`; preview there with `/event-register/?event=<slug>`.
 - **Setting up an event** (Admin → Events → edit): a Chinese title, the
   "Accept registrations" switch and the question builder — single choice or
-  multiple choice (either can offer "Other" with a text box), short text and long
-  text, each with English and Chinese labels and a "required" box. Question and
+  multiple choice (either can offer "Other" with a text box), short text, long
+  text, number (optionally bounded, e.g. 1 to 10 guests), phone number and date,
+  each with English and Chinese labels and a "required" box. Question and
   option ids are generated once and never change, so relabelling keeps earlier
   answers readable. Every open event lists its registration link and a printable
   QR code. Registration closes when the event ends (`ends_at`, else `starts_at`).
