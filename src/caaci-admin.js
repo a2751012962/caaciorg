@@ -1840,89 +1840,6 @@ function wireImageField(form) {
   });
 }
 
-async function loadMedia() {
-  const notb = $('#caaci-media-notice');
-  const { ok, data } = await api('/api/admin/media');
-  if (!ok) {
-    notice(notb, data.error || t('Could not load media.', '无法加载媒体库。'), false);
-    return;
-  }
-  notb.hidden = true;
-  const rows = data.rows || [];
-  const grid = $('#caaci-media-grid');
-  grid.innerHTML = '';
-  if (!rows.length) {
-    grid.innerHTML = `<p class="text-secondary">${t('No images yet — upload one above.', '暂无图片——请在上方上传。')}</p>`;
-    return;
-  }
-  for (const f of rows) {
-    const kb = f.size != null ? `${Math.max(1, Math.round(f.size / 1024))} KB` : '';
-    const item = document.createElement('div');
-    item.className = 'col-6 col-sm-4 col-lg-3';
-    item.innerHTML = `
-      <div class="card">
-        <div class="ratio ratio-4x3">
-          <img class="object-cover card-img-top" loading="lazy" src="${esc(f.url)}" alt="${esc(f.name)}">
-        </div>
-        <div class="card-body p-2">
-          <span class="text-truncate d-block" title="${esc(f.name)}">${esc(f.name)}</span>
-          <span class="text-secondary small">${kb}</span>
-        </div>
-        <div class="card-footer p-2 btn-list">
-          <button type="button" class="btn btn-sm" data-act="copy">${t('Copy URL', '复制链接')}</button>
-          <button type="button" class="btn btn-sm btn-ghost-danger" data-act="delete">${t('Delete', '删除')}</button>
-        </div>
-      </div>`;
-    item.querySelector('[data-act="copy"]').addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(f.url);
-        notice(notb, t('URL copied.', '链接已复制。'), true);
-      } catch {
-        window.prompt(t('Copy the URL:', '请复制链接：'), f.url);
-      }
-    });
-    item.querySelector('[data-act="delete"]').addEventListener('click', async () => {
-      if (
-        !window.confirm(
-          t(
-            `Delete ${f.name}? Any event or listing using it will lose the image.`,
-            `删除 ${f.name}？正在使用它的活动或商家条目将失去该图片。`,
-          ),
-        )
-      )
-        return;
-      const { ok: ok2, data: d2 } = await api(
-        `/api/admin/media?name=${encodeURIComponent(f.name)}`,
-        { method: 'DELETE' },
-      );
-      if (!ok2) return notice(notb, d2.error || t('Delete failed.', '删除失败。'), false);
-      await loadMedia();
-    });
-    grid.appendChild(item);
-  }
-}
-
-let mediaPond = null;
-function wireMedia() {
-  const tab = $('[data-tab="media"]');
-  if (!tab) return;
-  tab.addEventListener('click', () => {
-    if (!mediaPond) {
-      mediaPond = createPond($('#caaci-media-file'), { allowMultiple: true });
-      if (!mediaPond) {
-        notice($('#caaci-media-notice'), 'FilePond failed to load.', false);
-      } else {
-        mediaPond.on('processfile', (err, f) => {
-          if (err) return;
-          loadMedia();
-          setTimeout(() => mediaPond.removeFile(f.id), 1500); // tidy the drop area
-        });
-      }
-    }
-    loadMedia();
-  });
-}
-
 // ---------- events (publish = make it official) ----------
 const EV_LIMIT = 25;
 let evOffset = 0,
@@ -3374,7 +3291,6 @@ function wireMyAccount() {
   wireEvents();
   wireVolunteers();
   wireBusiness();
-  wireMedia();
   wireNews();
   wireMyAccount();
   await loadTiers();

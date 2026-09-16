@@ -196,18 +196,6 @@
                   <button
                     class="nav-link"
                     role="tab"
-                    data-tab="media"
-                    aria-selected="false"
-                    data-en="Media"
-                    data-zh="媒体库"
-                  >
-                    Media
-                  </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                  <button
-                    class="nav-link"
-                    role="tab"
                     data-tab="news"
                     aria-selected="false"
                     data-en="Compose News"
@@ -789,37 +777,6 @@
                   </button>
                 </div>
                 <p class="alert m-3" id="caaci-biz-notice" hidden></p>
-              </section>
-
-              <!-- ============ Media library ============ -->
-              <section class="card" data-panel="media" hidden>
-                <div class="card-header">
-                  <div>
-                    <div class="subheader" data-en="Image storage" data-zh="图片存储">
-                      Image storage
-                    </div>
-                    <h2 class="card-title mb-0" data-en="Media" data-zh="媒体库">Media</h2>
-                  </div>
-                </div>
-                <div class="card-body">
-                  <p
-                    class="text-secondary"
-                    data-en="Upload images here (JPEG/PNG/WebP/GIF, up to 5 MB), then copy the URL into an event or directory listing. Files are stored in the site's own Supabase Storage bucket."
-                    data-zh="在此上传图片（JPEG/PNG/WebP/GIF，最大 5 MB），然后将链接复制到活动或商家条目中。文件保存在本站自己的 Supabase 存储桶中。"
-                  >
-                    Upload images here, then copy the URL into an event or directory listing.
-                  </p>
-                  <!-- FilePond (open-source, MIT) enhances this input into its drag-and-drop uploader. -->
-                  <div class="mb-3">
-                    <input
-                      type="file"
-                      id="caaci-media-file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                    />
-                  </div>
-                  <div class="row row-cards g-3" id="caaci-media-grid"></div>
-                  <p class="alert mt-3" id="caaci-media-notice" hidden></p>
-                </div>
               </section>
 
               <!-- ============ Compose News ============ -->
