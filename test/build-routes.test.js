@@ -80,15 +80,12 @@ test('build: _redirects rewrites /events/<slug>/register onto the React registra
     .split(/\r?\n/)
     .map((line) => line.trim().split(/\s+/).join(' '))
     .filter((line) => line && !line.startsWith('#'));
-  // Both spellings in both languages: pathFor() settles a Chinese visitor on
-  // /zh/events/<slug>/register/, which has to be rewritten too or a reload 404s.
-  for (const rule of [
-    '/events/:slug/register /event-register/ 200',
-    '/events/:slug/register/ /event-register/ 200',
-    '/zh/events/:slug/register /zh/event-register/ 200',
-    '/zh/events/:slug/register/ /zh/event-register/ 200',
-  ])
-    assert.ok(rules.includes(rule), `${rule}\n---\n${rules.join('\n')}`);
+  assert.ok(rules.includes('/events/:slug/register /event-register/ 200'), rules.join('\n'));
+  assert.ok(rules.includes('/events/:slug/register/ /event-register/ 200'), rules.join('\n'));
+  // The page moves a Chinese visitor to /zh/events/<slug>/register/ (pathFor in
+  // App.tsx), so that address must resolve too: refresh, bookmark, shared link.
+  assert.ok(rules.includes('/zh/events/:slug/register /zh/event-register/ 200'), rules.join('\n'));
+  assert.ok(rules.includes('/zh/events/:slug/register/ /zh/event-register/ 200'), rules.join('\n'));
 
   // The rewrite target is the React site, not the retired Tabler form.
   const home = await dist('index.html');
@@ -100,22 +97,18 @@ test('build: _redirects rewrites /events/<slug>/register onto the React registra
 
   // The URL printed on the Mid-Autumn Festival's QR codes still resolves: it is
   // now a stub into the event's real registration URL (the /zh/ copy in Chinese).
-  // It forwards the query it was reached with (the festival promo links
-  // /mid_autumn_festival_form/?lang=zh); the /zh/ copy only adds its own
-  // ?lang=zh when there is nothing to forward.
+  // Both forward the visitor's own ?query, so the older promo link
+  // /mid_autumn_festival_form/?lang=zh keeps landing in Chinese.
   assert.match(
     await dist('mid_autumn_festival_form/index.html'),
-    /location\.replace\("\/events\/mid-autumn-festival\/register\/" \+ \(location\.search \|\| ""\) \+ location\.hash\)/,
+    /location\.replace\("\/events\/mid-autumn-festival\/register\/" \+ location\.search \+ location\.hash\)/,
   );
+  const zhQr = await dist('zh/mid_autumn_festival_form/index.html');
   assert.match(
-    await dist('zh/mid_autumn_festival_form/index.html'),
-    /location\.replace\("\/events\/mid-autumn-festival\/register\/" \+ \(location\.search \|\| "\?lang=zh"\) \+ location\.hash\)/,
+    zhQr,
+    /location\.replace\("\/events\/mid-autumn-festival\/register\/" \+ \(location\.search \? location\.search \+ '&' : '\?'\) \+ "lang=zh" \+ location\.hash\)/,
   );
-  // The no-JS fallback still points at the right destination.
-  assert.match(
-    await dist('zh/mid_autumn_festival_form/index.html'),
-    /url=\/events\/mid-autumn-festival\/register\/\?lang=zh"/,
-  );
+  assert.match(zhQr, /url=\/events\/mid-autumn-festival\/register\/\?lang=zh"/);
 
   // Registration no longer runs on the Tabler member bundle anywhere in dist/.
   for (const page of [

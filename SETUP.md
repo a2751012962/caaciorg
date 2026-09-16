@@ -15,7 +15,8 @@ mirror of the live site (so the UI is identical); the WordPress backend
 ## Repo layout
 
 ```
-mirror/                 pristine public mirror of caaciorg.com (do not edit by hand)
+mirror/                 pristine public mirror of caaciorg.com (do not edit by hand;
+                        pages the React site in web/ replaced are removed)
 src/caaci-app.js        enhancement layer wired onto the mirror's existing forms
 build.mjs               mirror/ -> dist/, injects config + app into every page
 dist/                   deployable output (generated; git-ignored)
@@ -382,10 +383,11 @@ language their browser asks for (the first Chinese or English entry in
 
 ## Member pages (`/login-3/`, `/membership/`, `/account/`)
 
-The three member-facing flows are standalone **Tabler** pages (same open-source
-UI kit as `/admin/`, self-hosted, bilingual EN/中文 with a toggle), replacing the
-mirrored WordPress pages **at the same URLs** — every inbound link and Stripe
-return URL keeps working:
+The three member-facing flows replace the mirrored WordPress pages **at the same
+URLs** — every inbound link and Stripe return URL keeps working. `/login-3/` is a
+standalone **Tabler** page (same open-source UI kit as `/admin/`, self-hosted,
+bilingual EN/中文 with a toggle); `/membership/` and `/account/` are pages of the
+React site (`web/`), served in English and under `/zh/`:
 
 - **`/login-3/`** — sign in, create account (with duplicate-email detection),
   forgot-password (reset link lands on `/account/?recovery=1`), and Google /
@@ -448,9 +450,11 @@ The server enforces every rule; the card mirrors them and shows its errors.
   `plan.tier_id`, falling back to the family tier; plan expiry); it disappears
   when they leave or the plan lapses.
 
-Source: `member-src/*.html` + `src/caaci-member.js` (+ `src/caaci-shared.js`,
-pure helpers shared with the mirror layer `caaci-app.js`). The rest of the site
-remains the untouched mirror; `caaci-app.js` still powers its forms.
+Source: `/login-3/` is `member-src/login.html` + `src/caaci-member.js` (+
+`src/caaci-shared.js`, pure helpers shared with the mirror layer `caaci-app.js`);
+`/membership/` and `/account/` are `web/src/pages/MembershipPage.tsx` and
+`web/src/pages/AccountPage.tsx`. The rest of the site remains the untouched
+mirror; `caaci-app.js` still powers its forms.
 
 ## Event registration (`/events/<slug>/register/`)
 

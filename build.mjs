@@ -155,14 +155,15 @@ for (const [src, route, event] of [
 // same-site path is a rewrite: /event-register/ (the React site, below) is
 // served while the address bar keeps /events/<slug>/register/, which is where
 // the page reads its slug from.
-// Both spellings, since the link may be shared with or without the slash.
+// Both spellings, since the link may be shared with or without the slash, and
+// the /zh/ copy too: the page rewrites a Chinese visitor's address bar to
+// /zh/events/<slug>/register/ (pathFor in App.tsx), so a refresh or a shared
+// link must resolve there as well.
 await writeFile(
   join(DIST, '_redirects'),
   [
     '/events/:slug/register /event-register/ 200',
     '/events/:slug/register/ /event-register/ 200',
-    // pathFor() settles a Chinese visitor on /zh/events/<slug>/register/, so
-    // that spelling has to be rewritten too or a reload/share 404s.
     '/zh/events/:slug/register /zh/event-register/ 200',
     '/zh/events/:slug/register/ /zh/event-register/ 200',
     '',
@@ -172,7 +173,8 @@ await writeFile(
 // The React site (web/): home, about, events, membership, account, resources,
 // community calendar and business services, in English and under /zh/. It is
 // one page that routes on location.pathname, so the same index.html is written
-// at every route (no reliance on rewrites) and replaces the mirrored copy there.
+// at every route (no reliance on rewrites). The mirror's own copies of these
+// pages were deleted from mirror/ once the React site replaced them.
 // /thank-you/ is Stripe Checkout's success_url; the app forwards it (see App.tsx).
 // Its index.html carries the literal token caaci-app.js, which opts it out of
 // the mirror injection below; its bundles live in /app/ with hashed names.
@@ -351,9 +353,14 @@ console.log(`Consolidated ${r} duplicate login/account pages.`);
 // Mirrored pages the React site replaced with a dialog or a section: donate and
 // volunteer open their dialog on the home page (/donate/ is also the donation
 // checkout's cancel_url), past events are a section of /events/.
+// Switch: the mirrored /volunteer/ page (its event picker is wireVolunteer in
+// caaci-app.js + .caaci-volunteer-events in caaci-ui.css) is kept but off —
+// the dialog on the home page is the sign-up for now. Set this to true to serve
+// that page again instead of the stub; nothing else needs to change.
+const VOLUNTEER_PAGE = false;
 const LEGACY_PAGES = {
   donate: '?modal=donate',
-  volunteer: '?modal=volunteer',
+  ...(VOLUNTEER_PAGE ? {} : { volunteer: '?modal=volunteer' }),
   'past-events': 'events/#past',
 };
 const legacyStub = (url) =>
@@ -373,28 +380,6 @@ for (const base of ['', 'zh/']) {
 }
 console.log(`Legacy page stubs into the React site: ${legacy}.`);
 
-// /mid_autumn_festival_form/ is the URL printed on the Mid-Autumn Festival's QR
-// codes. It used to be a second copy of the Tabler form with the slug fixed on
-// <body>; registration is now the React page, so the printed URL becomes a stub
-// into its real route. Neither route is in the mirror, so create the directory.
-// The festival promo links it as /mid_autumn_festival_form/?lang=zh, so the
-// stub forwards the query it was reached with; the /zh/ copy only adds its own
-// ?lang=zh when there is no query to keep.
-const festivalStub = (extra) => {
-  const url = '/events/mid-autumn-festival/register/';
-  const dest = `${url}${extra}`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Redirecting…</title><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0; url=${dest}"><script>location.replace(${JSON.stringify(url)} + (location.search || ${JSON.stringify(extra)}) + location.hash)</script></head><body>Redirecting to <a href="${dest}">${dest}</a>…</body></html>\n`;
-};
-for (const [base, extra] of [
-  ['', ''],
-  ['zh/', '?lang=zh'],
-]) {
-  const dir = join(DIST, base + 'mid_autumn_festival_form');
-  await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, 'index.html'), festivalStub(extra));
-}
-console.log('Printed QR URL /mid_autumn_festival_form/ stubbed into the React site.');
-
 // The login page is a single bilingual document (data-en/data-zh + toggle,
 // like /admin/), so its /zh/ mirror copy becomes a redirect stub into it with
 // ?lang=zh. The old per-tier /register/ pages open that tier on the React
@@ -404,6 +389,24 @@ const paramStub = (to, extra) => {
   const dest = `${url}?${extra}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Redirecting…</title><link rel="canonical" href="${url}"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0; url=${dest}"><script>location.replace(${JSON.stringify(url)} + (location.search ? location.search + '&' : '?') + ${JSON.stringify(extra)} + location.hash)</script></head><body>Redirecting to <a href="${dest}">${dest}</a>…</body></html>\n`;
 };
+
+// /mid_autumn_festival_form/ is the URL printed on the Mid-Autumn Festival's QR
+// codes. It used to be a second copy of the Tabler form with the slug fixed on
+// <body>; registration is now the React page, so the printed URL becomes a stub
+// into its real route. The visitor's own ?query survives, so the older promo
+// link /mid_autumn_festival_form/?lang=zh still lands in Chinese; the /zh/
+// copy adds lang=zh itself. Neither route is in the mirror, so create the directory.
+const QR_TARGET = 'events/mid-autumn-festival/register';
+for (const [base, stub] of [
+  ['', redirectStub(QR_TARGET)],
+  ['zh/', paramStub(QR_TARGET, 'lang=zh')],
+]) {
+  const dir = join(DIST, base + 'mid_autumn_festival_form');
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'index.html'), stub);
+}
+console.log('Printed QR URL /mid_autumn_festival_form/ stubbed into the React site.');
+
 let m = 0;
 const memberStubs = [];
 memberStubs.push(['zh/login-3', 'login-3', 'lang=zh']);

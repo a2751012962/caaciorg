@@ -636,7 +636,7 @@ export function EventRegisterPage({
         <h2
           ref={doneTitle}
           tabIndex={-1}
-          className="text-2xl font-bold text-maroon font-serif-caaci focus:outline-none"
+          className="text-2xl font-bold text-maroon font-serif-caaci rounded focus:outline-none focus:ring-2 focus:ring-brick"
         >
           {en ? "You're registered" : '报名成功'}
         </h2>
