@@ -155,12 +155,17 @@ for (const [src, route, event] of [
 // same-site path is a rewrite: /event-register/ (the React site, below) is
 // served while the address bar keeps /events/<slug>/register/, which is where
 // the page reads its slug from.
-// Both spellings, since the link may be shared with or without the slash.
+// Both spellings, since the link may be shared with or without the slash, and
+// the /zh/ copy too: the page rewrites a Chinese visitor's address bar to
+// /zh/events/<slug>/register/ (pathFor in App.tsx), so a refresh or a shared
+// link must resolve there as well.
 await writeFile(
   join(DIST, '_redirects'),
   [
     '/events/:slug/register /event-register/ 200',
     '/events/:slug/register/ /event-register/ 200',
+    '/zh/events/:slug/register /zh/event-register/ 200',
+    '/zh/events/:slug/register/ /zh/event-register/ 200',
     '',
   ].join('\n'),
 );
@@ -370,23 +375,6 @@ for (const base of ['', 'zh/']) {
 }
 console.log(`Legacy page stubs into the React site: ${legacy}.`);
 
-// /mid_autumn_festival_form/ is the URL printed on the Mid-Autumn Festival's QR
-// codes. It used to be a second copy of the Tabler form with the slug fixed on
-// <body>; registration is now the React page, so the printed URL becomes a stub
-// into its real route. Neither route is in the mirror, so create the directory.
-for (const [base, extra] of [
-  ['', ''],
-  ['zh/', '?lang=zh'],
-]) {
-  const dir = join(DIST, base + 'mid_autumn_festival_form');
-  await mkdir(dir, { recursive: true });
-  await writeFile(
-    join(dir, 'index.html'),
-    legacyStub(`/events/mid-autumn-festival/register/${extra}`),
-  );
-}
-console.log('Printed QR URL /mid_autumn_festival_form/ stubbed into the React site.');
-
 // The login page is a single bilingual document (data-en/data-zh + toggle,
 // like /admin/), so its /zh/ mirror copy becomes a redirect stub into it with
 // ?lang=zh. The old per-tier /register/ pages open that tier on the React
@@ -396,6 +384,24 @@ const paramStub = (to, extra) => {
   const dest = `${url}?${extra}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Redirecting…</title><link rel="canonical" href="${url}"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0; url=${dest}"><script>location.replace(${JSON.stringify(url)} + (location.search ? location.search + '&' : '?') + ${JSON.stringify(extra)} + location.hash)</script></head><body>Redirecting to <a href="${dest}">${dest}</a>…</body></html>\n`;
 };
+
+// /mid_autumn_festival_form/ is the URL printed on the Mid-Autumn Festival's QR
+// codes. It used to be a second copy of the Tabler form with the slug fixed on
+// <body>; registration is now the React page, so the printed URL becomes a stub
+// into its real route. The visitor's own ?query survives, so the older promo
+// link /mid_autumn_festival_form/?lang=zh still lands in Chinese; the /zh/
+// copy adds lang=zh itself. Neither route is in the mirror, so create the directory.
+const QR_TARGET = 'events/mid-autumn-festival/register';
+for (const [base, stub] of [
+  ['', redirectStub(QR_TARGET)],
+  ['zh/', paramStub(QR_TARGET, 'lang=zh')],
+]) {
+  const dir = join(DIST, base + 'mid_autumn_festival_form');
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'index.html'), stub);
+}
+console.log('Printed QR URL /mid_autumn_festival_form/ stubbed into the React site.');
+
 let m = 0;
 const memberStubs = [];
 memberStubs.push(['zh/login-3', 'login-3', 'lang=zh']);

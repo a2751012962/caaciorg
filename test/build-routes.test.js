@@ -82,6 +82,10 @@ test('build: _redirects rewrites /events/<slug>/register onto the React registra
     .filter((line) => line && !line.startsWith('#'));
   assert.ok(rules.includes('/events/:slug/register /event-register/ 200'), rules.join('\n'));
   assert.ok(rules.includes('/events/:slug/register/ /event-register/ 200'), rules.join('\n'));
+  // The page moves a Chinese visitor to /zh/events/<slug>/register/ (pathFor in
+  // App.tsx), so that address must resolve too: refresh, bookmark, shared link.
+  assert.ok(rules.includes('/zh/events/:slug/register /zh/event-register/ 200'), rules.join('\n'));
+  assert.ok(rules.includes('/zh/events/:slug/register/ /zh/event-register/ 200'), rules.join('\n'));
 
   // The rewrite target is the React site, not the retired Tabler form.
   const home = await dist('index.html');
@@ -93,14 +97,18 @@ test('build: _redirects rewrites /events/<slug>/register onto the React registra
 
   // The URL printed on the Mid-Autumn Festival's QR codes still resolves: it is
   // now a stub into the event's real registration URL (the /zh/ copy in Chinese).
+  // Both forward the visitor's own ?query, so the older promo link
+  // /mid_autumn_festival_form/?lang=zh keeps landing in Chinese.
   assert.match(
     await dist('mid_autumn_festival_form/index.html'),
-    /location\.replace\("\/events\/mid-autumn-festival\/register\/"\)/,
+    /location\.replace\("\/events\/mid-autumn-festival\/register\/" \+ location\.search \+ location\.hash\)/,
   );
+  const zhQr = await dist('zh/mid_autumn_festival_form/index.html');
   assert.match(
-    await dist('zh/mid_autumn_festival_form/index.html'),
-    /location\.replace\("\/events\/mid-autumn-festival\/register\/\?lang=zh"\)/,
+    zhQr,
+    /location\.replace\("\/events\/mid-autumn-festival\/register\/" \+ \(location\.search \? location\.search \+ '&' : '\?'\) \+ "lang=zh" \+ location\.hash\)/,
   );
+  assert.match(zhQr, /url=\/events\/mid-autumn-festival\/register\/\?lang=zh"/);
 
   // Registration no longer runs on the Tabler member bundle anywhere in dist/.
   for (const page of [
