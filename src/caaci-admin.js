@@ -2687,12 +2687,17 @@ async function loadEvents() {
 // minted once and never derived from a label, so answers already stored under an
 // id keep matching after a relabel or a reorder. The limits mirror the API's
 // validateQuestions (functions/api/_event-form.js), which has the last word.
-const Q_TYPES = ['single', 'multi', 'text', 'textarea'];
+const Q_TYPES = ['single', 'multi', 'text', 'textarea', 'number', 'phone', 'date'];
 const CHOICE_TYPES = new Set(['single', 'multi']);
 const MAX_QUESTIONS = 30;
 const MAX_OPTIONS = 30;
 const MAX_LABEL = 200;
 const QUESTION_ID = /^[a-z0-9_]{1,40}$/;
+// A number question's optional bounds: whole numbers no further than a
+// billion from zero (the API's MAX_NUMBER). Kept as typed in the editor state.
+const WHOLE_NUMBER = /^-?\d{1,10}$/;
+const MAX_NUMBER = 1_000_000_000;
+const boundOk = (v) => v === '' || (WHOLE_NUMBER.test(v) && Math.abs(Number(v)) <= MAX_NUMBER);
 
 // `prefix` + 6 random [a-z0-9], not already in `taken`.
 function newQuestionId(prefix, taken) {
@@ -2723,6 +2728,8 @@ function blankQuestion(qs) {
     required: false,
     options: [],
     other: false,
+    min: '',
+    max: '',
   };
   q.options.push(blankOption(q));
   return q;
@@ -2742,11 +2749,15 @@ const questionState = (raw) =>
       label_zh: String(o?.label_zh ?? ''),
     })),
     other: !!q?.other,
+    // Bounds are numbers in the API and text in the editor ('' = none).
+    min: q?.min == null ? '' : String(q.min),
+    max: q?.max == null ? '' : String(q.max),
   }));
 
-// What the API stores: labels trimmed; options and `other` on choice questions only.
-// A text question keeps its options in the editor state, so switching the type
-// back restores them, but they are not sent.
+// What the API stores: labels trimmed; options and `other` on choice questions
+// only; min/max on number questions only, and only the ones set. A text
+// question keeps its options (and a choice its bounds) in the editor state, so
+// switching the type back restores them, but they are not sent.
 const questionsPayload = (qs) =>
   qs.map((q) => ({
     id: q.id,
@@ -2764,6 +2775,8 @@ const questionsPayload = (qs) =>
           other: q.other,
         }
       : {}),
+    ...(q.type === 'number' && q.min.trim() !== '' ? { min: Number(q.min.trim()) } : {}),
+    ...(q.type === 'number' && q.max.trim() !== '' ? { max: Number(q.max.trim()) } : {}),
   }));
 
 // The first problem with the questions, for the admin; null when they look valid.
@@ -2786,6 +2799,20 @@ function questionsError(qs) {
         `Question ${n}: enter the question in both English and Chinese (up to ${MAX_LABEL} characters).`,
         `问题 ${n}：请用英文和中文填写问题（最多 ${MAX_LABEL} 个字符）。`,
       );
+    if (q.type === 'number') {
+      const min = q.min.trim();
+      const max = q.max.trim();
+      if (!boundOk(min) || !boundOk(max))
+        return t(
+          `Question ${n}: the smallest and largest allowed values must be whole numbers.`,
+          `问题 ${n}：最小值和最大值必须是整数。`,
+        );
+      if (min !== '' && max !== '' && Number(min) > Number(max))
+        return t(
+          `Question ${n}: the smallest allowed value is above the largest.`,
+          `问题 ${n}：最小值不能大于最大值。`,
+        );
+    }
     if (!CHOICE_TYPES.has(q.type)) continue;
     if (q.options.length < 1 || q.options.length > MAX_OPTIONS)
       return t(
@@ -2816,6 +2843,9 @@ function renderQuestionBuilder(host, qs) {
     multi: t('Several choices', '多选'),
     text: t('Short text', '简短文字'),
     textarea: t('Long text', '长文字'),
+    number: t('Number', '数字'),
+    phone: t('Phone number', '电话号码'),
+    date: t('Date', '日期'),
   };
   // A small move/remove button; `label` is its accessible name.
   const tool = (act, symbol, label, disabled, tone = 'btn-ghost-secondary') =>
@@ -2840,6 +2870,12 @@ function renderQuestionBuilder(host, qs) {
           <span class="form-check-label">${t('Allow “Other” with a text box', '允许选“其他”并填写文字')}</span></label>
       </div>
     </div>`;
+  // A number question's optional bounds, e.g. 1 to 10 guests.
+  const bounds = (q) => `
+    <div class="row g-2 mt-1">
+      ${field(t('Smallest allowed (optional)', '最小值（可选）'), `<input type="number" step="1" class="form-control form-control-sm" data-qf="min" value="${esc(q.min)}" placeholder="${t('No minimum', '不限')}">`, 'col-sm-6 col-md-3')}
+      ${field(t('Largest allowed (optional)', '最大值（可选）'), `<input type="number" step="1" class="form-control form-control-sm" data-qf="max" value="${esc(q.max)}" placeholder="${t('No maximum', '不限')}">`, 'col-sm-6 col-md-3')}
+    </div>`;
   const card = (q, i) => `
     <div class="card card-sm mb-2" data-q="${i}">
       <div class="card-body">
@@ -2861,6 +2897,7 @@ function renderQuestionBuilder(host, qs) {
           ${field(t('Question (Chinese)', '问题（中文）'), `<input type="text" class="form-control" data-qf="label_zh" maxlength="${MAX_LABEL}" value="${esc(q.label_zh)}">`, 'col-md-6')}
         </div>
         ${CHOICE_TYPES.has(q.type) ? choices(q) : ''}
+        ${q.type === 'number' ? bounds(q) : ''}
       </div>
     </div>`;
   host.innerHTML = `
@@ -2891,7 +2928,8 @@ function wireQuestionBuilder(host, qs) {
     if (!q) return;
     const { qf, of: optionKey } = e.target.dataset;
     if (optionKey && q.options[oi]) q.options[oi][optionKey] = e.target.value;
-    else if (qf === 'label_en' || qf === 'label_zh') q[qf] = e.target.value;
+    else if (qf === 'label_en' || qf === 'label_zh' || qf === 'min' || qf === 'max')
+      q[qf] = e.target.value;
   });
   host.addEventListener('change', (e) => {
     const { qi } = at(e.target);
@@ -3082,11 +3120,13 @@ const chicagoTime = (d) => {
 const labelIn = (x, inLang) => (inLang === 'zh' && x.label_zh) || x.label_en || '';
 
 // One registrant's answer to one question as plain text ('' = unanswered); the
-// caller escapes it. Choices show their option labels and a typed Other as
+// caller escapes it. Typed answers are shown as given (a number question's is a
+// number). Choices show their option labels and a typed Other as
 // "Other: <text>"; an option removed from the form since shows its stored id.
 function answerText(q, answer, inLang) {
   if (answer == null) return '';
-  if (!CHOICE_TYPES.has(q.type)) return typeof answer === 'string' ? answer : '';
+  if (!CHOICE_TYPES.has(q.type))
+    return typeof answer === 'string' || typeof answer === 'number' ? String(answer) : '';
   const option = (id) => {
     const o = (q.options || []).find((x) => x.id === id);
     return o ? labelIn(o, inLang) : String(id);

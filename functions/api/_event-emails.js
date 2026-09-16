@@ -301,15 +301,24 @@ const registerPerk = (event, now) =>
     <p style="margin:0;${SMALL}">You can register without an account — you just won't get the free ${c.en}.</p>`,
   );
 
-// One row per choice question: option labels only (Other as the word). Text
-// questions are left out entirely — their answers are typed text.
+// One row per choice question — option labels only (Other as the word) — and
+// per number, phone and date question, whose answers the API has already
+// limited to digits, punctuation and dates. Text questions are left out
+// entirely: their answers are typed text, and this email must never carry any.
+const ECHOED = new Set(['number', 'phone', 'date']);
 function answersTable(questions, answers) {
   const rows = (questions || [])
-    .filter((q) => q.type === 'single' || q.type === 'multi')
+    .filter((q) => q.type === 'single' || q.type === 'multi' || ECHOED.has(q.type))
     .map((q) => {
-      const zh = choiceAnswerLabels(q, answers?.[q.id], 'zh');
-      const en = choiceAnswerLabels(q, answers?.[q.id], 'en');
-      const value = zh.length ? `${esc(zh.join('、'))} · ${esc(en.join(', '))}` : '—';
+      const answer = answers?.[q.id];
+      let value = '—';
+      if (ECHOED.has(q.type)) {
+        if (typeof answer === 'number' || typeof answer === 'string') value = esc(String(answer));
+      } else {
+        const zh = choiceAnswerLabels(q, answer, 'zh');
+        const en = choiceAnswerLabels(q, answer, 'en');
+        if (zh.length) value = `${esc(zh.join('、'))} · ${esc(en.join(', '))}`;
+      }
       return (
         `<tr><td style="padding:6px 16px 6px 0;vertical-align:top;${SMALL}">${esc(q.label_zh)} · ${esc(q.label_en)}</td>` +
         `<td style="padding:6px 0;vertical-align:top;">${value}</td></tr>`

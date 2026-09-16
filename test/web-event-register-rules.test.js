@@ -161,6 +161,94 @@ test('/zh/ asks in Chinese, using the question’s Chinese label', () => {
   assert.equal(questionLabel({ label_en: 'Only English' }, 'zh'), 'Only English');
 });
 
+// ------------------------------------------------- number / phone / date fields
+
+const TYPED = [
+  {
+    id: 'guests',
+    type: 'number',
+    label_en: 'How many guests?',
+    label_zh: '几位客人？',
+    required: true,
+    min: 1,
+    max: 6,
+  },
+  { id: 'floor', type: 'number', label_en: 'Floor', label_zh: '楼层', max: 3 },
+  { id: 'age', type: 'number', label_en: 'Age', label_zh: '年龄', min: 18 },
+  { id: 'tel', type: 'phone', label_en: 'Phone', label_zh: '电话' },
+  { id: 'when', type: 'date', label_en: 'Arriving on', label_zh: '到达日期', required: true },
+];
+const typed = (over = {}) => ({
+  guests: '2',
+  floor: '',
+  age: '',
+  tel: '',
+  when: '2026-09-27',
+  ...over,
+});
+
+test('a number is sent as a number, a phone and a date as their text; blanks are left out', () => {
+  assert.deepEqual(readAnswers(TYPED, typed(), 'en'), {
+    answers: { guests: 2, when: '2026-09-27' },
+  });
+  assert.deepEqual(
+    readAnswers(TYPED, typed({ floor: ' 0 ', age: '40', tel: ' +1 (217) 555-0100 ' }), 'en'),
+    {
+      answers: { guests: 2, floor: 0, age: 40, tel: '+1 (217) 555-0100', when: '2026-09-27' },
+    },
+  );
+});
+
+test('a number that is not whole, or outside the bounds, names the field, in both languages', () => {
+  for (const [state, en, zh] of [
+    [{ guests: '2.5' }, 'Enter a whole number for: How many guests?', '请填写整数：几位客人？'],
+    [{ guests: 'two' }, 'Enter a whole number for: How many guests?', '请填写整数：几位客人？'],
+    [
+      { guests: '0' },
+      'Enter a whole number from 1 to 6 for: How many guests?',
+      '请填写 1 到 6 之间的整数：几位客人？',
+    ],
+    [
+      { guests: '7' },
+      'Enter a whole number from 1 to 6 for: How many guests?',
+      '请填写 1 到 6 之间的整数：几位客人？',
+    ],
+    [{ floor: '4' }, 'Enter a whole number of at most 3 for: Floor', '请填写不大于 3 的整数：楼层'],
+    [{ age: '17' }, 'Enter a whole number of at least 18 for: Age', '请填写不小于 18 的整数：年龄'],
+  ]) {
+    const [id] = Object.keys(state);
+    const field = questionFieldId(TYPED.find((q) => q.id === id));
+    assert.deepEqual(readAnswers(TYPED, typed(state), 'en'), { error: en, field });
+    assert.deepEqual(readAnswers(TYPED, typed(state), 'zh'), { error: zh, field });
+  }
+});
+
+test('a phone number needs 7 to 15 digits and only the usual punctuation', () => {
+  for (const tel of ['555-01', '1234567890123456', '217-555-CALL', `${'1 '.repeat(20)}2`]) {
+    assert.deepEqual(
+      readAnswers(TYPED, typed({ tel }), 'en'),
+      { error: 'Enter a valid phone number for: Phone', field: questionFieldId(TYPED[3]) },
+      tel,
+    );
+  }
+  assert.equal(readAnswers(TYPED, typed({ tel: '2175550100' }), 'zh').answers.tel, '2175550100');
+  assert.equal(
+    readAnswers(TYPED, typed({ tel: '555-01' }), 'zh').error,
+    '请填写有效的电话号码：电话',
+  );
+});
+
+test('a required number or date left blank asks for it like any other question', () => {
+  assert.deepEqual(readAnswers(TYPED, typed({ guests: '' }), 'en'), {
+    error: 'Answer the question: How many guests?',
+    field: questionFieldId(TYPED[0]),
+  });
+  assert.deepEqual(readAnswers(TYPED, typed({ when: '  ' }), 'zh'), {
+    error: '请回答：到达日期',
+    field: questionFieldId(TYPED[4]),
+  });
+});
+
 // ---------------------------------------------------------------- volunteerBody
 
 test('the volunteer field has exactly three cases', () => {

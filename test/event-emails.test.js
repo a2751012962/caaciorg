@@ -330,6 +330,32 @@ test('confirmation: one row per choice question with its labels; text questions 
   assert.equal(html.includes('Bringing a friend'), false);
 });
 
+test('confirmation: number, phone and date answers are echoed; a blank one is a dash', () => {
+  const questions = validateQuestions([
+    { id: 'guests', type: 'number', label_en: 'How many guests?', label_zh: '几位客人？', min: 0 },
+    { id: 'tel', type: 'phone', label_en: 'Phone', label_zh: '电话' },
+    { id: 'when', type: 'date', label_en: 'Arriving on', label_zh: '到达日期' },
+    { id: 'note', type: 'text', label_en: 'Anything else?', label_zh: '其他说明' },
+  ]).questions;
+  const { html } = confirm({
+    questions,
+    answers: { guests: 0, tel: '+1 (217) 555-0100', when: '2026-09-27', note: 'Hi <b>' },
+  });
+  assert.match(html, cell('几位客人？ · How many guests\\?', '0'));
+  assert.match(html, cell('电话 · Phone', '\\+1 \\(217\\) 555-0100'));
+  assert.match(html, cell('到达日期 · Arriving on', '2026-09-27'));
+  assert.equal(html.includes('其他说明'), false, 'the text question is still not listed');
+  assert.equal(html.includes('Hi <b>'), false);
+  const blank = confirm({ questions, answers: {} }).html;
+  assert.match(blank, cell('几位客人？ · How many guests\\?', '—'));
+  assert.match(blank, cell('到达日期 · Arriving on', '—'));
+  // A stored answer of the wrong shape is a dash, never markup.
+  const odd = confirm({ questions, answers: { guests: { option: '<i>' }, tel: ['<x>'] } }).html;
+  assert.match(odd, cell('几位客人？ · How many guests\\?', '—'));
+  assert.equal(odd.includes('<i>'), false);
+  assert.equal(odd.includes('<x>'), false);
+});
+
 test('confirmation: an unanswered choice question shows a dash; no choice questions, no table', () => {
   const { html } = confirm();
   assert.match(html, cell('您会带什么？ · What will you bring\\?', '—'));

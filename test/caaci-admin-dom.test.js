@@ -795,6 +795,16 @@ const FAIR = {
   ],
   registration_count: 0,
 };
+// A number question with both bounds, as the API stores it.
+const GUESTS = {
+  id: 'guests',
+  type: 'number',
+  label_en: 'How many guests?',
+  label_zh: '几位客人？',
+  required: true,
+  min: 1,
+  max: 10,
+};
 // A multiple-choice question with an Other box, for the registrations panel and CSV.
 const HELPING = {
   id: 'helping',
@@ -1302,6 +1312,108 @@ test('admin events: registrations switched off send null; a new event gets fresh
     assert.ok(msg().classList.contains('alert-danger'));
     assert.equal(msg().textContent, 'Question labels must be 1-200 characters.');
     eventEditor().querySelector('[data-act="cancel"]').click();
+  } finally {
+    asked.restore();
+    fetch.restore();
+  }
+});
+
+test('admin events: number questions carry optional bounds; phone and date questions are plain', async () => {
+  // Spring Fair also asks for a head count, stored with both bounds.
+  const withGuests = { ...FAIR, registration_questions: [...FAIR.registration_questions, GUESTS] };
+  const fetch = mockFetch((u, options = {}) =>
+    u.includes('/api/admin/events') && !['POST', 'PUT'].includes(options.method)
+      ? { body: { rows: [MAF, PICNIC, withGuests], total: 3 } }
+      : eventRoutes(u, options),
+  );
+  const asked = stubConfirm(true);
+  try {
+    document.querySelector('[data-tab="events"]').click();
+    await tick();
+    const msg = () => eventEditor().querySelector('[data-msg]');
+    const bound = (card, which) => card.querySelector(`[data-qf="${which}"]`);
+
+    // The stored bounds load into the builder, and only a number question shows them…
+    eventRow('Spring Fair').querySelector('[data-act="edit"]').click();
+    assert.equal(questionCard(1).querySelector('[data-qf="type"]').value, 'number');
+    assert.equal(bound(questionCard(1), 'min').value, '1');
+    assert.equal(bound(questionCard(1), 'max').value, '10');
+    assert.equal(bound(questionCard(0), 'min'), null, 'a text question has no bounds');
+    assert.equal(questionCard(1).querySelector('[data-act="opt-add"]'), null, 'and no options');
+    assert.ok(
+      eventEditor().querySelector(`label[for="${bound(questionCard(1), 'min').id}"]`),
+      'the bounds are labelled',
+    );
+    // …and go back untouched.
+    await saveEvent();
+    assert.deepEqual(sentEvents(fetch, 'POST').at(-1).registration_questions, [
+      FAIR.registration_questions[0],
+      GUESTS,
+    ]);
+
+    // Bounds are checked here before anything is sent, in the API's words.
+    eventRow('Spring Fair').querySelector('[data-act="edit"]').click();
+    const posts = sentEvents(fetch, 'POST').length;
+    typeInto(bound(questionCard(1), 'min'), '12');
+    await saveEvent();
+    assert.equal(msg().textContent, 'Question 2: the smallest allowed value is above the largest.');
+    // (A fraction never gets this far: the input's step="1" stops the submit.)
+    typeInto(bound(questionCard(1), 'min'), '10000000000');
+    await saveEvent();
+    assert.equal(
+      msg().textContent,
+      'Question 2: the smallest and largest allowed values must be whole numbers.',
+    );
+    assert.equal(sentEvents(fetch, 'POST').length, posts, 'nothing sent while invalid');
+    // Cleared bounds are simply not sent; a lone maximum is.
+    typeInto(bound(questionCard(1), 'min'), '');
+    typeInto(bound(questionCard(1), 'max'), '4');
+    // Switching away from number hides the bounds and drops them from the
+    // payload; switching back restores what was typed.
+    choose(questionCard(1).querySelector('[data-qf="type"]'), 'text');
+    assert.equal(bound(questionCard(1), 'min'), null);
+    choose(questionCard(1).querySelector('[data-qf="type"]'), 'number');
+    assert.equal(bound(questionCard(1), 'max').value, '4');
+    // A phone and a date question, from the type menu.
+    builder().querySelector('[data-act="q-add"]').click();
+    choose(questionCard(2).querySelector('[data-qf="type"]'), 'phone');
+    typeInto(questionCard(2).querySelector('[data-qf="label_en"]'), 'Phone');
+    typeInto(questionCard(2).querySelector('[data-qf="label_zh"]'), '电话');
+    builder().querySelector('[data-act="q-add"]').click();
+    choose(questionCard(3).querySelector('[data-qf="type"]'), 'date');
+    typeInto(questionCard(3).querySelector('[data-qf="label_en"]'), 'Arriving on');
+    typeInto(questionCard(3).querySelector('[data-qf="label_zh"]'), '到达日期');
+    questionCard(3).querySelector('[data-qf="required"]').click();
+    for (const i of [2, 3]) {
+      assert.equal(bound(questionCard(i), 'min'), null, `question ${i + 1} has no bounds`);
+      assert.equal(questionCard(i).querySelector('[data-o]'), null, `and no options`);
+    }
+    await saveEvent();
+    assert.equal(eventEditor(), null, 'saved');
+    assert.equal(asked.length, 0, 'nobody registered, so no confirmation');
+    const sent = sentEvents(fetch, 'POST').at(-1).registration_questions;
+    assert.match(sent[2].id, /^q_[a-z0-9]{6}$/);
+    assert.match(sent[3].id, /^q_[a-z0-9]{6}$/);
+    assert.deepEqual(sent, [
+      FAIR.registration_questions[0],
+      {
+        id: 'guests',
+        type: 'number',
+        label_en: 'How many guests?',
+        label_zh: '几位客人？',
+        required: true,
+        max: 4,
+      },
+      { id: sent[2].id, type: 'phone', label_en: 'Phone', label_zh: '电话', required: false },
+      {
+        id: sent[3].id,
+        type: 'date',
+        label_en: 'Arriving on',
+        label_zh: '到达日期',
+        required: true,
+      },
+    ]);
+    assert.equal('min' in sent[1], false, 'a cleared bound is left out, not sent as null');
   } finally {
     asked.restore();
     fetch.restore();
@@ -1907,18 +2019,25 @@ test('admin events: registrations CSV has a column per question, a BOM, Chicago 
   assert.equal(
     registrationsCsv({
       event: { perk: null },
-      questions: FAIR.registration_questions,
+      questions: [...FAIR.registration_questions, GUESTS],
       rows: [
         {
           email: 'ann@example.com',
           created_at: '2026-09-10T17:30:00Z',
-          answers: { note: '-1 seat, thanks' },
+          answers: { note: '-1 seat, thanks', guests: 3 }, // a number answer is a number
+          account: null,
+          perk_eligible: false,
+        },
+        {
+          email: 'bo@example.com',
+          created_at: '2026-09-11T17:30:00Z',
+          answers: { guests: 0 }, // zero is an answer, not a blank
           account: null,
           perk_eligible: false,
         },
       ],
     }),
-    `${bom}#,registered_at (Chicago),email,Anything we should know?,has_account,account_confirmed,account_created_at (Chicago)\r\n1,2026-09-10 12:30:00,ann@example.com,"'-1 seat, thanks",no,,\r\n`,
+    `${bom}#,registered_at (Chicago),email,Anything we should know?,How many guests?,has_account,account_confirmed,account_created_at (Chicago)\r\n1,2026-09-10 12:30:00,ann@example.com,"'-1 seat, thanks",3,no,,\r\n2,2026-09-11 12:30:00,bo@example.com,,0,no,,\r\n`,
   );
 
   const csv = registrationsCsv(data);

@@ -87,7 +87,8 @@ for (const [label, raw, error] of [
   ['a 41-character id', [q({ id: 'a'.repeat(41) })], /^Question 1 has an invalid id/],
   ['the id __proto__', [q({ id: '__proto__' })], /^Question 1 has an invalid id/],
   ['a repeated id', [q(), q()], 'Question 2 repeats the id "q1".'],
-  ['an unknown type', [q({ type: 'date' })], 'Question 1 has an unknown type.'],
+  ['an unknown type', [q({ type: 'file' })], 'Question 1 has an unknown type.'],
+  ['a type in the wrong case', [q({ type: 'Number' })], 'Question 1 has an unknown type.'],
   ['no Chinese label', [q({ label_zh: '  ' })], /^Question 1 needs a label in both/],
   ['no English label', [q({ label_en: undefined })], /^Question 1 needs a label in both/],
   ['a 201-character label', [q({ label_en: 'x'.repeat(201) })], /^Question 1 needs a label/],
@@ -135,6 +136,70 @@ test('validateQuestions: a 200-character label and a 40-character id are allowed
   const out = validateQuestions([q({ id: 'a'.repeat(40), label_zh: '字'.repeat(200) })]);
   assert.equal(out.error, undefined);
 });
+
+const numberQ = (over) => ({
+  id: 'guests',
+  type: 'number',
+  label_en: 'How many guests?',
+  label_zh: '几位客人？',
+  required: true,
+  ...over,
+});
+
+test('validateQuestions: number, phone and date are plain questions; a number keeps only the bounds it sets', () => {
+  const { questions, error } = validateQuestions([
+    numberQ({ options: [opt('x')], other: true }), // choice-only keys dropped
+    numberQ({ id: 'kids', min: 0, max: '10', required: false }),
+    numberQ({ id: 'age', min: ' 18 ', max: '', extra: 1 }),
+    { id: 'tel', type: 'phone', label_en: 'Phone', label_zh: '电话', min: 1, max: 2 },
+    { id: 'when', type: 'date', label_en: 'Arriving on', label_zh: '到达日期', required: true },
+  ]);
+  assert.equal(error, undefined);
+  assert.deepEqual(questions, [
+    {
+      id: 'guests',
+      type: 'number',
+      label_en: 'How many guests?',
+      label_zh: '几位客人？',
+      required: true,
+    },
+    {
+      id: 'kids',
+      type: 'number',
+      label_en: 'How many guests?',
+      label_zh: '几位客人？',
+      required: false,
+      min: 0,
+      max: 10,
+    },
+    {
+      id: 'age',
+      type: 'number',
+      label_en: 'How many guests?',
+      label_zh: '几位客人？',
+      required: true,
+      min: 18,
+    },
+    { id: 'tel', type: 'phone', label_en: 'Phone', label_zh: '电话', required: false },
+    { id: 'when', type: 'date', label_en: 'Arriving on', label_zh: '到达日期', required: true },
+  ]);
+});
+
+for (const [label, patch, error] of [
+  ['a fractional min', { min: 1.5 }, /must be whole numbers\.$/],
+  ['a max that is not a number', { max: 'ten' }, /must be whole numbers\.$/],
+  ['a max beyond a billion', { max: 1_000_000_001 }, /must be whole numbers\.$/],
+  ['an 11-digit min as text', { min: '10000000000' }, /must be whole numbers\.$/],
+  [
+    'min above max',
+    { min: 5, max: 4 },
+    /^Question 1: the smallest allowed value is above the largest\.$/,
+  ],
+]) {
+  test(`validateQuestions: a number question with ${label} -> error`, () => {
+    assert.match(String(validateQuestions([numberQ(patch)]).error), error);
+  });
+}
 
 // --------------------------------------------------------- validateAnswers ----
 
@@ -304,6 +369,91 @@ test('validateAnswers: inherited keys are not answers', () => {
   assert.deepEqual(validateAnswers([q({ required: true })], parsed), {
     answers: { q1: { option: 'b' } },
   });
+});
+
+// ---------------------------------------------- number / phone / date answers ----
+
+const TYPED = validateQuestions([
+  numberQ({ min: 1, max: 6 }),
+  numberQ({ id: 'floor', required: false }),
+  { id: 'tel', type: 'phone', label_en: 'Phone', label_zh: '电话', required: false },
+  { id: 'when', type: 'date', label_en: 'Arriving on', label_zh: '到达日期', required: false },
+]).questions;
+
+test('validateAnswers: a number is stored as a whole number, from a number or its text', () => {
+  for (const [given, stored] of [
+    [3, 3],
+    ['3', 3],
+    [' 6 ', 6],
+    ['1', 1],
+  ]) {
+    assert.deepEqual(validateAnswers(TYPED, { guests: given }), { answers: { guests: stored } });
+  }
+  // Zero and negatives are numbers too (no bounds on `floor`).
+  assert.deepEqual(validateAnswers(TYPED, { guests: 2, floor: 0 }), {
+    answers: { guests: 2, floor: 0 },
+  });
+  assert.deepEqual(validateAnswers(TYPED, { guests: 2, floor: '-1' }), {
+    answers: { guests: 2, floor: -1 },
+  });
+});
+
+test('validateAnswers: phone and date answers are trimmed strings', () => {
+  assert.deepEqual(
+    validateAnswers(TYPED, { guests: 1, tel: ' +1 (217) 555-0100 ', when: '2026-09-27' }),
+    { answers: { guests: 1, tel: '+1 (217) 555-0100', when: '2026-09-27' } },
+  );
+});
+
+test('validateAnswers: blank number, phone and date answers are unanswered', () => {
+  for (const blank of ['', '  ', null, undefined]) {
+    assert.deepEqual(
+      validateAnswers(TYPED, { guests: 1, floor: blank, tel: blank, when: blank }),
+      { answers: { guests: 1 } },
+      JSON.stringify(blank),
+    );
+    assert.deepEqual(
+      validateAnswers(TYPED, { guests: blank }),
+      { error: 'Answer the question: How many guests?' },
+      JSON.stringify(blank),
+    );
+  }
+});
+
+for (const [label, patch, error] of [
+  ['a number below min', { guests: 0 }, 'Invalid answer for: How many guests?'],
+  ['a number above max', { guests: '7' }, 'Invalid answer for: How many guests?'],
+  ['a fraction', { guests: 2.5 }, 'Invalid answer for: How many guests?'],
+  ['fraction text', { guests: '2.5' }, 'Invalid answer for: How many guests?'],
+  ['number words', { guests: 'two' }, 'Invalid answer for: How many guests?'],
+  ['a number in a list', { guests: [2] }, 'Invalid answer for: How many guests?'],
+  ['a number as an object', { guests: { option: '2' } }, 'Invalid answer for: How many guests?'],
+  ['a huge unbounded number', { floor: 1_000_000_001 }, 'Invalid answer for: How many guests?'],
+  ['NaN', { floor: NaN }, 'Invalid answer for: How many guests?'],
+  ['too few phone digits', { tel: '555-01' }, 'Invalid answer for: Phone'],
+  ['too many phone digits', { tel: '1234567890123456' }, 'Invalid answer for: Phone'],
+  ['letters in a phone', { tel: '217-555-CALL' }, 'Invalid answer for: Phone'],
+  ['a phone over 40 characters', { tel: `${'1 '.repeat(20)}2` }, 'Invalid answer for: Phone'],
+  ['a phone that is a number', { tel: 2175550100 }, 'Invalid answer for: Phone'],
+  ['a date in another format', { when: '09/27/2026' }, 'Invalid answer for: Arriving on'],
+  ['a date with a time', { when: '2026-09-27T10:00' }, 'Invalid answer for: Arriving on'],
+  ['a day that does not exist', { when: '2026-02-30' }, 'Invalid answer for: Arriving on'],
+  ['a 13th month', { when: '2026-13-01' }, 'Invalid answer for: Arriving on'],
+  ['a date that is a number', { when: 20260927 }, 'Invalid answer for: Arriving on'],
+]) {
+  test(`validateAnswers: ${label} -> ${error}`, () => {
+    assert.deepEqual(validateAnswers(TYPED, { guests: 1, ...patch }), { error });
+  });
+}
+
+test('validateAnswers: a leap day is a real date', () => {
+  assert.deepEqual(validateAnswers(TYPED, { guests: 1, when: '2028-02-29' }), {
+    answers: { guests: 1, when: '2028-02-29' },
+  });
+  assert.equal(
+    validateAnswers(TYPED, { guests: 1, when: '2027-02-29' }).error,
+    'Invalid answer for: Arriving on',
+  );
 });
 
 // ------------------------------------------------------------------ perkOf ----
