@@ -22,6 +22,8 @@ export interface BusinessMerchant {
   website?: string;
   desc: string;
   featured?: boolean;
+  /** Free-text chips staff type in the admin panel. */
+  tags?: string[];
 }
 
 export interface BusinessEventItem {
@@ -57,6 +59,7 @@ export interface BusinessServicesContent {
     value: string;
     label: string;
   }[];
+  /** Built-in fallback only: the page lists business_directory rows (lib/directory.ts). */
   merchants: BusinessMerchant[];
   events: BusinessEventItem[];
   sponsorTiers: BusinessSponsorTier[];
