@@ -211,7 +211,9 @@ function renderDashboard() {
   const days = m.expiring_days || 30;
   const total = m.total || 0;
 
-  // Stat tiles: the numbers staff act on, each a shortcut to its tab.
+  // Stat tiles: the numbers staff act on, each a shortcut to its tab. Three
+  // colours only: the default ink, green for the active count, and one
+  // attention colour (orange) for the queues that need a follow-up.
   const tiles = [
     {
       label: t('Active members', '有效会员'),
@@ -229,7 +231,7 @@ function renderDashboard() {
     {
       label: t(`Expiring in ${days} days`, `${days} 天内到期`),
       value: m.expiring_total,
-      fg: m.expiring_total ? 'text-warning' : '',
+      fg: m.expiring_total ? 'text-orange' : '',
       goto: 'members',
     },
     {

@@ -211,6 +211,13 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.equal(tileText(6), '12');
     assert.equal(tileText(7), '2');
     assert.ok(tiles[7].querySelector('.h1').classList.contains('text-orange'));
+    // Three colours at most: default ink, green (active), orange (follow-up queues).
+    const tileColours = new Set(
+      tiles.flatMap((tile) =>
+        [...tile.querySelector('.h1').classList].filter((c) => c.startsWith('text-')),
+      ),
+    );
+    assert.deepEqual([...tileColours].sort(), ['text-orange', 'text-success']);
     // Status bars: share of everyone, width set from the data.
     const activeBar = document.querySelector('#caaci-dash-status [data-status="active"]');
     assert.match(activeBar.textContent, /40/);
