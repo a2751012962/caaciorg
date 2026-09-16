@@ -96,6 +96,111 @@ function apiRoutes(u, options = {}) {
     };
   if (u.includes('/api/admin/business')) return { body: { rows: [], total: 0, pending_total: 2 } };
   if (u.includes('/api/admin/media')) return { body: { rows: [] } };
+  if (u.includes('/api/admin/dashboard')) {
+    // ?year=2025 charts last year (a whole year, $50 over 2 payments); the
+    // headline this-year/this-month figures stay the same either way.
+    const year = Number(new URL(u, 'https://caaci.example').searchParams.get('year') || 2026);
+    const revenueOf = (y) =>
+      y === 2025
+        ? {
+            year: 2025,
+            year_cents: 5000,
+            year_payments: 2,
+            by_month: Array.from({ length: 12 }, (_, i) => ({
+              month: `2025-${String(i + 1).padStart(2, '0')}`,
+              cents: i === 5 ? 5000 : 0,
+              payments: i === 5 ? 2 : 0,
+            })),
+          }
+        : {
+            year: 2026,
+            year_cents: 123400,
+            year_payments: 26,
+            by_month: [
+              { month: '2026-01', cents: 40000, payments: 8 },
+              { month: '2026-02', cents: 0, payments: 0 },
+              { month: '2026-03', cents: 74085, payments: 15 },
+              { month: '2026-04', cents: 9315, payments: 3 },
+            ],
+          };
+    return {
+      body: {
+        generated_at: '2026-09-16T15:00:00Z',
+        members: {
+          total: 60,
+          status_counts: { active: 40, pending: 3, past_due: 2, expired: 10, cancelled: 5 },
+          new_this_month: 6,
+          by_tier: [
+            { id: 'individual', name: 'Individual', active: 25 },
+            { id: 'family', name: 'Family', active: 15 },
+          ],
+          year,
+          by_month: [
+            { month: `${year}-01`, active: 30 },
+            { month: `${year}-02`, active: 33 },
+            { month: `${year}-03`, active: 38 },
+            { month: `${year}-04`, active: 40 },
+          ],
+          expiring_days: 30,
+          expiring_total: 1,
+          expiring: [
+            {
+              id: 'm1',
+              full_name: 'Mei Lin',
+              email: 'mei@x.com',
+              tier_id: 'individual',
+              status: 'active',
+              expires_at: '2026-09-30T00:00:00Z',
+            },
+          ],
+        },
+        revenue: {
+          ytd_cents: 123400,
+          month_cents: 9315,
+          payments_this_month: 3,
+          years: [2026, 2025, 2024],
+          ...revenueOf(year),
+          recent: [
+            {
+              id: 'p1',
+              kind: 'renewal',
+              amount_cents: 3105,
+              tier_id: 'individual',
+              paid_at: '2026-09-10T00:00:00Z',
+              members: { full_name: 'Wang Wei', email: 'ww@x.com' },
+            },
+          ],
+        },
+        events: {
+          upcoming_total: 1,
+          upcoming: [
+            {
+              id: 'e1',
+              title: 'Mid-Autumn Festival',
+              title_zh: '中秋晚会',
+              slug: 'mid-autumn',
+              starts_at: '2026-10-03T23:00:00Z',
+              ends_at: null,
+              location: 'Champaign',
+              takes_registrations: true,
+              registration_count: 57,
+            },
+          ],
+          drafts_total: 1,
+          recent_registrations: [
+            {
+              id: 'r1',
+              email: 'ann@x.com',
+              created_at: '2026-09-15T12:00:00Z',
+              events: { title: 'Mid-Autumn Festival', title_zh: '中秋晚会', slug: 'mid-autumn' },
+            },
+          ],
+        },
+        volunteers: { total: 12, this_month: 3 },
+        business: { pending: 2 },
+      },
+    };
+  }
   return { body: {} };
 }
 
@@ -117,6 +222,181 @@ test('admin page: module boots against the real Tabler markup', async () => {
     // Gate passed: gate hidden, app revealed.
     assert.equal(document.querySelector('#caaci-admin-gate').hidden, true);
     assert.equal(document.querySelector('#caaci-admin-app').hidden, false);
+
+    // The Dashboard is the landing tab: it alone is showing, filled from one
+    // /api/admin/dashboard answer — stat tiles, status bars, tier counts, the
+    // next events with registrations, expiring members, latest registrations
+    // and payments.
+    assert.ok(document.querySelector('[data-tab="dashboard"]').classList.contains('active'));
+    assert.equal(document.querySelector('[data-panel="dashboard"]').hidden, false);
+    assert.equal(document.querySelector('[data-panel="members"]').hidden, true);
+    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 1);
+    const tiles = [...document.querySelectorAll('#caaci-dash-stats [data-goto]')];
+    assert.equal(tiles.length, 6);
+    const tileText = (i) => tiles[i].querySelector('.h1').textContent;
+    assert.equal(tileText(0), '40');
+    assert.ok(tiles[0].querySelector('.h1').classList.contains('text-success'));
+    assert.match(tiles[0].textContent, /60 members in total/);
+    assert.equal(tileText(1), '2'); // past due
+    assert.equal(tileText(2), '1'); // expiring in 30 days
+    assert.match(tiles[2].textContent, /Expiring in 30 days/);
+    assert.equal(tileText(3), '6'); // new this month
+    assert.equal(tileText(4), '12'); // volunteers
+    assert.equal(tileText(5), '2'); // listings awaiting review
+    assert.ok(tiles[5].querySelector('.h1').classList.contains('text-orange'));
+    // Three colours at most: default ink, green (active), orange (follow-up queues).
+    const tileColours = new Set(
+      tiles.flatMap((tile) =>
+        [...tile.querySelector('.h1').classList].filter((c) => c.startsWith('text-')),
+      ),
+    );
+    assert.deepEqual([...tileColours].sort(), ['text-orange', 'text-success']);
+    // Status bars: share of everyone, width set from the data.
+    const activeBar = document.querySelector('#caaci-dash-status [data-status="active"]');
+    assert.match(activeBar.textContent, /40/);
+    assert.match(activeBar.textContent, /\(67%\)/);
+    assert.equal(activeBar.querySelector('.progress-bar').style.width, '67%');
+    assert.ok(activeBar.querySelector('.badge').classList.contains('bg-success-lt'));
+    // Revenue card: both totals, then the year as a line chart — one dot per
+    // month bucket, labelled, the last one carrying its value — no chart library.
+    const totals = document.querySelector('#caaci-dash-revenue-totals');
+    assert.match(totals.textContent, /Revenue this year\s*\$1234\.00/);
+    assert.match(totals.textContent, /Revenue this month\s*\$93\.15\s*3 payments/);
+    const chartHost = document.querySelector('#caaci-dash-revenue-chart');
+    const line = chartHost.querySelector('svg');
+    assert.ok(line, 'line chart drawn');
+    assert.equal(line.querySelectorAll('circle').length, 4);
+    assert.equal(line.querySelectorAll('polyline').length, 1);
+    const monthTexts = [...line.querySelectorAll('text')].map((x) => x.textContent);
+    // Month labels, the 1-2-5 gridline ticks (top $1,000 for a $740.85 peak) and
+    // the latest month's own value.
+    for (const label of ['Jan', 'Feb', 'Mar', 'Apr', '$0', '$500', '$1,000', '$93']) {
+      assert.ok(monthTexts.includes(label), `chart shows ${label}`);
+    }
+    // Hover: idle read-out is the year; a month's column reads that month out
+    // and grows its dot; leaving the chart restores the idle text.
+    const hover = (el, type) => el.dispatchEvent(new dom.window.Event(type, { bubbles: true }));
+    const readout = () => chartHost.querySelector('[data-readout]').textContent;
+    assert.match(readout(), /^2026: \$1234\.00 over 26 payments/);
+    const columns = line.querySelectorAll('rect[data-i]');
+    assert.equal(columns.length, 4);
+    hover(columns[0], 'mouseover');
+    assert.equal(readout(), 'Jan: $400.00 (8 payments)');
+    assert.equal(line.querySelector('[data-dot="0"]').getAttribute('r'), '6');
+    assert.equal(line.querySelector('[data-dot="1"]').getAttribute('r'), '4');
+    hover(line, 'mouseleave');
+    assert.match(readout(), /^2026: \$1234\.00/);
+    assert.equal(line.querySelector('[data-dot="0"]').getAttribute('r'), '4');
+    // The year select lists the years with payments (newest first) and asks the
+    // API for the chosen one.
+    // Active members card: live count + newcomers beside the month line.
+    const membersHost = document.querySelector('#caaci-dash-members-chart');
+    assert.match(
+      document.querySelector('#caaci-dash-members-totals').textContent,
+      /Active now\s*40\s*60 members in total\s*New this month\s*6/,
+    );
+    const memberCols = membersHost.querySelectorAll('rect[data-i]');
+    assert.equal(memberCols.length, 4);
+    assert.equal(membersHost.querySelector('[data-readout]').textContent, '');
+    hover(memberCols[0], 'mouseover');
+    assert.equal(membersHost.querySelector('[data-readout]').textContent, 'Jan: 30 active members');
+    hover(membersHost.querySelector('svg'), 'mouseleave');
+    assert.equal(membersHost.querySelector('[data-readout]').textContent, '');
+    const memberTicks = [...membersHost.querySelectorAll('text')].map((x) => x.textContent);
+    assert.ok(memberTicks.includes('50'), 'count axis, not dollars');
+    assert.ok(!memberTicks.some((x) => x.startsWith('$')));
+    const yearSel = document.querySelector('#caaci-dash-year');
+    assert.deepEqual(
+      [...yearSel.options].map((o) => o.value),
+      ['2026', '2025', '2024'],
+    );
+    assert.equal(yearSel.value, '2026');
+    assert.equal(yearSel.hidden, false);
+    yearSel.value = '2025';
+    hover(yearSel, 'change');
+    await tick();
+    const yearCalls = fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard?year=2025'));
+    assert.equal(yearCalls.length, 1);
+    assert.match(totals.textContent, /Revenue in 2025\s*\$50\.00\s*Payments\s*2/);
+    assert.match(readout(), /^2025: \$50\.00 over 2 payments/);
+    assert.equal(chartHost.querySelectorAll('circle').length, 12);
+    yearSel.value = '2026';
+    hover(yearSel, 'change');
+    await tick();
+    assert.match(totals.textContent, /Revenue this year\s*\$1234\.00/);
+    // Charts are classes + SVG attributes only: no inline styles, no hex colours.
+    for (const host of ['#caaci-dash-revenue-chart', '#caaci-dash-tiers']) {
+      assert.equal(document.querySelectorAll(`${host} [style]`).length, 0, `${host} styles`);
+      assert.doesNotMatch(document.querySelector(host).innerHTML, /#[0-9a-f]{3,8}\b/i);
+    }
+    // Active members by tier: a pie (one slice per tier with members) + legend.
+    const tiersHost = document.querySelector('#caaci-dash-tiers');
+    const pie = tiersHost.querySelector('svg[role="img"]');
+    assert.ok(pie, 'pie chart drawn');
+    const slicePaths = [...pie.querySelectorAll('path')];
+    assert.equal(slicePaths.length, 2);
+    assert.deepEqual(
+      slicePaths.map((p) => [p.getAttribute('class'), p.dataset.i]),
+      [
+        ['text-primary', '0'],
+        ['text-orange', '1'],
+      ],
+    );
+    assert.match(
+      tiersHost.querySelector('[data-tier="individual"]').textContent,
+      /Individual\s*25\s*\(63%\)/,
+    );
+    assert.match(
+      tiersHost.querySelector('[data-tier="family"]').textContent,
+      /Family\s*15\s*\(38%\)/,
+    );
+    // Hover a slice (or its legend row): the read-out names it, the other slice
+    // and row dim, the row goes bold; leaving restores the head-count.
+    const pieReadout = () => tiersHost.querySelector('[data-readout]').textContent;
+    assert.equal(pieReadout(), ''); // nothing until something is hovered
+    hover(slicePaths[1], 'mouseover');
+    assert.equal(pieReadout(), 'Family: 15 (38%)');
+    assert.ok(slicePaths[0].classList.contains('opacity-50'));
+    assert.ok(!slicePaths[1].classList.contains('opacity-50'));
+    assert.ok(tiersHost.querySelector('[data-tier="individual"]').classList.contains('opacity-50'));
+    assert.ok(tiersHost.querySelector('[data-tier="family"]').classList.contains('fw-bold'));
+    hover(tiersHost, 'mouseleave');
+    assert.equal(pieReadout(), '');
+    assert.equal(tiersHost.querySelectorAll('.opacity-50, .fw-bold').length, 0);
+    hover(tiersHost.querySelector('[data-tier="individual"]'), 'mouseover');
+    assert.equal(pieReadout(), 'Individual: 25 (63%)');
+    assert.ok(slicePaths[1].classList.contains('opacity-50'));
+    hover(tiersHost, 'mouseleave');
+    const dashEvent = document.querySelector('#caaci-dash-events tr');
+    assert.match(dashEvent.textContent, /Mid-Autumn Festival/);
+    assert.match(dashEvent.textContent, /Champaign/);
+    assert.match(dashEvent.querySelector('td:last-child').textContent, /^57$/);
+    assert.match(document.querySelector('#caaci-dash-drafts').textContent, /1 unpublished/);
+    const expiringRow = document.querySelector('#caaci-dash-expiring tr');
+    assert.match(expiringRow.textContent, /Mei Lin/);
+    assert.match(expiringRow.textContent, /Individual/); // tier id → name via loadTiers
+    assert.match(document.querySelector('#caaci-dash-registrations').textContent, /ann@x\.com/);
+    const dashPay = document.querySelector('#caaci-dash-payments tr');
+    assert.match(dashPay.textContent, /Wang Wei/);
+    assert.match(dashPay.textContent, /Auto-renewal/);
+    assert.match(dashPay.textContent, /\$31\.05/);
+    assert.match(document.querySelector('#caaci-dash-updated').textContent, /^Updated /);
+
+    // A tile is a shortcut to its tab: the Past-due tile opens Payments, which
+    // loads as if clicked in the nav. Refresh asks the API again.
+    document.querySelectorAll('#caaci-dash-stats [data-goto]')[1].click(); // re-queried: the year switch re-rendered the tiles
+    await tick();
+    assert.ok(document.querySelector('[data-tab="payments"]').classList.contains('active'));
+    assert.equal(document.querySelector('[data-panel="payments"]').hidden, false);
+    assert.equal(document.querySelector('[data-panel="dashboard"]').hidden, true);
+    assert.equal(document.querySelectorAll('#caaci-pay-stats .card .h1').length, 4);
+    document.querySelector('[data-tab="dashboard"]').click();
+    await tick();
+    assert.equal(document.querySelector('[data-panel="dashboard"]').hidden, false);
+    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 4); // boot + two year switches + this tab click
+    document.querySelector('#caaci-dash-refresh').click();
+    await tick();
+    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 5);
 
     // Service console shortcuts: inside the admin-only app, each opens the CAACI
     // account's dashboard in a new tab without handing it window.opener.
@@ -350,6 +630,14 @@ test('admin page: module boots against the real Tabler markup', async () => {
     await tick();
     assert.equal(document.querySelector('[data-tab="members"]').textContent.trim(), '会员与订阅');
     assert.equal(document.documentElement.lang, 'zh');
+    // The dashboard's own (JS-built) content follows without another request.
+    assert.equal(document.querySelector('[data-tab="dashboard"]').textContent.trim(), '看板');
+    assert.equal(
+      document.querySelector('#caaci-dash-stats [data-goto] .subheader').textContent,
+      '有效会员',
+    );
+    assert.match(document.querySelector('#caaci-dash-events tr').textContent, /中秋晚会/);
+    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 5);
 
     // The password_setup success notice must read correctly in Chinese too:
     // it should mention the member already having an account (已有账户).
@@ -2033,12 +2321,101 @@ test('admin members: once families load, the member editor offers them and saves
     assert.equal(select.disabled, false);
     assert.equal(row().querySelector('[data-household-unavailable]'), null);
     select.value = 'h1';
+    // Save asks first, naming what changes; declining writes nothing.
+    const asked = [];
+    window.confirm = (q) => asked.push(q) && false;
     row().querySelector('[data-act="save"]').click();
     await tick();
-    const post = fetch.calls
-      .filter((c) => c.url.includes('/api/admin/members') && c.options.method === 'POST')
-      .at(-1);
-    assert.equal(JSON.parse(post.options.body).household_id, 'h1');
+    assert.equal(asked.length, 1);
+    assert.match(asked[0], /Save these changes to Mei Lin\?/);
+    assert.match(asked[0], /family/);
+    const posts = () =>
+      fetch.calls.filter(
+        (c) => c.url.includes('/api/admin/members') && c.options.method === 'POST',
+      );
+    assert.equal(posts().length, 0);
+    window.confirm = () => true;
+    row().querySelector('[data-act="save"]').click();
+    await tick();
+    assert.equal(JSON.parse(posts().at(-1).options.body).household_id, 'h1');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin members: changing a plan needs the emailed code — asked inline, sent once, retried with it', async () => {
+  familiesReply = familiesAvailable;
+  const codeSends = [];
+  const memberPosts = [];
+  const fetch = mockFetch((u, o) => {
+    if (u.includes('/api/admin/action-code')) {
+      codeSends.push(o);
+      return { body: { ok: true, sent_to: 'admin@x.com', valid_minutes: 10 } };
+    }
+    if (u.includes('/api/admin/members') && o.method === 'POST') {
+      memberPosts.push(o);
+      const code = o.headers['x-admin-code'];
+      if (code === '246810') return { body: { ok: true, member: {} } };
+      return {
+        status: 428,
+        body: {
+          error: code
+            ? 'That verification code is wrong or has expired.'
+            : 'This action needs the verification code emailed to you.',
+          code_required: true,
+        },
+      };
+    }
+    return apiRoutes(u, o);
+  });
+  try {
+    await openFamilies();
+    document.querySelector('[data-tab="members"]').click();
+    await tick();
+    const row = () => document.querySelector('tr[data-edit-row]');
+    document.querySelector('#caaci-members-body tr button').click();
+    row().querySelector('[data-f="tier_id"]').value = ''; // Individual → none
+    let asked = '';
+    window.confirm = (q) => ((asked = q), true);
+    row().querySelector('[data-act="save"]').click();
+    await tick();
+    assert.match(asked, /plan: Individual → none/);
+    // 428 → the code step appears inside the editor and one code is sent.
+    const step = () => row().querySelector('[data-code-step]');
+    assert.ok(step(), 'code step shown');
+    assert.equal(codeSends.length, 1);
+    assert.equal(memberPosts.length, 1);
+    assert.equal('x-admin-code' in memberPosts[0].headers, false);
+    assert.match(step().textContent, /Code sent to admin@x\.com/);
+    const typeCode = async (code) => {
+      step().querySelector('[data-f="code"]').value = code;
+      step().querySelector('[data-act="confirm-code"]').click();
+      await tick();
+    };
+    // Not six digits: refused locally, nothing sent.
+    await typeCode('12');
+    assert.match(step().querySelector('[data-code-error]').textContent, /6-digit/);
+    assert.equal(memberPosts.length, 1);
+    // A wrong code: the server's refusal is shown, the step stays, no new email.
+    await typeCode('000000');
+    assert.equal(memberPosts.length, 2);
+    assert.equal(memberPosts[1].headers['x-admin-code'], '000000');
+    assert.ok(step(), 'code step still shown');
+    assert.match(step().querySelector('[data-code-error]').textContent, /wrong or has expired/);
+    assert.equal(codeSends.length, 1);
+    // The right code: saved, and the editor closes with the table reload.
+    await typeCode('246810');
+    assert.equal(memberPosts.length, 3);
+    assert.equal(memberPosts[2].headers['x-admin-code'], '246810');
+    assert.equal(row(), null, 'saved: table re-rendered');
+    // The next guarded action reuses the code without asking again.
+    document.querySelector('#caaci-members-body tr button').click();
+    row().querySelector('[data-f="tier_id"]').value = 'family';
+    row().querySelector('[data-act="save"]').click();
+    await tick();
+    assert.equal(memberPosts.length, 4);
+    assert.equal(memberPosts[3].headers['x-admin-code'], '246810');
+    assert.equal(codeSends.length, 1);
   } finally {
     fetch.restore();
   }

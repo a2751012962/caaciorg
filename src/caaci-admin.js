@@ -103,14 +103,120 @@ async function gate() {
 }
 
 // authenticated API helper
-async function api(path, { method = 'GET', body } = {}) {
+async function api(path, { method = 'GET', body, headers = {} } = {}) {
   const r = await fetch(path, {
     method,
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, ...headers },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const data = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, data };
+}
+
+// ---------- emailed verification code for sensitive actions ----------
+// Refunds and plan changes answer 428 + code_required until the request
+// carries the code POST /api/admin/action-code emailed to the admin (see
+// functions/api/admin/_action-code.js). `guarded` runs an API call, and on a
+// 428 asks for the code inline (in `host`), sending it first, then runs the
+// call again with the code. The code is kept for the rest of the visit so a
+// run of refunds needs one email; a refusal drops it.
+let actionCode = null;
+let actionCodeSentAt = 0;
+
+function codeHeaders() {
+  return actionCode ? { 'x-admin-code': actionCode } : {};
+}
+
+async function sendActionCode() {
+  const res = await api('/api/admin/action-code', { method: 'POST' });
+  if (res.ok) actionCodeSentAt = Date.now();
+  return res;
+}
+
+// Renders the code step into `host` and resolves with the typed code, or null
+// when cancelled. `error` is shown when a previous code was refused.
+function promptActionCode(host, { error } = {}) {
+  return new Promise((resolve) => {
+    host.innerHTML = `
+      <div class="card card-body mb-2" data-code-step>
+        <p class="mb-2">${t(
+          'For safety this action needs the verification code we email to you.',
+          '为安全起见，此操作需要输入发送到您邮箱的验证码。',
+        )}</p>
+        <p class="text-secondary small mb-2" data-code-status></p>
+        <div class="row g-2 align-items-end">
+          ${field(
+            t('Verification code', '验证码'),
+            '<input type="text" class="form-control" data-f="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}">',
+            'col-sm-4',
+          )}
+          <div class="col-auto btn-list">
+            <button type="button" class="btn btn-primary" data-act="confirm-code">${t('Confirm', '确认')}</button>
+            <button type="button" class="btn" data-act="resend-code">${t('Resend code', '重新发送')}</button>
+            <button type="button" class="btn" data-act="cancel-code">${t('Cancel', '取消')}</button>
+          </div>
+        </div>
+        <p class="alert alert-danger mt-2 mb-0" data-code-error hidden></p>
+      </div>`;
+    const status = host.querySelector('[data-code-status]');
+    const input = host.querySelector('[data-f="code"]');
+    const err = host.querySelector('[data-code-error]');
+    const finish = (code) => {
+      host.innerHTML = '';
+      resolve(code);
+    };
+    const showError = (m) => {
+      err.hidden = false;
+      err.textContent = m;
+    };
+    const send = async () => {
+      status.textContent = t('Sending the code…', '正在发送验证码…');
+      const res = await sendActionCode();
+      status.textContent = res.ok
+        ? t(
+            `Code sent to ${res.data.sent_to}. It stays valid for about ${res.data.valid_minutes} minutes.`,
+            `验证码已发送至 ${res.data.sent_to}，约 ${res.data.valid_minutes} 分钟内有效。`,
+          )
+        : res.data.error || t('The code could not be sent.', '验证码发送失败。');
+    };
+    if (error) showError(error);
+    // A code sent moments ago is still valid: do not email again on a retry.
+    if (Date.now() - actionCodeSentAt > 60_000) send();
+    else
+      status.textContent = t('Use the code we just emailed you.', '请输入刚发送到您邮箱的验证码。');
+    host.querySelector('[data-act="confirm-code"]').addEventListener('click', () => {
+      const code = input.value.trim();
+      if (!/^\d{6}$/.test(code))
+        return showError(
+          t('Enter the 6-digit code from the email.', '请输入邮件中的 6 位验证码。'),
+        );
+      finish(code);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        host.querySelector('[data-act="confirm-code"]').click();
+      }
+    });
+    host.querySelector('[data-act="resend-code"]').addEventListener('click', send);
+    host.querySelector('[data-act="cancel-code"]').addEventListener('click', () => finish(null));
+    input.focus();
+  });
+}
+
+// `attempt(headers)` → { ok, status, data }. Resolves with the final answer;
+// `cancelled: true` when the admin closed the code step.
+async function guarded(host, attempt) {
+  let error;
+  for (;;) {
+    const res = await attempt(codeHeaders());
+    if (res.status !== 428) return res;
+    if (actionCode) error = res.data.error; // the kept code was refused: expired or wrong
+    actionCode = null;
+    const code = await promptActionCode(host, { error });
+    if (!code) return { ok: false, status: 428, data: res.data, cancelled: true };
+    actionCode = code;
+  }
 }
 
 // Feedback line — a Tabler alert, green for success, red for errors.
@@ -178,6 +284,520 @@ const BADGE_BG = {
 };
 const badgeHtml = (state, label) =>
   `<span class="badge ${BADGE_BG[state] || 'bg-secondary-lt'}">${esc(label)}</span>`;
+
+// ---------- dashboard ----------
+// The landing tab. One GET /api/admin/dashboard feeds every tile and table; the
+// answer is kept so a language toggle re-renders it without another request.
+// Each stat tile links to the tab that holds the detail (data-goto), and a tab
+// click there loads that tab exactly as clicking it in the nav would.
+let dashData = null;
+const BAR_BG = {
+  active: 'bg-success',
+  pending: 'bg-warning',
+  past_due: 'bg-orange',
+  expired: 'bg-secondary',
+  cancelled: 'bg-danger',
+};
+const numFmt = (n) => (n == null ? '—' : String(n));
+const fmtDateTime = (d) =>
+  d ? new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+const eventTitle = (e) => (lang === 'zh' && e?.title_zh ? e.title_zh : e?.title) || '—';
+const emptyRow = (cols, text) =>
+  `<tr><td colspan="${cols}" class="text-secondary">${esc(text)}</td></tr>`;
+
+// ---- inline SVG charts (no chart library; Tabler text-* classes give the colours) ----
+// Whole dollars, thousands separated: axis ticks and point labels.
+const usdShort = (cents) => `$${Math.round((cents || 0) / 100).toLocaleString('en-US')}`;
+// 'YYYY-MM' → 'Sep' / '9月'.
+const monthLabel = (ym) => {
+  const [y, m] = String(ym).split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {
+    month: 'short',
+    timeZone: 'UTC',
+  });
+};
+// The 1-2-5 step at or above v, so the top gridline is a round figure.
+const niceCeil = (v) => {
+  if (v <= 0) return 1;
+  const p = 10 ** Math.floor(Math.log10(v));
+  const m = v / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
+};
+const num = (n) => String(Math.round(n * 100) / 100);
+
+// One series as a line with an area beneath, dots with tooltips, three
+// gridlines and a label per point: [{ label, value, title }].
+function lineChartSvg(points, { width = 600, height = 220, fmt = usdShort } = {}) {
+  const padL = 60;
+  const padR = 20;
+  const padT = 16;
+  const padB = 28;
+  const w = width - padL - padR;
+  const h = height - padT - padB;
+  const top = niceCeil(Math.max(...points.map((p) => p.value), 0));
+  const x = (i) => padL + (points.length > 1 ? (i / (points.length - 1)) * w : w / 2);
+  const y = (v) => padT + h - (v / top) * h;
+  const grid = [0, 0.5, 1]
+    .map(
+      (f) => `
+      <line x1="${padL}" x2="${width - padR}" y1="${num(y(f * top))}" y2="${num(y(f * top))}" stroke="currentColor" stroke-opacity="0.15" />
+      <text x="${padL - 8}" y="${num(y(f * top) + 4)}" text-anchor="end" font-size="11" fill="currentColor">${esc(fmt(f * top))}</text>`,
+    )
+    .join('');
+  const labels = points
+    .map(
+      (p, i) =>
+        `<text x="${num(x(i))}" y="${height - 8}" text-anchor="middle" font-size="11" fill="currentColor">${esc(p.label)}</text>`,
+    )
+    .join('');
+  const coords = points.map((p, i) => `${num(x(i))},${num(y(p.value))}`);
+  const area = `${num(x(0))},${num(y(0))} ${coords.join(' ')} ${num(x(points.length - 1))},${num(y(0))}`;
+  // Hovering anywhere in a month's column (data-i) reads that month out; the
+  // column is an invisible rect so the small dot need not be hit exactly.
+  const half = points.length > 1 ? w / (points.length - 1) / 2 : w / 2;
+  const columns = points
+    .map(
+      (p, i) =>
+        `<rect data-i="${i}" x="${num(x(i) - half)}" y="${padT}" width="${num(half * 2)}" height="${h}" fill="currentColor" fill-opacity="0" />`,
+    )
+    .join('');
+  const dots = points
+    .map(
+      (p, i) =>
+        `<circle data-dot="${i}" cx="${num(x(i))}" cy="${num(y(p.value))}" r="4" fill="currentColor" />`,
+    )
+    .join('');
+  const last = points[points.length - 1];
+  const lastLabel = last
+    ? `<text x="${num(x(points.length - 1))}" y="${num(y(last.value) - 10)}" text-anchor="${points.length > 1 ? 'end' : 'middle'}" font-size="12" font-weight="600" fill="currentColor">${esc(fmt(last.value))}</text>`
+    : '';
+  return `
+    <svg viewBox="0 0 ${width} ${height}" class="w-100" role="img" aria-label="${esc(points.map((p) => p.title).join('; '))}">
+      <g class="text-secondary">${grid}${labels}</g>
+      <g class="text-primary">
+        <polygon points="${area}" fill="currentColor" fill-opacity="0.08" />
+        <polyline points="${coords.join(' ')}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+        ${dots}${lastLabel}${columns}
+      </g>
+    </svg>`;
+}
+
+// Hover read-outs for a chart host: `[data-i]` targets (slices, month
+// columns, legend rows) name an item; hovering one writes its `title` into
+// the host's `[data-readout]`, dims the other targets (opacity-50) and tells
+// `onHot(host, i)` so the chart can emphasise it; leaving restores the idle
+// text. Wired once per host, delegated, so a re-render (language toggle,
+// refresh) needs no re-wiring; setHoverItems hands it the current items.
+function wireHover(host, { onHot } = {}) {
+  if (host.dataset.hoverWired) return;
+  host.dataset.hoverWired = 'true';
+  const set = (i) => {
+    const items = host.__items || [];
+    const el = host.querySelector('[data-readout]');
+    if (el) el.textContent = i == null ? host.__idle || '' : items[i]?.title || '';
+    for (const n of host.querySelectorAll('[data-i]'))
+      n.classList.toggle('opacity-50', i != null && Number(n.dataset.i) !== i);
+    onHot?.(host, i);
+  };
+  host.addEventListener('mouseover', (e) => {
+    const target = e.target.closest?.('[data-i]');
+    if (target && host.contains(target)) set(Number(target.dataset.i));
+  });
+  host.addEventListener('mouseout', (e) => {
+    const from = e.target.closest?.('[data-i]');
+    const to = e.relatedTarget?.closest?.('[data-i]');
+    if (from && !to) set(null);
+  });
+  host.addEventListener('mouseleave', () => set(null));
+  host.__set = set;
+}
+// The items a host's hover reads out, and what it says when nothing is hovered.
+function setHoverItems(host, items, idle) {
+  host.__items = items;
+  host.__idle = idle;
+  host.__set?.(null);
+}
+
+// Slice colours, in legend order: the brand primary first, then Tabler's.
+const PIE_COLOURS = [
+  'text-primary',
+  'text-orange',
+  'text-yellow',
+  'text-secondary',
+  'text-teal',
+  'text-purple',
+  'text-azure',
+  'text-pink',
+];
+// A pie of [{ value, cls, title }]; zero slices are skipped, one slice is a disc.
+function pieChartSvg(slices, { size = 200 } = {}) {
+  const total = slices.reduce((s, x) => s + x.value, 0);
+  const c = size / 2;
+  const r = c - 4;
+  const pt = (a) => [num(c + r * Math.cos(a)), num(c + r * Math.sin(a))];
+  let a0 = -Math.PI / 2;
+  const paths = slices
+    .filter((s) => s.value > 0)
+    .map((s) => {
+      const a1 = a0 + (s.value / total) * 2 * Math.PI;
+      let d;
+      if (s.value === total) {
+        d = `M ${c} ${c - r} A ${r} ${r} 0 1 1 ${c} ${c + r} A ${r} ${r} 0 1 1 ${c} ${c - r} Z`;
+      } else {
+        const [x0, y0] = pt(a0);
+        const [x1, y1] = pt(a1);
+        const large = a1 - a0 > Math.PI ? 1 : 0;
+        d = `M ${c} ${c} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`;
+      }
+      a0 = a1;
+      return `<path data-i="${s.index}" class="${s.cls}" d="${d}" fill="currentColor" />`;
+    })
+    .join('');
+  return `<svg viewBox="0 0 ${size} ${size}" class="w-100" role="img" aria-label="${esc(slices.map((s) => s.title).join('; '))}">${paths}</svg>`;
+}
+const swatch = (cls) =>
+  `<svg width="12" height="12" viewBox="0 0 12 12" class="${cls} me-2" aria-hidden="true"><rect width="12" height="12" rx="2" fill="currentColor" /></svg>`;
+
+function renderDashboard() {
+  const d = dashData;
+  if (!d) return;
+  const m = d.members || {};
+  const sc = m.status_counts || {};
+  const rev = d.revenue || {};
+  const ev = d.events || {};
+  const vol = d.volunteers || {};
+  const biz = d.business || {};
+  const days = m.expiring_days || 30;
+  const total = m.total || 0;
+
+  // Stat tiles: the numbers staff act on, each a shortcut to its tab. Three
+  // colours only: the default ink, green for the active count, and one
+  // attention colour (orange) for the queues that need a follow-up.
+  const tiles = [
+    {
+      label: t('Active members', '有效会员'),
+      value: sc.active,
+      fg: 'text-success',
+      sub: t(`${total} members in total`, `会员共 ${total} 人`),
+      goto: 'members',
+    },
+    {
+      label: t('Past due — follow up', '逾期需补交'),
+      value: sc.past_due,
+      fg: sc.past_due ? 'text-orange' : '',
+      goto: 'payments',
+    },
+    {
+      label: t(`Expiring in ${days} days`, `${days} 天内到期`),
+      value: m.expiring_total,
+      fg: m.expiring_total ? 'text-orange' : '',
+      goto: 'members',
+    },
+    {
+      label: t('New members this month', '本月新增会员'),
+      value: m.new_this_month,
+      goto: 'members',
+    },
+    {
+      label: t('Volunteer sign-ups', '志愿者报名'),
+      value: vol.total,
+      sub: t(`${vol.this_month ?? 0} this month`, `本月新增 ${vol.this_month ?? 0}`),
+      goto: 'volunteers',
+    },
+    {
+      label: t('Listings awaiting review', '待审核商家'),
+      value: biz.pending,
+      fg: biz.pending ? 'text-orange' : '',
+      goto: 'directory',
+    },
+  ];
+  $('#caaci-dash-stats').innerHTML = tiles
+    .map(
+      (tile) => `
+      <div class="col-6 col-md-4 col-lg-2">
+        <a href="#" class="card card-sm card-link" data-goto="${tile.goto}">
+          <div class="card-body">
+            <div class="subheader">${esc(tile.label)}</div>
+            <div class="h1 mb-0 ${tile.fg || ''}">${esc(numFmt(tile.value))}</div>
+            ${tile.sub ? `<div class="text-secondary small">${esc(tile.sub)}</div>` : ''}
+          </div>
+        </a>
+      </div>`,
+    )
+    .join('');
+
+  // Members by status: badge, count, share of everyone, as a bar.
+  const statusHost = $('#caaci-dash-status');
+  statusHost.innerHTML = Object.keys(STATUS_LABEL)
+    .map((s) => {
+      const n = sc[s] ?? 0;
+      const pct = total ? Math.round((n / total) * 100) : 0;
+      return `
+      <div class="mb-2" data-status="${s}">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          ${badgeHtml(s, STATUS_LABEL[s]())}
+          <span>${n} <span class="text-secondary small">(${pct}%)</span></span>
+        </div>
+        <div class="progress progress-sm">
+          <div class="progress-bar ${BAR_BG[s]}" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" data-pct="${pct}"></div>
+        </div>
+      </div>`;
+    })
+    .join('');
+  // Bar widths are data, not styling, so they are set here rather than in markup.
+  for (const bar of $$('[data-pct]', statusHost)) bar.style.width = `${bar.dataset.pct}%`;
+
+  // Revenue: the shown year's total (and this month, when it is this year) up
+  // top, that year month by month as a line, the latest payments in the table
+  // beneath (rendered further down). The header's select switches the year.
+  const byMonth = rev.by_month || [];
+  const thisYear = new Date(d.generated_at || Date.now()).getFullYear();
+  const year = rev.year ?? (Number(byMonth[0]?.month?.slice(0, 4)) || thisYear);
+  const isThisYear = year === thisYear;
+  $('#caaci-dash-revenue-totals').innerHTML = `
+    <div class="mb-3">
+      <div class="subheader">${isThisYear ? t('Revenue this year', '今年收款') : t(`Revenue in ${year}`, `${year} 年收款`)}</div>
+      <div class="h1 mb-0">${usdFmt(isThisYear ? rev.ytd_cents : rev.year_cents)}</div>
+    </div>
+    <div>
+      ${
+        isThisYear
+          ? `<div class="subheader">${t('Revenue this month', '本月收款')}</div>
+      <div class="h1 mb-0">${usdFmt(rev.month_cents)}</div>
+      <div class="text-secondary small">${t(`${rev.payments_this_month ?? 0} payments`, `${rev.payments_this_month ?? 0} 笔`)}</div>`
+          : `<div class="subheader">${t('Payments', '笔数')}</div>
+      <div class="h1 mb-0">${numFmt(rev.year_payments)}</div>`
+      }
+    </div>`;
+  const months = byMonth.map((b) => ({
+    label: monthLabel(b.month),
+    value: b.cents || 0,
+    title: t(
+      `${monthLabel(b.month)}: ${usdFmt(b.cents)} (${b.payments ?? 0} payments)`,
+      `${monthLabel(b.month)}：${usdFmt(b.cents)}（${b.payments ?? 0} 笔）`,
+    ),
+  }));
+  const chartHost = $('#caaci-dash-revenue-chart');
+  chartHost.innerHTML = months.length
+    ? `${lineChartSvg(months, { width: 900, height: 300 })}<div class="text-secondary small text-center mt-1" data-readout></div>`
+    : `<p class="text-secondary mb-0">${isThisYear ? t('No payments this year.', '今年暂无收款。') : t(`No payments in ${year}.`, `${year} 年无收款。`)}</p>`;
+  setHoverItems(
+    chartHost,
+    months,
+    t(
+      `${year}: ${usdFmt(rev.year_cents)} over ${rev.year_payments ?? 0} payments`,
+      `${year} 年合计 ${usdFmt(rev.year_cents)}，共 ${rev.year_payments ?? 0} 笔`,
+    ),
+  );
+  // One year select, in the tab's header, drives both lines.
+  const yearSel = $('#caaci-dash-year');
+  const years = rev.years || (year ? [year] : []);
+  yearSel.innerHTML = years
+    .map(
+      (y) =>
+        `<option value="${y}"${y === year ? ' selected' : ''}>${lang === 'zh' ? `${y} 年` : y}</option>`,
+    )
+    .join('');
+  yearSel.hidden = years.length < 2;
+
+  // Active members: the live count and this month's newcomers beside a line of
+  // how many held a membership in each month of the year (reconstructed from
+  // member_since / expires_at, so it is a view of the past, not a log).
+  $('#caaci-dash-members-totals').innerHTML = `
+    <div class="mb-3">
+      <div class="subheader">${t('Active now', '当前有效')}</div>
+      <div class="h1 mb-0 text-success">${numFmt(sc.active)}</div>
+      <div class="text-secondary small">${t(`${total} members in total`, `会员共 ${total} 人`)}</div>
+    </div>
+    <div>
+      <div class="subheader">${t('New this month', '本月新增')}</div>
+      <div class="h1 mb-0">${numFmt(m.new_this_month)}</div>
+    </div>`;
+  const memberMonths = (m.by_month || []).map((b) => ({
+    label: monthLabel(b.month),
+    value: b.active || 0,
+    title: t(
+      `${monthLabel(b.month)}: ${b.active ?? 0} active members`,
+      `${monthLabel(b.month)}：有效会员 ${b.active ?? 0} 人`,
+    ),
+  }));
+  const membersHost = $('#caaci-dash-members-chart');
+  membersHost.innerHTML = memberMonths.length
+    ? `${lineChartSvg(memberMonths, { width: 900, height: 300, fmt: (n) => String(Math.round(n)) })}<div class="text-secondary small text-center mt-1" data-readout></div>`
+    : `<p class="text-secondary mb-0">${t('No membership history for this year.', '该年份没有会员记录。')}</p>`;
+  setHoverItems(membersHost, memberMonths, '');
+
+  // Active members by tier: a pie with its legend (name, count, share of
+  // active). Hovering a slice or a legend row reads that tier out.
+  const tiers = m.by_tier || [];
+  const activeTotal = tiers.reduce((s, x) => s + (x.active || 0), 0);
+  const pct = (v) => (activeTotal ? Math.round((v / activeTotal) * 100) : 0);
+  const slices = tiers.map((x, i) => ({
+    index: i,
+    id: x.id,
+    name: x.name || x.id,
+    value: x.active || 0,
+    cls: PIE_COLOURS[i % PIE_COLOURS.length],
+    title: t(
+      `${x.name || x.id}: ${x.active || 0} (${pct(x.active || 0)}%)`,
+      `${x.name || x.id}：${x.active || 0} 人（${pct(x.active || 0)}%）`,
+    ),
+  }));
+  const tiersHost = $('#caaci-dash-tiers');
+  tiersHost.innerHTML = tiers.length
+    ? `
+    <div class="row g-3 align-items-center w-100">
+      <div class="col-sm-5">
+        ${activeTotal ? pieChartSvg(slices) : `<p class="text-secondary mb-0">${t('No active members yet.', '暂无有效会员。')}</p>`}
+      </div>
+      <div class="col-sm-7">
+        ${slices
+          .map(
+            (s) => `
+        <div class="d-flex justify-content-between align-items-center mb-1" data-i="${s.index}" data-tier="${esc(s.id)}">
+          <span>${swatch(s.cls)}${esc(s.name)}</span>
+          <span>${s.value} <span class="text-secondary small">(${pct(s.value)}%)</span></span>
+        </div>`,
+          )
+          .join('')}
+      </div>
+      <div class="col-12 text-secondary small text-center" data-readout></div>
+    </div>`
+    : `<p class="text-secondary mb-0">${t('No membership tiers.', '暂无会员类型。')}</p>`;
+  setHoverItems(tiersHost, slices, ''); // the read-out speaks only while hovering
+
+  // Upcoming published events with their registration counts.
+  const events = ev.upcoming || [];
+  $('#caaci-dash-events').innerHTML = events.length
+    ? events
+        .map(
+          (e) => `
+        <tr>
+          <td>${esc(eventTitle(e))}${e.location ? `<br><span class="text-secondary small">${esc(e.location)}</span>` : ''}</td>
+          <td>${esc(fmtWhen(e))}</td>
+          <td class="text-end">${e.takes_registrations ? numFmt(e.registration_count) : `<span class="text-secondary">${t('no form', '无报名表')}</span>`}</td>
+        </tr>`,
+        )
+        .join('')
+    : emptyRow(3, t('No upcoming published events.', '暂无已发布的即将举办活动。'));
+  $('#caaci-dash-drafts').textContent = ev.drafts_total
+    ? t(`${ev.drafts_total} unpublished`, `${ev.drafts_total} 个未发布`)
+    : '';
+
+  // Active members whose membership ends soon, soonest first.
+  const expiring = m.expiring || [];
+  $('#caaci-dash-expiring').innerHTML = expiring.length
+    ? expiring
+        .map(
+          (x) => `
+        <tr>
+          <td>${esc(x.full_name || '—')}<br><span class="text-secondary small">${esc(x.email || '')}</span></td>
+          <td>${esc(tierName[x.tier_id] || x.tier_id || '—')}</td>
+          <td>${fmtDate(x.expires_at)}</td>
+        </tr>`,
+        )
+        .join('')
+    : emptyRow(3, t(`Nobody expires in the next ${days} days.`, `未来 ${days} 天内没有会员到期。`));
+  $('#caaci-dash-expiring-info').textContent =
+    (m.expiring_total || 0) > expiring.length
+      ? t(
+          `${expiring.length} of ${m.expiring_total}`,
+          `${expiring.length} / 共 ${m.expiring_total}`,
+        )
+      : '';
+
+  const regs = ev.recent_registrations || [];
+  $('#caaci-dash-registrations').innerHTML = regs.length
+    ? regs
+        .map(
+          (r) => `
+        <tr>
+          <td>${esc(r.email || '—')}</td>
+          <td>${esc(eventTitle(r.events))}</td>
+          <td>${esc(fmtDateTime(r.created_at))}</td>
+        </tr>`,
+        )
+        .join('')
+    : emptyRow(3, t('No registrations yet.', '暂无报名。'));
+
+  const pays = rev.recent || [];
+  $('#caaci-dash-payments').innerHTML = pays.length
+    ? pays
+        .map((p) => {
+          const who = p.members
+            ? `${esc(p.members.full_name || '—')}<br><span class="text-secondary small">${esc(p.members.email || '')}</span>`
+            : `<span class="text-secondary">${t('(deleted member)', '（已删除会员）')}</span>`;
+          return `
+        <tr>
+          <td>${fmtDate(p.paid_at)}</td>
+          <td>${who}</td>
+          <td>${KIND_LABEL[p.kind]?.() || esc(p.kind || '—')}</td>
+          <td class="text-end">${usdFmt(p.amount_cents)}</td>
+        </tr>`;
+        })
+        .join('')
+    : emptyRow(4, t('No payments recorded yet.', '暂无收款记录。'));
+
+  const when = d.generated_at ? fmtDateTime(d.generated_at) : '';
+  $('#caaci-dash-updated').textContent = when ? t(`Updated ${when}`, `更新于 ${when}`) : '';
+}
+
+// The year the revenue chart is showing (null = the current one); a Refresh
+// or a tab click keeps it.
+let dashYear = null;
+
+async function loadDashboard() {
+  const notb = $('#caaci-dash-notice');
+  const btn = $('#caaci-dash-refresh');
+  btn.disabled = true;
+  try {
+    const { ok, data } = await api(
+      `/api/admin/dashboard${dashYear ? `?year=${encodeURIComponent(dashYear)}` : ''}`,
+    );
+    if (!ok) {
+      notice(notb, data.error || t('Could not load the dashboard.', '无法加载看板。'), false);
+      return;
+    }
+    notb.hidden = true;
+    dashData = data;
+    renderDashboard();
+  } catch {
+    notice(notb, t('Could not load the dashboard.', '无法加载看板。'), false);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function wireDashboard() {
+  $('#caaci-dash-refresh').addEventListener('click', () => loadDashboard());
+  $('#caaci-dash-year').addEventListener('change', (e) => {
+    dashYear = Number(e.target.value) || null;
+    loadDashboard();
+  });
+  // Month columns: the hovered month's dot grows; slices and legend rows dim
+  // the others (opacity-50 comes from wireHover itself).
+  const growDot = (host, i) => {
+    for (const dot of host.querySelectorAll('[data-dot]'))
+      dot.setAttribute('r', Number(dot.dataset.dot) === i ? '6' : '4');
+  };
+  wireHover($('#caaci-dash-revenue-chart'), { onHot: growDot });
+  wireHover($('#caaci-dash-members-chart'), { onHot: growDot });
+  wireHover($('#caaci-dash-tiers'), {
+    onHot: (host, i) => {
+      for (const row of host.querySelectorAll('[data-tier]'))
+        row.classList.toggle('fw-bold', Number(row.dataset.i) === i);
+    },
+  });
+  // A stat tile is a shortcut: switch to that tab (its own click handler loads it).
+  $('#caaci-dash-stats').addEventListener('click', (e) => {
+    const tile = e.target.closest('[data-goto]');
+    if (!tile) return;
+    e.preventDefault();
+    $(`[data-tab="${tile.dataset.goto}"]`)?.click();
+  });
+  const tab = $('[data-tab="dashboard"]');
+  if (tab) tab.addEventListener('click', () => loadDashboard());
+}
 
 async function loadMembers() {
   const q = $('#caaci-q').value.trim();
@@ -462,6 +1082,7 @@ function toggleEditor(tr, m) {
       </div>
     </div>`
     }
+    <div class="mt-2" data-code-host></div>
     <div class="alert mb-0 mt-2" data-msg hidden></div></td>`;
   tr.after(row);
   wireAuthEmails(row, m);
@@ -478,7 +1099,39 @@ function toggleEditor(tr, m) {
     };
     // Left out, the API keeps the member's family as it is.
     if (householdsLoaded) body.household_id = get('household_id');
-    const { ok, data } = await api('/api/admin/members', { method: 'POST', body });
+    // Second look before anything is written: what changes, for whom. A plan
+    // change then also needs the emailed verification code (the API insists).
+    const who = m.full_name || m.email;
+    const changes = [];
+    if (body.status !== m.status)
+      changes.push(
+        `${t('status', '状态')}: ${STATUS_LABEL[m.status]?.() || m.status || '—'} → ${STATUS_LABEL[body.status]?.() || body.status}`,
+      );
+    if (body.tier_id !== (m.tier_id || ''))
+      changes.push(
+        `${t('plan', '方案')}: ${tierName[m.tier_id] || m.tier_id || t('none', '无')} → ${tierName[body.tier_id] || body.tier_id || t('none', '无')}`,
+      );
+    const expWas = m.expires_at ? new Date(m.expires_at).toISOString().slice(0, 10) : '';
+    if (body.expires_at !== expWas)
+      changes.push(`${t('expires', '到期')}: ${expWas || '—'} → ${body.expires_at || '—'}`);
+    if (householdsLoaded && (body.household_id || '') !== (m.household_id || ''))
+      changes.push(t('family', '家庭'));
+    if (
+      !window.confirm(
+        changes.length
+          ? t(
+              `Save these changes to ${who}?\n\n${changes.join('\n')}`,
+              `确认保存对 ${who} 的以下修改？\n\n${changes.join('\n')}`,
+            )
+          : t(`Save ${who} with no changes?`, `${who} 没有改动，仍然保存？`),
+      )
+    )
+      return;
+    const { ok, data, cancelled } = await guarded(
+      row.querySelector('[data-code-host]'),
+      (headers) => api('/api/admin/members', { method: 'POST', body, headers }),
+    );
+    if (cancelled) return;
     if (!ok) {
       notice(msg, data.error || t('Update failed.', '更新失败。'), false);
       return;
@@ -703,6 +1356,7 @@ function refundForm(p, remaining) {
         <button type="submit" class="btn btn-primary">${t('Issue refund', '确认退款')}</button>
         <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
       </p>
+      <div data-code-host></div>
       <div class="alert" data-msg hidden></div>
     </form>`;
   const form = host.querySelector('form');
@@ -729,15 +1383,22 @@ function refundForm(p, remaining) {
       return;
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
-    const { ok, data } = await api('/api/admin/refunds', {
-      method: 'POST',
-      body: {
-        payment_id: p.id,
-        amount_cents: cents,
-        reason: form.querySelector('[data-f="reason"]').value.trim() || undefined,
-      },
-    });
+    // Money moves: the API insists on the emailed verification code.
+    const { ok, data, cancelled } = await guarded(
+      form.querySelector('[data-code-host]'),
+      (headers) =>
+        api('/api/admin/refunds', {
+          method: 'POST',
+          headers,
+          body: {
+            payment_id: p.id,
+            amount_cents: cents,
+            reason: form.querySelector('[data-f="reason"]').value.trim() || undefined,
+          },
+        }),
+    );
     submit.disabled = false;
+    if (cancelled) return;
     if (!ok) return notice(msg, data.error || t('Refund failed.', '退款失败。'), false);
     host.innerHTML = '';
     notice(
@@ -3269,6 +3930,7 @@ function wireMyAccount() {
     localStorage.setItem('caaci-admin-lang', lang);
     applyLang();
     renderGate(); // re-apply gate text in the new language (it owns its heading)
+    renderDashboard(); // its tiles and tables are built from the kept answer
   });
   $('#caaci-admin-signout').addEventListener('click', async (e) => {
     e.preventDefault();
@@ -3282,6 +3944,7 @@ function wireMyAccount() {
   $('#caaci-admin-gate').hidden = true;
   $('#caaci-admin-app').hidden = false;
   wireTabs();
+  wireDashboard();
   wireMembers();
   wireMemberAdd();
   wireFamilies();
@@ -3294,6 +3957,7 @@ function wireMyAccount() {
   wireNews();
   wireMyAccount();
   await loadTiers();
+  await loadDashboard(); // the tab that is showing
   await loadHouseholds(); // for the member "Family" dropdown
   await loadMembers();
 })();
