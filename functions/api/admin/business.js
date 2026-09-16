@@ -12,8 +12,53 @@ import { json, bad, sb, requireAdmin } from '../_lib.js';
 
 const MAX_LIMIT = 50;
 const COLUMNS =
-  'id,name,category,description,address,phone,website,image_url,owner_id,approved,created_at';
-const CATEGORIES = ['restaurant', 'bakery', 'supermarket', 'other'];
+  'id,name,name_zh,category,label,label_zh,description,description_zh,address,phone,' +
+  'hours,hours_zh,website,image_url,verified,tags,tags_zh,sort_order,owner_id,approved,created_at';
+// The filter ids on the public Business Services page (DIRECTORY_CATEGORIES in
+// web/src/lib/directory.ts); migration 0022 mapped the old values onto these.
+export const CATEGORIES = [
+  'restaurant',
+  'groceries',
+  'dental',
+  'financial',
+  'realestate',
+  'education_media',
+  'services',
+];
+const MAX_TAGS = 12;
+const MAX_TAG_LENGTH = 40;
+const TEXT_FIELDS = [
+  'name_zh',
+  'label',
+  'label_zh',
+  'description',
+  'description_zh',
+  'address',
+  'phone',
+  'hours',
+  'hours_zh',
+  'website',
+  'image_url',
+];
+
+// Free-text tags typed by staff: trimmed; blanks and case-insensitive repeats dropped.
+function parseTags(raw) {
+  if (raw === null) return { tags: [] };
+  if (!Array.isArray(raw)) return { error: 'Tags must be a list.' };
+  const seen = new Set();
+  const tags = [];
+  for (const item of raw) {
+    const tag = String(item ?? '').trim();
+    if (!tag) continue;
+    if (tag.length > MAX_TAG_LENGTH) return { error: `Tag too long (max ${MAX_TAG_LENGTH}).` };
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tags.push(tag);
+  }
+  if (tags.length > MAX_TAGS) return { error: `Too many tags (max ${MAX_TAGS}).` };
+  return { tags };
+}
 
 // Validate/normalize the patchable fields (shared by create + patch).
 function parseFields(b) {
@@ -32,11 +77,21 @@ function parseFields(b) {
       patch.category = b.category;
     }
   }
-  if (b.description !== undefined) patch.description = String(b.description || '').trim() || null;
-  if (b.address !== undefined) patch.address = String(b.address || '').trim() || null;
-  if (b.phone !== undefined) patch.phone = String(b.phone || '').trim() || null;
-  if (b.website !== undefined) patch.website = String(b.website || '').trim() || null;
-  if (b.image_url !== undefined) patch.image_url = String(b.image_url || '').trim() || null;
+  for (const f of TEXT_FIELDS) {
+    if (b[f] !== undefined) patch[f] = String(b[f] || '').trim() || null;
+  }
+  for (const f of ['tags', 'tags_zh']) {
+    if (b[f] === undefined) continue;
+    const { tags, error } = parseTags(b[f]);
+    if (error) return { error };
+    patch[f] = tags;
+  }
+  if (b.sort_order !== undefined) {
+    const n = b.sort_order === '' || b.sort_order === null ? 0 : Number(b.sort_order);
+    if (!Number.isInteger(n) || Math.abs(n) > 1000000) return { error: 'Invalid sort order.' };
+    patch.sort_order = n;
+  }
+  if (b.verified !== undefined) patch.verified = !!b.verified;
   if (b.approved !== undefined) patch.approved = !!b.approved;
   return { patch };
 }
@@ -73,7 +128,7 @@ export async function onRequestGet({ request, env }) {
     const { rows, total } = await DB.select('business_directory', {
       columns: COLUMNS,
       filters,
-      order: 'created_at.desc',
+      order: 'sort_order.asc,name.asc', // the order the public page lists them in
       limit,
       offset,
       count: 'exact',

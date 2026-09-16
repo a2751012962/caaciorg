@@ -345,6 +345,34 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.equal(pendingStat.textContent, '2');
     assert.ok(pendingStat.classList.contains('text-orange'));
 
+    // New listing: the free-text tag input turns Enter into a chip, drops a
+    // repeat, and counts a tag still sitting in the text box on submit.
+    document.querySelector('#caaci-biz-add-btn').click();
+    const bizForm = document.querySelector('#caaci-biz-form-host form');
+    bizForm.querySelector('[data-f="name"]').value = 'Kung Fu Tea';
+    bizForm.querySelector('[data-f="verified"]').checked = true;
+    const entry = bizForm.querySelector('[data-tags="tags_zh"] [data-tag-entry]');
+    const typeTag = (text) => {
+      entry.value = text;
+      entry.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+    };
+    typeTag('会员九折');
+    typeTag('会员九折');
+    typeTag('奶茶');
+    assert.equal(bizForm.querySelectorAll('[data-tags="tags_zh"] [data-tag]').length, 2);
+    bizForm.querySelector('[data-tags="tags_zh"] [data-tag="奶茶"] .btn-close').click();
+    entry.value = '学生优惠';
+    bizForm.requestSubmit();
+    await tick();
+    const put = fetch.calls.find(
+      (c) => c.url.includes('/api/admin/business') && c.options.method === 'PUT',
+    );
+    const sent = JSON.parse(put.options.body);
+    assert.deepEqual(sent.tags_zh, ['会员九折', '学生优惠']);
+    assert.deepEqual(sent.tags, []);
+    assert.equal(sent.verified, true);
+    assert.equal(sent.name, 'Kung Fu Tea');
+
     // Language toggle flips data-en/data-zh labels on the new markup.
     document.querySelector('#caaci-lang').click();
     await tick();

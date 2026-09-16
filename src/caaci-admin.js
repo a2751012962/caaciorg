@@ -2979,13 +2979,77 @@ function wireEvents() {
 const BIZ_LIMIT = 25;
 let bizOffset = 0,
   bizTotal = 0;
-const BIZ_CATEGORIES = ['restaurant', 'bakery', 'supermarket', 'other'];
+// The filter pills on the public Business Services page (DIRECTORY_CATEGORIES
+// in web/src/lib/directory.ts); every approved row here is a card there.
+const BIZ_CATEGORIES = [
+  'restaurant',
+  'groceries',
+  'dental',
+  'financial',
+  'realestate',
+  'education_media',
+  'services',
+];
 const CATEGORY_LABEL = {
-  restaurant: () => t('Restaurant', '餐馆'),
-  bakery: () => t('Bakery', '烘焙店'),
-  supermarket: () => t('Supermarket', '超市'),
-  other: () => t('Other', '其他'),
+  restaurant: () => t('Dining & Beverages', '餐饮与茶饮'),
+  groceries: () => t('Groceries & Markets', '超市与食品'),
+  dental: () => t('Dental Clinics', '牙科诊所'),
+  financial: () => t('Banking & Financial', '银行与金融'),
+  realestate: () => t('Real Estate & Insurance', '房产与保险'),
+  education_media: () => t('Education & Media', '教育与传媒'),
+  services: () => t('Other Services', '其他服务'),
 };
+const BIZ_MAX_TAGS = 12; // same limits as functions/api/admin/business.js
+const BIZ_MAX_TAG_LENGTH = 40;
+
+// A free-text tag input: type a tag and press Enter (or a comma) to add it;
+// the × on a chip removes it. Returns the markup; wireTagInput makes it work.
+function tagInputHtml(key, tags) {
+  return `<div class="form-control d-flex flex-wrap align-items-center gap-1 h-auto" data-tags="${key}">
+      ${(tags || []).map(tagChipHtml).join('')}
+      <input type="text" class="border-0 flex-fill" style="min-width: 8rem; outline: none" maxlength="${BIZ_MAX_TAG_LENGTH}"
+        placeholder="${esc(t('Type a tag, press Enter', '输入标签后按回车'))}" data-tag-entry>
+    </div>`;
+}
+function tagChipHtml(tag) {
+  return `<span class="badge bg-azure-lt d-inline-flex align-items-center gap-1" data-tag="${esc(tag)}">${esc(tag)}<button type="button" class="btn-close" style="font-size: .5rem" aria-label="${esc(t('Remove', '移除'))}"></button></span>`;
+}
+function readTags(box) {
+  return [...box.querySelectorAll('[data-tag]')].map((el) => el.dataset.tag);
+}
+function wireTagInput(box) {
+  const entry = box.querySelector('[data-tag-entry]');
+  // Adds whatever is typed; returns false (and leaves the text) when it cannot.
+  const commit = () => {
+    const tag = entry.value.replace(/[,，]/g, ' ').trim();
+    if (!tag) return true;
+    const have = readTags(box);
+    if (have.some((x) => x.toLowerCase() === tag.toLowerCase())) {
+      entry.value = '';
+      return true;
+    }
+    if (have.length >= BIZ_MAX_TAGS) return false;
+    entry.insertAdjacentHTML('beforebegin', tagChipHtml(tag));
+    entry.value = '';
+    return true;
+  };
+  box.commitTags = commit;
+  entry.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ',' || e.key === '，') {
+      e.preventDefault();
+      commit();
+    } else if (e.key === 'Backspace' && !entry.value) {
+      const chips = box.querySelectorAll('[data-tag]');
+      chips[chips.length - 1]?.remove();
+    }
+  });
+  entry.addEventListener('blur', commit);
+  box.addEventListener('click', (e) => {
+    const x = e.target.closest('.btn-close');
+    if (x) x.closest('[data-tag]').remove();
+    else if (e.target === box) entry.focus();
+  });
+}
 
 async function loadBusiness() {
   const notb = $('#caaci-biz-notice');
@@ -3022,9 +3086,12 @@ async function loadBusiness() {
       ? { key: 'active', label: t('Approved', '已批准') }
       : { key: 'pending', label: t('Pending', '待审核') };
     const contact = [r.phone, r.website].filter(Boolean).map(esc).join('<br>') || '—';
+    const tags = [...new Set([...(r.tags || []), ...(r.tags_zh || [])])];
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${esc(r.name)}${r.image_url ? ` <span class="avatar avatar-sm ms-1" style="background-image: url('${esc(r.image_url)}')"></span>` : ''}</td>
+      <td>${esc(r.name)}${r.name_zh && r.name_zh !== r.name ? `<div class="text-secondary small">${esc(r.name_zh)}</div>` : ''}${r.image_url ? ` <span class="avatar avatar-sm ms-1" style="background-image: url('${esc(r.image_url)}')"></span>` : ''}
+        ${r.verified ? `<span class="badge bg-green-lt">${t('Verified', '认证')}</span>` : ''}
+        ${tags.map((x) => `<span class="badge bg-azure-lt">${esc(x)}</span>`).join(' ')}</td>
       <td>${r.category ? CATEGORY_LABEL[r.category]?.() || esc(r.category) : '—'}</td>
       <td>${contact}</td>
       <td>${badgeHtml(st.key, st.label)}</td>
@@ -3073,23 +3140,43 @@ function businessForm(host, biz) {
     if (biz === undefined) return; // toggle: + New listing closes an open form
   }
   const edit = !!biz;
-  const catOpts = ['', ...BIZ_CATEGORIES]
+  const v = (f) => (edit ? esc(biz[f] ?? '') : '');
+  const text = (label, f, type = 'text') =>
+    field(label, `<input type="${type}" class="form-control" data-f="${f}" value="${v(f)}">`);
+  // A row saved before 0022 may still hold an old category; show it rather than silently blank it.
+  const current = (edit && biz.category) || '';
+  const cats = ['', ...BIZ_CATEGORIES];
+  if (current && !cats.includes(current)) cats.push(current);
+  const catOpts = cats
     .map(
       (c) =>
-        `<option value="${c}"${c === ((edit && biz.category) || '') ? ' selected' : ''}>${c ? CATEGORY_LABEL[c]() : t('— none —', '— 无 —')}</option>`,
+        `<option value="${esc(c)}"${c === current ? ' selected' : ''}>${c ? CATEGORY_LABEL[c]?.() || esc(c) : t('— none (Other Services) —', '— 无（其他服务）—')}</option>`,
     )
     .join('');
+  const hint = (en, zh) => `<div class="form-hint">${t(en, zh)}</div>`;
   host.innerHTML = `
     <form class="card card-body mb-3">
       <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
-        ${field(`${t('Name', '名称')} *`, `<input type="text" class="form-control" data-f="name" value="${edit ? esc(biz.name) : ''}" required>`)}
-        ${field(t('Category', '类别'), `<select class="form-select" data-f="category">${catOpts}</select>`)}
-        ${field(t('Phone', '电话'), `<input type="tel" class="form-control" data-f="phone" value="${edit ? esc(biz.phone || '') : ''}">`)}
-        ${field(t('Website', '网站'), `<input type="url" class="form-control" data-f="website" value="${edit ? esc(biz.website || '') : ''}">`)}
-        ${field(t('Address', '地址'), `<input type="text" class="form-control" data-f="address" value="${edit ? esc(biz.address || '') : ''}">`)}
+        ${field(`${t('Name (English page)', '名称（英文页）')} *`, `<input type="text" class="form-control" data-f="name" value="${v('name')}" required>`)}
+        ${text(t('Name (Chinese page)', '名称（中文页）'), 'name_zh')}
+        ${field(t('Category (filter on the page)', '类别（页面筛选）'), `<select class="form-select" data-f="category">${catOpts}</select>`)}
+        ${field(t('Sort order', '排序'), `<input type="number" step="1" class="form-control" data-f="sort_order" value="${edit ? esc(biz.sort_order ?? 0) : ''}" placeholder="0">${hint('Smaller numbers come first.', '数字小的排在前面。')}`)}
+        ${text(t('Card label (English)', '卡片小标签（英文）'), 'label')}
+        ${text(t('Card label (Chinese)', '卡片小标签（中文）'), 'label_zh')}
+        ${field(t('Tags (English page)', '标签（英文页）'), tagInputHtml('tags', edit ? biz.tags : []))}
+        ${field(t('Tags (Chinese page)', '标签（中文页）'), `${tagInputHtml('tags_zh', edit ? biz.tags_zh : [])}${hint('If one language has no tags, that page shows the other language’s.', '某一语言没有标签时，该页显示另一语言的标签。')}`)}
+        ${text(t('Phone', '电话'), 'phone', 'tel')}
+        ${text(t('Website', '网站'), 'website', 'url')}
+        ${text(t('Address', '地址'), 'address')}
         ${imageFieldHtml(edit ? biz.image_url : '')}
+        ${text(t('Hours (English)', '营业时间（英文）'), 'hours')}
+        ${text(t('Hours (Chinese)', '营业时间（中文）'), 'hours_zh')}
+        ${field(t('Description (English)', '描述（英文）'), `<textarea class="form-control" data-f="description" rows="3">${v('description')}</textarea>`)}
+        ${field(t('Description (Chinese)', '描述（中文）'), `<textarea class="form-control" data-f="description_zh" rows="3">${v('description_zh')}</textarea>`)}
       </div>
-      ${field(t('Description', '描述'), `<textarea class="form-control" data-f="description" rows="3">${edit ? esc(biz.description || '') : ''}</textarea>`, 'mb-3')}
+      <p class="text-secondary small">${t('Empty Chinese fields show the English text on the Chinese page.', '中文栏留空时，中文页显示英文内容。')}</p>
+      <label class="form-check"><input type="checkbox" class="form-check-input" data-f="verified"${edit && biz.verified ? ' checked' : ''} />
+        <span class="form-check-label">${t('CAACI Verified badge', '显示 CAACI Verified 认证标记')}</span></label>
       <label class="form-check"><input type="checkbox" class="form-check-input" data-f="approved"${!edit || biz.approved ? ' checked' : ''} />
         <span class="form-check-label">${t('Approved (publicly listed)', '已批准（公开显示）')}</span></label>
       <p>
@@ -3101,22 +3188,36 @@ function businessForm(host, biz) {
   const form = host.querySelector('form');
   const msg = form.querySelector('[data-msg]');
   wireImageField(form);
+  const tagBoxes = [...form.querySelectorAll('[data-tags]')];
+  tagBoxes.forEach(wireTagInput);
   form.querySelector('[data-act="cancel"]').addEventListener('click', () => {
     host.innerHTML = '';
   });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    // A tag still in the text box (typed but no Enter) counts too.
+    if (!tagBoxes.every((box) => box.commitTags()))
+      return notice(
+        msg,
+        t(`At most ${BIZ_MAX_TAGS} tags per language.`, `每种语言最多 ${BIZ_MAX_TAGS} 个标签。`),
+        false,
+      );
     const val = (f) => form.querySelector(`[data-f="${f}"]`);
     const body = {
       name: val('name').value.trim(),
-      category: val('category').value,
-      phone: val('phone').value.trim(),
-      website: val('website').value.trim(),
-      address: val('address').value.trim(),
-      description: val('description').value.trim(),
-      image_url: val('image_url').value.trim(),
       approved: val('approved').checked,
+      verified: val('verified').checked,
+      category: val('category').value,
+      sort_order: val('sort_order').value.trim(),
+      image_url: val('image_url').value.trim(),
     };
+    for (const f of ['name_zh', 'label', 'label_zh', 'phone', 'website', 'address']) {
+      body[f] = val(f).value.trim();
+    }
+    for (const f of ['hours', 'hours_zh', 'description', 'description_zh']) {
+      body[f] = val(f).value.trim();
+    }
+    for (const box of tagBoxes) body[box.dataset.tags] = readTags(box);
     if (!body.name) return notice(msg, t('Name is required.', '名称为必填项。'), false);
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
