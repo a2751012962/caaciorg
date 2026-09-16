@@ -267,6 +267,13 @@
                     <h2 class="mb-0" data-en="Dashboard" data-zh="看板">Dashboard</h2>
                   </div>
                   <span class="text-secondary small" id="caaci-dash-updated"></span>
+                  <!-- The year the two lines (revenue, active members) show: the years
+                       with payments, newest first. -->
+                  <select
+                    class="form-select form-select-sm w-auto"
+                    id="caaci-dash-year"
+                    aria-label="Year"
+                  ></select>
                   <button
                     type="button"
                     class="btn btn-sm"
@@ -282,20 +289,24 @@
                 <div class="card mb-3">
                   <div class="card-header">
                     <h3 class="card-title mb-0" data-en="Revenue" data-zh="收款">Revenue</h3>
-                    <div class="card-actions">
-                      <!-- Which year the chart shows; filled with the years that have
-                           payments, newest first. -->
-                      <select
-                        class="form-select form-select-sm"
-                        id="caaci-dash-revenue-year"
-                        aria-label="Year"
-                      ></select>
-                    </div>
                   </div>
                   <div class="card-body">
                     <div class="row g-3">
                       <div class="col-md-3" id="caaci-dash-revenue-totals"></div>
                       <div class="col-md-9" id="caaci-dash-revenue-chart"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="card mb-3">
+                  <div class="card-header">
+                    <h3 class="card-title mb-0" data-en="Active members" data-zh="有效会员">
+                      Active members
+                    </h3>
+                  </div>
+                  <div class="card-body">
+                    <div class="row g-3">
+                      <div class="col-md-3" id="caaci-dash-members-totals"></div>
+                      <div class="col-md-9" id="caaci-dash-members-chart"></div>
                     </div>
                   </div>
                 </div>

@@ -64,6 +64,49 @@ function monthlyRevenue(payments, year, now) {
   return months;
 }
 
+// Every member's membership span (paged), for the active-members line.
+async function memberSpans(DB) {
+  const all = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { rows } = await DB.select('members', {
+      columns: 'member_since,expires_at,status',
+      order: 'id',
+      limit: PAGE,
+      offset: page * PAGE,
+    });
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return all;
+}
+
+// How many members held a membership in each month of `year` — January
+// through December, or through the current month for the current year:
+// [{ month: 'YYYY-MM', active }]. A member counts for a month when their
+// membership had started by the end of it (member_since) and had not run out
+// before it began (expires_at, or still open). Members who never joined
+// (pending: no member_since) never count. Feeds the active-members line; it is
+// reconstructed from the spans, not a stored history, so the current month can
+// differ slightly from the live status head-count.
+function monthlyActive(members, year, now) {
+  const lastMonth = year === now.getFullYear() ? now.getMonth() : 11;
+  const months = [];
+  for (let m = 0; m <= lastMonth; m++) {
+    const start = Date.UTC(year, m, 1);
+    const end = Date.UTC(year, m + 1, 1);
+    let active = 0;
+    for (const x of members) {
+      if (x.status === 'pending' || !x.member_since) continue;
+      const since = Date.parse(x.member_since);
+      const until = x.expires_at ? Date.parse(x.expires_at) : Infinity;
+      if (isNaN(since) || isNaN(until)) continue;
+      if (since < end && until >= start) active += 1;
+    }
+    months.push({ month: `${year}-${String(m + 1).padStart(2, '0')}`, active });
+  }
+  return months;
+}
+
 // { [eventId]: registrations } for the given events (0 when none).
 async function registrationCounts(DB, eventIds) {
   const counts = Object.fromEntries(eventIds.map((id) => [id, 0]));
@@ -124,6 +167,8 @@ export async function onRequestGet({ request, env }) {
       ]);
       by_tier.push({ id: tier.id, name: tier.name, active });
     }
+
+    const members_by_month = monthlyActive(await memberSpans(DB), year, now);
 
     // Active members whose membership runs out within EXPIRING_DAYS, soonest first.
     const expiring = await DB.select('members', {
@@ -201,6 +246,8 @@ export async function onRequestGet({ request, env }) {
         status_counts,
         new_this_month,
         by_tier,
+        year,
+        by_month: members_by_month,
         expiring_days: EXPIRING_DAYS,
         expiring_total: expiring.total,
         expiring: expiring.rows,

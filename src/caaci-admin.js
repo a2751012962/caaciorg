@@ -103,14 +103,120 @@ async function gate() {
 }
 
 // authenticated API helper
-async function api(path, { method = 'GET', body } = {}) {
+async function api(path, { method = 'GET', body, headers = {} } = {}) {
   const r = await fetch(path, {
     method,
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}`, ...headers },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const data = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, data };
+}
+
+// ---------- emailed verification code for sensitive actions ----------
+// Refunds and plan changes answer 428 + code_required until the request
+// carries the code POST /api/admin/action-code emailed to the admin (see
+// functions/api/admin/_action-code.js). `guarded` runs an API call, and on a
+// 428 asks for the code inline (in `host`), sending it first, then runs the
+// call again with the code. The code is kept for the rest of the visit so a
+// run of refunds needs one email; a refusal drops it.
+let actionCode = null;
+let actionCodeSentAt = 0;
+
+function codeHeaders() {
+  return actionCode ? { 'x-admin-code': actionCode } : {};
+}
+
+async function sendActionCode() {
+  const res = await api('/api/admin/action-code', { method: 'POST' });
+  if (res.ok) actionCodeSentAt = Date.now();
+  return res;
+}
+
+// Renders the code step into `host` and resolves with the typed code, or null
+// when cancelled. `error` is shown when a previous code was refused.
+function promptActionCode(host, { error } = {}) {
+  return new Promise((resolve) => {
+    host.innerHTML = `
+      <div class="card card-body mb-2" data-code-step>
+        <p class="mb-2">${t(
+          'For safety this action needs the verification code we email to you.',
+          '为安全起见，此操作需要输入发送到您邮箱的验证码。',
+        )}</p>
+        <p class="text-secondary small mb-2" data-code-status></p>
+        <div class="row g-2 align-items-end">
+          ${field(
+            t('Verification code', '验证码'),
+            '<input type="text" class="form-control" data-f="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}">',
+            'col-sm-4',
+          )}
+          <div class="col-auto btn-list">
+            <button type="button" class="btn btn-primary" data-act="confirm-code">${t('Confirm', '确认')}</button>
+            <button type="button" class="btn" data-act="resend-code">${t('Resend code', '重新发送')}</button>
+            <button type="button" class="btn" data-act="cancel-code">${t('Cancel', '取消')}</button>
+          </div>
+        </div>
+        <p class="alert alert-danger mt-2 mb-0" data-code-error hidden></p>
+      </div>`;
+    const status = host.querySelector('[data-code-status]');
+    const input = host.querySelector('[data-f="code"]');
+    const err = host.querySelector('[data-code-error]');
+    const finish = (code) => {
+      host.innerHTML = '';
+      resolve(code);
+    };
+    const showError = (m) => {
+      err.hidden = false;
+      err.textContent = m;
+    };
+    const send = async () => {
+      status.textContent = t('Sending the code…', '正在发送验证码…');
+      const res = await sendActionCode();
+      status.textContent = res.ok
+        ? t(
+            `Code sent to ${res.data.sent_to}. It stays valid for about ${res.data.valid_minutes} minutes.`,
+            `验证码已发送至 ${res.data.sent_to}，约 ${res.data.valid_minutes} 分钟内有效。`,
+          )
+        : res.data.error || t('The code could not be sent.', '验证码发送失败。');
+    };
+    if (error) showError(error);
+    // A code sent moments ago is still valid: do not email again on a retry.
+    if (Date.now() - actionCodeSentAt > 60_000) send();
+    else
+      status.textContent = t('Use the code we just emailed you.', '请输入刚发送到您邮箱的验证码。');
+    host.querySelector('[data-act="confirm-code"]').addEventListener('click', () => {
+      const code = input.value.trim();
+      if (!/^\d{6}$/.test(code))
+        return showError(
+          t('Enter the 6-digit code from the email.', '请输入邮件中的 6 位验证码。'),
+        );
+      finish(code);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        host.querySelector('[data-act="confirm-code"]').click();
+      }
+    });
+    host.querySelector('[data-act="resend-code"]').addEventListener('click', send);
+    host.querySelector('[data-act="cancel-code"]').addEventListener('click', () => finish(null));
+    input.focus();
+  });
+}
+
+// `attempt(headers)` → { ok, status, data }. Resolves with the final answer;
+// `cancelled: true` when the admin closed the code step.
+async function guarded(host, attempt) {
+  let error;
+  for (;;) {
+    const res = await attempt(codeHeaders());
+    if (res.status !== 428) return res;
+    if (actionCode) error = res.data.error; // the kept code was refused: expired or wrong
+    actionCode = null;
+    const code = await promptActionCode(host, { error });
+    if (!code) return { ok: false, status: 428, data: res.data, cancelled: true };
+    actionCode = code;
+  }
 }
 
 // Feedback line — a Tabler alert, green for success, red for errors.
@@ -221,7 +327,7 @@ const num = (n) => String(Math.round(n * 100) / 100);
 
 // One series as a line with an area beneath, dots with tooltips, three
 // gridlines and a label per point: [{ label, value, title }].
-function lineChartSvg(points, { width = 600, height = 220 } = {}) {
+function lineChartSvg(points, { width = 600, height = 220, fmt = usdShort } = {}) {
   const padL = 60;
   const padR = 20;
   const padT = 16;
@@ -235,7 +341,7 @@ function lineChartSvg(points, { width = 600, height = 220 } = {}) {
     .map(
       (f) => `
       <line x1="${padL}" x2="${width - padR}" y1="${num(y(f * top))}" y2="${num(y(f * top))}" stroke="currentColor" stroke-opacity="0.15" />
-      <text x="${padL - 8}" y="${num(y(f * top) + 4)}" text-anchor="end" font-size="11" fill="currentColor">${esc(usdShort(f * top))}</text>`,
+      <text x="${padL - 8}" y="${num(y(f * top) + 4)}" text-anchor="end" font-size="11" fill="currentColor">${esc(fmt(f * top))}</text>`,
     )
     .join('');
   const labels = points
@@ -263,7 +369,7 @@ function lineChartSvg(points, { width = 600, height = 220 } = {}) {
     .join('');
   const last = points[points.length - 1];
   const lastLabel = last
-    ? `<text x="${num(x(points.length - 1))}" y="${num(y(last.value) - 10)}" text-anchor="${points.length > 1 ? 'end' : 'middle'}" font-size="12" font-weight="600" fill="currentColor">${esc(usdShort(last.value))}</text>`
+    ? `<text x="${num(x(points.length - 1))}" y="${num(y(last.value) - 10)}" text-anchor="${points.length > 1 ? 'end' : 'middle'}" font-size="12" font-weight="600" fill="currentColor">${esc(fmt(last.value))}</text>`
     : '';
   return `
     <svg viewBox="0 0 ${width} ${height}" class="w-100" role="img" aria-label="${esc(points.map((p) => p.title).join('; '))}">
@@ -479,11 +585,12 @@ function renderDashboard() {
     chartHost,
     months,
     t(
-      `${year}: ${usdFmt(rev.year_cents)} over ${rev.year_payments ?? 0} payments — hover a month`,
-      `${year} 年合计 ${usdFmt(rev.year_cents)}，共 ${rev.year_payments ?? 0} 笔 — 悬停查看每月`,
+      `${year}: ${usdFmt(rev.year_cents)} over ${rev.year_payments ?? 0} payments`,
+      `${year} 年合计 ${usdFmt(rev.year_cents)}，共 ${rev.year_payments ?? 0} 笔`,
     ),
   );
-  const yearSel = $('#caaci-dash-revenue-year');
+  // One year select, in the tab's header, drives both lines.
+  const yearSel = $('#caaci-dash-year');
   const years = rev.years || (year ? [year] : []);
   yearSel.innerHTML = years
     .map(
@@ -492,6 +599,33 @@ function renderDashboard() {
     )
     .join('');
   yearSel.hidden = years.length < 2;
+
+  // Active members: the live count and this month's newcomers beside a line of
+  // how many held a membership in each month of the year (reconstructed from
+  // member_since / expires_at, so it is a view of the past, not a log).
+  $('#caaci-dash-members-totals').innerHTML = `
+    <div class="mb-3">
+      <div class="subheader">${t('Active now', '当前有效')}</div>
+      <div class="h1 mb-0 text-success">${numFmt(sc.active)}</div>
+      <div class="text-secondary small">${t(`${total} members in total`, `会员共 ${total} 人`)}</div>
+    </div>
+    <div>
+      <div class="subheader">${t('New this month', '本月新增')}</div>
+      <div class="h1 mb-0">${numFmt(m.new_this_month)}</div>
+    </div>`;
+  const memberMonths = (m.by_month || []).map((b) => ({
+    label: monthLabel(b.month),
+    value: b.active || 0,
+    title: t(
+      `${monthLabel(b.month)}: ${b.active ?? 0} active members`,
+      `${monthLabel(b.month)}：有效会员 ${b.active ?? 0} 人`,
+    ),
+  }));
+  const membersHost = $('#caaci-dash-members-chart');
+  membersHost.innerHTML = memberMonths.length
+    ? `${lineChartSvg(memberMonths, { width: 900, height: 240, fmt: (n) => String(Math.round(n)) })}<div class="text-secondary small text-center mt-1" data-readout></div>`
+    : `<p class="text-secondary mb-0">${t('No membership history for this year.', '该年份没有会员记录。')}</p>`;
+  setHoverItems(membersHost, memberMonths, '');
 
   // Active members by tier: a pie with its legend (name, count, share of
   // active). Hovering a slice or a legend row reads that tier out.
@@ -530,14 +664,7 @@ function renderDashboard() {
       <div class="col-12 text-secondary small text-center" data-readout></div>
     </div>`
     : `<p class="text-secondary mb-0">${t('No membership tiers.', '暂无会员类型。')}</p>`;
-  setHoverItems(
-    tiersHost,
-    slices,
-    t(
-      `${activeTotal} active members — hover a slice`,
-      `有效会员共 ${activeTotal} 人 — 悬停查看各类型`,
-    ),
-  );
+  setHoverItems(tiersHost, slices, ''); // the read-out speaks only while hovering
 
   // Upcoming published events with their registration counts.
   const events = ev.upcoming || [];
@@ -643,18 +770,18 @@ async function loadDashboard() {
 
 function wireDashboard() {
   $('#caaci-dash-refresh').addEventListener('click', () => loadDashboard());
-  $('#caaci-dash-revenue-year').addEventListener('change', (e) => {
+  $('#caaci-dash-year').addEventListener('change', (e) => {
     dashYear = Number(e.target.value) || null;
     loadDashboard();
   });
   // Month columns: the hovered month's dot grows; slices and legend rows dim
   // the others (opacity-50 comes from wireHover itself).
-  wireHover($('#caaci-dash-revenue-chart'), {
-    onHot: (host, i) => {
-      for (const dot of host.querySelectorAll('[data-dot]'))
-        dot.setAttribute('r', Number(dot.dataset.dot) === i ? '6' : '4');
-    },
-  });
+  const growDot = (host, i) => {
+    for (const dot of host.querySelectorAll('[data-dot]'))
+      dot.setAttribute('r', Number(dot.dataset.dot) === i ? '6' : '4');
+  };
+  wireHover($('#caaci-dash-revenue-chart'), { onHot: growDot });
+  wireHover($('#caaci-dash-members-chart'), { onHot: growDot });
   wireHover($('#caaci-dash-tiers'), {
     onHot: (host, i) => {
       for (const row of host.querySelectorAll('[data-tier]'))
@@ -955,6 +1082,7 @@ function toggleEditor(tr, m) {
       </div>
     </div>`
     }
+    <div class="mt-2" data-code-host></div>
     <div class="alert mb-0 mt-2" data-msg hidden></div></td>`;
   tr.after(row);
   wireAuthEmails(row, m);
@@ -971,7 +1099,39 @@ function toggleEditor(tr, m) {
     };
     // Left out, the API keeps the member's family as it is.
     if (householdsLoaded) body.household_id = get('household_id');
-    const { ok, data } = await api('/api/admin/members', { method: 'POST', body });
+    // Second look before anything is written: what changes, for whom. A plan
+    // change then also needs the emailed verification code (the API insists).
+    const who = m.full_name || m.email;
+    const changes = [];
+    if (body.status !== m.status)
+      changes.push(
+        `${t('status', '状态')}: ${STATUS_LABEL[m.status]?.() || m.status || '—'} → ${STATUS_LABEL[body.status]?.() || body.status}`,
+      );
+    if (body.tier_id !== (m.tier_id || ''))
+      changes.push(
+        `${t('plan', '方案')}: ${tierName[m.tier_id] || m.tier_id || t('none', '无')} → ${tierName[body.tier_id] || body.tier_id || t('none', '无')}`,
+      );
+    const expWas = m.expires_at ? new Date(m.expires_at).toISOString().slice(0, 10) : '';
+    if (body.expires_at !== expWas)
+      changes.push(`${t('expires', '到期')}: ${expWas || '—'} → ${body.expires_at || '—'}`);
+    if (householdsLoaded && (body.household_id || '') !== (m.household_id || ''))
+      changes.push(t('family', '家庭'));
+    if (
+      !window.confirm(
+        changes.length
+          ? t(
+              `Save these changes to ${who}?\n\n${changes.join('\n')}`,
+              `确认保存对 ${who} 的以下修改？\n\n${changes.join('\n')}`,
+            )
+          : t(`Save ${who} with no changes?`, `${who} 没有改动，仍然保存？`),
+      )
+    )
+      return;
+    const { ok, data, cancelled } = await guarded(
+      row.querySelector('[data-code-host]'),
+      (headers) => api('/api/admin/members', { method: 'POST', body, headers }),
+    );
+    if (cancelled) return;
     if (!ok) {
       notice(msg, data.error || t('Update failed.', '更新失败。'), false);
       return;
@@ -1196,6 +1356,7 @@ function refundForm(p, remaining) {
         <button type="submit" class="btn btn-primary">${t('Issue refund', '确认退款')}</button>
         <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
       </p>
+      <div data-code-host></div>
       <div class="alert" data-msg hidden></div>
     </form>`;
   const form = host.querySelector('form');
@@ -1222,15 +1383,22 @@ function refundForm(p, remaining) {
       return;
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
-    const { ok, data } = await api('/api/admin/refunds', {
-      method: 'POST',
-      body: {
-        payment_id: p.id,
-        amount_cents: cents,
-        reason: form.querySelector('[data-f="reason"]').value.trim() || undefined,
-      },
-    });
+    // Money moves: the API insists on the emailed verification code.
+    const { ok, data, cancelled } = await guarded(
+      form.querySelector('[data-code-host]'),
+      (headers) =>
+        api('/api/admin/refunds', {
+          method: 'POST',
+          headers,
+          body: {
+            payment_id: p.id,
+            amount_cents: cents,
+            reason: form.querySelector('[data-f="reason"]').value.trim() || undefined,
+          },
+        }),
+    );
     submit.disabled = false;
+    if (cancelled) return;
     if (!ok) return notice(msg, data.error || t('Refund failed.', '退款失败。'), false);
     host.innerHTML = '';
     notice(

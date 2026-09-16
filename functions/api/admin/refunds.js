@@ -8,6 +8,7 @@
 // The row's running `refunded_cents` total is updated for the audit trail and
 // the Payments / Refunds tabs.
 import { json, bad, sb, stripe, requireAdmin } from '../_lib.js';
+import { requireActionCode } from './_action-code.js';
 
 // Stripe's `reason` field only accepts a fixed enum; free-text notes ride along
 // in metadata + our own `refund_reason` column instead.
@@ -55,6 +56,9 @@ export async function onRequestPost({ request, env }) {
     return bad('invalid JSON');
   }
   if (!b.payment_id) return bad('payment_id is required.');
+  // Money leaves the account: the emailed verification code is required.
+  const check = await requireActionCode(request, env, gate.user.id);
+  if (check.error) return check.error;
 
   const reason = String(b.reason || '').trim() || null;
   const S = stripe(env);

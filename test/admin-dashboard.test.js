@@ -59,6 +59,26 @@ const RECENT_REGISTRATIONS = [
   },
 ];
 
+// Membership spans for the active-members line (see monthlyActive): one open
+// since long ago, one that ran out mid-February this year, one that starts in
+// March this year, one never joined (pending), one with a broken date.
+const THIS_YEAR = new Date().getFullYear();
+const MEMBER_SPANS = [
+  { member_since: `${THIS_YEAR - 2}-05-01T00:00:00Z`, expires_at: null, status: 'active' },
+  {
+    member_since: `${THIS_YEAR - 1}-02-15T00:00:00Z`,
+    expires_at: `${THIS_YEAR}-02-15T00:00:00Z`,
+    status: 'expired',
+  },
+  {
+    member_since: `${THIS_YEAR}-03-10T00:00:00Z`,
+    expires_at: `${THIS_YEAR + 1}-03-10T00:00:00Z`,
+    status: 'active',
+  },
+  { member_since: null, expires_at: null, status: 'pending' },
+  { member_since: 'not a date', expires_at: null, status: 'active' },
+];
+
 const range = (total) => ({ 'content-range': `0-0/${total}` });
 const now = new Date();
 const yearStart = new Date(now.getFullYear(), 0, 1).toISOString();
@@ -94,6 +114,8 @@ function route() {
           { id: 'family', name: 'Family' },
         ],
       };
+    if (u.includes('/rest/v1/members') && u.includes('select=member_since'))
+      return { body: MEMBER_SPANS };
     if (u.includes('/rest/v1/members') && u.includes('expires_at=gte'))
       return { body: EXPIRING, headers: range(4) };
     if (u.includes('/rest/v1/members') && u.includes('created_at=gte'))
@@ -176,6 +198,17 @@ test('admin dashboard: counts members, revenue, events, volunteers and listings'
       { id: 'individual', name: 'Individual', active: 25 },
       { id: 'family', name: 'Family', active: 15 },
     ]);
+    // Active members per month of this year, from the spans: January and
+    // February count the open one and the one expiring mid-February; from
+    // March the open one and the newcomer.
+    assert.equal(d.members.year, THIS_YEAR);
+    assert.equal(d.members.by_month.length, now.getMonth() + 1);
+    assert.deepEqual(d.members.by_month[0], { month: `${THIS_YEAR}-01`, active: 2 });
+    if (now.getMonth() >= 1) assert.equal(d.members.by_month[1].active, 2);
+    if (now.getMonth() >= 2)
+      assert.deepEqual(d.members.by_month[2], { month: `${THIS_YEAR}-03`, active: 2 });
+    if (now.getMonth() >= 3) assert.equal(d.members.by_month[3].active, 2);
+
     // Expiring: active members only, inside the window, soonest first.
     assert.equal(d.members.expiring_days, EXPIRING_DAYS);
     assert.equal(d.members.expiring_total, 4);
@@ -260,6 +293,13 @@ test('admin dashboard: ?year= charts an earlier year, this year and month stay c
     assert.deepEqual(d.revenue.by_month[11], { month: `${lastYear}-12`, cents: 2500, payments: 1 });
     assert.equal(d.revenue.year_cents, 3500);
     assert.equal(d.revenue.year_payments, 2);
+    // The members line follows the same year: twelve months; the open member
+    // all year, the mid-February-expiring one from its February start.
+    assert.equal(d.members.year, lastYear);
+    assert.equal(d.members.by_month.length, 12);
+    assert.equal(d.members.by_month[0].active, 1);
+    assert.equal(d.members.by_month[1].active, 2);
+    assert.equal(d.members.by_month[11].active, 2);
     // The headline figures still describe now.
     assert.equal(d.revenue.ytd_cents, 3105 + 6210 + 5000);
     assert.equal(d.revenue.payments_this_month, now.getMonth() === 0 ? 3 : 2);

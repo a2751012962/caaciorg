@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestPost } from '../functions/api/admin/refunds.js';
+import { codeFor, currentSlot } from '../functions/api/admin/_action-code.js';
 import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
+
+// The emailed verification code every refund must carry (admin-1, right now).
+const CODE = await codeFor(fakeEnv(), 'admin-1', currentSlot());
 
 // Route the admin gate, the payments select/update, and the Stripe calls.
 // `payment` is the ledger row returned for the selectOne by id.
@@ -25,12 +29,37 @@ function route(payment) {
   };
 }
 
-const adminReq = (body) =>
+const adminReq = (body, code = CODE) =>
   fakeRequest({
     url: 'https://caaci.example/api/admin/refunds',
-    headers: { authorization: 'Bearer tok' },
+    headers: { authorization: 'Bearer tok', ...(code ? { 'x-admin-code': code } : {}) },
     body,
   });
+
+test('admin refunds: without the emailed code (or with a wrong one) nothing is refunded — 428', async () => {
+  for (const [code, message] of [
+    [null, /needs the verification code emailed to you/],
+    ['000000', /wrong or has expired/],
+  ]) {
+    const fetch = mockFetch(route({ id: 'p1', amount_cents: 5000, stripe_session_id: 'cs_1' }));
+    try {
+      const r = await onRequestPost({
+        request: adminReq({ payment_id: 'p1' }, code),
+        env: fakeEnv(),
+      });
+      assert.equal(r.status, 428);
+      const data = await r.json();
+      assert.equal(data.code_required, true);
+      assert.match(data.error, message);
+      assert.equal(
+        fetch.calls.some((c) => c.url.includes('api.stripe.com')),
+        false,
+      );
+    } finally {
+      fetch.restore();
+    }
+  }
+});
 
 test('admin refunds: requires a bearer token', async () => {
   const fetch = mockFetch(route());

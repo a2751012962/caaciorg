@@ -134,6 +134,13 @@ function apiRoutes(u, options = {}) {
             { id: 'individual', name: 'Individual', active: 25 },
             { id: 'family', name: 'Family', active: 15 },
           ],
+          year,
+          by_month: [
+            { month: `${year}-01`, active: 30 },
+            { month: `${year}-02`, active: 33 },
+            { month: `${year}-03`, active: 38 },
+            { month: `${year}-04`, active: 40 },
+          ],
           expiring_days: 30,
           expiring_total: 1,
           expiring: [
@@ -282,7 +289,23 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.equal(line.querySelector('[data-dot="0"]').getAttribute('r'), '4');
     // The year select lists the years with payments (newest first) and asks the
     // API for the chosen one.
-    const yearSel = document.querySelector('#caaci-dash-revenue-year');
+    // Active members card: live count + newcomers beside the month line.
+    const membersHost = document.querySelector('#caaci-dash-members-chart');
+    assert.match(
+      document.querySelector('#caaci-dash-members-totals').textContent,
+      /Active now\s*40\s*60 members in total\s*New this month\s*6/,
+    );
+    const memberCols = membersHost.querySelectorAll('rect[data-i]');
+    assert.equal(memberCols.length, 4);
+    assert.equal(membersHost.querySelector('[data-readout]').textContent, '');
+    hover(memberCols[0], 'mouseover');
+    assert.equal(membersHost.querySelector('[data-readout]').textContent, 'Jan: 30 active members');
+    hover(membersHost.querySelector('svg'), 'mouseleave');
+    assert.equal(membersHost.querySelector('[data-readout]').textContent, '');
+    const memberTicks = [...membersHost.querySelectorAll('text')].map((x) => x.textContent);
+    assert.ok(memberTicks.includes('50'), 'count axis, not dollars');
+    assert.ok(!memberTicks.some((x) => x.startsWith('$')));
+    const yearSel = document.querySelector('#caaci-dash-year');
     assert.deepEqual(
       [...yearSel.options].map((o) => o.value),
       ['2026', '2025', '2024'],
@@ -330,7 +353,7 @@ test('admin page: module boots against the real Tabler markup', async () => {
     // Hover a slice (or its legend row): the read-out names it, the other slice
     // and row dim, the row goes bold; leaving restores the head-count.
     const pieReadout = () => tiersHost.querySelector('[data-readout]').textContent;
-    assert.match(pieReadout(), /^40 active members/);
+    assert.equal(pieReadout(), ''); // nothing until something is hovered
     hover(slicePaths[1], 'mouseover');
     assert.equal(pieReadout(), 'Family: 15 (38%)');
     assert.ok(slicePaths[0].classList.contains('opacity-50'));
@@ -338,7 +361,7 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.ok(tiersHost.querySelector('[data-tier="individual"]').classList.contains('opacity-50'));
     assert.ok(tiersHost.querySelector('[data-tier="family"]').classList.contains('fw-bold'));
     hover(tiersHost, 'mouseleave');
-    assert.match(pieReadout(), /^40 active members/);
+    assert.equal(pieReadout(), '');
     assert.equal(tiersHost.querySelectorAll('.opacity-50, .fw-bold').length, 0);
     hover(tiersHost.querySelector('[data-tier="individual"]'), 'mouseover');
     assert.equal(pieReadout(), 'Individual: 25 (63%)');
@@ -2298,12 +2321,101 @@ test('admin members: once families load, the member editor offers them and saves
     assert.equal(select.disabled, false);
     assert.equal(row().querySelector('[data-household-unavailable]'), null);
     select.value = 'h1';
+    // Save asks first, naming what changes; declining writes nothing.
+    const asked = [];
+    window.confirm = (q) => asked.push(q) && false;
     row().querySelector('[data-act="save"]').click();
     await tick();
-    const post = fetch.calls
-      .filter((c) => c.url.includes('/api/admin/members') && c.options.method === 'POST')
-      .at(-1);
-    assert.equal(JSON.parse(post.options.body).household_id, 'h1');
+    assert.equal(asked.length, 1);
+    assert.match(asked[0], /Save these changes to Mei Lin\?/);
+    assert.match(asked[0], /family/);
+    const posts = () =>
+      fetch.calls.filter(
+        (c) => c.url.includes('/api/admin/members') && c.options.method === 'POST',
+      );
+    assert.equal(posts().length, 0);
+    window.confirm = () => true;
+    row().querySelector('[data-act="save"]').click();
+    await tick();
+    assert.equal(JSON.parse(posts().at(-1).options.body).household_id, 'h1');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin members: changing a plan needs the emailed code — asked inline, sent once, retried with it', async () => {
+  familiesReply = familiesAvailable;
+  const codeSends = [];
+  const memberPosts = [];
+  const fetch = mockFetch((u, o) => {
+    if (u.includes('/api/admin/action-code')) {
+      codeSends.push(o);
+      return { body: { ok: true, sent_to: 'admin@x.com', valid_minutes: 10 } };
+    }
+    if (u.includes('/api/admin/members') && o.method === 'POST') {
+      memberPosts.push(o);
+      const code = o.headers['x-admin-code'];
+      if (code === '246810') return { body: { ok: true, member: {} } };
+      return {
+        status: 428,
+        body: {
+          error: code
+            ? 'That verification code is wrong or has expired.'
+            : 'This action needs the verification code emailed to you.',
+          code_required: true,
+        },
+      };
+    }
+    return apiRoutes(u, o);
+  });
+  try {
+    await openFamilies();
+    document.querySelector('[data-tab="members"]').click();
+    await tick();
+    const row = () => document.querySelector('tr[data-edit-row]');
+    document.querySelector('#caaci-members-body tr button').click();
+    row().querySelector('[data-f="tier_id"]').value = ''; // Individual → none
+    let asked = '';
+    window.confirm = (q) => ((asked = q), true);
+    row().querySelector('[data-act="save"]').click();
+    await tick();
+    assert.match(asked, /plan: Individual → none/);
+    // 428 → the code step appears inside the editor and one code is sent.
+    const step = () => row().querySelector('[data-code-step]');
+    assert.ok(step(), 'code step shown');
+    assert.equal(codeSends.length, 1);
+    assert.equal(memberPosts.length, 1);
+    assert.equal('x-admin-code' in memberPosts[0].headers, false);
+    assert.match(step().textContent, /Code sent to admin@x\.com/);
+    const typeCode = async (code) => {
+      step().querySelector('[data-f="code"]').value = code;
+      step().querySelector('[data-act="confirm-code"]').click();
+      await tick();
+    };
+    // Not six digits: refused locally, nothing sent.
+    await typeCode('12');
+    assert.match(step().querySelector('[data-code-error]').textContent, /6-digit/);
+    assert.equal(memberPosts.length, 1);
+    // A wrong code: the server's refusal is shown, the step stays, no new email.
+    await typeCode('000000');
+    assert.equal(memberPosts.length, 2);
+    assert.equal(memberPosts[1].headers['x-admin-code'], '000000');
+    assert.ok(step(), 'code step still shown');
+    assert.match(step().querySelector('[data-code-error]').textContent, /wrong or has expired/);
+    assert.equal(codeSends.length, 1);
+    // The right code: saved, and the editor closes with the table reload.
+    await typeCode('246810');
+    assert.equal(memberPosts.length, 3);
+    assert.equal(memberPosts[2].headers['x-admin-code'], '246810');
+    assert.equal(row(), null, 'saved: table re-rendered');
+    // The next guarded action reuses the code without asking again.
+    document.querySelector('#caaci-members-body tr button').click();
+    row().querySelector('[data-f="tier_id"]').value = 'family';
+    row().querySelector('[data-act="save"]').click();
+    await tick();
+    assert.equal(memberPosts.length, 4);
+    assert.equal(memberPosts[3].headers['x-admin-code'], '246810');
+    assert.equal(codeSends.length, 1);
   } finally {
     fetch.restore();
   }
