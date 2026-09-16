@@ -264,30 +264,20 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
 
 // Choices listed in the message, in both languages so whoever reads the inbox
 // can read them. Interests are the opportunities the dialog describes.
+// "Other" points people at the notes box below for the detail.
 const INTERESTS = [
   { en: 'Event coordination', zh: '活动现场协调' },
-  { en: 'Registration & check-in', zh: '签到接待' },
-  { en: 'Setup & logistics', zh: '场地布置与后勤' },
   { en: 'Stage management', zh: '舞台管理' },
-  { en: 'Performing arts', zh: '文艺演出' },
   { en: 'Translation', zh: '中英翻译' },
   { en: 'Graphic design', zh: '平面设计' },
-  { en: 'Photography & video', zh: '摄影摄像' },
-  { en: 'Social media & publicity', zh: '新媒体宣传' },
-  { en: 'Website & tech support', zh: '网站与技术支持' },
-  { en: 'Youth & education programs', zh: '青少年与教育项目' },
   { en: 'Senior support', zh: '长者关怀' },
-  { en: 'Food & hospitality', zh: '餐饮接待' },
-  { en: 'Fundraising & sponsorship', zh: '筹款与赞助' },
+  { en: 'Other', zh: '其他' },
 ];
 const AVAILABILITY = [
-  { en: 'Weekday daytime', zh: '工作日白天' },
+  { en: 'Weekdays', zh: '工作日' },
   { en: 'Weekday evenings', zh: '工作日晚间' },
-  { en: 'Weekend daytime', zh: '周末白天' },
-  { en: 'Weekend evenings', zh: '周末晚间' },
-  { en: 'Holidays & festival days', zh: '节假日 / 节庆当天' },
-  { en: 'Remote / online', zh: '远程线上' },
-  { en: 'Flexible', zh: '时间灵活' },
+  { en: 'Weekends', zh: '周末' },
+  { en: 'Other', zh: '其他' },
 ];
 
 // An upcoming event as GET /api/volunteer lists it: published and not over yet.
