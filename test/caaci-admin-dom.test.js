@@ -96,7 +96,33 @@ function apiRoutes(u, options = {}) {
     };
   if (u.includes('/api/admin/business')) return { body: { rows: [], total: 0, pending_total: 2 } };
   if (u.includes('/api/admin/media')) return { body: { rows: [] } };
-  if (u.includes('/api/admin/dashboard'))
+  if (u.includes('/api/admin/dashboard')) {
+    // ?year=2025 charts last year (a whole year, $50 over 2 payments); the
+    // headline this-year/this-month figures stay the same either way.
+    const year = Number(new URL(u, 'https://caaci.example').searchParams.get('year') || 2026);
+    const revenueOf = (y) =>
+      y === 2025
+        ? {
+            year: 2025,
+            year_cents: 5000,
+            year_payments: 2,
+            by_month: Array.from({ length: 12 }, (_, i) => ({
+              month: `2025-${String(i + 1).padStart(2, '0')}`,
+              cents: i === 5 ? 5000 : 0,
+              payments: i === 5 ? 2 : 0,
+            })),
+          }
+        : {
+            year: 2026,
+            year_cents: 123400,
+            year_payments: 26,
+            by_month: [
+              { month: '2026-01', cents: 40000, payments: 8 },
+              { month: '2026-02', cents: 0, payments: 0 },
+              { month: '2026-03', cents: 74085, payments: 15 },
+              { month: '2026-04', cents: 9315, payments: 3 },
+            ],
+          };
     return {
       body: {
         generated_at: '2026-09-16T15:00:00Z',
@@ -125,12 +151,8 @@ function apiRoutes(u, options = {}) {
           ytd_cents: 123400,
           month_cents: 9315,
           payments_this_month: 3,
-          by_month: [
-            { month: '2026-01', cents: 40000, payments: 8 },
-            { month: '2026-02', cents: 0, payments: 0 },
-            { month: '2026-03', cents: 74085, payments: 15 },
-            { month: '2026-04', cents: 9315, payments: 3 },
-          ],
+          years: [2026, 2025, 2024],
+          ...revenueOf(year),
           recent: [
             {
               id: 'p1',
@@ -171,6 +193,7 @@ function apiRoutes(u, options = {}) {
         business: { pending: 2 },
       },
     };
+  }
   return { body: {} };
 }
 
@@ -232,18 +255,52 @@ test('admin page: module boots against the real Tabler markup', async () => {
     const totals = document.querySelector('#caaci-dash-revenue-totals');
     assert.match(totals.textContent, /Revenue this year\s*\$1234\.00/);
     assert.match(totals.textContent, /Revenue this month\s*\$93\.15\s*3 payments/);
-    const line = document.querySelector('#caaci-dash-revenue-chart svg');
+    const chartHost = document.querySelector('#caaci-dash-revenue-chart');
+    const line = chartHost.querySelector('svg');
     assert.ok(line, 'line chart drawn');
     assert.equal(line.querySelectorAll('circle').length, 4);
     assert.equal(line.querySelectorAll('polyline').length, 1);
-    assert.match(line.querySelector('circle title').textContent, /Jan: \$400\.00 \(8 payments\)/);
     const monthTexts = [...line.querySelectorAll('text')].map((x) => x.textContent);
     // Month labels, the 1-2-5 gridline ticks (top $1,000 for a $740.85 peak) and
     // the latest month's own value.
     for (const label of ['Jan', 'Feb', 'Mar', 'Apr', '$0', '$500', '$1,000', '$93']) {
       assert.ok(monthTexts.includes(label), `chart shows ${label}`);
     }
-    assert.match(document.querySelector('#caaci-dash-revenue-year').textContent, /2026, by month/);
+    // Hover: idle read-out is the year; a month's column reads that month out
+    // and grows its dot; leaving the chart restores the idle text.
+    const hover = (el, type) => el.dispatchEvent(new dom.window.Event(type, { bubbles: true }));
+    const readout = () => chartHost.querySelector('[data-readout]').textContent;
+    assert.match(readout(), /^2026: \$1234\.00 over 26 payments/);
+    const columns = line.querySelectorAll('rect[data-i]');
+    assert.equal(columns.length, 4);
+    hover(columns[0], 'mouseover');
+    assert.equal(readout(), 'Jan: $400.00 (8 payments)');
+    assert.equal(line.querySelector('[data-dot="0"]').getAttribute('r'), '6');
+    assert.equal(line.querySelector('[data-dot="1"]').getAttribute('r'), '4');
+    hover(line, 'mouseleave');
+    assert.match(readout(), /^2026: \$1234\.00/);
+    assert.equal(line.querySelector('[data-dot="0"]').getAttribute('r'), '4');
+    // The year select lists the years with payments (newest first) and asks the
+    // API for the chosen one.
+    const yearSel = document.querySelector('#caaci-dash-revenue-year');
+    assert.deepEqual(
+      [...yearSel.options].map((o) => o.value),
+      ['2026', '2025', '2024'],
+    );
+    assert.equal(yearSel.value, '2026');
+    assert.equal(yearSel.hidden, false);
+    yearSel.value = '2025';
+    hover(yearSel, 'change');
+    await tick();
+    const yearCalls = fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard?year=2025'));
+    assert.equal(yearCalls.length, 1);
+    assert.match(totals.textContent, /Revenue in 2025\s*\$50\.00\s*Payments\s*2/);
+    assert.match(readout(), /^2025: \$50\.00 over 2 payments/);
+    assert.equal(chartHost.querySelectorAll('circle').length, 12);
+    yearSel.value = '2026';
+    hover(yearSel, 'change');
+    await tick();
+    assert.match(totals.textContent, /Revenue this year\s*\$1234\.00/);
     // Charts are classes + SVG attributes only: no inline styles, no hex colours.
     for (const host of ['#caaci-dash-revenue-chart', '#caaci-dash-tiers']) {
       assert.equal(document.querySelectorAll(`${host} [style]`).length, 0, `${host} styles`);
@@ -256,10 +313,10 @@ test('admin page: module boots against the real Tabler markup', async () => {
     const slicePaths = [...pie.querySelectorAll('path')];
     assert.equal(slicePaths.length, 2);
     assert.deepEqual(
-      slicePaths.map((p) => [p.getAttribute('class'), p.querySelector('title').textContent]),
+      slicePaths.map((p) => [p.getAttribute('class'), p.dataset.i]),
       [
-        ['text-primary', 'Individual: 25'],
-        ['text-orange', 'Family: 15'],
+        ['text-primary', '0'],
+        ['text-orange', '1'],
       ],
     );
     assert.match(
@@ -270,6 +327,23 @@ test('admin page: module boots against the real Tabler markup', async () => {
       tiersHost.querySelector('[data-tier="family"]').textContent,
       /Family\s*15\s*\(38%\)/,
     );
+    // Hover a slice (or its legend row): the read-out names it, the other slice
+    // and row dim, the row goes bold; leaving restores the head-count.
+    const pieReadout = () => tiersHost.querySelector('[data-readout]').textContent;
+    assert.match(pieReadout(), /^40 active members/);
+    hover(slicePaths[1], 'mouseover');
+    assert.equal(pieReadout(), 'Family: 15 (38%)');
+    assert.ok(slicePaths[0].classList.contains('opacity-50'));
+    assert.ok(!slicePaths[1].classList.contains('opacity-50'));
+    assert.ok(tiersHost.querySelector('[data-tier="individual"]').classList.contains('opacity-50'));
+    assert.ok(tiersHost.querySelector('[data-tier="family"]').classList.contains('fw-bold'));
+    hover(tiersHost, 'mouseleave');
+    assert.match(pieReadout(), /^40 active members/);
+    assert.equal(tiersHost.querySelectorAll('.opacity-50, .fw-bold').length, 0);
+    hover(tiersHost.querySelector('[data-tier="individual"]'), 'mouseover');
+    assert.equal(pieReadout(), 'Individual: 25 (63%)');
+    assert.ok(slicePaths[1].classList.contains('opacity-50'));
+    hover(tiersHost, 'mouseleave');
     const dashEvent = document.querySelector('#caaci-dash-events tr');
     assert.match(dashEvent.textContent, /Mid-Autumn Festival/);
     assert.match(dashEvent.textContent, /Champaign/);
@@ -287,7 +361,7 @@ test('admin page: module boots against the real Tabler markup', async () => {
 
     // A tile is a shortcut to its tab: the Past-due tile opens Payments, which
     // loads as if clicked in the nav. Refresh asks the API again.
-    tiles[1].click();
+    document.querySelectorAll('#caaci-dash-stats [data-goto]')[1].click(); // re-queried: the year switch re-rendered the tiles
     await tick();
     assert.ok(document.querySelector('[data-tab="payments"]').classList.contains('active'));
     assert.equal(document.querySelector('[data-panel="payments"]').hidden, false);
@@ -296,10 +370,10 @@ test('admin page: module boots against the real Tabler markup', async () => {
     document.querySelector('[data-tab="dashboard"]').click();
     await tick();
     assert.equal(document.querySelector('[data-panel="dashboard"]').hidden, false);
-    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 2);
+    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 4); // boot + two year switches + this tab click
     document.querySelector('#caaci-dash-refresh').click();
     await tick();
-    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 3);
+    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 5);
 
     // Service console shortcuts: inside the admin-only app, each opens the CAACI
     // account's dashboard in a new tab without handing it window.opener.
@@ -540,7 +614,7 @@ test('admin page: module boots against the real Tabler markup', async () => {
       '有效会员',
     );
     assert.match(document.querySelector('#caaci-dash-events tr').textContent, /中秋晚会/);
-    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 3);
+    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 5);
 
     // The password_setup success notice must read correctly in Chinese too:
     // it should mention the member already having an account (已有账户).

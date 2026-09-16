@@ -73,6 +73,13 @@ const YEAR_PAYMENTS = [
   { amount_cents: 5000, paid_at: hoursAfter(yearStart, 1) },
   { amount_cents: 9999, paid_at: hoursAfter(yearStart, -24) },
 ];
+// Last year's ledger, for ?year=: a payment in March and one in December.
+const lastYear = now.getFullYear() - 1;
+const lastYearStart = new Date(lastYear, 0, 1).toISOString();
+const LAST_YEAR_PAYMENTS = [
+  { amount_cents: 1000, paid_at: `${lastYear}-03-15T12:00:00.000Z` },
+  { amount_cents: 2500, paid_at: `${lastYear}-12-31T23:00:00.000Z` },
+];
 
 // Every PostgREST read the handler makes, told apart by table + filter.
 function route() {
@@ -101,6 +108,10 @@ function route() {
     }
     if (u.includes('/rest/v1/payments') && u.includes(`paid_at=gte.${yearStart}`))
       return { body: YEAR_PAYMENTS };
+    if (u.includes('/rest/v1/payments') && u.includes(`paid_at=gte.${lastYearStart}`))
+      return { body: LAST_YEAR_PAYMENTS };
+    if (u.includes('/rest/v1/payments') && u.includes('order=paid_at.asc'))
+      return { body: [{ paid_at: hoursAfter(lastYearStart, -24) }] }; // first ever: 2 years ago
     if (u.includes('/rest/v1/payments')) return { body: RECENT_PAYMENTS };
     if (u.includes('/rest/v1/events') && u.includes('published=eq.false'))
       return { body: [{ id: 'x' }], headers: range(1) };
@@ -195,6 +206,12 @@ test('admin dashboard: counts members, revenue, events, volunteers and listings'
       d.revenue.by_month.reduce((s, b) => s + b.cents, 0),
       d.revenue.ytd_cents,
     );
+    // Without ?year the chart shows this year; the years on offer run from the
+    // first payment's year (two years back) to this one, newest first.
+    assert.equal(d.revenue.year, now.getFullYear());
+    assert.deepEqual(d.revenue.years, [now.getFullYear(), lastYear, lastYear - 1]);
+    assert.equal(d.revenue.year_cents, d.revenue.ytd_cents);
+    assert.equal(d.revenue.year_payments, 3);
     assert.deepEqual(d.revenue.recent, RECENT_PAYMENTS);
 
     // Events: published + future only, with registrations counted per event;
@@ -221,6 +238,56 @@ test('admin dashboard: counts members, revenue, events, volunteers and listings'
     assert.ok(!isNaN(Date.parse(d.generated_at)));
   } finally {
     fetch.restore();
+  }
+});
+
+test('admin dashboard: ?year= charts an earlier year, this year and month stay current', async () => {
+  const fetch = mockFetch(route());
+  try {
+    const r = await onRequestGet({
+      request: fakeRequest({
+        url: `https://caaci.example/api/admin/dashboard?year=${lastYear}`,
+        headers: { authorization: 'Bearer tok' },
+      }),
+      env: fakeEnv(),
+    });
+    assert.equal(r.status, 200);
+    const d = await r.json();
+    assert.equal(d.revenue.year, lastYear);
+    // A whole past year: twelve buckets, March and December filled.
+    assert.equal(d.revenue.by_month.length, 12);
+    assert.deepEqual(d.revenue.by_month[2], { month: `${lastYear}-03`, cents: 1000, payments: 1 });
+    assert.deepEqual(d.revenue.by_month[11], { month: `${lastYear}-12`, cents: 2500, payments: 1 });
+    assert.equal(d.revenue.year_cents, 3500);
+    assert.equal(d.revenue.year_payments, 2);
+    // The headline figures still describe now.
+    assert.equal(d.revenue.ytd_cents, 3105 + 6210 + 5000);
+    assert.equal(d.revenue.payments_this_month, now.getMonth() === 0 ? 3 : 2);
+    // The year's read is bounded on both sides.
+    const yearCall = fetch.calls.find((c) => c.url.includes(`paid_at=gte.${lastYearStart}`)).url;
+    assert.match(yearCall, new RegExp(`paid_at=lt\\.${now.getFullYear()}-01-01`));
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin dashboard: a future or malformed year falls back to this year', async () => {
+  for (const bad of ['2999', 'abc', '1999']) {
+    const fetch = mockFetch(route());
+    try {
+      const r = await onRequestGet({
+        request: fakeRequest({
+          url: `https://caaci.example/api/admin/dashboard?year=${bad}`,
+          headers: { authorization: 'Bearer tok' },
+        }),
+        env: fakeEnv(),
+      });
+      const d = await r.json();
+      assert.equal(d.revenue.year, now.getFullYear(), `year=${bad}`);
+      assert.equal(d.revenue.by_month.length, now.getMonth() + 1);
+    } finally {
+      fetch.restore();
+    }
   }
 });
 

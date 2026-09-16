@@ -24,13 +24,15 @@ const EVENT_COLUMNS =
   'id,title,title_zh,slug,starts_at,ends_at,location,published,registration_questions';
 const REGISTRATION_COLUMNS = 'id,email,created_at,events(title,title_zh,slug,starts_at)';
 
-// Every payment since `sinceIso` (amount + when), paged in a stable order.
-async function paymentsSince(DB, sinceIso) {
+// Every payment of one calendar year (amount + when), paged in a stable order.
+async function paymentsOfYear(DB, year) {
+  const start = new Date(year, 0, 1).toISOString();
+  const end = new Date(year + 1, 0, 1).toISOString();
   const all = [];
   for (let page = 0; page < MAX_PAGES; page++) {
     const { rows } = await DB.select('payments', {
       columns: 'amount_cents,paid_at',
-      filters: [`paid_at=gte.${sinceIso}`],
+      filters: [`paid_at=gte.${start}`, `paid_at=lt.${end}`],
       order: 'id',
       limit: PAGE,
       offset: page * PAGE,
@@ -41,13 +43,14 @@ async function paymentsSince(DB, sinceIso) {
   return all;
 }
 
-// This year's payments bucketed by calendar month, January through the
-// current month: [{ month: 'YYYY-MM', cents, payments }]. Feeds the revenue
-// line chart; the last bucket is "this month".
-function monthlyRevenue(payments, now) {
-  const year = now.getFullYear();
+// A year's payments bucketed by calendar month — January through December,
+// or through the current month for the current year: [{ month: 'YYYY-MM',
+// cents, payments }]. Feeds the revenue line chart; the current year's last
+// bucket is "this month".
+function monthlyRevenue(payments, year, now) {
+  const lastMonth = year === now.getFullYear() ? now.getMonth() : 11;
   const months = [];
-  for (let m = 0; m <= now.getMonth(); m++) {
+  for (let m = 0; m <= lastMonth; m++) {
     months.push({ month: `${year}-${String(m + 1).padStart(2, '0')}`, cents: 0, payments: 0 });
   }
   for (const p of payments) {
@@ -93,9 +96,13 @@ export async function onRequestGet({ request, env }) {
   const nowIso = now.toISOString();
   // Calendar boundaries in the runtime's zone (UTC on Workers) — the same
   // convention the Payments tab's "Revenue this year" already uses.
-  const yearStart = new Date(now.getFullYear(), 0, 1).toISOString();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const thisYear = now.getFullYear();
+  const monthStart = new Date(thisYear, now.getMonth(), 1).toISOString();
   const soon = new Date(now.getTime() + EXPIRING_DAYS * 86_400_000).toISOString();
+  // ?year=YYYY picks the year the revenue chart shows; anything else, or a
+  // year in the future, means the current one.
+  const wanted = parseInt(new URL(request.url).searchParams.get('year') || '', 10);
+  const year = Number.isInteger(wanted) && wanted >= 2000 && wanted <= thisYear ? wanted : thisYear;
 
   try {
     // ---- members ----
@@ -128,13 +135,24 @@ export async function onRequestGet({ request, env }) {
     });
 
     // ---- revenue ----
-    // One read of the year's payments gives the year total, the month-by-month
+    // One read of this year's payments gives the year total, the month-by-month
     // series and this month's figures (its last bucket), all from one clock.
-    const by_month = monthlyRevenue(await paymentsSince(DB, yearStart), now);
-    const revenue_ytd_cents = by_month.reduce((sum, b) => sum + b.cents, 0);
-    const thisMonth = by_month[by_month.length - 1];
-    const revenue_month_cents = thisMonth.cents;
-    const payments_this_month = thisMonth.payments;
+    // The chart can show an earlier year instead (?year=), read the same way.
+    const current = monthlyRevenue(await paymentsOfYear(DB, thisYear), thisYear, now);
+    const by_month =
+      year === thisYear ? current : monthlyRevenue(await paymentsOfYear(DB, year), year, now);
+    const sumOf = (months, key) => months.reduce((sum, b) => sum + b[key], 0);
+    const thisMonth = current[current.length - 1];
+    // The years the chart can be switched to: the first payment's year through
+    // this one (this one alone until anything has been paid).
+    const { rows: first } = await DB.select('payments', {
+      columns: 'paid_at',
+      order: 'paid_at.asc',
+      limit: 1,
+    });
+    const firstYear = first[0] ? new Date(first[0].paid_at).getFullYear() : thisYear;
+    const years = [];
+    for (let y = thisYear; y >= Math.min(firstYear, thisYear); y--) years.push(y);
     const { rows: recent_payments } = await DB.select('payments', {
       columns: PAYMENT_COLUMNS,
       order: 'paid_at.desc',
@@ -188,9 +206,13 @@ export async function onRequestGet({ request, env }) {
         expiring: expiring.rows,
       },
       revenue: {
-        ytd_cents: revenue_ytd_cents,
-        month_cents: revenue_month_cents,
-        payments_this_month,
+        ytd_cents: sumOf(current, 'cents'),
+        month_cents: thisMonth.cents,
+        payments_this_month: thisMonth.payments,
+        year,
+        years,
+        year_cents: sumOf(by_month, 'cents'),
+        year_payments: sumOf(by_month, 'payments'),
         by_month,
         recent: recent_payments,
       },

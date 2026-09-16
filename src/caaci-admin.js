@@ -246,10 +246,19 @@ function lineChartSvg(points, { width = 600, height = 220 } = {}) {
     .join('');
   const coords = points.map((p, i) => `${num(x(i))},${num(y(p.value))}`);
   const area = `${num(x(0))},${num(y(0))} ${coords.join(' ')} ${num(x(points.length - 1))},${num(y(0))}`;
+  // Hovering anywhere in a month's column (data-i) reads that month out; the
+  // column is an invisible rect so the small dot need not be hit exactly.
+  const half = points.length > 1 ? w / (points.length - 1) / 2 : w / 2;
+  const columns = points
+    .map(
+      (p, i) =>
+        `<rect data-i="${i}" x="${num(x(i) - half)}" y="${padT}" width="${num(half * 2)}" height="${h}" fill="currentColor" fill-opacity="0" />`,
+    )
+    .join('');
   const dots = points
     .map(
       (p, i) =>
-        `<circle cx="${num(x(i))}" cy="${num(y(p.value))}" r="4" fill="currentColor"><title>${esc(p.title)}</title></circle>`,
+        `<circle data-dot="${i}" cx="${num(x(i))}" cy="${num(y(p.value))}" r="4" fill="currentColor" />`,
     )
     .join('');
   const last = points[points.length - 1];
@@ -262,9 +271,45 @@ function lineChartSvg(points, { width = 600, height = 220 } = {}) {
       <g class="text-primary">
         <polygon points="${area}" fill="currentColor" fill-opacity="0.08" />
         <polyline points="${coords.join(' ')}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
-        ${dots}${lastLabel}
+        ${dots}${lastLabel}${columns}
       </g>
     </svg>`;
+}
+
+// Hover read-outs for a chart host: `[data-i]` targets (slices, month
+// columns, legend rows) name an item; hovering one writes its `title` into
+// the host's `[data-readout]`, dims the other targets (opacity-50) and tells
+// `onHot(host, i)` so the chart can emphasise it; leaving restores the idle
+// text. Wired once per host, delegated, so a re-render (language toggle,
+// refresh) needs no re-wiring; setHoverItems hands it the current items.
+function wireHover(host, { onHot } = {}) {
+  if (host.dataset.hoverWired) return;
+  host.dataset.hoverWired = 'true';
+  const set = (i) => {
+    const items = host.__items || [];
+    const el = host.querySelector('[data-readout]');
+    if (el) el.textContent = i == null ? host.__idle || '' : items[i]?.title || '';
+    for (const n of host.querySelectorAll('[data-i]'))
+      n.classList.toggle('opacity-50', i != null && Number(n.dataset.i) !== i);
+    onHot?.(host, i);
+  };
+  host.addEventListener('mouseover', (e) => {
+    const target = e.target.closest?.('[data-i]');
+    if (target && host.contains(target)) set(Number(target.dataset.i));
+  });
+  host.addEventListener('mouseout', (e) => {
+    const from = e.target.closest?.('[data-i]');
+    const to = e.relatedTarget?.closest?.('[data-i]');
+    if (from && !to) set(null);
+  });
+  host.addEventListener('mouseleave', () => set(null));
+  host.__set = set;
+}
+// The items a host's hover reads out, and what it says when nothing is hovered.
+function setHoverItems(host, items, idle) {
+  host.__items = items;
+  host.__idle = idle;
+  host.__set?.(null);
 }
 
 // Slice colours, in legend order: the brand primary first, then Tabler's.
@@ -299,7 +344,7 @@ function pieChartSvg(slices, { size = 200 } = {}) {
         d = `M ${c} ${c} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`;
       }
       a0 = a1;
-      return `<path class="${s.cls}" d="${d}" fill="currentColor"><title>${esc(s.title)}</title></path>`;
+      return `<path data-i="${s.index}" class="${s.cls}" d="${d}" fill="currentColor" />`;
     })
     .join('');
   return `<svg viewBox="0 0 ${size} ${size}" class="w-100" role="img" aria-label="${esc(slices.map((s) => s.title).join('; '))}">${paths}</svg>`;
@@ -396,47 +441,76 @@ function renderDashboard() {
   // Bar widths are data, not styling, so they are set here rather than in markup.
   for (const bar of $$('[data-pct]', statusHost)) bar.style.width = `${bar.dataset.pct}%`;
 
-  // Revenue: this year and this month up top, the year month by month as a
-  // line, the latest payments in the table beneath (rendered further down).
+  // Revenue: the shown year's total (and this month, when it is this year) up
+  // top, that year month by month as a line, the latest payments in the table
+  // beneath (rendered further down). The header's select switches the year.
   const byMonth = rev.by_month || [];
+  const thisYear = new Date(d.generated_at || Date.now()).getFullYear();
+  const year = rev.year ?? (Number(byMonth[0]?.month?.slice(0, 4)) || thisYear);
+  const isThisYear = year === thisYear;
   $('#caaci-dash-revenue-totals').innerHTML = `
-    <div class="col-6">
-      <div class="subheader">${t('Revenue this year', '今年收款')}</div>
-      <div class="h1 mb-0">${usdFmt(rev.ytd_cents)}</div>
+    <div class="mb-3">
+      <div class="subheader">${isThisYear ? t('Revenue this year', '今年收款') : t(`Revenue in ${year}`, `${year} 年收款`)}</div>
+      <div class="h1 mb-0">${usdFmt(isThisYear ? rev.ytd_cents : rev.year_cents)}</div>
     </div>
-    <div class="col-6">
-      <div class="subheader">${t('Revenue this month', '本月收款')}</div>
+    <div>
+      ${
+        isThisYear
+          ? `<div class="subheader">${t('Revenue this month', '本月收款')}</div>
       <div class="h1 mb-0">${usdFmt(rev.month_cents)}</div>
-      <div class="text-secondary small">${t(`${rev.payments_this_month ?? 0} payments`, `${rev.payments_this_month ?? 0} 笔`)}</div>
+      <div class="text-secondary small">${t(`${rev.payments_this_month ?? 0} payments`, `${rev.payments_this_month ?? 0} 笔`)}</div>`
+          : `<div class="subheader">${t('Payments', '笔数')}</div>
+      <div class="h1 mb-0">${numFmt(rev.year_payments)}</div>`
+      }
     </div>`;
-  $('#caaci-dash-revenue-chart').innerHTML = byMonth.length
-    ? lineChartSvg(
-        byMonth.map((b) => ({
-          label: monthLabel(b.month),
-          value: b.cents || 0,
-          title: t(
-            `${monthLabel(b.month)}: ${usdFmt(b.cents)} (${b.payments ?? 0} payments)`,
-            `${monthLabel(b.month)}：${usdFmt(b.cents)}（${b.payments ?? 0} 笔）`,
-          ),
-        })),
-      )
-    : `<p class="text-secondary mb-0">${t('No payments this year.', '今年暂无收款。')}</p>`;
-  const year = byMonth[0]?.month?.slice(0, 4) || '';
-  $('#caaci-dash-revenue-year').textContent = year
-    ? t(`${year}, by month`, `${year} 年，按月`)
-    : '';
+  const months = byMonth.map((b) => ({
+    label: monthLabel(b.month),
+    value: b.cents || 0,
+    title: t(
+      `${monthLabel(b.month)}: ${usdFmt(b.cents)} (${b.payments ?? 0} payments)`,
+      `${monthLabel(b.month)}：${usdFmt(b.cents)}（${b.payments ?? 0} 笔）`,
+    ),
+  }));
+  const chartHost = $('#caaci-dash-revenue-chart');
+  chartHost.innerHTML = months.length
+    ? `${lineChartSvg(months, { width: 900, height: 240 })}<div class="text-secondary small text-center mt-1" data-readout></div>`
+    : `<p class="text-secondary mb-0">${isThisYear ? t('No payments this year.', '今年暂无收款。') : t(`No payments in ${year}.`, `${year} 年无收款。`)}</p>`;
+  setHoverItems(
+    chartHost,
+    months,
+    t(
+      `${year}: ${usdFmt(rev.year_cents)} over ${rev.year_payments ?? 0} payments — hover a month`,
+      `${year} 年合计 ${usdFmt(rev.year_cents)}，共 ${rev.year_payments ?? 0} 笔 — 悬停查看每月`,
+    ),
+  );
+  const yearSel = $('#caaci-dash-revenue-year');
+  const years = rev.years || (year ? [year] : []);
+  yearSel.innerHTML = years
+    .map(
+      (y) =>
+        `<option value="${y}"${y === year ? ' selected' : ''}>${lang === 'zh' ? `${y} 年` : y}</option>`,
+    )
+    .join('');
+  yearSel.hidden = years.length < 2;
 
-  // Active members by tier: a pie with its legend (name, count, share of active).
+  // Active members by tier: a pie with its legend (name, count, share of
+  // active). Hovering a slice or a legend row reads that tier out.
   const tiers = m.by_tier || [];
   const activeTotal = tiers.reduce((s, x) => s + (x.active || 0), 0);
+  const pct = (v) => (activeTotal ? Math.round((v / activeTotal) * 100) : 0);
   const slices = tiers.map((x, i) => ({
+    index: i,
     id: x.id,
     name: x.name || x.id,
     value: x.active || 0,
     cls: PIE_COLOURS[i % PIE_COLOURS.length],
-    title: `${x.name || x.id}: ${x.active || 0}`,
+    title: t(
+      `${x.name || x.id}: ${x.active || 0} (${pct(x.active || 0)}%)`,
+      `${x.name || x.id}：${x.active || 0} 人（${pct(x.active || 0)}%）`,
+    ),
   }));
-  $('#caaci-dash-tiers').innerHTML = tiers.length
+  const tiersHost = $('#caaci-dash-tiers');
+  tiersHost.innerHTML = tiers.length
     ? `
     <div class="row g-3 align-items-center w-100">
       <div class="col-sm-5">
@@ -446,15 +520,24 @@ function renderDashboard() {
         ${slices
           .map(
             (s) => `
-        <div class="d-flex justify-content-between align-items-center mb-1" data-tier="${esc(s.id)}">
+        <div class="d-flex justify-content-between align-items-center mb-1" data-i="${s.index}" data-tier="${esc(s.id)}">
           <span>${swatch(s.cls)}${esc(s.name)}</span>
-          <span>${s.value} <span class="text-secondary small">(${activeTotal ? Math.round((s.value / activeTotal) * 100) : 0}%)</span></span>
+          <span>${s.value} <span class="text-secondary small">(${pct(s.value)}%)</span></span>
         </div>`,
           )
           .join('')}
       </div>
+      <div class="col-12 text-secondary small text-center" data-readout></div>
     </div>`
     : `<p class="text-secondary mb-0">${t('No membership tiers.', '暂无会员类型。')}</p>`;
+  setHoverItems(
+    tiersHost,
+    slices,
+    t(
+      `${activeTotal} active members — hover a slice`,
+      `有效会员共 ${activeTotal} 人 — 悬停查看各类型`,
+    ),
+  );
 
   // Upcoming published events with their registration counts.
   const events = ev.upcoming || [];
@@ -532,12 +615,18 @@ function renderDashboard() {
   $('#caaci-dash-updated').textContent = when ? t(`Updated ${when}`, `更新于 ${when}`) : '';
 }
 
+// The year the revenue chart is showing (null = the current one); a Refresh
+// or a tab click keeps it.
+let dashYear = null;
+
 async function loadDashboard() {
   const notb = $('#caaci-dash-notice');
   const btn = $('#caaci-dash-refresh');
   btn.disabled = true;
   try {
-    const { ok, data } = await api('/api/admin/dashboard');
+    const { ok, data } = await api(
+      `/api/admin/dashboard${dashYear ? `?year=${encodeURIComponent(dashYear)}` : ''}`,
+    );
     if (!ok) {
       notice(notb, data.error || t('Could not load the dashboard.', '无法加载看板。'), false);
       return;
@@ -554,6 +643,24 @@ async function loadDashboard() {
 
 function wireDashboard() {
   $('#caaci-dash-refresh').addEventListener('click', () => loadDashboard());
+  $('#caaci-dash-revenue-year').addEventListener('change', (e) => {
+    dashYear = Number(e.target.value) || null;
+    loadDashboard();
+  });
+  // Month columns: the hovered month's dot grows; slices and legend rows dim
+  // the others (opacity-50 comes from wireHover itself).
+  wireHover($('#caaci-dash-revenue-chart'), {
+    onHot: (host, i) => {
+      for (const dot of host.querySelectorAll('[data-dot]'))
+        dot.setAttribute('r', Number(dot.dataset.dot) === i ? '6' : '4');
+    },
+  });
+  wireHover($('#caaci-dash-tiers'), {
+    onHot: (host, i) => {
+      for (const row of host.querySelectorAll('[data-tier]'))
+        row.classList.toggle('fw-bold', Number(row.dataset.i) === i);
+    },
+  });
   // A stat tile is a shortcut: switch to that tab (its own click handler loads it).
   $('#caaci-dash-stats').addEventListener('click', (e) => {
     const tile = e.target.closest('[data-goto]');
