@@ -1,5 +1,6 @@
 import { Heart, Calendar, UserPlus } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
+import { Reveal } from './Reveal';
 
 interface SubpageHeroProps {
   title: string;
@@ -33,8 +34,13 @@ export function SubpageHero({
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-10 md:py-14">
           <div className="max-w-3xl">
-            {/* Breadcrumb */}
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-3 font-poppins">
+            {/* Breadcrumb, title, rule and subtitle rise in one after another on page load. */}
+            <Reveal
+              onMount
+              from="up-sm"
+              index={0}
+              className="flex items-center gap-2 text-xs font-semibold text-neutral-500 mb-3 font-poppins"
+            >
               <button
                 onClick={() => onNavigate('home')}
                 className="hover:text-brick transition-colors cursor-pointer"
@@ -43,21 +49,27 @@ export function SubpageHero({
               </button>
               <span>/</span>
               <span className="text-brick font-bold">{title}</span>
-            </div>
+            </Reveal>
 
-            <h1
-              className="text-3xl sm:text-4xl md:text-5xl font-bold text-maroon leading-tight tracking-wide font-serif-caaci"
-              style={{ fontFamily: 'var(--font-caaci-serif)' }}
-            >
-              {title}
-            </h1>
+            <Reveal onMount index={1}>
+              <h1
+                className="text-3xl sm:text-4xl md:text-5xl font-bold text-maroon leading-tight tracking-wide font-serif-caaci"
+                style={{ fontFamily: 'var(--font-caaci-serif)' }}
+              >
+                {title}
+              </h1>
+            </Reveal>
 
-            <div className="w-16 h-1 bg-brick my-4 rounded-full" />
+            <Reveal onMount from="fade" index={2}>
+              <div className="w-16 h-1 bg-brick my-4 rounded-full" />
+            </Reveal>
 
             {subtitle && (
-              <p className="font-poppins text-neutral-700 text-sm sm:text-base leading-relaxed">
-                {subtitle}
-              </p>
+              <Reveal onMount from="up-sm" index={3}>
+                <p className="font-poppins text-neutral-700 text-sm sm:text-base leading-relaxed">
+                  {subtitle}
+                </p>
+              </Reveal>
             )}
           </div>
         </div>

@@ -11,10 +11,10 @@ always part of the site.
 
 **Two layers, one set of tokens.**
 
-| Layer          | Pages                                                            | Built with                       | Styled by                                                                                  |
-| -------------- | ---------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------ |
-| Mirror overlay | every mirrored WordPress page                                    | `caaci-app.js` injects markup    | `.caaci-*` component classes in [`src/caaci-ui.css`](src/caaci-ui.css)                     |
-| Tabler pages   | `/admin/`, `/login-3/`, `/membership/`, `/account/`, `/privacy/` | **Tabler** (`@tabler/core`, MIT) | Tabler/Bootstrap classes, skinned by [`src/caaci-theme.css`](src/caaci-theme.css) — see §5 |
+| Layer          | Pages                               | Built with                       | Styled by                                                                                  |
+| -------------- | ----------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------ |
+| Mirror overlay | every mirrored WordPress page       | `caaci-app.js` injects markup    | `.caaci-*` component classes in [`src/caaci-ui.css`](src/caaci-ui.css)                     |
+| Tabler pages   | `/admin/`, `/login-3/`, `/privacy/` | **Tabler** (`@tabler/core`, MIT) | Tabler/Bootstrap classes, skinned by [`src/caaci-theme.css`](src/caaci-theme.css) — see §5 |
 
 Both layers read the same `--caaci-*` tokens. The Tabler pages use Tabler classes
 only, never `.caaci-*` visual classes (element `id`s and `data-*` hooks keep the
@@ -104,14 +104,14 @@ Tabler pages, whose header copies the React site (§5), not on `/admin/`.
 
 All custom UI is namespaced `.caaci-*` so it can never collide with Divi classes.
 
-| Class                     | What it is                                                                                                                                          | Use for                          |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `.caaci-notice`           | Inline feedback line. Add `data-state="error"` for the red variant.                                                                                 | Form success/error messages      |
-| `.caaci-eyebrow`          | Small uppercase gold label.                                                                                                                         | Label above a heading            |
-| `.caaci-btn`              | Filled brick button.                                                                                                                                | Primary actions                  |
-| `.caaci-volunteer-events` | Bordered `<fieldset>` of checkbox rows with a `<legend>`.                                                                                           | The `/volunteer/` event picker   |
-| `.caaci-check`            | Checkbox row, ≥44px tall so the whole row is a touch target. Wrap the label text in a `<span>`; add `.caaci-check-when` to the muted date after it. | Checkbox lists on mirrored pages |
-| `.caaci-hp`               | Off-screen honeypot input — visible to bots, never to people or screen readers (pair it with `tabindex="-1"` and `aria-hidden="true"`).             | Spam trap on mirrored forms      |
+| Class                     | What it is                                                                                                                                             | Use for                                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `.caaci-notice`           | Inline feedback line. Add `data-state="error"` for the red variant.                                                                                    | Form success/error messages                                                                                                   |
+| `.caaci-eyebrow`          | Small uppercase gold label.                                                                                                                            | Label above a heading                                                                                                         |
+| `.caaci-btn`              | Filled brick button.                                                                                                                                   | Primary actions                                                                                                               |
+| `.caaci-volunteer-events` | Unboxed `<fieldset>` of checkbox rows: the `<legend>` is drawn like the Divi fields around it (bottom rule, uppercase letter-spaced label), no border. | The `/volunteer/` event picker — switched off (`VOLUNTEER_PAGE` in `build.mjs`); the page is a stub into the home-page dialog |
+| `.caaci-check`            | Checkbox row, ≥44px tall so the whole row is a touch target. Wrap the label text in a `<span>`; add `.caaci-check-when` to the muted date after it.    | Checkbox lists on mirrored pages                                                                                              |
+| `.caaci-hp`               | Off-screen honeypot input — visible to bots, never to people or screen readers (pair it with `tabindex="-1"` and `aria-hidden="true"`).                | Spam trap on mirrored forms                                                                                                   |
 
 ### Examples
 
@@ -145,12 +145,12 @@ badge, focus ring and corner takes the brand look with no page-level CSS:
 | `--tblr-border-radius` (+ `-sm`, `-lg`)         | `--caaci-radius`                      |
 
 Three element rules finish the match with the mirror: `h1`–`h3` are set in
-`--caaci-font-display`, maroon, 1px tracking (white inside `.caaci-hero`);
+`--caaci-font-display`, maroon, 1px tracking;
 `.btn-primary` is the Divi CTA — `--caaci-font-button`, uppercase, 1px tracking,
 `--caaci-radius-0` — the same shape as the overlay's `.caaci-btn`; and the theme
 `@import`s the Playfair Display and Saira Extra Condensed faces the mirror already
 loads from Google Fonts, so headings and buttons resolve to the same glyphs on both
-kinds of page. The public Tabler pages (login, privacy, event registration) also link
+kinds of page. The public Tabler pages (login, privacy) also link
 the React site's Google Fonts (Poppins, Playfair Display, Noto Serif SC — the same
 `<link>` as `web/index.html`), so their header and body copy use the React site's
 faces; `/admin/` does not, and its text keeps the system sans-serif fallback.
@@ -167,13 +167,11 @@ The admin header keeps the older Divi measurements: 69px bar, no shadow, 40px lo
 Every Tabler page links, in this order: `tabler.min.css` → `caaci-ui.css` (tokens) →
 `caaci-theme.css`. Shared chrome lives in the theme file under named sections:
 
-| Section         | Class                 | Used on                                         |
-| --------------- | --------------------- | ----------------------------------------------- |
-| Site navigation | `.caaci-sitenav`      | admin header                                    |
-| Site header     | `.caaci-sitenav-site` | `member-src/_nav.html` (login, privacy, events) |
-| Hero band       | `.caaci-hero`         | `/membership/`, `/account/`                     |
-| Membership card | `.caaci-mcard2`       | `/account/` (rendered by `caaci-member.js`)     |
-| Long-form copy  | `.caaci-legal`        | `/privacy/`                                     |
+| Section         | Class                 | Used on                                 |
+| --------------- | --------------------- | --------------------------------------- |
+| Site navigation | `.caaci-sitenav`      | admin header                            |
+| Site header     | `.caaci-sitenav-site` | `member-src/_nav.html` (login, privacy) |
+| Long-form copy  | `.caaci-legal`        | `/privacy/`                             |
 
 A page that needs something new gets a section here, written in tokens — not a
 `<style>` block. Prefer a Tabler utility or component first.
@@ -184,7 +182,8 @@ A page that needs something new gets a section here, written in tokens — not a
 
 1. **Never edit the mirror by hand.** `mirror/` is pristine; all custom behaviour
    and styling lives in `src/` and is injected at build time (see
-   [`build.mjs`](build.mjs)).
+   [`build.mjs`](build.mjs)). Pages the React site (`web/`) replaced are
+   deleted from it outright, never edited.
 2. **No inline styles in JS.** Add a class to `caaci-ui.css` and reference it.
    The one historical exception (the account box) has been migrated.
 3. **Use tokens, not literals.** New color/size → add a `--caaci-*` variable.

@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { X, Check, Heart, HandHeart, Lock } from 'lucide-react';
+import { X, Check, Heart, Lock } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
 import { usd } from '../lib/shared';
+import { FluidTabs } from './FluidTabs';
 
 export type ModalType = 'donate' | 'events' | 'membership' | 'volunteer' | null;
 
@@ -30,7 +31,6 @@ export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 bg-neutral-50">
           <div className="flex items-center gap-2">
             {modalType === 'donate' && <Heart className="w-5 h-5 text-brick" />}
-            {modalType === 'volunteer' && <HandHeart className="w-5 h-5 text-brick" />}
             <h3 className="font-serif-caaci font-bold text-lg text-maroon">
               {modalType === 'donate' && content.modals.donateTitle}
               {modalType === 'volunteer' &&
@@ -127,27 +127,18 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
         <label className="block text-xs font-bold text-neutral-500 mb-2">
           {en ? 'Frequency' : '捐款频率'}
         </label>
-        <div
+        <FluidTabs
+          id="donate-frequency"
           role="group"
-          aria-label={en ? 'Frequency' : '捐款频率'}
-          className="h-10 p-1 rounded-full bg-neutral-100 border border-neutral-200/80 grid grid-cols-2"
-        >
-          {[false, true].map((monthly) => (
-            <button
-              key={String(monthly)}
-              type="button"
-              aria-pressed={recurring === monthly}
-              onClick={() => setRecurring(monthly)}
-              className={`h-8 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                recurring === monthly
-                  ? 'bg-white text-brick shadow-xs'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              {monthly ? (en ? 'Monthly' : '每月') : en ? 'One-time' : '一次性'}
-            </button>
-          ))}
-        </div>
+          ariaLabel={en ? 'Frequency' : '捐款频率'}
+          className="grid grid-cols-2"
+          value={recurring ? 'monthly' : 'once'}
+          onChange={(v) => setRecurring(v === 'monthly')}
+          items={[
+            { value: 'once', label: en ? 'One-time' : '一次性' },
+            { value: 'monthly', label: en ? 'Monthly' : '每月' },
+          ]}
+        />
       </div>
 
       <div>
@@ -273,17 +264,20 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
 
 // Choices listed in the message, in both languages so whoever reads the inbox
 // can read them. Interests are the opportunities the dialog describes.
+// "Other" points people at the notes box below for the detail.
 const INTERESTS = [
   { en: 'Event coordination', zh: '活动现场协调' },
   { en: 'Stage management', zh: '舞台管理' },
   { en: 'Translation', zh: '中英翻译' },
   { en: 'Graphic design', zh: '平面设计' },
   { en: 'Senior support', zh: '长者关怀' },
+  { en: 'Other', zh: '其他' },
 ];
 const AVAILABILITY = [
   { en: 'Weekdays', zh: '工作日' },
   { en: 'Weekday evenings', zh: '工作日晚间' },
   { en: 'Weekends', zh: '周末' },
+  { en: 'Other', zh: '其他' },
 ];
 
 // An upcoming event as GET /api/volunteer lists it: published and not over yet.

@@ -438,7 +438,7 @@ export const businessServicesDataZH: BusinessServicesContent = {
   events: [
     {
       id: 'job-fair',
-      title: 'All-State Agencies Job Fair 全州政府机构招聘会',
+      title: '全州政府机构招聘会',
       date: '2025 年 11 月 12 日（周三）',
       time: '上午 11:00 - 下午 2:00',
       location: 'UIUC Siebel 设计中心（Siebel Center for Design, Champaign, IL）',

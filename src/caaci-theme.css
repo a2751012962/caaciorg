@@ -153,8 +153,8 @@ h3,
 }
 
 /* ================================================ Site header (public pages) === */
-/* member-src/_nav.html on /login-3/, /privacy/ and the event registration
-   pages: a copy of the React site's header (web/src/components/Navbar.tsx),
+/* member-src/_nav.html on /login-3/ and /privacy/: a copy of the React
+   site's header (web/src/components/Navbar.tsx),
    value for value from its Tailwind classes. A 72px translucent white bar with
    a hairline and a small shadow; the logo beside the CAACI wordmark; 14px/600
    uppercase links with 0.05em tracking, brick on hover and underlined when
@@ -493,70 +493,6 @@ h3,
   .caaci-sitenav-items > li {
     margin-right: 8px;
   }
-}
-
-/* ============================================== Hero band (member pages) === */
-/* Matches the mirror's Divi hero: brick gradient under a gold rule. */
-.caaci-hero {
-  background: linear-gradient(135deg, var(--caaci-brick), var(--caaci-brick-dark));
-  border-bottom: 5px solid var(--caaci-gold);
-  color: var(--caaci-surface);
-}
-.caaci-hero h1,
-.caaci-hero h2 {
-  color: var(--caaci-surface);
-}
-.caaci-hero .caaci-hero-eyebrow {
-  color: var(--caaci-gold);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-.caaci-hero p {
-  color: rgba(var(--caaci-surface-rgb), 0.85);
-}
-
-/* ========================================= Digital membership card (/account/) === */
-/* Rendered by caaci-member.js; shown at partner businesses, so it keeps a
-   physical-card silhouette (larger radius) while using the brand palette. */
-.caaci-mcard2 {
-  max-width: 460px;
-  border-radius: var(--caaci-radius-card);
-  overflow: hidden;
-  border: 1px solid var(--tblr-border-color);
-  box-shadow: var(--tblr-shadow-card);
-  background: var(--caaci-surface);
-}
-.caaci-mcard2-head {
-  background: var(--caaci-brick);
-  border-bottom: 5px solid var(--caaci-gold);
-  color: var(--caaci-surface);
-  padding: 12px 18px;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-.caaci-mcard2-head b {
-  font-family: var(--caaci-font-display);
-  font-size: 26px;
-  letter-spacing: 1px;
-}
-.caaci-mcard2-head span {
-  font-size: 11px;
-  opacity: 0.9;
-}
-.caaci-mcard2-body {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 12px;
-  padding: 18px;
-}
-.caaci-mcard2-qr img {
-  width: 108px;
-  height: 108px;
-  image-rendering: pixelated;
 }
 
 /* ================================================ Long-form legal copy (/privacy/) === */
