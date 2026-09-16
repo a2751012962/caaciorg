@@ -353,9 +353,14 @@ console.log(`Consolidated ${r} duplicate login/account pages.`);
 // Mirrored pages the React site replaced with a dialog or a section: donate and
 // volunteer open their dialog on the home page (/donate/ is also the donation
 // checkout's cancel_url), past events are a section of /events/.
+// Switch: the mirrored /volunteer/ page (its event picker is wireVolunteer in
+// caaci-app.js + .caaci-volunteer-events in caaci-ui.css) is kept but off —
+// the dialog on the home page is the sign-up for now. Set this to true to serve
+// that page again instead of the stub; nothing else needs to change.
+const VOLUNTEER_PAGE = false;
 const LEGACY_PAGES = {
   donate: '?modal=donate',
-  volunteer: '?modal=volunteer',
+  ...(VOLUNTEER_PAGE ? {} : { volunteer: '?modal=volunteer' }),
   'past-events': 'events/#past',
 };
 const legacyStub = (url) =>

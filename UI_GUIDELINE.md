@@ -104,14 +104,14 @@ Tabler pages, whose header copies the React site (§5), not on `/admin/`.
 
 All custom UI is namespaced `.caaci-*` so it can never collide with Divi classes.
 
-| Class                     | What it is                                                                                                                                             | Use for                          |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
-| `.caaci-notice`           | Inline feedback line. Add `data-state="error"` for the red variant.                                                                                    | Form success/error messages      |
-| `.caaci-eyebrow`          | Small uppercase gold label.                                                                                                                            | Label above a heading            |
-| `.caaci-btn`              | Filled brick button.                                                                                                                                   | Primary actions                  |
-| `.caaci-volunteer-events` | Unboxed `<fieldset>` of checkbox rows: the `<legend>` is drawn like the Divi fields around it (bottom rule, uppercase letter-spaced label), no border. | The `/volunteer/` event picker   |
-| `.caaci-check`            | Checkbox row, ≥44px tall so the whole row is a touch target. Wrap the label text in a `<span>`; add `.caaci-check-when` to the muted date after it.    | Checkbox lists on mirrored pages |
-| `.caaci-hp`               | Off-screen honeypot input — visible to bots, never to people or screen readers (pair it with `tabindex="-1"` and `aria-hidden="true"`).                | Spam trap on mirrored forms      |
+| Class                     | What it is                                                                                                                                             | Use for                                                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `.caaci-notice`           | Inline feedback line. Add `data-state="error"` for the red variant.                                                                                    | Form success/error messages                                                                                                   |
+| `.caaci-eyebrow`          | Small uppercase gold label.                                                                                                                            | Label above a heading                                                                                                         |
+| `.caaci-btn`              | Filled brick button.                                                                                                                                   | Primary actions                                                                                                               |
+| `.caaci-volunteer-events` | Unboxed `<fieldset>` of checkbox rows: the `<legend>` is drawn like the Divi fields around it (bottom rule, uppercase letter-spaced label), no border. | The `/volunteer/` event picker — switched off (`VOLUNTEER_PAGE` in `build.mjs`); the page is a stub into the home-page dialog |
+| `.caaci-check`            | Checkbox row, ≥44px tall so the whole row is a touch target. Wrap the label text in a `<span>`; add `.caaci-check-when` to the muted date after it.    | Checkbox lists on mirrored pages                                                                                              |
+| `.caaci-hp`               | Off-screen honeypot input — visible to bots, never to people or screen readers (pair it with `tabindex="-1"` and `aria-hidden="true"`).                | Spam trap on mirrored forms                                                                                                   |
 
 ### Examples
 
