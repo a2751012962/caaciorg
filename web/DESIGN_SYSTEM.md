@@ -181,7 +181,10 @@
 
 **怎么写**
 
-- `motion/react`：`initial={riseFrom} whileInView={shown} viewport={inView} transition={rise(0.1)}`；
+- **页面默认用 `<Reveal>`**（`components/Reveal.tsx`）：包住区块标题、卡片或列表项即可，
+  `<Reveal from="left" | "right" | "up" | "up-sm" | "fade" index={idx} onMount>`；`index` 自动错峰并封顶，`onMount` 用于 Hero 内容（加载即播放）。
+  每个子页面至少：SubpageHero 文字挂载进场、每个区块标题一次 reveal、网格项按 `index` 错峰。
+- `motion/react`（需要 Reveal 覆盖不了的场景）：`initial={riseFrom} whileInView={shown} viewport={inView} transition={rise(0.1)}`；
   列表 `transition={listItem(idx)}`；页面挂载 `transition={mountIn}`；按钮 `whileHover={hoverScale} whileTap={tap}`；卡片 `whileHover={hoverLift}`；
   弹窗 `overlayIn` / `panelFrom` / `panelShown` / `panelIn`。
 - GSAP：在 `gsap.context` 里 `reveal(el, { from: 'left', trigger })`、`revealGroup(children)`。不再手写 `fromTo` + `scrollTrigger`。

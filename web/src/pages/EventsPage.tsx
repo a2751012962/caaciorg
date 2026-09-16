@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { listExit, listItem, mountIn, riseFromSm } from '../lib/motion';
+import { Reveal } from '../components/Reveal';
 import { SubpageHero } from '../components/SubpageHero';
 import { ContactSection } from '../components/ContactSection';
 import {
@@ -503,7 +504,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
       {/* 2. Spotlight Banner for Next Upcoming Marquee Event */}
       {spotlightEvent && (
         <section className="py-10 sm:py-14 bg-surface-2 border-b border-neutral-200/80">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Reveal className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div
               className="bg-ink bg-cover bg-center text-white rounded-3xl p-6 sm:p-10 lg:p-12 shadow-sm space-y-6"
               style={
@@ -582,7 +583,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                 {rsvpNote(spotlightEvent, true)}
               </div>
             </div>
-          </div>
+          </Reveal>
         </section>
       )}
 
