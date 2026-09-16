@@ -1,9 +1,9 @@
 import { supabase } from './supabase';
 import type { BusinessMerchant } from '../data/pages/business';
 
-// Filter categories on the Business Services page, in pill order. Static
-// merchants in data/pages/business.ts use these ids directly; approved
-// business_directory rows are mapped onto them by category below.
+// Filter categories on the Business Services page, in pill order. These are
+// also the business_directory.category values (CATEGORIES in
+// functions/api/admin/business.js); anything else lands in 'services'.
 export const DIRECTORY_CATEGORIES: { id: string; en: string; zh: string }[] = [
   { id: 'restaurant', en: 'Dining & Beverages', zh: '餐饮与茶饮' },
   { id: 'groceries', en: 'Groceries & Markets', zh: '超市与食品' },
@@ -13,47 +13,50 @@ export const DIRECTORY_CATEGORIES: { id: string; en: string; zh: string }[] = [
   { id: 'education_media', en: 'Education & Media', zh: '教育与传媒' },
   { id: 'services', en: 'Other Services', zh: '其他服务' },
 ];
-
-// business_directory.category is one of restaurant | bakery | supermarket | other
-// (CATEGORIES in functions/api/admin/business.js); public submissions may hold
-// anything else, which lands in the catch-all bucket.
-const DB_CATEGORY: Record<string, { id: string; en: string; zh: string }> = {
-  restaurant: { id: 'restaurant', en: 'Restaurant', zh: '餐厅' },
-  bakery: { id: 'restaurant', en: 'Bakery', zh: '烘焙店' },
-  supermarket: { id: 'groceries', en: 'Supermarket', zh: '超市' },
-};
-const OTHER = { id: 'services', en: 'Services', zh: '服务' };
+const OTHER = DIRECTORY_CATEGORIES[DIRECTORY_CATEGORIES.length - 1];
 
 // The values the join-the-directory form may send (what the admin panel accepts).
-export const LISTING_CATEGORIES: { id: string; en: string; zh: string }[] = [
-  { id: 'restaurant', en: 'Restaurant', zh: '餐厅' },
-  { id: 'bakery', en: 'Bakery', zh: '烘焙店' },
-  { id: 'supermarket', en: 'Supermarket / grocery', zh: '超市 / 食品店' },
-  { id: 'other', en: 'Other service', zh: '其他服务' },
-];
+export const LISTING_CATEGORIES = DIRECTORY_CATEGORIES;
 
 export interface DirectoryRow {
   id: string;
   name: string;
+  name_zh: string | null;
   category: string | null;
+  label: string | null;
+  label_zh: string | null;
   description: string | null;
+  description_zh: string | null;
   address: string | null;
   phone: string | null;
+  hours: string | null;
+  hours_zh: string | null;
   website: string | null;
+  verified: boolean | null;
+  tags: string[] | null;
+  tags_zh: string[] | null;
 }
 
-// Approved listings only (biz_read RLS returns nothing else to anon anyway).
-export async function loadApprovedListings(): Promise<DirectoryRow[]> {
+const COLUMNS =
+  'id,name,name_zh,category,label,label_zh,description,description_zh,address,phone,' +
+  'hours,hours_zh,website,verified,tags,tags_zh';
+
+// Approved listings only (biz_read RLS returns nothing else to anon anyway), in
+// the admin panel's sort order. null = the read failed (network, or the 0022
+// columns are not in the database yet), so the page can fall back to its
+// built-in list; [] = the directory really is empty.
+export async function loadApprovedListings(): Promise<DirectoryRow[] | null> {
   try {
     const { data, error } = await supabase
       .from('business_directory')
-      .select('id,name,category,description,address,phone,website')
+      .select(COLUMNS)
       .eq('approved', true)
+      .order('sort_order')
       .order('name');
-    if (error || !Array.isArray(data)) return [];
-    return data as DirectoryRow[];
+    if (error || !Array.isArray(data)) return null;
+    return data as unknown as DirectoryRow[];
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -70,18 +73,41 @@ function safeWebsite(raw: string | null): string | undefined {
   }
 }
 
+// The name without its Chinese part, for the Maps query: "Kung Fu Tea (功夫茶)"
+// -> "Kung Fu Tea". A name that is all Chinese is kept as it is.
+const HAN = /[㐀-鿿豈-﫿]/;
+export function mapsName(name: string): string {
+  const stripped = name
+    .replace(/[(（][^()（）]*[)）]/g, (m) => (HAN.test(m) ? ' ' : m))
+    .replace(/[㐀-鿿豈-﫿]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return stripped || name.trim();
+}
+
+const text = (s: string | null | undefined) => (s || '').trim();
+const list = (a: string[] | null | undefined) => (Array.isArray(a) ? a.filter(Boolean) : []);
+
 export function rowToMerchant(row: DirectoryRow, lang: 'en' | 'zh'): BusinessMerchant {
-  const cat = DB_CATEGORY[(row.category || '').toLowerCase()] ?? OTHER;
+  const zh = lang === 'zh';
+  // Each Chinese field falls back to the English one when empty (and back again).
+  const pick = (en: string | null, cn: string | null) =>
+    zh ? text(cn) || text(en) : text(en) || text(cn);
+  const cat = DIRECTORY_CATEGORIES.find((c) => c.id === row.category) ?? OTHER;
+  const tags = zh ? list(row.tags_zh) : list(row.tags);
   return {
     id: `db-${row.id}`,
-    name: row.name,
-    nameEn: row.name,
+    name: pick(row.name, row.name_zh),
+    nameEn: mapsName(row.name),
     category: cat.id,
-    categoryLabel: lang === 'zh' ? cat.zh : cat.en,
-    address: row.address || '',
-    phone: row.phone || undefined,
+    categoryLabel: pick(row.label, row.label_zh) || (zh ? cat.zh : cat.en),
+    address: text(row.address),
+    phone: text(row.phone) || undefined,
+    hours: pick(row.hours, row.hours_zh) || undefined,
     website: safeWebsite(row.website),
-    desc: row.description || '',
+    desc: pick(row.description, row.description_zh),
+    featured: !!row.verified,
+    tags: tags.length ? tags : zh ? list(row.tags) : list(row.tags_zh),
   };
 }
 
@@ -97,14 +123,13 @@ export function directionsUrl(m: Pick<BusinessMerchant, 'name' | 'nameEn' | 'add
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
-// Static merchants first, then approved listings not already among them.
-export function mergeMerchants(
-  staticMerchants: BusinessMerchant[],
-  rows: DirectoryRow[],
+// The cards come from business_directory, which the admin panel manages. The
+// built-in list is only a fallback for when that read fails, so the page is
+// never empty because of a network error; a successful empty read shows none.
+export function directoryMerchants(
+  fallback: BusinessMerchant[],
+  rows: DirectoryRow[] | null,
   lang: 'en' | 'zh',
 ): BusinessMerchant[] {
-  const key = (s: string | undefined) => (s || '').trim().toLowerCase();
-  const known = new Set(staticMerchants.flatMap((m) => [key(m.name), key(m.nameEn)]));
-  const extra = rows.filter((r) => !known.has(key(r.name))).map((r) => rowToMerchant(r, lang));
-  return [...staticMerchants, ...extra];
+  return rows === null ? fallback : rows.map((r) => rowToMerchant(r, lang));
 }

@@ -47,7 +47,7 @@ test('business-listing: honeypot _hp silently accepted, no DB write', async () =
   }
 });
 
-test('business-listing: defaults category to "other" and approved to false', async () => {
+test('business-listing: defaults category to "services" and approved to false', async () => {
   const fetch = mockFetch(() => ({ body: '' }));
   try {
     const r = await onRequestPost({
@@ -60,7 +60,7 @@ test('business-listing: defaults category to "other" and approved to false', asy
 
     const insert = fetch.calls.find((c) => c.url.includes('/rest/v1/business_directory'));
     const row = JSON.parse(insert.options.body);
-    assert.equal(row.category, 'other');
+    assert.equal(row.category, 'services');
     assert.equal(row.approved, false);
     assert.equal(row.name, 'Acme');
 

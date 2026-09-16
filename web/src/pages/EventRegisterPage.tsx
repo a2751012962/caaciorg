@@ -18,6 +18,7 @@ import type { Lang } from '../lib/lang';
 import { mountIn, riseFromSm, shown } from '../lib/motion';
 import {
   eventSlugFrom,
+  isTypedQuestion,
   otherFieldId,
   perkStep,
   questionFieldId,
@@ -38,12 +39,15 @@ interface Perk {
 
 interface Question {
   id: string;
-  type: 'text' | 'textarea' | 'single' | 'multi';
+  type: 'text' | 'textarea' | 'number' | 'phone' | 'date' | 'single' | 'multi';
   label_en: string;
   label_zh?: string | null;
   required?: boolean;
   other?: boolean;
   options?: { id: string; label_en: string; label_zh?: string | null }[];
+  /** A number question's optional bounds (whole numbers). */
+  min?: number;
+  max?: number;
 }
 
 /** GET /api/event-register?event=<slug> → `event`. */
@@ -275,7 +279,7 @@ export function EventRegisterPage({
       // One entry per question, so every field is controlled from the start.
       const blank: AnswerState = {};
       for (const q of event.questions ?? [])
-        blank[q.id] = q.type === 'text' || q.type === 'textarea' ? '' : { picked: [], other: null };
+        blank[q.id] = isTypedQuestion(q) ? '' : { picked: [], other: null };
       setAnswers(blank);
       setSignedIn(!!data.signed_in);
       if (data.signed_in) {
@@ -461,7 +465,7 @@ export function EventRegisterPage({
   const questionField = (q: Question, index: number) => {
     const label = questionLabel(q, lang);
     const mark = q.required ? ' *' : '';
-    if (q.type === 'text' || q.type === 'textarea') {
+    if (isTypedQuestion(q)) {
       const value = typeof answers[q.id] === 'string' ? (answers[q.id] as string) : '';
       const common = {
         id: questionFieldId(q),
@@ -470,17 +474,42 @@ export function EventRegisterPage({
         onChange: (e: { target: { value: string } }) =>
           setAnswers((prev) => ({ ...prev, [q.id]: e.target.value })),
       };
+      // One box per kind: the phone keyboard for a number or a phone, the
+      // device's date picker for a date. The API re-checks every one of them.
+      const box =
+        q.type === 'textarea' ? (
+          <textarea rows={3} maxLength={2000} className={`${INPUT} resize-none`} {...common} />
+        ) : q.type === 'number' ? (
+          <input
+            type="number"
+            inputMode="numeric"
+            step={1}
+            min={q.min}
+            max={q.max}
+            className={INPUT}
+            {...common}
+          />
+        ) : q.type === 'phone' ? (
+          <input
+            type="tel"
+            inputMode="tel"
+            maxLength={40}
+            className={INPUT}
+            {...common}
+            autoComplete="tel"
+          />
+        ) : q.type === 'date' ? (
+          <input type="date" className={INPUT} {...common} />
+        ) : (
+          <input type="text" maxLength={500} className={INPUT} {...common} />
+        );
       return (
         <div key={q.id}>
           <label className={LABEL} htmlFor={questionFieldId(q)}>
             {label}
             {mark}
           </label>
-          {q.type === 'text' ? (
-            <input type="text" maxLength={500} className={INPUT} {...common} />
-          ) : (
-            <textarea rows={3} maxLength={2000} className={`${INPUT} resize-none`} {...common} />
-          )}
+          {box}
         </div>
       );
     }

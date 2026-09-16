@@ -213,6 +213,11 @@ for (const base of ['', 'zh/']) {
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, 'index.html'), page);
   }
+  // The 404 page is this app too (web/src/pages/NotFoundPage.tsx). Cloudflare
+  // Pages serves 404.html, with a 404 status, for any address that matches no
+  // file, rewrite or stub; without one it would serve /index.html as a 200
+  // instead. The /zh/ copy applies under /zh/ where Pages honours nested 404s.
+  await writeFile(join(DIST, base + '404.html'), page);
 }
 console.log(`React site written at ${SPA_ROUTES.length * 2} routes.`);
 

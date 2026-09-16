@@ -5,6 +5,7 @@
 //   DELETE — remove a member and their login account.
 // Every request is gated by requireAdmin (validates session + is_admin).
 import { json, bad, sb, requireAdmin, authAdmin } from '../_lib.js';
+import { requireActionCode } from './_action-code.js';
 
 const STATUSES = ['pending', 'active', 'expired', 'cancelled', 'past_due'];
 const MAX_LIMIT = 50;
@@ -108,6 +109,16 @@ export async function onRequestPost({ request, env }) {
   if (Object.keys(patch).length === 0) return bad('Nothing to update.');
 
   try {
+    // Changing what plan a member is on needs the emailed verification code
+    // (see _action-code.js); re-sending the plan they already have does not.
+    if (patch.tier_id !== undefined) {
+      const current = await sb(env).selectOne('members', { id: b.id }, 'id,tier_id');
+      if (!current) return bad('Member not found.', 404);
+      if ((current.tier_id || null) !== patch.tier_id) {
+        const check = await requireActionCode(request, env, gate.user.id);
+        if (check.error) return check.error;
+      }
+    }
     await sb(env).update('members', { id: b.id }, patch);
     const row = await sb(env).selectOne('members', { id: b.id }, COLUMNS);
     return json({ ok: true, member: row });

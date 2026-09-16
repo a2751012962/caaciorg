@@ -29,11 +29,31 @@ const TYPES = {
   '.xml': 'application/xml',
 };
 
+// Like Cloudflare Pages: an address that matches nothing gets dist/404.html
+// (the React not-found page) with a 404 status, the /zh/ copy under /zh/. The
+// plain text answer stays for a dist without one (the bare mirror).
+async function notFound(res, path) {
+  for (const candidate of [/^\/zh(\/|$)/.test(path) ? 'zh/404.html' : null, '404.html']) {
+    if (!candidate) continue;
+    try {
+      const buf = await readFile(join(ROOT, candidate));
+      res.writeHead(404, { 'content-type': TYPES['.html'] });
+      return res.end(buf);
+    } catch {
+      /* no such page: try the next */
+    }
+  }
+  res.writeHead(404);
+  res.end('Not found');
+}
+
 createServer(async (req, res) => {
+  const path = decodeURIComponent(req.url.split('?')[0]);
   try {
-    let p = decodeURIComponent(req.url.split('?')[0]);
-    // The one dist/_redirects rewrite Pages applies: /events/<slug>/register(/) serves /event-register/.
-    if (/^\/events\/[^/]+\/register\/?$/.test(p)) p = '/event-register/';
+    let p = path;
+    // The dist/_redirects rewrites Pages applies: /events/<slug>/register(/)
+    // serves /event-register/, and the /zh/ copy likewise.
+    p = p.replace(/^(\/zh)?\/events\/[^/]+\/register\/?$/, '$1/event-register/');
     let fp = join(ROOT, p);
     let s;
     try {
@@ -50,7 +70,6 @@ createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': TYPES[extname(fp)] || 'application/octet-stream' });
     res.end(buf);
   } catch {
-    res.writeHead(404);
-    res.end('Not found');
+    await notFound(res, path);
   }
 }).listen(PORT, () => console.log(`mirror serving on http://localhost:${PORT}`));

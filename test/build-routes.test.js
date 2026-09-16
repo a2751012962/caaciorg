@@ -51,6 +51,10 @@ test('build: the React site is written at every route it serves, in English and 
       `/zh/${route}`,
     );
   }
+  // Cloudflare Pages serves 404.html, with a 404 status, for any address that
+  // matches nothing; it is this app, which renders its not-found page there.
+  assert.equal(await dist('404.html'), home);
+  assert.equal(await dist('zh/404.html'), home.replace('<html lang="en">', '<html lang="zh-CN">'));
 });
 
 test('build: the login page stays Tabler; old pages point into the React site', async () => {
