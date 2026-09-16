@@ -52,6 +52,20 @@ test('the honeypot is a hidden field, not an inline style', async () => {
   assert.doesNotMatch(src, /style=\{\{[^}]*display/, 'no inline style on the honeypot');
 });
 
+test('nothing around the honeypot reads like a real field to an autofiller', async () => {
+  const src = await page();
+  // Password managers and browser autofill go by the words next to a box, not
+  // by aria-hidden; a filled honeypot makes the API drop the registration.
+  const at = src.indexOf('id="caaci_hp_field"');
+  assert.ok(at > 0, 'the honeypot is in the page');
+  const around = src.slice(src.lastIndexOf('<div', at), src.indexOf('</div>', at));
+  assert.doesNotMatch(around, /<label/, 'the honeypot carries no label');
+  const words =
+    /(?<![A-Za-z_])(web|site|url|name|mail|phone|tel|addr|company|org|city|zip)(?![A-Za-z_])/i;
+  const text = around.replace(/id="caaci_hp_field"/g, '').replace(/autoComplete="off"/g, '');
+  assert.doesNotMatch(text, words, `identity-like wording beside the honeypot:\n${around}`);
+});
+
 test('an ok without a registration time is not shown as success', async () => {
   const src = await page();
   assert.match(src, /if \(!data\.registered_at\)/);
@@ -82,9 +96,58 @@ test('Chicago time is named in words, never as GMT-5', async () => {
 
 test('a signed-in visitor registers under the account email, or signs out', async () => {
   const src = await page();
-  assert.match(src, /readOnly=\{!!auth\.user\}/);
+  // Locked by what the GET reported plus an address to show — a local token on
+  // its own would lock an empty box the visitor could not then fill in.
+  assert.match(src, /const emailLocked = signedIn && !!email;/);
+  assert.match(src, /setSignedIn\(!!data\.signed_in\)/);
+  assert.match(src, /readOnly=\{emailLocked\}/);
+  assert.doesNotMatch(src, /readOnly=\{!!auth\.user\}/);
   assert.match(src, /Registering under another email\?/);
   assert.match(src, /auth\.signOut\(\)/);
+});
+
+test('a GET that never answers ends in the error state, not a permanent spinner', async () => {
+  const src = await page();
+  assert.match(src, /const LOAD_TIMEOUT_MS = \d+;/);
+  assert.match(src, /Promise\.race\(\[\s*api<RegInfo>/, 'the load races a timer');
+  assert.match(src, /setTimeout\(\(\) => resolve\(null\), LOAD_TIMEOUT_MS\)/);
+  assert.match(src, /if \(!result\) return setStatus\('failed'\)/, 'a timeout offers Retry');
+  assert.match(src, /window\.clearTimeout\(timer\)/, 'the timer is cleared either way');
+});
+
+test('the trip to the login page never carries the old session with it', async () => {
+  const src = await page();
+  assert.match(src, /const SIGN_OUT_TIMEOUT_MS = \d+;/);
+  assert.match(src, /function dropStoredSession\(\)/);
+  assert.match(src, /\/\^sb-\.\*-auth-token\/\.test\(key\)\) localStorage\.removeItem\(key\)/);
+  assert.match(src, /if \(!left\) dropStoredSession\(\);/);
+  assert.match(src, /resolve\(false\), SIGN_OUT_TIMEOUT_MS/, 'a hung signOut is not waited on');
+  // The fallback has to happen before the page is left, or it never runs.
+  assert.ok(
+    src.indexOf('if (!left) dropStoredSession();') < src.indexOf('window.location.assign(url)'),
+    'the session is dropped before navigating',
+  );
+});
+
+test('"Change my answers" puts the cursor back in the form', async () => {
+  const src = await page();
+  assert.match(src, /setRefocus\(\(n\) => n \+ 1\)/);
+  assert.match(src, /if \(refocus\) document\.getElementById\('ev-email'\)\?\.focus\(\)/);
+});
+
+test('the inputs are the design system’s standard variant, not the compact one', async () => {
+  const src = await page();
+  // web/DESIGN_SYSTEM.md §5.2, verbatim: the compact variant is py-2/text-sm/bg-white.
+  assert.match(
+    src,
+    /const INPUT =\s*'w-full min-h-\[44px\] px-3\.5 py-2\.5 rounded-xl bg-neutral-50 border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-brick';/,
+  );
+});
+
+test('FormEvent, deprecated in these React types, is not imported', async () => {
+  const src = await page();
+  assert.doesNotMatch(src, /FormEvent/);
+  assert.match(src, /type SyntheticEvent/);
 });
 
 test('both languages come from lang, never from data-en/data-zh', async () => {
@@ -117,4 +180,20 @@ test('App.tsx serves the page at /event-register/ and /events/<slug>/register/',
     /import\('\.\/pages\/EventRegisterPage'\)/,
     'the page is lazy, like the others',
   );
+
+  // The page reads its slug from location once, so back/forward between two
+  // events has to remount it rather than leave the first event on screen.
+  assert.match(
+    src,
+    /const \[route, setRoute\] = useState\(\(\) => window\.location\.pathname \+ window\.location\.search\);/,
+  );
+  assert.match(src, /setRoute\(window\.location\.pathname \+ window\.location\.search\);/);
+  assert.match(src, /<EventRegisterPage key=\{route\} \{\.\.\.pageProps\} \/>/);
+});
+
+test('the hero carries no Donate / Events / Membership banners, like the events page', async () => {
+  const src = await read('pages/EventRegisterPage.tsx');
+  const start = src.indexOf('<SubpageHero');
+  const hero = src.slice(start, src.indexOf('/>', start));
+  assert.match(hero, /showActionBanners=\{false\}/);
 });

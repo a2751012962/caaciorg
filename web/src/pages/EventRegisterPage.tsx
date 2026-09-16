@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { motion } from 'motion/react';
 import { AlertTriangle, Calendar, Check, Gift, MapPin, RefreshCw } from 'lucide-react';
 import { SubpageHero } from '../components/SubpageHero';
@@ -98,6 +98,25 @@ type AnswerState = Record<string, string | ChoiceState>;
 // /login-3/ through sessionStorage so the email never rides in the URL.
 const SIGNUP_EMAIL_KEY = 'caaci-signup-email';
 
+// The event GET is the only thing between the visitor and the form, so a
+// request that never answers gets cut off and offered a Retry instead.
+const LOAD_TIMEOUT_MS = 6000;
+// How long the sign-out on the way to /login-3/ is given before the stored
+// session is dropped by hand.
+const SIGN_OUT_TIMEOUT_MS = 3500;
+
+// Supabase keeps the session in localStorage under sb-<project-ref>-auth-token.
+// Removing it is the blunt fallback for a signOut() that failed or hung: the
+// login page must not find this account still signed in.
+function dropStoredSession() {
+  try {
+    for (const key of Object.keys(localStorage))
+      if (/^sb-.*-auth-token/.test(key)) localStorage.removeItem(key);
+  } catch {
+    // Storage blocked — there was nothing stored to drop either.
+  }
+}
+
 // ---------------------------------------------------------------- copy helpers
 
 // The registration time, to the second: "Sep 13, 2026, 3:04:05 PM Central Time"
@@ -151,7 +170,7 @@ function registeredText(iso: string | null | undefined, lang: Lang): string {
 // web/DESIGN_SYSTEM.md §5.2 / §5.1 / §5.3, verbatim.
 
 const INPUT =
-  'w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-neutral-50 border border-neutral-300 text-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-brick';
+  'w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-neutral-50 border border-neutral-300 text-neutral-900 focus:outline-none focus:ring-2 focus:ring-brick';
 const LABEL = 'block text-xs font-bold text-neutral-500 mb-2';
 const PRIMARY =
   'min-h-[44px] px-8 py-3 rounded-full bg-brick hover:bg-brick-hover text-white font-semibold text-xs uppercase tracking-wider shadow-xs transition-all active:scale-98 cursor-pointer inline-flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-wait';
@@ -186,6 +205,8 @@ export function EventRegisterPage({
   const [slug] = useState(() => eventSlugFrom(window.location.pathname, window.location.search));
 
   const [status, setStatus] = useState<'loading' | 'missing' | 'failed' | 'ready'>('loading');
+  // What the GET said about the session, which is what the API will act on.
+  const [signedIn, setSignedIn] = useState(false);
   const [ev, setEv] = useState<RegEvent | null>(null);
   const [perk, setPerk] = useState<Perk | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -203,12 +224,18 @@ export function EventRegisterPage({
   const [done, setDone] = useState<Done | null>(null);
   const [registeredEmail, setRegisteredEmail] = useState('');
   const doneTitle = useRef<HTMLHeadingElement>(null);
+  // Set when "Change my answers" sends someone back, so the form takes focus.
+  const [refocus, setRefocus] = useState(0);
 
   const questions = ev?.questions ?? [];
   // Signed in, but registered under a different address than the login one:
   // the gift goes with the registration email, so that account has to be left
   // before the right one can be created or signed in to.
   const signOutFirst = !!done && done.signedIn && !done.linked;
+  // The account email is the one the API will file the registration under, so
+  // it is fixed here — but only once the GET has confirmed the session and
+  // handed back an address; a local token alone would lock an empty box.
+  const emailLocked = signedIn && !!email;
 
   // Same-site link back to this page as it was reached (with the query, which
   // names the event on /event-register/?event=), never a fixed host.
@@ -223,10 +250,23 @@ export function EventRegisterPage({
     if (!auth.ready) return;
     let alive = true;
     setStatus('loading');
-    api<RegInfo>(`/api/event-register?event=${encodeURIComponent(slug)}`, undefined, {
-      auth: true,
-    }).then(({ ok, status: code, data }) => {
+    // A request that never answers would leave the spinner up for good, with
+    // no way back; after LOAD_TIMEOUT_MS it becomes the ordinary error with
+    // Retry, which starts a fresh attempt.
+    let timer = 0;
+    const timeout = new Promise<null>((resolve) => {
+      timer = window.setTimeout(() => resolve(null), LOAD_TIMEOUT_MS);
+    });
+    Promise.race([
+      api<RegInfo>(`/api/event-register?event=${encodeURIComponent(slug)}`, undefined, {
+        auth: true,
+      }),
+      timeout,
+    ]).then((result) => {
+      window.clearTimeout(timer);
       if (!alive) return;
+      if (!result) return setStatus('failed');
+      const { ok, status: code, data } = result;
       if (code === 404) return setStatus('missing');
       if (!ok || !data.event) return setStatus('failed');
       const event = data.event;
@@ -237,6 +277,7 @@ export function EventRegisterPage({
       for (const q of event.questions ?? [])
         blank[q.id] = q.type === 'text' || q.type === 'textarea' ? '' : { picked: [], other: null };
       setAnswers(blank);
+      setSignedIn(!!data.signed_in);
       if (data.signed_in) {
         if (data.email) setEmail(data.email);
         // Signed up to volunteer before: show it as it stands, so a
@@ -262,6 +303,7 @@ export function EventRegisterPage({
     });
     return () => {
       alive = false;
+      window.clearTimeout(timer);
     };
   }, [slug, attempt, auth.ready]);
 
@@ -280,8 +322,14 @@ export function EventRegisterPage({
     if (done) doneTitle.current?.focus();
   }, [done]);
 
+  // Back from the success card: the form is on screen again, so start where it
+  // is filled in rather than leaving focus on a button that is gone.
+  useEffect(() => {
+    if (refocus) document.getElementById('ev-email')?.focus();
+  }, [refocus]);
+
   // ---------------------------------------------------------------- submit
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: SyntheticEvent) => {
     e.preventDefault();
     if (busy || !ev) return;
     const focus = (field: string) => document.getElementById(field)?.focus();
@@ -363,7 +411,20 @@ export function EventRegisterPage({
   // someone who registered under another address is signed out on the way.
   const goToLogin = useCallback(
     async (url: string) => {
-      if (signOutFirst) await auth.signOut();
+      if (signOutFirst) {
+        // Leaving this account is the whole point of the trip, so a sign-out
+        // that hangs or fails must not carry the session onto the login page:
+        // past SIGN_OUT_TIMEOUT_MS the stored token is dropped by hand, the
+        // way the Tabler page's dropStoredSession() did.
+        const left = await Promise.race([
+          auth.signOut().then(
+            () => true,
+            () => false,
+          ),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), SIGN_OUT_TIMEOUT_MS)),
+        ]);
+        if (!left) dropStoredSession();
+      }
       window.location.assign(url);
     },
     [auth, signOutFirst],
@@ -632,7 +693,14 @@ export function EventRegisterPage({
         {/* Hidden once the event has closed: there is nothing left to change. */}
         {ev?.open !== false && (
           <div className="pt-3 border-t border-neutral-200">
-            <button type="button" onClick={() => setDone(null)} className={SECONDARY}>
+            <button
+              type="button"
+              onClick={() => {
+                setDone(null);
+                setRefocus((n) => n + 1);
+              }}
+              className={SECONDARY}
+            >
               {en ? 'Change my answers' : '修改我的回答'}
             </button>
           </div>
@@ -663,13 +731,13 @@ export function EventRegisterPage({
           autoComplete="email"
           maxLength={254}
           required
-          readOnly={!!auth.user}
+          readOnly={emailLocked}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
-          className={`${INPUT} ${auth.user ? 'text-neutral-500' : ''}`}
+          className={`${INPUT} ${emailLocked ? 'text-neutral-500' : ''}`}
         />
-        {auth.user && (
+        {emailLocked && (
           <p className="mt-2 text-[11px] text-neutral-500">
             {en ? 'Registering under another email? ' : '想用其他邮箱报名？'}
             <button
@@ -738,7 +806,6 @@ export function EventRegisterPage({
       {/* Honeypot: people never see or fill it; the API then answers ok without
           saving anything. Its name means nothing to browser autofill. */}
       <div aria-hidden="true" className="absolute -left-[9999px] top-0 w-px h-px overflow-hidden">
-        <label htmlFor="caaci_hp_field">Website</label>
         <input
           id="caaci_hp_field"
           type="text"
@@ -843,6 +910,7 @@ export function EventRegisterPage({
         onOpenModal={onOpenModal}
         onNavigate={onNavigate}
         currentPage="events"
+        showActionBanners={false}
       />
 
       <motion.section

@@ -119,6 +119,9 @@ function Site() {
   const [initial] = useState(boot);
   const [lang, setLang] = useState<Lang>(initial.lang);
   const [currentPage, setCurrentPage] = useState<PageId>(initial.page);
+  // The address as the page-level identity, updated on back/forward so a page
+  // that reads location once (event-register) is remounted for a new URL.
+  const [route, setRoute] = useState(() => window.location.pathname + window.location.search);
   const [modalType, setModalType] = useState<ModalType>(initial.modal);
   const auth = useAuth();
 
@@ -141,6 +144,7 @@ function Site() {
     const handlePopState = () => {
       setCurrentPage(pageFromPath(window.location.pathname));
       setLang(isZhPath(window.location.pathname) ? 'zh' : 'en');
+      setRoute(window.location.pathname + window.location.search);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -208,7 +212,10 @@ function Site() {
       case 'business-services':
         return <BusinessServicesPage {...pageProps} />;
       case 'event-register':
-        return <EventRegisterPage {...pageProps} />;
+        // Keyed on the address: the registration page reads its event from the
+        // path once, so stepping back to a different /events/<slug>/register/
+        // has to start it over rather than leave the old event on screen.
+        return <EventRegisterPage key={route} {...pageProps} />;
       case 'home':
       default:
         return <HomePage {...pageProps} />;
