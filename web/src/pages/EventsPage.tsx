@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { listExit, listItem, mountIn, riseFromSm } from '../lib/motion';
+import { Reveal } from '../components/Reveal';
+import { FluidTabs } from '../components/FluidTabs';
 import { SubpageHero } from '../components/SubpageHero';
 import { ContactSection } from '../components/ContactSection';
 import {
@@ -503,7 +505,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
       {/* 2. Spotlight Banner for Next Upcoming Marquee Event */}
       {spotlightEvent && (
         <section className="py-10 sm:py-14 bg-surface-2 border-b border-neutral-200/80">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Reveal className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div
               className="bg-ink bg-cover bg-center text-white rounded-3xl p-6 sm:p-10 lg:p-12 shadow-sm space-y-6"
               style={
@@ -582,7 +584,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                 {rsvpNote(spotlightEvent, true)}
               </div>
             </div>
-          </div>
+          </Reveal>
         </section>
       )}
 
@@ -609,74 +611,73 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
 
                 {/* Filter Tabs + Search Button on the Same Row - Perfectly Unified Heights, Equal Capsule Sizing & Never Overflows Mobile */}
                 <div className="flex items-center gap-1.5 sm:gap-2.5 w-full lg:w-auto max-w-full">
-                  {/* Segmented Time Filter Tabs with clean badges and identical h-10 container */}
-                  <div className="h-10 p-1 rounded-full bg-neutral-100 border border-neutral-200/80 flex-1 sm:flex-initial flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('all')}
-                      className={`h-8 flex-1 sm:flex-initial px-2 sm:px-4 rounded-full text-xs font-semibold transition-all cursor-pointer whitespace-nowrap inline-flex items-center justify-center gap-1 sm:gap-1.5 ${
-                        activeTab === 'all'
-                          ? 'bg-white text-ink shadow-xs'
-                          : 'text-neutral-600 hover:text-neutral-900'
-                      }`}
-                    >
-                      <SlidersHorizontal className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-neutral-500" />
-                      <span>{lang === 'en' ? 'All' : '全部'}</span>
-                      <span
-                        className={`min-w-[16px] sm:min-w-[18px] px-1 sm:px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold text-center leading-none ${
-                          activeTab === 'all'
-                            ? 'bg-neutral-100 text-neutral-900'
-                            : 'bg-neutral-200/80 text-neutral-600'
-                        }`}
-                      >
-                        {loading ? '–' : totalCount}
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('upcoming')}
-                      className={`h-8 flex-1 sm:flex-initial px-2 sm:px-4 rounded-full text-xs font-semibold transition-all cursor-pointer inline-flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap ${
-                        activeTab === 'upcoming'
-                          ? 'bg-white text-brick shadow-xs'
-                          : 'text-neutral-600 hover:text-neutral-900'
-                      }`}
-                    >
-                      <CalendarIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-brick" />
-                      <span>{lang === 'en' ? 'Upcoming' : '近期'}</span>
-                      <span
-                        className={`min-w-[16px] sm:min-w-[18px] px-1 sm:px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold text-center leading-none ${
-                          activeTab === 'upcoming'
-                            ? 'bg-brick/10 text-brick'
-                            : 'bg-neutral-200/80 text-neutral-600'
-                        }`}
-                      >
-                        {loading ? '–' : upcomingTotalCount}
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('past')}
-                      className={`h-8 flex-1 sm:flex-initial px-2 sm:px-4 rounded-full text-xs font-semibold transition-all cursor-pointer inline-flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap ${
-                        activeTab === 'past'
-                          ? 'bg-white text-ink shadow-xs'
-                          : 'text-neutral-600 hover:text-neutral-900'
-                      }`}
-                    >
-                      <History className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-neutral-500" />
-                      <span>{lang === 'en' ? 'Past' : '往期'}</span>
-                      <span
-                        className={`min-w-[16px] sm:min-w-[18px] px-1 sm:px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold text-center leading-none ${
-                          activeTab === 'past'
-                            ? 'bg-neutral-100 text-neutral-900'
-                            : 'bg-neutral-200/80 text-neutral-600'
-                        }`}
-                      >
-                        {pastTotalCount}
-                      </span>
-                    </button>
-                  </div>
+                  {/* Time filter: one track, a pill slides to the chosen tab */}
+                  <FluidTabs<'all' | 'upcoming' | 'past'>
+                    id="events-time-filter"
+                    ariaLabel={lang === 'en' ? 'Show events' : '筛选活动'}
+                    value={activeTab}
+                    onChange={setActiveTab}
+                    className="flex-1 sm:flex-initial flex items-center justify-between"
+                    itemClassName="flex-1 sm:flex-initial px-2 sm:px-4 gap-1 sm:gap-1.5"
+                    items={[
+                      {
+                        value: 'all',
+                        label: (active) => (
+                          <>
+                            <SlidersHorizontal className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-neutral-500" />
+                            <span>{lang === 'en' ? 'All' : '全部'}</span>
+                            <span
+                              className={`min-w-[16px] sm:min-w-[18px] px-1 sm:px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold text-center leading-none ${
+                                active
+                                  ? 'bg-neutral-100 text-neutral-900'
+                                  : 'bg-neutral-200/80 text-neutral-600'
+                              }`}
+                            >
+                              {loading ? '–' : totalCount}
+                            </span>
+                          </>
+                        ),
+                      },
+                      {
+                        value: 'upcoming',
+                        label: (active) => (
+                          <>
+                            <CalendarIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-brick" />
+                            <span className={active ? 'text-brick' : undefined}>
+                              {lang === 'en' ? 'Upcoming' : '近期'}
+                            </span>
+                            <span
+                              className={`min-w-[16px] sm:min-w-[18px] px-1 sm:px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold text-center leading-none ${
+                                active
+                                  ? 'bg-brick/10 text-brick'
+                                  : 'bg-neutral-200/80 text-neutral-600'
+                              }`}
+                            >
+                              {loading ? '–' : upcomingTotalCount}
+                            </span>
+                          </>
+                        ),
+                      },
+                      {
+                        value: 'past',
+                        label: (active) => (
+                          <>
+                            <History className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-neutral-500" />
+                            <span>{lang === 'en' ? 'Past' : '往期'}</span>
+                            <span
+                              className={`min-w-[16px] sm:min-w-[18px] px-1 sm:px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold text-center leading-none ${
+                                active
+                                  ? 'bg-neutral-100 text-neutral-900'
+                                  : 'bg-neutral-200/80 text-neutral-600'
+                              }`}
+                            >
+                              {pastTotalCount}
+                            </span>
+                          </>
+                        ),
+                      },
+                    ]}
+                  />
 
                   {/* Desktop Inline Search Bar (Exactly matching h-10 height & pill contour) */}
                   <div className="hidden md:flex items-center relative w-60 lg:w-72 shrink-0 h-10">

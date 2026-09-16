@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { aboutDataEN, aboutDataZH } from '../data/pagesContent';
+import { Reveal } from '../components/Reveal';
 
 interface AboutPageProps {
   content: CAACIContent;
@@ -43,7 +44,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       <section className="py-16 sm:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-neutral-200/80">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
           {/* Left: Mission & Story */}
-          <div className="lg:col-span-7 space-y-6">
+          <Reveal from="left" className="lg:col-span-7 space-y-6">
             <span className="text-xs font-semibold text-brick block">{data.missionTitle}</span>
 
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink leading-snug">
@@ -73,10 +74,10 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 {lang === 'en' ? 'Become a Volunteer' : '成为华协义工'}
               </button>
             </div>
-          </div>
+          </Reveal>
 
           {/* Right: Authentic Photograph (Crisp Apple Hardware-Style Frame) */}
-          <div className="lg:col-span-5">
+          <Reveal from="right" className="lg:col-span-5">
             <div className="relative rounded-2xl overflow-hidden border border-neutral-200/90 shadow-sm bg-neutral-100 group">
               <img
                 src="/images/about-team.jpg"
@@ -95,26 +96,27 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 </div>
               </div>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* 3. Apple-Style Core Values (Clean 3-Column Columns with Hairline Borders) */}
       <section className="py-16 sm:py-24 bg-surface-2 border-b border-neutral-200/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-2xl mb-14">
+          <Reveal className="max-w-2xl mb-14">
             <span className="text-xs font-semibold text-brick block mb-2">
               {lang === 'en' ? 'Our Principles' : '核心价值观'}
             </span>
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
               {data.valuesTitle}
             </h2>
-          </div>
+          </Reveal>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {data.values.map((val, idx) => (
-              <div
+              <Reveal
                 key={idx}
+                index={idx}
                 className="bg-white rounded-2xl p-8 border border-neutral-200/80 shadow-sm flex flex-col justify-between space-y-6"
               >
                 <div className="space-y-4">
@@ -133,7 +135,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                   <ShieldCheck className="w-4 h-4 text-brick" />
                   <span>Value 0{idx + 1}</span>
                 </div>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -142,7 +144,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       {/* 4. Apple-Style Action / Programs Grid (实现途径与活动开展) */}
       <section className="py-16 sm:py-24 bg-white border-b border-neutral-200/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mb-12">
+          <Reveal className="max-w-3xl mb-12">
             <span className="text-xs font-semibold text-brick block mb-2">
               {lang === 'en' ? 'Community Action' : '实现途径与活动开展'}
             </span>
@@ -150,10 +152,13 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
               {data.howWeDoItTitle}
             </h2>
             <p className="mt-4 text-base text-neutral-600 leading-relaxed">{data.howWeDoItText}</p>
-          </div>
+          </Reveal>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
+            <Reveal
+              index={0}
+              className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2"
+            >
               <span className="text-[11px] font-semibold text-brick">
                 {lang === 'en' ? 'Annual Celebration' : '千人盛宴'}
               </span>
@@ -165,9 +170,12 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                   ? 'Our signature 1,000+ guest theatrical banquet featuring traditional arts, student performances, and cultural heritage.'
                   : '香槟地区规模最大、历史最悠久的千人新春盛会，融汇传统中华歌舞艺术与名家联欢。'}
               </p>
-            </div>
+            </Reveal>
 
-            <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
+            <Reveal
+              index={1}
+              className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2"
+            >
               <span className="text-[11px] font-semibold text-brick">
                 {lang === 'en' ? 'Folk Heritage' : '传统民俗'}
               </span>
@@ -179,9 +187,12 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                   ? 'Handmade zongzi workshops, family picnic games, and folk celebration bringing all generations together.'
                   : '手作香粽品鉴、传统香囊制作与亲子草坪野餐会，传承中华传统端午文化。'}
               </p>
-            </div>
+            </Reveal>
 
-            <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
+            <Reveal
+              index={2}
+              className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2"
+            >
               <span className="text-[11px] font-semibold text-brick">
                 {lang === 'en' ? 'Autumn Harvest' : '游园盛会'}
               </span>
@@ -193,9 +204,12 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                   ? 'Artisan mooncake tastings, riddle games, lantern displays, and poetry recitations beneath the harvest moon.'
                   : '赏月品茗、品味手工酥皮月饼、诗词吟诵与非遗灯谜游园，共庆花好月圆。'}
               </p>
-            </div>
+            </Reveal>
 
-            <div className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2">
+            <Reveal
+              index={3}
+              className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2"
+            >
               <span className="text-[11px] font-semibold text-brick">
                 {lang === 'en' ? 'Civic & Professional' : '政商与求职'}
               </span>
@@ -207,7 +221,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                   ? 'Illinois State Government job fairs, bilingual tax workshops, immigrant legal aid, and youth mentor forums.'
                   : '联合伊利诺伊州政府举办招聘会、青年创业导师研讨会及双语法律税务专题讲座。'}
               </p>
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>
@@ -215,7 +229,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       {/* 5. Apple Theater Video Showcase (Sleek Obsidian Cinema Frame, No Cheesy Gradients) */}
       <section className="py-16 sm:py-24 bg-ink-deep text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 pb-10 border-b border-white/10 mb-10">
+          <Reveal className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 pb-10 border-b border-white/10 mb-10">
             <div className="space-y-2 max-w-2xl">
               <span className="text-xs font-semibold text-gold block">
                 {lang === 'en' ? 'Official Video' : '官方回顾视频'}
@@ -242,10 +256,10 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 <ExternalLink className="w-3.5 h-3.5 text-neutral-500" />
               </a>
             </div>
-          </div>
+          </Reveal>
 
           {/* Minimalist Apple Cinema Frame */}
-          <div className="max-w-5xl mx-auto">
+          <Reveal index={1} className="max-w-5xl mx-auto">
             <div className="relative rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl">
               {!isPlayingVideo ? (
                 <div
@@ -299,14 +313,14 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* 6. Apple-Style Leadership Directory (管理架构与理事会名录) */}
       <section className="py-16 sm:py-24 bg-surface-2 border-b border-neutral-200/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-2xl mb-14">
+          <Reveal className="max-w-2xl mb-14">
             <span className="text-xs font-semibold text-brick block mb-2">
               {lang === 'en' ? 'Leadership' : '协会治理'}
             </span>
@@ -314,12 +328,13 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
               {data.managementTitle}
             </h2>
             <p className="mt-2 text-sm text-neutral-500">{data.managementSubtitle}</p>
-          </div>
+          </Reveal>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {data.team.map((member, idx) => (
-              <div
+              <Reveal
                 key={idx}
+                index={idx}
                 className="bg-white p-7 rounded-2xl border border-neutral-200/80 shadow-sm flex flex-col justify-between space-y-4"
               >
                 <div>
@@ -329,7 +344,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                   <h4 className="text-lg font-semibold text-ink">{member.name}</h4>
                   <p className="text-xs text-neutral-600 mt-2 leading-relaxed">{member.desc}</p>
                 </div>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -338,7 +353,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       {/* 7. Apple-Style Past Presidents Roster (历届会长) */}
       <section className="py-16 sm:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-2xl mb-12">
+          <Reveal className="max-w-2xl mb-12">
             <span className="text-xs font-semibold text-brick block mb-2">
               {lang === 'en' ? 'Heritage & Honor' : '光荣传承'}
             </span>
@@ -348,20 +363,22 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
             <p className="mt-2 text-xs sm:text-sm text-neutral-500">
               {data.pastPresidentsSubtitle}
             </p>
-          </div>
+          </Reveal>
 
           {/* Clean minimal grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {data.pastPresidents.map((p, idx) => (
-              <div
+              <Reveal
                 key={idx}
+                from="up-sm"
+                index={idx}
                 className="p-4 rounded-xl border border-neutral-200/80 bg-surface-2 hover:bg-neutral-100 transition-colors"
               >
                 <span className="text-xs font-semibold text-neutral-400 block font-mono">
                   {p.year}
                 </span>
                 <span className="font-semibold text-sm text-ink mt-0.5 block">{p.name}</span>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>

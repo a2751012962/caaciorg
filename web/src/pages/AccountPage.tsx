@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { mountIn, riseFromSm } from '../lib/motion';
+import { FluidTabs } from '../components/FluidTabs';
 import {
   User,
   CreditCard,
@@ -291,12 +292,6 @@ export function AccountPage({
   // /login-3/ returns to ?next= after signing in, so ?family_invite survives.
   const here = () => window.location.pathname + window.location.search;
 
-  const tabClass = (tab: MobileTab) =>
-    `min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0 ${
-      activeMobileTab === tab
-        ? 'bg-brick text-white shadow-sm'
-        : 'bg-white text-neutral-700 hover:bg-neutral-100 border border-neutral-200/80'
-    }`;
   const shownOn = (tab: MobileTab) =>
     activeMobileTab === tab || activeMobileTab === 'all' ? 'block' : 'hidden';
 
@@ -622,80 +617,92 @@ export function AccountPage({
 
             {/* Mobile Sticky Segmented Quick Tabs */}
             <div className="lg:hidden sticky top-16 z-30 bg-surface-hover/95 backdrop-blur-md py-1.5 -mx-3.5 px-3.5 border-y border-neutral-200/70 shadow-xs">
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                <button
-                  type="button"
-                  onClick={() => setActiveMobileTab('pass')}
-                  className={tabClass('pass')}
-                >
-                  <Award className="w-3.5 h-3.5" />
-                  <span>{lang === 'en' ? 'Digital Pass' : '会员卡'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveMobileTab('events')}
-                  className={tabClass('events')}
-                >
-                  <Ticket className="w-3.5 h-3.5" />
-                  <span>{lang === 'en' ? 'My Events' : '我的活动'}</span>
-                  {!!events?.length && <span className="font-bold text-xs">{events.length}</span>}
-                </button>
-
-                {familyVisible && (
-                  <button
-                    type="button"
-                    onClick={() => setActiveMobileTab('family')}
-                    className={tabClass('family')}
-                  >
-                    <Users className="w-3.5 h-3.5" />
-                    <span>{lang === 'en' ? 'Family' : '家庭成员'}</span>
-                    {familySeatsBadge && (
-                      <span
-                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                          activeMobileTab === 'family'
-                            ? 'bg-white/20 text-white'
-                            : 'bg-neutral-100 text-neutral-600'
-                        }`}
-                      >
-                        {familySeatsBadge}
-                      </span>
-                    )}
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setActiveMobileTab('billing')}
-                  className={tabClass('billing')}
-                >
-                  <History className="w-3.5 h-3.5" />
-                  <span>{lang === 'en' ? 'Billing' : '订阅账单'}</span>
-                  {pastDue && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveMobileTab('profile')}
-                  className={tabClass('profile')}
-                >
-                  <User className="w-3.5 h-3.5" />
-                  <span>{lang === 'en' ? 'Profile & Security' : '资料与安全'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveMobileTab('all')}
-                  className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer inline-flex items-center gap-1 shrink-0 ${
-                    activeMobileTab === 'all'
-                      ? 'bg-neutral-900 text-white shadow-sm'
-                      : 'bg-white text-neutral-500 hover:text-neutral-800 border border-neutral-200/80'
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>{lang === 'en' ? 'All' : '全部'}</span>
-                </button>
-              </div>
+              <FluidTabs<MobileTab>
+                id="account-sections"
+                tone="brand"
+                ariaLabel={lang === 'en' ? 'Account sections' : '账户分区'}
+                value={activeMobileTab}
+                onChange={setActiveMobileTab}
+                className="flex items-center gap-1 overflow-x-auto no-scrollbar"
+                itemClassName="shrink-0 px-3.5"
+                items={[
+                  {
+                    value: 'pass',
+                    label: (
+                      <>
+                        <Award className="w-3.5 h-3.5" />
+                        <span>{lang === 'en' ? 'Digital Pass' : '会员卡'}</span>
+                      </>
+                    ),
+                  },
+                  {
+                    value: 'events',
+                    label: (
+                      <>
+                        <Ticket className="w-3.5 h-3.5" />
+                        <span>{lang === 'en' ? 'My Events' : '我的活动'}</span>
+                        {!!events?.length && (
+                          <span className="font-bold text-xs">{events.length}</span>
+                        )}
+                      </>
+                    ),
+                  },
+                  ...(familyVisible
+                    ? [
+                        {
+                          value: 'family' as const,
+                          label: (active: boolean) => (
+                            <>
+                              <Users className="w-3.5 h-3.5" />
+                              <span>{lang === 'en' ? 'Family' : '家庭成员'}</span>
+                              {familySeatsBadge && (
+                                <span
+                                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                                    active
+                                      ? 'bg-white/20 text-white'
+                                      : 'bg-neutral-100 text-neutral-600'
+                                  }`}
+                                >
+                                  {familySeatsBadge}
+                                </span>
+                              )}
+                            </>
+                          ),
+                        },
+                      ]
+                    : []),
+                  {
+                    value: 'billing',
+                    label: (
+                      <>
+                        <History className="w-3.5 h-3.5" />
+                        <span>{lang === 'en' ? 'Billing' : '订阅账单'}</span>
+                        {pastDue && (
+                          <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                        )}
+                      </>
+                    ),
+                  },
+                  {
+                    value: 'profile',
+                    label: (
+                      <>
+                        <User className="w-3.5 h-3.5" />
+                        <span>{lang === 'en' ? 'Profile & Security' : '资料与安全'}</span>
+                      </>
+                    ),
+                  },
+                  {
+                    value: 'all',
+                    label: (
+                      <>
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>{lang === 'en' ? 'All' : '全部'}</span>
+                      </>
+                    ),
+                  },
+                ]}
+              />
             </div>
           </div>
 

@@ -181,7 +181,10 @@
 
 **怎么写**
 
-- `motion/react`：`initial={riseFrom} whileInView={shown} viewport={inView} transition={rise(0.1)}`；
+- **页面默认用 `<Reveal>`**（`components/Reveal.tsx`）：包住区块标题、卡片或列表项即可，
+  `<Reveal from="left" | "right" | "up" | "up-sm" | "fade" index={idx} onMount>`；`index` 自动错峰并封顶，`onMount` 用于 Hero 内容（加载即播放）。
+  每个子页面至少：SubpageHero 文字挂载进场、每个区块标题一次 reveal、网格项按 `index` 错峰。
+- `motion/react`（需要 Reveal 覆盖不了的场景）：`initial={riseFrom} whileInView={shown} viewport={inView} transition={rise(0.1)}`；
   列表 `transition={listItem(idx)}`；页面挂载 `transition={mountIn}`；按钮 `whileHover={hoverScale} whileTap={tap}`；卡片 `whileHover={hoverLift}`；
   弹窗 `overlayIn` / `panelFrom` / `panelShown` / `panelIn`。
 - GSAP：在 `gsap.context` 里 `reveal(el, { from: 'left', trigger })`、`revealGroup(children)`。不再手写 `fromTo` + `scrollTrigger`。
@@ -236,14 +239,24 @@
 - 悬浮标签（Most Popular）：`absolute -top-3 left-6 bg-ink text-white text-[10px] font-semibold uppercase tracking-wider px-3 py-0.5 rounded-full shadow-md`
 - 序号圆点：`w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs`
 
-### 5.5 Tab（账户页）
+### 5.5 Tab = Fluid Tab（已定 2026-09-15）
 
-选中 `bg-brick text-white shadow-sm`；未选中 `bg-white text-neutral-700 border border-neutral-200/80 hover:bg-neutral-100`；共用 `min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold`。
+全站只有一种 Tab / 分段控件：`components/FluidTabs.tsx`。一条圆角轨道，一枚"药丸"在选中项之间**滑动**（`layoutId` 布局动画，弹簧 `fluidTab`：stiffness 420 / damping 34，约 0.25s，无回弹），文字只变色，不重绘背景。
 
-### 5.6 分段选择（Segmented）
+| 部位                | 类                                                                     |
+| ------------------- | ---------------------------------------------------------------------- |
+| 轨道                | `h-10 p-1 rounded-full bg-neutral-100 border border-neutral-200/80`    |
+| 项                  | `h-8 px-4 rounded-full text-xs font-semibold`，选中 / 未选中只换文字色 |
+| 药丸 `tone="light"` | `bg-white shadow-xs`，文字 `text-ink`（筛选、开关、弹窗内选项）        |
+| 药丸 `tone="brand"` | `bg-brick shadow-sm`，文字 `text-white`（页面分区，如账户页）          |
 
-外框 `h-10 p-1 rounded-full bg-neutral-100 border border-neutral-200/80 grid`；
-选中项 `h-8 rounded-full text-xs font-semibold bg-white shadow-xs`。
+用法：`<FluidTabs id="events-time-filter" value={tab} onChange={setTab} items={[{ value, label }]} />`；
+`label` 可以是渲染函数 `(active) => …` 以便徽章随选中态换色；等宽用 `className="grid grid-cols-2"`，撑满用 `className="flex" itemClassName="flex-1"`；
+`role="group"` 用于"设置型"二选一（aria-pressed），默认 `tablist`（aria-selected，方向键 / Home / End 可切换）。
+
+已用于：活动页时间筛选、账户页手机分区、捐款弹窗频率。禁止再手写 `h-10 p-1 rounded-full bg-neutral-100` 轨道或每项各自换底色的 Tab（测试会拦）。
+
+### 5.6 （并入 5.5）
 
 ### 5.7 弹窗
 
