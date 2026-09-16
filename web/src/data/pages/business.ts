@@ -226,6 +226,18 @@ export const businessServicesDataEN: BusinessServicesContent = {
       website: 'https://magnifyfilms.org',
       desc: 'Professional business and personal videographers based in Urbana, IL, providing creative commercial video production, brand storytelling, and event documentation.',
     },
+    {
+      id: 'myst-scc',
+      name: 'MYST SCC',
+      nameEn: 'MYST SCC',
+      category: 'services',
+      categoryLabel: 'Luxury Car Showroom',
+      address: '301 W Marketview Dr, Ste A, Champaign, IL 61822',
+      phone: '(248) 850-8010',
+      website: 'https://mystscc.com',
+      featured: true,
+      desc: 'Curated pre-owned luxury and performance cars, plus detailing, vinyl wraps and paint protection.',
+    },
   ],
   events: [
     {
@@ -433,6 +445,18 @@ export const businessServicesDataZH: BusinessServicesContent = {
       phone: '(217) 552-4636',
       website: 'https://magnifyfilms.org',
       desc: '位于厄巴纳的专业商业与个人影视摄制团队，承接企业宣传视频摄制、品牌故事包装、社区庆典活动高清录制与视觉创作服务。',
+    },
+    {
+      id: 'myst-scc',
+      name: 'MYST SCC 豪车展厅',
+      nameEn: 'MYST SCC',
+      category: 'services',
+      categoryLabel: '豪车展厅',
+      address: '301 W Marketview Dr, Ste A, Champaign, IL 61822',
+      phone: '(248) 850-8010',
+      website: 'https://mystscc.com',
+      featured: true,
+      desc: '精选二手豪华车与高性能车，并提供精细洗护、车身改色贴膜与漆面保护。',
     },
   ],
   events: [

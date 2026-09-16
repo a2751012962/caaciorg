@@ -1159,12 +1159,6 @@ export function BusinessServicesPage({
                 className="p-6 sm:p-8 hover:bg-surface-hover transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-6"
               >
                 <div className="space-y-2 max-w-2xl">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold text-brick px-2.5 py-0.5 rounded-full bg-brick/10">
-                      {evt.organizer}
-                    </span>
-                  </div>
-
                   <h3 className="text-lg sm:text-xl font-semibold text-ink tracking-tight">
                     {evt.title}
                   </h3>
