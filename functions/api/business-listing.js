@@ -1,5 +1,6 @@
 // POST /api/business-listing — submits a business for the directory (pending approval).
 import { json, bad, sb, sendEmail } from './_lib.js';
+import { CATEGORIES } from './admin/business.js';
 
 export async function onRequestPost({ request, env }) {
   let b;
@@ -16,7 +17,8 @@ export async function onRequestPost({ request, env }) {
       'business_directory',
       {
         name: b.name,
-        category: b.category || 'other',
+        // Anything outside the page's filter ids lands in the catch-all bucket.
+        category: CATEGORIES.includes(b.category) ? b.category : 'services',
         description: b.description || null,
         address: b.address || null,
         phone: b.phone || null,

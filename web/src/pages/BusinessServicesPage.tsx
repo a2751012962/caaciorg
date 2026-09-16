@@ -59,8 +59,8 @@ import {
   DIRECTORY_CATEGORIES,
   LISTING_CATEGORIES,
   directionsUrl,
+  directoryMerchants,
   loadApprovedListings,
-  mergeMerchants,
   type DirectoryRow,
 } from '../lib/directory';
 
@@ -92,8 +92,10 @@ export function BusinessServicesPage({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Approved business_directory rows (public read), listed after the static merchants.
-  const [listings, setListings] = useState<DirectoryRow[]>([]);
+  // Approved business_directory rows (public read), managed in the admin panel.
+  // undefined = still loading: no cards yet, so a merchant staff removed never
+  // flashes up from the built-in list, which is only used if the read fails.
+  const [listings, setListings] = useState<DirectoryRow[] | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
     void loadApprovedListings().then((rows) => alive && setListings(rows));
@@ -101,8 +103,9 @@ export function BusinessServicesPage({
       alive = false;
     };
   }, []);
+  const loadingListings = listings === undefined;
   const merchants = useMemo(
-    () => mergeMerchants(data.merchants, listings, lang),
+    () => (listings === undefined ? [] : directoryMerchants(data.merchants, listings, lang)),
     [data.merchants, listings, lang],
   );
 
@@ -113,7 +116,7 @@ export function BusinessServicesPage({
   const directoryCard = businessTier ? usd(cardTotal(businessTier)) : '';
   const fill = (s: string) =>
     s
-      .replaceAll('{count}', String(merchants.length))
+      .replaceAll('{count}', loadingListings ? '–' : String(merchants.length))
       .replaceAll('{price}', directoryPrice)
       .replaceAll('{card}', directoryCard);
   // Full page load: the membership page reads ?tier= on arrival.
@@ -159,6 +162,7 @@ export function BusinessServicesPage({
         (m.nameEn && m.nameEn.toLowerCase().includes(q)) ||
         m.desc.toLowerCase().includes(q) ||
         m.categoryLabel.toLowerCase().includes(q) ||
+        (m.tags ?? []).some((tag) => tag.toLowerCase().includes(q)) ||
         (m.discount ? m.discount.toLowerCase().includes(q) : false) ||
         m.address.toLowerCase().includes(q);
       return matchCategory && matchSearch;
@@ -504,7 +508,7 @@ export function BusinessServicesPage({
                     {lang === 'en' ? 'Merchant Directory' : '认证华人商户名录'}
                   </h3>
                   <span className="text-[11px] font-semibold text-brick px-2 py-0.5 rounded-full bg-brick/10">
-                    {merchants.length}
+                    {loadingListings ? '–' : merchants.length}
                   </span>
                 </div>
                 <p className="text-xs text-neutral-600 leading-relaxed">
@@ -750,7 +754,9 @@ export function BusinessServicesPage({
           </motion.div>
 
           {/* Merchant Directory Content */}
-          {filteredMerchants.length === 0 ? (
+          {loadingListings ? (
+            <div className="py-16" aria-busy="true" />
+          ) : filteredMerchants.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -802,6 +808,14 @@ export function BusinessServicesPage({
                                 {merchant.discount}
                               </span>
                             )}
+                          {merchant.tags?.map((tag) => (
+                            <span
+                              key={tag}
+                              className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-neutral-200 text-neutral-600"
+                            >
+                              {tag}
+                            </span>
+                          ))}
                         </div>
 
                         <div>
@@ -916,6 +930,14 @@ export function BusinessServicesPage({
                               {merchant.discount}
                             </span>
                           )}
+                        {merchant.tags?.map((tag) => (
+                          <span
+                            key={tag}
+                            className="text-[11px] font-medium px-2.5 py-0.5 rounded-full border border-neutral-200 text-neutral-600"
+                          >
+                            {tag}
+                          </span>
+                        ))}
                       </div>
 
                       <h3 className="text-lg sm:text-xl font-semibold text-ink tracking-tight">
