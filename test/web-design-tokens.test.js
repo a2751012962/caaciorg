@@ -82,6 +82,18 @@ test('motion numbers come from lib/motion.ts', async () => {
   assert.deepEqual(hits, []);
 });
 
+test('tabs and segmented controls go through FluidTabs', async () => {
+  const hits = [];
+  for (const f of files) {
+    if (f.endsWith('FluidTabs.tsx')) continue;
+    const s = await readFile(f, 'utf8');
+    if (/h-10 p-1 rounded-full bg-neutral-100/.test(s)) {
+      hits.push(`${f}: hand-rolled segmented track — use <FluidTabs> (DESIGN_SYSTEM.md §5.5)`);
+    }
+  }
+  assert.deepEqual(hits, []);
+});
+
 test('no inline backgroundColor/color hex outside the canvas card', async () => {
   const hits = [];
   for (const f of files) {

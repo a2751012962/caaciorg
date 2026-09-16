@@ -76,6 +76,10 @@ export const hoverScale = {
 };
 export const tap = { scale: MOTION.tapScale };
 
+/** The pill that slides between fluid tabs (components/FluidTabs.tsx): a firm
+ *  spring so it lands in about a quarter second with no visible bounce. */
+export const fluidTab: Transition = { type: 'spring', stiffness: 420, damping: 34, mass: 0.8 };
+
 /** Overlay + panel for dialogs. */
 export const overlayIn: Transition = { duration: MOTION.duration.fast };
 export const panelFrom = { opacity: 0, scale: 0.96, y: MOTION.riseSm };

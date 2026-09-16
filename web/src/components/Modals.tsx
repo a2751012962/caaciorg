@@ -3,6 +3,7 @@ import { X, Check, Heart, HandHeart, Lock } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
 import { usd } from '../lib/shared';
+import { FluidTabs } from './FluidTabs';
 
 export type ModalType = 'donate' | 'events' | 'membership' | 'volunteer' | null;
 
@@ -127,27 +128,18 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
         <label className="block text-xs font-bold text-neutral-500 mb-2">
           {en ? 'Frequency' : '捐款频率'}
         </label>
-        <div
+        <FluidTabs
+          id="donate-frequency"
           role="group"
-          aria-label={en ? 'Frequency' : '捐款频率'}
-          className="h-10 p-1 rounded-full bg-neutral-100 border border-neutral-200/80 grid grid-cols-2"
-        >
-          {[false, true].map((monthly) => (
-            <button
-              key={String(monthly)}
-              type="button"
-              aria-pressed={recurring === monthly}
-              onClick={() => setRecurring(monthly)}
-              className={`h-8 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                recurring === monthly
-                  ? 'bg-white text-brick shadow-xs'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              {monthly ? (en ? 'Monthly' : '每月') : en ? 'One-time' : '一次性'}
-            </button>
-          ))}
-        </div>
+          ariaLabel={en ? 'Frequency' : '捐款频率'}
+          className="grid grid-cols-2"
+          value={recurring ? 'monthly' : 'once'}
+          onChange={(v) => setRecurring(v === 'monthly')}
+          items={[
+            { value: 'once', label: en ? 'One-time' : '一次性' },
+            { value: 'monthly', label: en ? 'Monthly' : '每月' },
+          ]}
+        />
       </div>
 
       <div>
