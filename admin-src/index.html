@@ -112,8 +112,20 @@
                   <button
                     class="nav-link active"
                     role="tab"
-                    data-tab="members"
+                    data-tab="dashboard"
                     aria-selected="true"
+                    data-en="Dashboard"
+                    data-zh="看板"
+                  >
+                    Dashboard
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
+                    data-tab="members"
+                    aria-selected="false"
                     data-en="Members &amp; Subscriptions"
                     data-zh="会员与订阅"
                   >
@@ -242,8 +254,174 @@
                 </li>
               </ul>
 
+              <!-- ============ Dashboard ============ -->
+              <!-- The landing tab: one GET /api/admin/dashboard fills every tile and
+                   table below (caaci-admin.js loadDashboard). Tiles are links that
+                   jump to the tab holding the detail (data-goto). -->
+              <section data-panel="dashboard">
+                <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+                  <div class="me-auto">
+                    <div class="subheader" data-en="Overview" data-zh="总览">Overview</div>
+                    <h2 class="mb-0" data-en="Dashboard" data-zh="看板">Dashboard</h2>
+                  </div>
+                  <span class="text-secondary small" id="caaci-dash-updated"></span>
+                  <button
+                    type="button"
+                    class="btn btn-sm"
+                    id="caaci-dash-refresh"
+                    data-en="Refresh"
+                    data-zh="刷新"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <p class="alert" id="caaci-dash-notice" hidden></p>
+                <div class="row row-cards mb-3" id="caaci-dash-stats"></div>
+                <div class="row row-cards mb-3">
+                  <div class="col-md-6">
+                    <div class="card h-100">
+                      <div class="card-header">
+                        <h3 class="card-title mb-0" data-en="Members by status" data-zh="会员状态">
+                          Members by status
+                        </h3>
+                      </div>
+                      <div class="card-body" id="caaci-dash-status"></div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="card h-100">
+                      <div class="card-header">
+                        <h3
+                          class="card-title mb-0"
+                          data-en="Active members by tier"
+                          data-zh="有效会员按类型"
+                        >
+                          Active members by tier
+                        </h3>
+                      </div>
+                      <div class="table-responsive">
+                        <table class="table table-vcenter card-table">
+                          <thead>
+                            <tr>
+                              <th data-en="Tier" data-zh="类型">Tier</th>
+                              <th class="text-end" data-en="Active" data-zh="有效">Active</th>
+                            </tr>
+                          </thead>
+                          <tbody id="caaci-dash-tiers"></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="row row-cards mb-3">
+                  <div class="col-lg-7">
+                    <div class="card h-100">
+                      <div class="card-header">
+                        <h3
+                          class="card-title mb-0"
+                          data-en="Upcoming events"
+                          data-zh="即将举办的活动"
+                        >
+                          Upcoming events
+                        </h3>
+                        <div class="card-actions">
+                          <span class="text-secondary small" id="caaci-dash-drafts"></span>
+                        </div>
+                      </div>
+                      <div class="table-responsive">
+                        <table class="table table-vcenter card-table">
+                          <thead>
+                            <tr>
+                              <th data-en="Event" data-zh="活动">Event</th>
+                              <th data-en="When" data-zh="时间">When</th>
+                              <th class="text-end" data-en="Registered" data-zh="已报名">
+                                Registered
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody id="caaci-dash-events"></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-lg-5">
+                    <div class="card h-100">
+                      <div class="card-header">
+                        <h3 class="card-title mb-0" data-en="Expiring soon" data-zh="即将到期">
+                          Expiring soon
+                        </h3>
+                        <div class="card-actions">
+                          <span class="text-secondary small" id="caaci-dash-expiring-info"></span>
+                        </div>
+                      </div>
+                      <div class="table-responsive">
+                        <table class="table table-vcenter card-table">
+                          <thead>
+                            <tr>
+                              <th data-en="Member" data-zh="会员">Member</th>
+                              <th data-en="Tier" data-zh="类型">Tier</th>
+                              <th data-en="Expires" data-zh="到期">Expires</th>
+                            </tr>
+                          </thead>
+                          <tbody id="caaci-dash-expiring"></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="row row-cards mb-3">
+                  <div class="col-lg-6">
+                    <div class="card h-100">
+                      <div class="card-header">
+                        <h3
+                          class="card-title mb-0"
+                          data-en="Latest registrations"
+                          data-zh="最新报名"
+                        >
+                          Latest registrations
+                        </h3>
+                      </div>
+                      <div class="table-responsive">
+                        <table class="table table-vcenter card-table">
+                          <thead>
+                            <tr>
+                              <th data-en="Email" data-zh="邮箱">Email</th>
+                              <th data-en="Event" data-zh="活动">Event</th>
+                              <th data-en="Registered" data-zh="报名时间">Registered</th>
+                            </tr>
+                          </thead>
+                          <tbody id="caaci-dash-registrations"></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-lg-6">
+                    <div class="card h-100">
+                      <div class="card-header">
+                        <h3 class="card-title mb-0" data-en="Latest payments" data-zh="最新收款">
+                          Latest payments
+                        </h3>
+                      </div>
+                      <div class="table-responsive">
+                        <table class="table table-vcenter card-table">
+                          <thead>
+                            <tr>
+                              <th data-en="Date" data-zh="日期">Date</th>
+                              <th data-en="Member" data-zh="会员">Member</th>
+                              <th data-en="Type" data-zh="类型">Type</th>
+                              <th class="text-end" data-en="Amount" data-zh="金额">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody id="caaci-dash-payments"></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
               <!-- ============ Members & Subscriptions ============ -->
-              <section class="card" data-panel="members">
+              <section class="card" data-panel="members" hidden>
                 <div class="card-header">
                   <h2
                     class="card-title mb-0"

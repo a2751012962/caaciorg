@@ -96,6 +96,75 @@ function apiRoutes(u, options = {}) {
     };
   if (u.includes('/api/admin/business')) return { body: { rows: [], total: 0, pending_total: 2 } };
   if (u.includes('/api/admin/media')) return { body: { rows: [] } };
+  if (u.includes('/api/admin/dashboard'))
+    return {
+      body: {
+        generated_at: '2026-09-16T15:00:00Z',
+        members: {
+          total: 60,
+          status_counts: { active: 40, pending: 3, past_due: 2, expired: 10, cancelled: 5 },
+          new_this_month: 6,
+          by_tier: [
+            { id: 'individual', name: 'Individual', active: 25 },
+            { id: 'family', name: 'Family', active: 15 },
+          ],
+          expiring_days: 30,
+          expiring_total: 1,
+          expiring: [
+            {
+              id: 'm1',
+              full_name: 'Mei Lin',
+              email: 'mei@x.com',
+              tier_id: 'individual',
+              status: 'active',
+              expires_at: '2026-09-30T00:00:00Z',
+            },
+          ],
+        },
+        revenue: {
+          ytd_cents: 123400,
+          month_cents: 9315,
+          payments_this_month: 3,
+          recent: [
+            {
+              id: 'p1',
+              kind: 'renewal',
+              amount_cents: 3105,
+              tier_id: 'individual',
+              paid_at: '2026-09-10T00:00:00Z',
+              members: { full_name: 'Wang Wei', email: 'ww@x.com' },
+            },
+          ],
+        },
+        events: {
+          upcoming_total: 1,
+          upcoming: [
+            {
+              id: 'e1',
+              title: 'Mid-Autumn Festival',
+              title_zh: '中秋晚会',
+              slug: 'mid-autumn',
+              starts_at: '2026-10-03T23:00:00Z',
+              ends_at: null,
+              location: 'Champaign',
+              takes_registrations: true,
+              registration_count: 57,
+            },
+          ],
+          drafts_total: 1,
+          recent_registrations: [
+            {
+              id: 'r1',
+              email: 'ann@x.com',
+              created_at: '2026-09-15T12:00:00Z',
+              events: { title: 'Mid-Autumn Festival', title_zh: '中秋晚会', slug: 'mid-autumn' },
+            },
+          ],
+        },
+        volunteers: { total: 12, this_month: 3 },
+        business: { pending: 2 },
+      },
+    };
   return { body: {} };
 }
 
@@ -117,6 +186,69 @@ test('admin page: module boots against the real Tabler markup', async () => {
     // Gate passed: gate hidden, app revealed.
     assert.equal(document.querySelector('#caaci-admin-gate').hidden, true);
     assert.equal(document.querySelector('#caaci-admin-app').hidden, false);
+
+    // The Dashboard is the landing tab: it alone is showing, filled from one
+    // /api/admin/dashboard answer — stat tiles, status bars, tier counts, the
+    // next events with registrations, expiring members, latest registrations
+    // and payments.
+    assert.ok(document.querySelector('[data-tab="dashboard"]').classList.contains('active'));
+    assert.equal(document.querySelector('[data-panel="dashboard"]').hidden, false);
+    assert.equal(document.querySelector('[data-panel="members"]').hidden, true);
+    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 1);
+    const tiles = [...document.querySelectorAll('#caaci-dash-stats [data-goto]')];
+    assert.equal(tiles.length, 8);
+    const tileText = (i) => tiles[i].querySelector('.h1').textContent;
+    assert.equal(tileText(0), '40');
+    assert.ok(tiles[0].querySelector('.h1').classList.contains('text-success'));
+    assert.match(tiles[0].textContent, /60 members in total/);
+    assert.equal(tileText(1), '2'); // past due
+    assert.equal(tileText(2), '1'); // expiring in 30 days
+    assert.match(tiles[2].textContent, /Expiring in 30 days/);
+    assert.equal(tileText(3), '6'); // new this month
+    assert.equal(tileText(4), '$1234.00');
+    assert.equal(tileText(5), '$93.15');
+    assert.match(tiles[5].textContent, /3 payments/);
+    assert.equal(tileText(6), '12');
+    assert.equal(tileText(7), '2');
+    assert.ok(tiles[7].querySelector('.h1').classList.contains('text-orange'));
+    // Status bars: share of everyone, width set from the data.
+    const activeBar = document.querySelector('#caaci-dash-status [data-status="active"]');
+    assert.match(activeBar.textContent, /40/);
+    assert.match(activeBar.textContent, /\(67%\)/);
+    assert.equal(activeBar.querySelector('.progress-bar').style.width, '67%');
+    assert.ok(activeBar.querySelector('.badge').classList.contains('bg-success-lt'));
+    assert.match(document.querySelector('#caaci-dash-tiers').textContent, /Individual\s*25/);
+    assert.match(document.querySelector('#caaci-dash-tiers').textContent, /Family\s*15/);
+    const dashEvent = document.querySelector('#caaci-dash-events tr');
+    assert.match(dashEvent.textContent, /Mid-Autumn Festival/);
+    assert.match(dashEvent.textContent, /Champaign/);
+    assert.match(dashEvent.querySelector('td:last-child').textContent, /^57$/);
+    assert.match(document.querySelector('#caaci-dash-drafts').textContent, /1 unpublished/);
+    const expiringRow = document.querySelector('#caaci-dash-expiring tr');
+    assert.match(expiringRow.textContent, /Mei Lin/);
+    assert.match(expiringRow.textContent, /Individual/); // tier id → name via loadTiers
+    assert.match(document.querySelector('#caaci-dash-registrations').textContent, /ann@x\.com/);
+    const dashPay = document.querySelector('#caaci-dash-payments tr');
+    assert.match(dashPay.textContent, /Wang Wei/);
+    assert.match(dashPay.textContent, /Auto-renewal/);
+    assert.match(dashPay.textContent, /\$31\.05/);
+    assert.match(document.querySelector('#caaci-dash-updated').textContent, /^Updated /);
+
+    // A tile is a shortcut to its tab: the Revenue tile opens Payments, which
+    // loads as if clicked in the nav. Refresh asks the API again.
+    tiles[4].click();
+    await tick();
+    assert.ok(document.querySelector('[data-tab="payments"]').classList.contains('active'));
+    assert.equal(document.querySelector('[data-panel="payments"]').hidden, false);
+    assert.equal(document.querySelector('[data-panel="dashboard"]').hidden, true);
+    assert.equal(document.querySelectorAll('#caaci-pay-stats .card .h1').length, 4);
+    document.querySelector('[data-tab="dashboard"]').click();
+    await tick();
+    assert.equal(document.querySelector('[data-panel="dashboard"]').hidden, false);
+    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 2);
+    document.querySelector('#caaci-dash-refresh').click();
+    await tick();
+    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 3);
 
     // Service console shortcuts: inside the admin-only app, each opens the CAACI
     // account's dashboard in a new tab without handing it window.opener.
@@ -350,6 +482,14 @@ test('admin page: module boots against the real Tabler markup', async () => {
     await tick();
     assert.equal(document.querySelector('[data-tab="members"]').textContent.trim(), '会员与订阅');
     assert.equal(document.documentElement.lang, 'zh');
+    // The dashboard's own (JS-built) content follows without another request.
+    assert.equal(document.querySelector('[data-tab="dashboard"]').textContent.trim(), '看板');
+    assert.equal(
+      document.querySelector('#caaci-dash-stats [data-goto] .subheader').textContent,
+      '有效会员',
+    );
+    assert.match(document.querySelector('#caaci-dash-events tr').textContent, /中秋晚会/);
+    assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 3);
 
     // The password_setup success notice must read correctly in Chinese too:
     // it should mention the member already having an account (已有账户).

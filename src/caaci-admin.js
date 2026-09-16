@@ -179,6 +179,239 @@ const BADGE_BG = {
 const badgeHtml = (state, label) =>
   `<span class="badge ${BADGE_BG[state] || 'bg-secondary-lt'}">${esc(label)}</span>`;
 
+// ---------- dashboard ----------
+// The landing tab. One GET /api/admin/dashboard feeds every tile and table; the
+// answer is kept so a language toggle re-renders it without another request.
+// Each stat tile links to the tab that holds the detail (data-goto), and a tab
+// click there loads that tab exactly as clicking it in the nav would.
+let dashData = null;
+const BAR_BG = {
+  active: 'bg-success',
+  pending: 'bg-warning',
+  past_due: 'bg-orange',
+  expired: 'bg-secondary',
+  cancelled: 'bg-danger',
+};
+const numFmt = (n) => (n == null ? '—' : String(n));
+const fmtDateTime = (d) =>
+  d ? new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+const eventTitle = (e) => (lang === 'zh' && e?.title_zh ? e.title_zh : e?.title) || '—';
+const emptyRow = (cols, text) =>
+  `<tr><td colspan="${cols}" class="text-secondary">${esc(text)}</td></tr>`;
+
+function renderDashboard() {
+  const d = dashData;
+  if (!d) return;
+  const m = d.members || {};
+  const sc = m.status_counts || {};
+  const rev = d.revenue || {};
+  const ev = d.events || {};
+  const vol = d.volunteers || {};
+  const biz = d.business || {};
+  const days = m.expiring_days || 30;
+  const total = m.total || 0;
+
+  // Stat tiles: the numbers staff act on, each a shortcut to its tab.
+  const tiles = [
+    {
+      label: t('Active members', '有效会员'),
+      value: sc.active,
+      fg: 'text-success',
+      sub: t(`${total} members in total`, `会员共 ${total} 人`),
+      goto: 'members',
+    },
+    {
+      label: t('Past due — follow up', '逾期需补交'),
+      value: sc.past_due,
+      fg: sc.past_due ? 'text-orange' : '',
+      goto: 'payments',
+    },
+    {
+      label: t(`Expiring in ${days} days`, `${days} 天内到期`),
+      value: m.expiring_total,
+      fg: m.expiring_total ? 'text-warning' : '',
+      goto: 'members',
+    },
+    {
+      label: t('New members this month', '本月新增会员'),
+      value: m.new_this_month,
+      goto: 'members',
+    },
+    { label: t('Revenue this year', '今年收款'), value: usdFmt(rev.ytd_cents), goto: 'payments' },
+    {
+      label: t('Revenue this month', '本月收款'),
+      value: usdFmt(rev.month_cents),
+      sub: t(`${rev.payments_this_month ?? 0} payments`, `${rev.payments_this_month ?? 0} 笔`),
+      goto: 'payments',
+    },
+    {
+      label: t('Volunteer sign-ups', '志愿者报名'),
+      value: vol.total,
+      sub: t(`${vol.this_month ?? 0} this month`, `本月新增 ${vol.this_month ?? 0}`),
+      goto: 'volunteers',
+    },
+    {
+      label: t('Listings awaiting review', '待审核商家'),
+      value: biz.pending,
+      fg: biz.pending ? 'text-orange' : '',
+      goto: 'directory',
+    },
+  ];
+  $('#caaci-dash-stats').innerHTML = tiles
+    .map(
+      (tile) => `
+      <div class="col-6 col-md-3">
+        <a href="#" class="card card-sm card-link" data-goto="${tile.goto}">
+          <div class="card-body">
+            <div class="subheader">${esc(tile.label)}</div>
+            <div class="h1 mb-0 ${tile.fg || ''}">${esc(numFmt(tile.value))}</div>
+            ${tile.sub ? `<div class="text-secondary small">${esc(tile.sub)}</div>` : ''}
+          </div>
+        </a>
+      </div>`,
+    )
+    .join('');
+
+  // Members by status: badge, count, share of everyone, as a bar.
+  const statusHost = $('#caaci-dash-status');
+  statusHost.innerHTML = Object.keys(STATUS_LABEL)
+    .map((s) => {
+      const n = sc[s] ?? 0;
+      const pct = total ? Math.round((n / total) * 100) : 0;
+      return `
+      <div class="mb-2" data-status="${s}">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          ${badgeHtml(s, STATUS_LABEL[s]())}
+          <span>${n} <span class="text-secondary small">(${pct}%)</span></span>
+        </div>
+        <div class="progress progress-sm">
+          <div class="progress-bar ${BAR_BG[s]}" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" data-pct="${pct}"></div>
+        </div>
+      </div>`;
+    })
+    .join('');
+  // Bar widths are data, not styling, so they are set here rather than in markup.
+  for (const bar of $$('[data-pct]', statusHost)) bar.style.width = `${bar.dataset.pct}%`;
+
+  const tiers = m.by_tier || [];
+  $('#caaci-dash-tiers').innerHTML = tiers.length
+    ? tiers
+        .map(
+          (x) =>
+            `<tr><td>${esc(x.name || x.id)}</td><td class="text-end">${numFmt(x.active)}</td></tr>`,
+        )
+        .join('')
+    : emptyRow(2, t('No membership tiers.', '暂无会员类型。'));
+
+  // Upcoming published events with their registration counts.
+  const events = ev.upcoming || [];
+  $('#caaci-dash-events').innerHTML = events.length
+    ? events
+        .map(
+          (e) => `
+        <tr>
+          <td>${esc(eventTitle(e))}${e.location ? `<br><span class="text-secondary small">${esc(e.location)}</span>` : ''}</td>
+          <td>${esc(fmtWhen(e))}</td>
+          <td class="text-end">${e.takes_registrations ? numFmt(e.registration_count) : `<span class="text-secondary">${t('no form', '无报名表')}</span>`}</td>
+        </tr>`,
+        )
+        .join('')
+    : emptyRow(3, t('No upcoming published events.', '暂无已发布的即将举办活动。'));
+  $('#caaci-dash-drafts').textContent = ev.drafts_total
+    ? t(`${ev.drafts_total} unpublished`, `${ev.drafts_total} 个未发布`)
+    : '';
+
+  // Active members whose membership ends soon, soonest first.
+  const expiring = m.expiring || [];
+  $('#caaci-dash-expiring').innerHTML = expiring.length
+    ? expiring
+        .map(
+          (x) => `
+        <tr>
+          <td>${esc(x.full_name || '—')}<br><span class="text-secondary small">${esc(x.email || '')}</span></td>
+          <td>${esc(tierName[x.tier_id] || x.tier_id || '—')}</td>
+          <td>${fmtDate(x.expires_at)}</td>
+        </tr>`,
+        )
+        .join('')
+    : emptyRow(3, t(`Nobody expires in the next ${days} days.`, `未来 ${days} 天内没有会员到期。`));
+  $('#caaci-dash-expiring-info').textContent =
+    (m.expiring_total || 0) > expiring.length
+      ? t(
+          `${expiring.length} of ${m.expiring_total}`,
+          `${expiring.length} / 共 ${m.expiring_total}`,
+        )
+      : '';
+
+  const regs = ev.recent_registrations || [];
+  $('#caaci-dash-registrations').innerHTML = regs.length
+    ? regs
+        .map(
+          (r) => `
+        <tr>
+          <td>${esc(r.email || '—')}</td>
+          <td>${esc(eventTitle(r.events))}</td>
+          <td>${esc(fmtDateTime(r.created_at))}</td>
+        </tr>`,
+        )
+        .join('')
+    : emptyRow(3, t('No registrations yet.', '暂无报名。'));
+
+  const pays = rev.recent || [];
+  $('#caaci-dash-payments').innerHTML = pays.length
+    ? pays
+        .map((p) => {
+          const who = p.members
+            ? `${esc(p.members.full_name || '—')}<br><span class="text-secondary small">${esc(p.members.email || '')}</span>`
+            : `<span class="text-secondary">${t('(deleted member)', '（已删除会员）')}</span>`;
+          return `
+        <tr>
+          <td>${fmtDate(p.paid_at)}</td>
+          <td>${who}</td>
+          <td>${KIND_LABEL[p.kind]?.() || esc(p.kind || '—')}</td>
+          <td class="text-end">${usdFmt(p.amount_cents)}</td>
+        </tr>`;
+        })
+        .join('')
+    : emptyRow(4, t('No payments recorded yet.', '暂无收款记录。'));
+
+  const when = d.generated_at ? fmtDateTime(d.generated_at) : '';
+  $('#caaci-dash-updated').textContent = when ? t(`Updated ${when}`, `更新于 ${when}`) : '';
+}
+
+async function loadDashboard() {
+  const notb = $('#caaci-dash-notice');
+  const btn = $('#caaci-dash-refresh');
+  btn.disabled = true;
+  try {
+    const { ok, data } = await api('/api/admin/dashboard');
+    if (!ok) {
+      notice(notb, data.error || t('Could not load the dashboard.', '无法加载看板。'), false);
+      return;
+    }
+    notb.hidden = true;
+    dashData = data;
+    renderDashboard();
+  } catch {
+    notice(notb, t('Could not load the dashboard.', '无法加载看板。'), false);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function wireDashboard() {
+  $('#caaci-dash-refresh').addEventListener('click', () => loadDashboard());
+  // A stat tile is a shortcut: switch to that tab (its own click handler loads it).
+  $('#caaci-dash-stats').addEventListener('click', (e) => {
+    const tile = e.target.closest('[data-goto]');
+    if (!tile) return;
+    e.preventDefault();
+    $(`[data-tab="${tile.dataset.goto}"]`)?.click();
+  });
+  const tab = $('[data-tab="dashboard"]');
+  if (tab) tab.addEventListener('click', () => loadDashboard());
+}
+
 async function loadMembers() {
   const q = $('#caaci-q').value.trim();
   const status = $('#caaci-status').value;
@@ -3352,6 +3585,7 @@ function wireMyAccount() {
     localStorage.setItem('caaci-admin-lang', lang);
     applyLang();
     renderGate(); // re-apply gate text in the new language (it owns its heading)
+    renderDashboard(); // its tiles and tables are built from the kept answer
   });
   $('#caaci-admin-signout').addEventListener('click', async (e) => {
     e.preventDefault();
@@ -3365,6 +3599,7 @@ function wireMyAccount() {
   $('#caaci-admin-gate').hidden = true;
   $('#caaci-admin-app').hidden = false;
   wireTabs();
+  wireDashboard();
   wireMembers();
   wireMemberAdd();
   wireFamilies();
@@ -3378,6 +3613,7 @@ function wireMyAccount() {
   wireNews();
   wireMyAccount();
   await loadTiers();
+  await loadDashboard(); // the tab that is showing
   await loadHouseholds(); // for the member "Family" dropdown
   await loadMembers();
 })();
