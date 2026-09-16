@@ -579,7 +579,7 @@ function renderDashboard() {
   }));
   const chartHost = $('#caaci-dash-revenue-chart');
   chartHost.innerHTML = months.length
-    ? `${lineChartSvg(months, { width: 900, height: 240 })}<div class="text-secondary small text-center mt-1" data-readout></div>`
+    ? `${lineChartSvg(months, { width: 900, height: 300 })}<div class="text-secondary small text-center mt-1" data-readout></div>`
     : `<p class="text-secondary mb-0">${isThisYear ? t('No payments this year.', '今年暂无收款。') : t(`No payments in ${year}.`, `${year} 年无收款。`)}</p>`;
   setHoverItems(
     chartHost,
@@ -623,7 +623,7 @@ function renderDashboard() {
   }));
   const membersHost = $('#caaci-dash-members-chart');
   membersHost.innerHTML = memberMonths.length
-    ? `${lineChartSvg(memberMonths, { width: 900, height: 240, fmt: (n) => String(Math.round(n)) })}<div class="text-secondary small text-center mt-1" data-readout></div>`
+    ? `${lineChartSvg(memberMonths, { width: 900, height: 300, fmt: (n) => String(Math.round(n)) })}<div class="text-secondary small text-center mt-1" data-readout></div>`
     : `<p class="text-secondary mb-0">${t('No membership history for this year.', '该年份没有会员记录。')}</p>`;
   setHoverItems(membersHost, memberMonths, '');
 
