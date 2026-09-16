@@ -33,6 +33,9 @@ const BusinessServicesPage = lazy(() =>
 const EventRegisterPage = lazy(() =>
   import('./pages/EventRegisterPage').then((m) => ({ default: m.EventRegisterPage })),
 );
+const NotFoundPage = lazy(() =>
+  import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
+);
 
 export type PageId =
   | 'home'
@@ -43,7 +46,10 @@ export type PageId =
   | 'resources'
   | 'community-calendar'
   | 'business-services'
-  | 'event-register';
+  | 'event-register'
+  // Cloudflare Pages serves dist/404.html (this app) at any address that
+  // matches nothing; the page keeps that address and says so.
+  | 'not-found';
 
 // build.mjs writes this app's index.html at each of these paths (and under /zh/).
 const PAGE_BY_SEGMENT: Record<string, PageId> = {
@@ -63,23 +69,27 @@ const PAGE_BY_SEGMENT: Record<string, PageId> = {
 // keeps the slug in the address bar, which is how the page knows its event.
 const REGISTER_PATH = /^\/(?:zh\/)?events\/([^/]+)\/register\/?$/i;
 
+// A path with more segments than its page has (/about/x/) or one no page owns
+// is the 404 page: Pages only serves this app there through dist/404.html.
 function pageFromPath(pathname: string): PageId {
   if (REGISTER_PATH.test(pathname)) return 'event-register';
-  const segment =
-    pathname
-      .replace(/^\/zh(?=\/|$)/, '')
-      .split('/')
-      .filter(Boolean)[0] ?? '';
-  return PAGE_BY_SEGMENT[segment.toLowerCase()] ?? 'home';
+  const segments = pathname
+    .replace(/^\/zh(?=\/|$)/, '')
+    .split('/')
+    .filter(Boolean);
+  if (segments.length > 1) return 'not-found';
+  return PAGE_BY_SEGMENT[(segments[0] ?? '').toLowerCase()] ?? 'not-found';
 }
 
 // `from` is the address the visitor is on: a /events/<slug>/register/ URL keeps
-// its slug (dropping it would leave the page with no event to load), while
-// every other page has one path per language.
+// its slug (dropping it would leave the page with no event to load), the 404
+// page keeps the address that was not found, while every other page has one
+// path per language.
 const pathFor = (page: PageId, lang: Lang, from = '') => {
   const prefix = lang === 'zh' ? '/zh' : '';
   const match = page === 'event-register' ? REGISTER_PATH.exec(from) : null;
   if (match) return `${prefix}/events/${match[1]}/register/`;
+  if (page === 'not-found') return prefix + (from.replace(/^\/zh(?=\/|$)/, '') || '/');
   return `${prefix}/${page === 'home' ? '' : `${page}/`}`;
 };
 
@@ -216,6 +226,8 @@ function Site() {
         // path once, so stepping back to a different /events/<slug>/register/
         // has to start it over rather than leave the old event on screen.
         return <EventRegisterPage key={route} {...pageProps} />;
+      case 'not-found':
+        return <NotFoundPage key={route} {...pageProps} />;
       case 'home':
       default:
         return <HomePage {...pageProps} />;
