@@ -63,6 +63,16 @@ const range = (total) => ({ 'content-range': `0-0/${total}` });
 const now = new Date();
 const yearStart = new Date(now.getFullYear(), 0, 1).toISOString();
 const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+const hoursAfter = (iso, h) => new Date(Date.parse(iso) + h * 3_600_000).toISOString();
+// This year's ledger: two payments this month, one on New Year's Day (which is
+// also this month when the test runs in January), one from last year that a
+// correct filter would never have returned and the bucketing must ignore.
+const YEAR_PAYMENTS = [
+  { amount_cents: 3105, paid_at: hoursAfter(monthStart, 1) },
+  { amount_cents: 6210, paid_at: hoursAfter(monthStart, 2) },
+  { amount_cents: 5000, paid_at: hoursAfter(yearStart, 1) },
+  { amount_cents: 9999, paid_at: hoursAfter(yearStart, -24) },
+];
 
 // Every PostgREST read the handler makes, told apart by table + filter.
 function route() {
@@ -89,12 +99,8 @@ function route() {
       const status = u.match(/status=eq\.([^&]+)/)[1];
       return { body: [{ id: 'x' }], headers: range(STATUS_TOTALS[status] ?? 0) };
     }
-    if (u.includes('/rest/v1/payments') && u.includes(`paid_at=gte.${monthStart}`))
-      return u.includes('count=exact') || !u.includes('select=amount_cents')
-        ? { body: [{ id: 'x' }], headers: range(2) }
-        : { body: [{ amount_cents: 3105 }, { amount_cents: 6210 }] };
     if (u.includes('/rest/v1/payments') && u.includes(`paid_at=gte.${yearStart}`))
-      return { body: [{ amount_cents: 3105 }, { amount_cents: 6210 }, { amount_cents: 5000 }] };
+      return { body: YEAR_PAYMENTS };
     if (u.includes('/rest/v1/payments')) return { body: RECENT_PAYMENTS };
     if (u.includes('/rest/v1/events') && u.includes('published=eq.false'))
       return { body: [{ id: 'x' }], headers: range(1) };
@@ -169,9 +175,26 @@ test('admin dashboard: counts members, revenue, events, volunteers and listings'
     assert.match(expiringCall, /order=expires_at\.asc/);
 
     // Revenue: summed from the rows, this year and this month.
+    // (a year ago is outside the year even when the test runs in January)
+    const january = now.getMonth() === 0;
     assert.equal(d.revenue.ytd_cents, 3105 + 6210 + 5000);
-    assert.equal(d.revenue.month_cents, 3105 + 6210);
-    assert.equal(d.revenue.payments_this_month, 2);
+    assert.equal(d.revenue.month_cents, 3105 + 6210 + (january ? 5000 : 0));
+    assert.equal(d.revenue.payments_this_month, january ? 3 : 2);
+    // One bucket per month, January through this month, for the line chart.
+    assert.equal(d.revenue.by_month.length, now.getMonth() + 1);
+    assert.equal(d.revenue.by_month[0].month, `${now.getFullYear()}-01`);
+    assert.deepEqual(d.revenue.by_month[0], {
+      month: `${now.getFullYear()}-01`,
+      cents: january ? 3105 + 6210 + 5000 : 5000,
+      payments: january ? 3 : 1,
+    });
+    const thisMonth = d.revenue.by_month[d.revenue.by_month.length - 1];
+    assert.equal(thisMonth.cents, d.revenue.month_cents);
+    assert.equal(thisMonth.payments, d.revenue.payments_this_month);
+    assert.equal(
+      d.revenue.by_month.reduce((s, b) => s + b.cents, 0),
+      d.revenue.ytd_cents,
+    );
     assert.deepEqual(d.revenue.recent, RECENT_PAYMENTS);
 
     // Events: published + future only, with registrations counted per event;

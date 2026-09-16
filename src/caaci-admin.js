@@ -199,6 +199,114 @@ const eventTitle = (e) => (lang === 'zh' && e?.title_zh ? e.title_zh : e?.title)
 const emptyRow = (cols, text) =>
   `<tr><td colspan="${cols}" class="text-secondary">${esc(text)}</td></tr>`;
 
+// ---- inline SVG charts (no chart library; Tabler text-* classes give the colours) ----
+// Whole dollars, thousands separated: axis ticks and point labels.
+const usdShort = (cents) => `$${Math.round((cents || 0) / 100).toLocaleString('en-US')}`;
+// 'YYYY-MM' → 'Sep' / '9月'.
+const monthLabel = (ym) => {
+  const [y, m] = String(ym).split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {
+    month: 'short',
+    timeZone: 'UTC',
+  });
+};
+// The 1-2-5 step at or above v, so the top gridline is a round figure.
+const niceCeil = (v) => {
+  if (v <= 0) return 1;
+  const p = 10 ** Math.floor(Math.log10(v));
+  const m = v / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
+};
+const num = (n) => String(Math.round(n * 100) / 100);
+
+// One series as a line with an area beneath, dots with tooltips, three
+// gridlines and a label per point: [{ label, value, title }].
+function lineChartSvg(points, { width = 600, height = 220 } = {}) {
+  const padL = 60;
+  const padR = 20;
+  const padT = 16;
+  const padB = 28;
+  const w = width - padL - padR;
+  const h = height - padT - padB;
+  const top = niceCeil(Math.max(...points.map((p) => p.value), 0));
+  const x = (i) => padL + (points.length > 1 ? (i / (points.length - 1)) * w : w / 2);
+  const y = (v) => padT + h - (v / top) * h;
+  const grid = [0, 0.5, 1]
+    .map(
+      (f) => `
+      <line x1="${padL}" x2="${width - padR}" y1="${num(y(f * top))}" y2="${num(y(f * top))}" stroke="currentColor" stroke-opacity="0.15" />
+      <text x="${padL - 8}" y="${num(y(f * top) + 4)}" text-anchor="end" font-size="11" fill="currentColor">${esc(usdShort(f * top))}</text>`,
+    )
+    .join('');
+  const labels = points
+    .map(
+      (p, i) =>
+        `<text x="${num(x(i))}" y="${height - 8}" text-anchor="middle" font-size="11" fill="currentColor">${esc(p.label)}</text>`,
+    )
+    .join('');
+  const coords = points.map((p, i) => `${num(x(i))},${num(y(p.value))}`);
+  const area = `${num(x(0))},${num(y(0))} ${coords.join(' ')} ${num(x(points.length - 1))},${num(y(0))}`;
+  const dots = points
+    .map(
+      (p, i) =>
+        `<circle cx="${num(x(i))}" cy="${num(y(p.value))}" r="4" fill="currentColor"><title>${esc(p.title)}</title></circle>`,
+    )
+    .join('');
+  const last = points[points.length - 1];
+  const lastLabel = last
+    ? `<text x="${num(x(points.length - 1))}" y="${num(y(last.value) - 10)}" text-anchor="${points.length > 1 ? 'end' : 'middle'}" font-size="12" font-weight="600" fill="currentColor">${esc(usdShort(last.value))}</text>`
+    : '';
+  return `
+    <svg viewBox="0 0 ${width} ${height}" class="w-100" role="img" aria-label="${esc(points.map((p) => p.title).join('; '))}">
+      <g class="text-secondary">${grid}${labels}</g>
+      <g class="text-primary">
+        <polygon points="${area}" fill="currentColor" fill-opacity="0.08" />
+        <polyline points="${coords.join(' ')}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+        ${dots}${lastLabel}
+      </g>
+    </svg>`;
+}
+
+// Slice colours, in legend order: the brand primary first, then Tabler's.
+const PIE_COLOURS = [
+  'text-primary',
+  'text-orange',
+  'text-yellow',
+  'text-secondary',
+  'text-teal',
+  'text-purple',
+  'text-azure',
+  'text-pink',
+];
+// A pie of [{ value, cls, title }]; zero slices are skipped, one slice is a disc.
+function pieChartSvg(slices, { size = 200 } = {}) {
+  const total = slices.reduce((s, x) => s + x.value, 0);
+  const c = size / 2;
+  const r = c - 4;
+  const pt = (a) => [num(c + r * Math.cos(a)), num(c + r * Math.sin(a))];
+  let a0 = -Math.PI / 2;
+  const paths = slices
+    .filter((s) => s.value > 0)
+    .map((s) => {
+      const a1 = a0 + (s.value / total) * 2 * Math.PI;
+      let d;
+      if (s.value === total) {
+        d = `M ${c} ${c - r} A ${r} ${r} 0 1 1 ${c} ${c + r} A ${r} ${r} 0 1 1 ${c} ${c - r} Z`;
+      } else {
+        const [x0, y0] = pt(a0);
+        const [x1, y1] = pt(a1);
+        const large = a1 - a0 > Math.PI ? 1 : 0;
+        d = `M ${c} ${c} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`;
+      }
+      a0 = a1;
+      return `<path class="${s.cls}" d="${d}" fill="currentColor"><title>${esc(s.title)}</title></path>`;
+    })
+    .join('');
+  return `<svg viewBox="0 0 ${size} ${size}" class="w-100" role="img" aria-label="${esc(slices.map((s) => s.title).join('; '))}">${paths}</svg>`;
+}
+const swatch = (cls) =>
+  `<svg width="12" height="12" viewBox="0 0 12 12" class="${cls} me-2" aria-hidden="true"><rect width="12" height="12" rx="2" fill="currentColor" /></svg>`;
+
 function renderDashboard() {
   const d = dashData;
   if (!d) return;
@@ -239,13 +347,6 @@ function renderDashboard() {
       value: m.new_this_month,
       goto: 'members',
     },
-    { label: t('Revenue this year', '今年收款'), value: usdFmt(rev.ytd_cents), goto: 'payments' },
-    {
-      label: t('Revenue this month', '本月收款'),
-      value: usdFmt(rev.month_cents),
-      sub: t(`${rev.payments_this_month ?? 0} payments`, `${rev.payments_this_month ?? 0} 笔`),
-      goto: 'payments',
-    },
     {
       label: t('Volunteer sign-ups', '志愿者报名'),
       value: vol.total,
@@ -262,7 +363,7 @@ function renderDashboard() {
   $('#caaci-dash-stats').innerHTML = tiles
     .map(
       (tile) => `
-      <div class="col-6 col-md-3">
+      <div class="col-6 col-md-4 col-lg-2">
         <a href="#" class="card card-sm card-link" data-goto="${tile.goto}">
           <div class="card-body">
             <div class="subheader">${esc(tile.label)}</div>
@@ -295,15 +396,65 @@ function renderDashboard() {
   // Bar widths are data, not styling, so they are set here rather than in markup.
   for (const bar of $$('[data-pct]', statusHost)) bar.style.width = `${bar.dataset.pct}%`;
 
+  // Revenue: this year and this month up top, the year month by month as a
+  // line, the latest payments in the table beneath (rendered further down).
+  const byMonth = rev.by_month || [];
+  $('#caaci-dash-revenue-totals').innerHTML = `
+    <div class="col-6">
+      <div class="subheader">${t('Revenue this year', '今年收款')}</div>
+      <div class="h1 mb-0">${usdFmt(rev.ytd_cents)}</div>
+    </div>
+    <div class="col-6">
+      <div class="subheader">${t('Revenue this month', '本月收款')}</div>
+      <div class="h1 mb-0">${usdFmt(rev.month_cents)}</div>
+      <div class="text-secondary small">${t(`${rev.payments_this_month ?? 0} payments`, `${rev.payments_this_month ?? 0} 笔`)}</div>
+    </div>`;
+  $('#caaci-dash-revenue-chart').innerHTML = byMonth.length
+    ? lineChartSvg(
+        byMonth.map((b) => ({
+          label: monthLabel(b.month),
+          value: b.cents || 0,
+          title: t(
+            `${monthLabel(b.month)}: ${usdFmt(b.cents)} (${b.payments ?? 0} payments)`,
+            `${monthLabel(b.month)}：${usdFmt(b.cents)}（${b.payments ?? 0} 笔）`,
+          ),
+        })),
+      )
+    : `<p class="text-secondary mb-0">${t('No payments this year.', '今年暂无收款。')}</p>`;
+  const year = byMonth[0]?.month?.slice(0, 4) || '';
+  $('#caaci-dash-revenue-year').textContent = year
+    ? t(`${year}, by month`, `${year} 年，按月`)
+    : '';
+
+  // Active members by tier: a pie with its legend (name, count, share of active).
   const tiers = m.by_tier || [];
+  const activeTotal = tiers.reduce((s, x) => s + (x.active || 0), 0);
+  const slices = tiers.map((x, i) => ({
+    id: x.id,
+    name: x.name || x.id,
+    value: x.active || 0,
+    cls: PIE_COLOURS[i % PIE_COLOURS.length],
+    title: `${x.name || x.id}: ${x.active || 0}`,
+  }));
   $('#caaci-dash-tiers').innerHTML = tiers.length
-    ? tiers
-        .map(
-          (x) =>
-            `<tr><td>${esc(x.name || x.id)}</td><td class="text-end">${numFmt(x.active)}</td></tr>`,
-        )
-        .join('')
-    : emptyRow(2, t('No membership tiers.', '暂无会员类型。'));
+    ? `
+    <div class="row g-3 align-items-center w-100">
+      <div class="col-sm-5">
+        ${activeTotal ? pieChartSvg(slices) : `<p class="text-secondary mb-0">${t('No active members yet.', '暂无有效会员。')}</p>`}
+      </div>
+      <div class="col-sm-7">
+        ${slices
+          .map(
+            (s) => `
+        <div class="d-flex justify-content-between align-items-center mb-1" data-tier="${esc(s.id)}">
+          <span>${swatch(s.cls)}${esc(s.name)}</span>
+          <span>${s.value} <span class="text-secondary small">(${activeTotal ? Math.round((s.value / activeTotal) * 100) : 0}%)</span></span>
+        </div>`,
+          )
+          .join('')}
+      </div>
+    </div>`
+    : `<p class="text-secondary mb-0">${t('No membership tiers.', '暂无会员类型。')}</p>`;
 
   // Upcoming published events with their registration counts.
   const events = ev.upcoming || [];

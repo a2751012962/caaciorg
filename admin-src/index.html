@@ -255,9 +255,10 @@
               </ul>
 
               <!-- ============ Dashboard ============ -->
-              <!-- The landing tab: one GET /api/admin/dashboard fills every tile and
-                   table below (caaci-admin.js loadDashboard). Tiles are links that
-                   jump to the tab holding the detail (data-goto). -->
+              <!-- The landing tab: one GET /api/admin/dashboard fills every tile, chart
+                   and table below (caaci-admin.js loadDashboard). Tiles are links that
+                   jump to the tab holding the detail (data-goto). The charts are inline
+                   SVG drawn by the module, coloured with Tabler text-* classes only. -->
               <section data-panel="dashboard">
                 <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
                   <div class="me-auto">
@@ -278,17 +279,34 @@
                 <p class="alert" id="caaci-dash-notice" hidden></p>
                 <div class="row row-cards mb-3" id="caaci-dash-stats"></div>
                 <div class="row row-cards mb-3">
-                  <div class="col-md-6">
+                  <div class="col-lg-7">
                     <div class="card h-100">
                       <div class="card-header">
-                        <h3 class="card-title mb-0" data-en="Members by status" data-zh="会员状态">
-                          Members by status
-                        </h3>
+                        <h3 class="card-title mb-0" data-en="Revenue" data-zh="收款">Revenue</h3>
+                        <div class="card-actions">
+                          <span class="text-secondary small" id="caaci-dash-revenue-year"></span>
+                        </div>
                       </div>
-                      <div class="card-body" id="caaci-dash-status"></div>
+                      <div class="card-body">
+                        <div class="row g-3 mb-3" id="caaci-dash-revenue-totals"></div>
+                        <div id="caaci-dash-revenue-chart"></div>
+                      </div>
+                      <div class="table-responsive">
+                        <table class="table table-vcenter card-table">
+                          <thead>
+                            <tr>
+                              <th data-en="Latest payments" data-zh="最新收款">Latest payments</th>
+                              <th data-en="Member" data-zh="会员">Member</th>
+                              <th data-en="Type" data-zh="类型">Type</th>
+                              <th class="text-end" data-en="Amount" data-zh="金额">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody id="caaci-dash-payments"></tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
-                  <div class="col-md-6">
+                  <div class="col-lg-5">
                     <div class="card h-100">
                       <div class="card-header">
                         <h3
@@ -299,21 +317,21 @@
                           Active members by tier
                         </h3>
                       </div>
-                      <div class="table-responsive">
-                        <table class="table table-vcenter card-table">
-                          <thead>
-                            <tr>
-                              <th data-en="Tier" data-zh="类型">Tier</th>
-                              <th class="text-end" data-en="Active" data-zh="有效">Active</th>
-                            </tr>
-                          </thead>
-                          <tbody id="caaci-dash-tiers"></tbody>
-                        </table>
-                      </div>
+                      <div class="card-body d-flex align-items-center" id="caaci-dash-tiers"></div>
                     </div>
                   </div>
                 </div>
                 <div class="row row-cards mb-3">
+                  <div class="col-lg-5">
+                    <div class="card h-100">
+                      <div class="card-header">
+                        <h3 class="card-title mb-0" data-en="Members by status" data-zh="会员状态">
+                          Members by status
+                        </h3>
+                      </div>
+                      <div class="card-body" id="caaci-dash-status"></div>
+                    </div>
+                  </div>
                   <div class="col-lg-7">
                     <div class="card h-100">
                       <div class="card-header">
@@ -344,7 +362,9 @@
                       </div>
                     </div>
                   </div>
-                  <div class="col-lg-5">
+                </div>
+                <div class="row row-cards mb-3">
+                  <div class="col-lg-6">
                     <div class="card h-100">
                       <div class="card-header">
                         <h3 class="card-title mb-0" data-en="Expiring soon" data-zh="即将到期">
@@ -368,8 +388,6 @@
                       </div>
                     </div>
                   </div>
-                </div>
-                <div class="row row-cards mb-3">
                   <div class="col-lg-6">
                     <div class="card h-100">
                       <div class="card-header">
@@ -391,28 +409,6 @@
                             </tr>
                           </thead>
                           <tbody id="caaci-dash-registrations"></tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-lg-6">
-                    <div class="card h-100">
-                      <div class="card-header">
-                        <h3 class="card-title mb-0" data-en="Latest payments" data-zh="最新收款">
-                          Latest payments
-                        </h3>
-                      </div>
-                      <div class="table-responsive">
-                        <table class="table table-vcenter card-table">
-                          <thead>
-                            <tr>
-                              <th data-en="Date" data-zh="日期">Date</th>
-                              <th data-en="Member" data-zh="会员">Member</th>
-                              <th data-en="Type" data-zh="类型">Type</th>
-                              <th class="text-end" data-en="Amount" data-zh="金额">Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody id="caaci-dash-payments"></tbody>
                         </table>
                       </div>
                     </div>

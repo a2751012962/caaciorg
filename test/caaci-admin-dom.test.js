@@ -125,6 +125,12 @@ function apiRoutes(u, options = {}) {
           ytd_cents: 123400,
           month_cents: 9315,
           payments_this_month: 3,
+          by_month: [
+            { month: '2026-01', cents: 40000, payments: 8 },
+            { month: '2026-02', cents: 0, payments: 0 },
+            { month: '2026-03', cents: 74085, payments: 15 },
+            { month: '2026-04', cents: 9315, payments: 3 },
+          ],
           recent: [
             {
               id: 'p1',
@@ -196,7 +202,7 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.equal(document.querySelector('[data-panel="members"]').hidden, true);
     assert.equal(fetch.calls.filter((c) => c.url.includes('/api/admin/dashboard')).length, 1);
     const tiles = [...document.querySelectorAll('#caaci-dash-stats [data-goto]')];
-    assert.equal(tiles.length, 8);
+    assert.equal(tiles.length, 6);
     const tileText = (i) => tiles[i].querySelector('.h1').textContent;
     assert.equal(tileText(0), '40');
     assert.ok(tiles[0].querySelector('.h1').classList.contains('text-success'));
@@ -205,12 +211,9 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.equal(tileText(2), '1'); // expiring in 30 days
     assert.match(tiles[2].textContent, /Expiring in 30 days/);
     assert.equal(tileText(3), '6'); // new this month
-    assert.equal(tileText(4), '$1234.00');
-    assert.equal(tileText(5), '$93.15');
-    assert.match(tiles[5].textContent, /3 payments/);
-    assert.equal(tileText(6), '12');
-    assert.equal(tileText(7), '2');
-    assert.ok(tiles[7].querySelector('.h1').classList.contains('text-orange'));
+    assert.equal(tileText(4), '12'); // volunteers
+    assert.equal(tileText(5), '2'); // listings awaiting review
+    assert.ok(tiles[5].querySelector('.h1').classList.contains('text-orange'));
     // Three colours at most: default ink, green (active), orange (follow-up queues).
     const tileColours = new Set(
       tiles.flatMap((tile) =>
@@ -224,8 +227,49 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.match(activeBar.textContent, /\(67%\)/);
     assert.equal(activeBar.querySelector('.progress-bar').style.width, '67%');
     assert.ok(activeBar.querySelector('.badge').classList.contains('bg-success-lt'));
-    assert.match(document.querySelector('#caaci-dash-tiers').textContent, /Individual\s*25/);
-    assert.match(document.querySelector('#caaci-dash-tiers').textContent, /Family\s*15/);
+    // Revenue card: both totals, then the year as a line chart — one dot per
+    // month bucket, labelled, the last one carrying its value — no chart library.
+    const totals = document.querySelector('#caaci-dash-revenue-totals');
+    assert.match(totals.textContent, /Revenue this year\s*\$1234\.00/);
+    assert.match(totals.textContent, /Revenue this month\s*\$93\.15\s*3 payments/);
+    const line = document.querySelector('#caaci-dash-revenue-chart svg');
+    assert.ok(line, 'line chart drawn');
+    assert.equal(line.querySelectorAll('circle').length, 4);
+    assert.equal(line.querySelectorAll('polyline').length, 1);
+    assert.match(line.querySelector('circle title').textContent, /Jan: \$400\.00 \(8 payments\)/);
+    const monthTexts = [...line.querySelectorAll('text')].map((x) => x.textContent);
+    // Month labels, the 1-2-5 gridline ticks (top $1,000 for a $740.85 peak) and
+    // the latest month's own value.
+    for (const label of ['Jan', 'Feb', 'Mar', 'Apr', '$0', '$500', '$1,000', '$93']) {
+      assert.ok(monthTexts.includes(label), `chart shows ${label}`);
+    }
+    assert.match(document.querySelector('#caaci-dash-revenue-year').textContent, /2026, by month/);
+    // Charts are classes + SVG attributes only: no inline styles, no hex colours.
+    for (const host of ['#caaci-dash-revenue-chart', '#caaci-dash-tiers']) {
+      assert.equal(document.querySelectorAll(`${host} [style]`).length, 0, `${host} styles`);
+      assert.doesNotMatch(document.querySelector(host).innerHTML, /#[0-9a-f]{3,8}\b/i);
+    }
+    // Active members by tier: a pie (one slice per tier with members) + legend.
+    const tiersHost = document.querySelector('#caaci-dash-tiers');
+    const pie = tiersHost.querySelector('svg[role="img"]');
+    assert.ok(pie, 'pie chart drawn');
+    const slicePaths = [...pie.querySelectorAll('path')];
+    assert.equal(slicePaths.length, 2);
+    assert.deepEqual(
+      slicePaths.map((p) => [p.getAttribute('class'), p.querySelector('title').textContent]),
+      [
+        ['text-primary', 'Individual: 25'],
+        ['text-orange', 'Family: 15'],
+      ],
+    );
+    assert.match(
+      tiersHost.querySelector('[data-tier="individual"]').textContent,
+      /Individual\s*25\s*\(63%\)/,
+    );
+    assert.match(
+      tiersHost.querySelector('[data-tier="family"]').textContent,
+      /Family\s*15\s*\(38%\)/,
+    );
     const dashEvent = document.querySelector('#caaci-dash-events tr');
     assert.match(dashEvent.textContent, /Mid-Autumn Festival/);
     assert.match(dashEvent.textContent, /Champaign/);
@@ -241,9 +285,9 @@ test('admin page: module boots against the real Tabler markup', async () => {
     assert.match(dashPay.textContent, /\$31\.05/);
     assert.match(document.querySelector('#caaci-dash-updated').textContent, /^Updated /);
 
-    // A tile is a shortcut to its tab: the Revenue tile opens Payments, which
+    // A tile is a shortcut to its tab: the Past-due tile opens Payments, which
     // loads as if clicked in the nav. Refresh asks the API again.
-    tiles[4].click();
+    tiles[1].click();
     await tick();
     assert.ok(document.querySelector('[data-tab="payments"]').classList.contains('active'));
     assert.equal(document.querySelector('[data-panel="payments"]').hidden, false);

@@ -24,21 +24,41 @@ const EVENT_COLUMNS =
   'id,title,title_zh,slug,starts_at,ends_at,location,published,registration_questions';
 const REGISTRATION_COLUMNS = 'id,email,created_at,events(title,title_zh,slug,starts_at)';
 
-// Sum of `column` over every row matching `filters`, paged in a stable order.
-async function sumColumn(DB, table, column, filters) {
-  let sum = 0;
+// Every payment since `sinceIso` (amount + when), paged in a stable order.
+async function paymentsSince(DB, sinceIso) {
+  const all = [];
   for (let page = 0; page < MAX_PAGES; page++) {
-    const { rows } = await DB.select(table, {
-      columns: column,
-      filters,
+    const { rows } = await DB.select('payments', {
+      columns: 'amount_cents,paid_at',
+      filters: [`paid_at=gte.${sinceIso}`],
       order: 'id',
       limit: PAGE,
       offset: page * PAGE,
     });
-    for (const r of rows) sum += r[column] || 0;
+    all.push(...rows);
     if (rows.length < PAGE) break;
   }
-  return sum;
+  return all;
+}
+
+// This year's payments bucketed by calendar month, January through the
+// current month: [{ month: 'YYYY-MM', cents, payments }]. Feeds the revenue
+// line chart; the last bucket is "this month".
+function monthlyRevenue(payments, now) {
+  const year = now.getFullYear();
+  const months = [];
+  for (let m = 0; m <= now.getMonth(); m++) {
+    months.push({ month: `${year}-${String(m + 1).padStart(2, '0')}`, cents: 0, payments: 0 });
+  }
+  for (const p of payments) {
+    const d = new Date(p.paid_at);
+    if (isNaN(d.getTime()) || d.getFullYear() !== year) continue;
+    const bucket = months[d.getMonth()];
+    if (!bucket) continue;
+    bucket.cents += p.amount_cents || 0;
+    bucket.payments += 1;
+  }
+  return months;
 }
 
 // { [eventId]: registrations } for the given events (0 when none).
@@ -108,13 +128,13 @@ export async function onRequestGet({ request, env }) {
     });
 
     // ---- revenue ----
-    const revenue_ytd_cents = await sumColumn(DB, 'payments', 'amount_cents', [
-      `paid_at=gte.${yearStart}`,
-    ]);
-    const revenue_month_cents = await sumColumn(DB, 'payments', 'amount_cents', [
-      `paid_at=gte.${monthStart}`,
-    ]);
-    const payments_this_month = await count('payments', [`paid_at=gte.${monthStart}`]);
+    // One read of the year's payments gives the year total, the month-by-month
+    // series and this month's figures (its last bucket), all from one clock.
+    const by_month = monthlyRevenue(await paymentsSince(DB, yearStart), now);
+    const revenue_ytd_cents = by_month.reduce((sum, b) => sum + b.cents, 0);
+    const thisMonth = by_month[by_month.length - 1];
+    const revenue_month_cents = thisMonth.cents;
+    const payments_this_month = thisMonth.payments;
     const { rows: recent_payments } = await DB.select('payments', {
       columns: PAYMENT_COLUMNS,
       order: 'paid_at.desc',
@@ -171,6 +191,7 @@ export async function onRequestGet({ request, env }) {
         ytd_cents: revenue_ytd_cents,
         month_cents: revenue_month_cents,
         payments_this_month,
+        by_month,
         recent: recent_payments,
       },
       events: {
