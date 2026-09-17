@@ -181,7 +181,7 @@ export function useAsk(): {
           transition={mountIn}
           role="alertdialog"
           aria-live="polite"
-          className="rounded-xl border border-neutral-300 bg-white p-4 space-y-3"
+          className="pt-4 border-t border-neutral-200/80 space-y-3"
         >
           <div className="flex items-start gap-2 text-sm text-neutral-800">
             <HelpCircle className="w-4 h-4 mt-0.5 shrink-0 text-brick" aria-hidden />

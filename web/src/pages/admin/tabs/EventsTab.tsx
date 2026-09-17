@@ -14,6 +14,7 @@ import {
 import qrcode from 'qrcode-generator';
 import { listExit, listItem, mountIn, riseFromSm, shown } from '../../../lib/motion';
 import {
+  DIVIDED,
   INPUT,
   InlineConfirm,
   Loaded,
@@ -206,7 +207,7 @@ export default function EventsTab() {
         isEmpty={list.data ? rows.length === 0 && offset === 0 : undefined}
         empty={t('No events yet.', '暂无活动。')}
       >
-        <ul className="space-y-3">
+        <ul className={DIVIDED}>
           <AnimatePresence initial={false}>
             {rows.map((e, i) => (
               <motion.li
@@ -216,6 +217,7 @@ export default function EventsTab() {
                 animate={shown}
                 exit={listExit}
                 transition={listItem(i)}
+                className="py-5"
               >
                 <EventRow
                   e={e}
@@ -267,8 +269,8 @@ function EventRow({
   const [busy, setBusy] = useState(false);
 
   return (
-    <div className="bg-surface-2 rounded-2xl border border-neutral-200/80 shadow-xs">
-      <div className="p-4 sm:p-5 grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] lg:items-center">
+    <div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] lg:items-center">
         <div className="min-w-0 flex gap-3">
           {e.image_url && (
             <img
@@ -383,7 +385,7 @@ function QrPanel({
   }
   const title = e.title_zh ? `${e.title_zh} · ${e.title}` : e.title;
   return (
-    <div className="px-4 sm:px-5 pb-5 pt-1 flex flex-col sm:flex-row gap-4 sm:items-center border-t border-neutral-200/80">
+    <div className="pt-4 pb-1 flex flex-col sm:flex-row gap-4 sm:items-center border-t border-neutral-200/80">
       {png ? (
         <img
           src={png}

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 import {
-  CARD,
   Field,
   INPUT,
   InlineConfirm,
@@ -250,7 +249,7 @@ export default function NewsTab() {
         </Notice>
       )}
 
-      <div className={`${CARD} space-y-5`}>
+      <div className="space-y-5">
         <Field label={t('Audience', '收件对象')} className="max-w-sm">
           <select className={SELECT} value={audience} onChange={(e) => setAudience(e.target.value)}>
             <option value="active">{t('Active members only', '仅有效会员')}</option>

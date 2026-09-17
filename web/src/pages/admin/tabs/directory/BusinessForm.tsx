@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { ImageUp, Loader2, X } from 'lucide-react';
 import { DIRECTORY_CATEGORIES } from '../../../../lib/directory';
 import {
-  CARD,
   Field,
   INPUT,
   LABEL,
@@ -146,7 +145,7 @@ export function BusinessForm({
   );
 
   return (
-    <form ref={box} onSubmit={submit} className={`${CARD} space-y-5 scroll-mt-4`}>
+    <form ref={box} onSubmit={submit} className="space-y-5 scroll-mt-4">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-base font-bold text-ink break-words min-w-0">
           {edit ? biz.name : t('New listing', '新建条目')}

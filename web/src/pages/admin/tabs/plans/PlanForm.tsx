@@ -3,7 +3,6 @@ import { X } from 'lucide-react';
 import { withFee } from '../../../../lib/shared';
 import { PLAN_PREVIEW_MESSAGE } from '../../../PlanPreviewPage';
 import {
-  CARD,
   Field,
   INPUT,
   LABEL,
@@ -162,7 +161,7 @@ export function PlanForm({
   );
 
   return (
-    <form ref={box} onSubmit={submit} className={`${CARD} space-y-5 scroll-mt-4`}>
+    <form ref={box} onSubmit={submit} className="space-y-5 scroll-mt-4">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-base font-bold text-ink break-words min-w-0">{plan.name}</h3>
         <button

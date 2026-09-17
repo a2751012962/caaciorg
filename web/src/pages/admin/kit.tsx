@@ -48,6 +48,14 @@ export { LiquidToggle } from '../../components/bencho/LiquidToggle';
 export { DragStepper } from '../../components/bencho/DragStepper';
 export { Search } from '../../components/bencho/Search';
 
+// No cards: a block of the page is a heading, a rule and space, and a list of
+// things is a divided list — not a bordered, shadowed box (the token back
+// office made the same change, 1608c44).
+/** A block of a tab: ruled off from the one above it. */
+export const SECTION = 'space-y-3 pt-6 border-t border-neutral-200/80';
+/** A list whose items are separated by rules; give each item `py-4`. */
+export const DIVIDED = 'divide-y divide-neutral-200/80 border-y border-neutral-200/80';
+
 /** A <select> styled like INPUT. */
 export const SELECT = `${INPUT} pr-9 cursor-pointer`;
 /** A multi-line INPUT. */
@@ -487,14 +495,14 @@ export function Field({
   );
 }
 
-/** A card that animates in; use for forms and panels inside a tab. */
+/** A block that animates in — a form, an editor, a panel inside a tab. */
 export function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <motion.div
       initial={riseFromSm}
       animate={shown}
       transition={mountIn}
-      className={`${CARD} ${className}`}
+      className={`${SECTION} ${className}`}
     >
       {children}
     </motion.div>
@@ -561,17 +569,17 @@ export function DataTable<T>({
   // its requests) rather than once per layout with one of them hidden.
   const wide = useWide();
   return (
-    <div className="bg-surface-2 rounded-2xl border border-neutral-200/80 shadow-xs overflow-hidden">
+    <div>
       {wide ? (
-        <table className="w-full text-sm">
+        <table className="w-full text-sm border-b border-neutral-200/80">
           <thead>
             <tr className="text-left text-xs font-bold text-neutral-500 border-b border-neutral-200/80">
               {columns.map((c) => (
-                <th key={c.key} className={`px-4 py-3 font-bold ${c.className ?? ''}`}>
+                <th key={c.key} className={`pr-4 pb-2 font-bold ${c.className ?? ''}`}>
                   {c.label}
                 </th>
               ))}
-              {actions && <th className="px-4 py-3" />}
+              {actions && <th className="pb-2" />}
             </tr>
           </thead>
           <tbody>
@@ -579,21 +587,21 @@ export function DataTable<T>({
               const extra = expand?.(r);
               return (
                 <FragmentRows key={rowKey(r)}>
-                  <tr className="border-b border-neutral-200/60 last:border-0 hover:bg-white/70 transition-colors align-middle">
+                  <tr className="border-t border-neutral-200/60 hover:bg-surface-hover transition-colors align-middle">
                     {columns.map((c) => (
-                      <td key={c.key} className={`px-4 py-3 text-neutral-700 ${c.className ?? ''}`}>
+                      <td key={c.key} className={`pr-4 py-3 text-neutral-700 ${c.className ?? ''}`}>
                         {c.render(r)}
                       </td>
                     ))}
                     {actions && (
-                      <td className="px-4 py-2">
+                      <td className="py-2">
                         <div className="flex items-center justify-end gap-2">{actions(r)}</div>
                       </td>
                     )}
                   </tr>
                   {extra && (
-                    <tr className="border-b border-neutral-200/60 bg-white">
-                      <td colSpan={columns.length + (actions ? 1 : 0)} className="p-4">
+                    <tr className="border-t border-neutral-200/60">
+                      <td colSpan={columns.length + (actions ? 1 : 0)} className="py-4">
                         {extra}
                       </td>
                     </tr>
@@ -604,11 +612,11 @@ export function DataTable<T>({
           </tbody>
         </table>
       ) : (
-        <ul className="divide-y divide-neutral-200/70">
+        <ul className="divide-y divide-neutral-200/80 border-y border-neutral-200/80">
           {rows.map((r) => {
             const extra = expand?.(r);
             return (
-              <li key={rowKey(r)} className="p-4 space-y-2">
+              <li key={rowKey(r)} className="py-4 space-y-2">
                 {columns
                   .filter((c) => !c.wideOnly)
                   .map((c) => (

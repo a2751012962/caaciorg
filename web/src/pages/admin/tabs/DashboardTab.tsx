@@ -10,6 +10,7 @@ import {
   MEMBER_STATUSES,
   Notice,
   SECONDARY,
+  SECTION,
   SELECT,
   Spinner,
   Status,
@@ -342,7 +343,7 @@ export default function DashboardTab() {
   const pays = rev.recent || [];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <div>
         <span className={EYEBROW}>{t('Overview', '总览')}</span>
         {header}
@@ -350,7 +351,7 @@ export default function DashboardTab() {
       {dash.error && <Notice tone="error">{dash.error}</Notice>}
 
       {/* Stat tiles: the numbers staff act on, each a shortcut to its tab. */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-x-6 gap-y-6">
         {tiles.map((x, i) => (
           <motion.button
             key={x.goto + x.label}
@@ -361,7 +362,7 @@ export default function DashboardTab() {
             whileHover={hoverLift}
             whileTap={tap}
             onClick={() => go(x.goto)}
-            className="group text-left bg-surface-2 rounded-2xl border border-neutral-200/80 shadow-xs p-4 min-h-11 cursor-pointer hover:border-neutral-400 transition-colors"
+            className="group text-left min-h-11 cursor-pointer"
           >
             <span className="flex items-start justify-between gap-2 text-xs font-bold text-neutral-500">
               <span>{x.label}</span>
@@ -381,7 +382,7 @@ export default function DashboardTab() {
       </div>
 
       {/* Revenue: figures beside the shown year month by month. */}
-      <Card>
+      <section className={SECTION}>
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,3fr)] md:items-center">
           <div className="grid grid-cols-2 md:grid-cols-1 gap-4">
             <h2 className="col-span-2 md:col-span-1 text-lg font-bold text-ink">
@@ -427,10 +428,10 @@ export default function DashboardTab() {
             )}
           </div>
         </div>
-      </Card>
+      </section>
 
       {/* Active members: live figures beside a line reconstructed from the spans. */}
-      <Card>
+      <section className={SECTION}>
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,3fr)] md:items-center">
           <div className="grid grid-cols-2 md:grid-cols-1 gap-4">
             <h2 className="col-span-2 md:col-span-1 text-lg font-bold text-ink">
@@ -452,103 +453,109 @@ export default function DashboardTab() {
             )}
           </div>
         </div>
-      </Card>
+      </section>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card title={t('Active members by tier', '有效会员按类型')}>
-          {tiers.length ? (
-            <PieChart slices={slices} emptyText={t('No active members yet.', '暂无有效会员。')} />
-          ) : (
-            <Empty>{t('No membership tiers.', '暂无会员类型。')}</Empty>
-          )}
-        </Card>
-        <Card title={t('Members by status', '会员状态')}>
-          <ul className="space-y-3">
-            {MEMBER_STATUSES.map((s) => {
-              const n = sc[s] ?? 0;
-              const share = total ? Math.round((n / total) * 100) : 0;
-              return (
-                <li key={s}>
-                  <div className="flex items-center justify-between gap-3 mb-1.5 text-sm">
-                    <Status tone={memberStatusTone(s)}>{memberStatusLabel(t, s)}</Status>
-                    <span className="tabular-nums text-neutral-700">
-                      {n} <span className="text-xs text-neutral-500">({share}%)</span>
-                    </span>
-                  </div>
-                  <div
-                    className="h-1.5 rounded-full bg-neutral-200 overflow-hidden"
-                    role="progressbar"
-                    aria-valuenow={share}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label={memberStatusLabel(t, s)}
-                  >
-                    {/* The width is data, not styling. */}
+      <section className={SECTION}>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <Card title={t('Active members by tier', '有效会员按类型')}>
+            {tiers.length ? (
+              <PieChart slices={slices} emptyText={t('No active members yet.', '暂无有效会员。')} />
+            ) : (
+              <Empty>{t('No membership tiers.', '暂无会员类型。')}</Empty>
+            )}
+          </Card>
+          <Card title={t('Members by status', '会员状态')}>
+            <ul className="space-y-3">
+              {MEMBER_STATUSES.map((s) => {
+                const n = sc[s] ?? 0;
+                const share = total ? Math.round((n / total) * 100) : 0;
+                return (
+                  <li key={s}>
+                    <div className="flex items-center justify-between gap-3 mb-1.5 text-sm">
+                      <Status tone={memberStatusTone(s)}>{memberStatusLabel(t, s)}</Status>
+                      <span className="tabular-nums text-neutral-700">
+                        {n} <span className="text-xs text-neutral-500">({share}%)</span>
+                      </span>
+                    </div>
                     <div
-                      className={`h-full rounded-full ${BAR[s]} transition-[width] duration-500`}
-                      style={{ width: `${share}%` }}
-                    />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      </div>
+                      className="h-1.5 rounded-full bg-neutral-200 overflow-hidden"
+                      role="progressbar"
+                      aria-valuenow={share}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={memberStatusLabel(t, s)}
+                    >
+                      {/* The width is data, not styling. */}
+                      <div
+                        className={`h-full rounded-full ${BAR[s]} transition-[width] duration-500`}
+                        style={{ width: `${share}%` }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        </div>
+      </section>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <ListSection
-          title={t('Upcoming events', '即将举办的活动')}
-          info={
-            ev.drafts_total
-              ? t(`${ev.drafts_total} unpublished`, `${ev.drafts_total} 个未发布`)
-              : ''
-          }
-          empty={t('No upcoming published events.', '暂无已发布的即将举办活动。')}
-          isEmpty={!ev.upcoming?.length}
-        >
-          <DataTable columns={eventCols} rows={ev.upcoming || []} rowKey={(e) => e.id} />
-        </ListSection>
-        <ListSection
-          title={t('Expiring soon', '即将到期')}
-          info={
-            (m.expiring_total || 0) > expiring.length
-              ? t(
-                  `${expiring.length} of ${m.expiring_total}`,
-                  `${expiring.length} / 共 ${m.expiring_total}`,
-                )
-              : ''
-          }
-          empty={t(`Nobody expires in the next ${days} days.`, `未来 ${days} 天内没有会员到期。`)}
-          isEmpty={!expiring.length}
-        >
-          <DataTable columns={expiringCols} rows={expiring} rowKey={(x) => x.id} />
-        </ListSection>
-      </div>
+      <section className={SECTION}>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <ListSection
+            title={t('Upcoming events', '即将举办的活动')}
+            info={
+              ev.drafts_total
+                ? t(`${ev.drafts_total} unpublished`, `${ev.drafts_total} 个未发布`)
+                : ''
+            }
+            empty={t('No upcoming published events.', '暂无已发布的即将举办活动。')}
+            isEmpty={!ev.upcoming?.length}
+          >
+            <DataTable columns={eventCols} rows={ev.upcoming || []} rowKey={(e) => e.id} />
+          </ListSection>
+          <ListSection
+            title={t('Expiring soon', '即将到期')}
+            info={
+              (m.expiring_total || 0) > expiring.length
+                ? t(
+                    `${expiring.length} of ${m.expiring_total}`,
+                    `${expiring.length} / 共 ${m.expiring_total}`,
+                  )
+                : ''
+            }
+            empty={t(`Nobody expires in the next ${days} days.`, `未来 ${days} 天内没有会员到期。`)}
+            isEmpty={!expiring.length}
+          >
+            <DataTable columns={expiringCols} rows={expiring} rowKey={(x) => x.id} />
+          </ListSection>
+        </div>
+      </section>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <ListSection
-          title={t('Latest registrations', '最新报名')}
-          empty={t('No registrations yet.', '暂无报名。')}
-          isEmpty={!regs.length}
-        >
-          <DataTable columns={regCols} rows={regs} rowKey={(r) => r.id} />
-        </ListSection>
-        <ListSection
-          title={t('Latest payments', '最新收款')}
-          empty={t('No payments recorded yet.', '暂无收款记录。')}
-          isEmpty={!pays.length}
-        >
-          <DataTable columns={payCols} rows={pays} rowKey={(p) => p.id} />
-        </ListSection>
-      </div>
+      <section className={SECTION}>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <ListSection
+            title={t('Latest registrations', '最新报名')}
+            empty={t('No registrations yet.', '暂无报名。')}
+            isEmpty={!regs.length}
+          >
+            <DataTable columns={regCols} rows={regs} rowKey={(r) => r.id} />
+          </ListSection>
+          <ListSection
+            title={t('Latest payments', '最新收款')}
+            empty={t('No payments recorded yet.', '暂无收款记录。')}
+            isEmpty={!pays.length}
+          >
+            <DataTable columns={payCols} rows={pays} rowKey={(p) => p.id} />
+          </ListSection>
+        </div>
+      </section>
     </div>
   );
 }
 
 function Card({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <section className="bg-surface-2 rounded-2xl border border-neutral-200/80 shadow-xs p-5 sm:p-6 min-w-0">
+    <section className="min-w-0">
       {title && <h2 className="text-lg font-bold text-ink mb-4">{title}</h2>}
       {children}
     </section>
@@ -596,13 +603,7 @@ function ListSection({
         <h2 className="text-lg font-bold text-ink">{title}</h2>
         {info && <span className="text-xs text-neutral-500">{info}</span>}
       </div>
-      {isEmpty ? (
-        <div className="bg-surface-2 rounded-2xl border border-neutral-200/80 shadow-xs">
-          <Empty>{empty}</Empty>
-        </div>
-      ) : (
-        children
-      )}
+      {isEmpty ? <Empty>{empty}</Empty> : children}
     </section>
   );
 }

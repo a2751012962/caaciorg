@@ -111,12 +111,9 @@ export default function PaymentsTab() {
 
       {page.error && data && <Notice tone="error">{page.error}</Notice>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-6">
         {tiles.map((x) => (
-          <div
-            key={x.label}
-            className="bg-surface-2 rounded-2xl border border-neutral-200/80 shadow-xs p-4"
-          >
+          <div key={x.label}>
             <div className="text-xs font-bold text-neutral-500">{x.label}</div>
             <div
               className={`mt-1 text-2xl sm:text-3xl font-bold tabular-nums ${x.tone ?? 'text-ink'}`}

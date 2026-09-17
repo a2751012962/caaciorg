@@ -4,7 +4,6 @@
 // people have already answered.
 import { useState, type FormEvent } from 'react';
 import {
-  CARD,
   Field,
   INPUT,
   LiquidToggle,
@@ -123,7 +122,7 @@ export function EventForm({
   };
 
   return (
-    <form onSubmit={submit} className={`${CARD} space-y-5`}>
+    <form onSubmit={submit} className="space-y-5">
       <h2 className="text-lg font-bold text-ink">
         {edit ? t('Edit event', '编辑活动') : t('New event', '新建活动')}
       </h2>

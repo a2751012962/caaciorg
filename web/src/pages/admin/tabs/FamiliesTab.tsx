@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Pencil, Plus, Search as SearchIcon, UserPlus, X } from 'lucide-react';
 import { listExit, listItem, mountIn, riseFromSm, shown } from '../../../lib/motion';
 import {
-  CARD,
+  DIVIDED,
   DataTable,
   EYEBROW,
   Field,
@@ -15,6 +15,7 @@ import {
   PRIMARY,
   ROW_BTN,
   SECONDARY,
+  SECTION,
   SELECT,
   Status,
   TEXTAREA,
@@ -106,9 +107,15 @@ export default function FamiliesTab() {
         isEmpty={list.data ? rows.length === 0 : undefined}
         empty={t('No families yet.', '暂无家庭。')}
       >
-        <ul className="space-y-4">
+        <ul className={DIVIDED}>
           {rows.map((h, i) => (
-            <motion.li key={h.id} initial={riseFromSm} animate={shown} transition={listItem(i)}>
+            <motion.li
+              key={h.id}
+              initial={riseFromSm}
+              animate={shown}
+              transition={listItem(i)}
+              className="py-6"
+            >
               <FamilyCard
                 h={h}
                 focused={focus === h.id}
@@ -170,7 +177,7 @@ function PlanMembers({
   };
 
   return (
-    <section className={`${CARD} space-y-4`}>
+    <section className={SECTION}>
       <h2 className="text-lg font-bold text-ink flex items-center gap-2">
         {t('Family-plan members without a family', '还没建家庭的家庭会员')}
         {!!list?.length && (
@@ -299,11 +306,9 @@ function FamilyCard({
   return (
     <section
       ref={ref}
-      className={`bg-surface-2 rounded-2xl border shadow-xs scroll-mt-32 ${
-        focused ? 'border-brick ring-2 ring-brick/30' : 'border-neutral-200/80'
-      }`}
+      className={`scroll-mt-32 ${focused ? 'border-l-2 border-brick pl-4 -ml-4' : ''}`}
     >
-      <div className="p-4 sm:p-5 flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-lg font-bold text-ink break-words">{h.name}</h2>
           <p className="mt-1 text-xs text-neutral-500 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -356,7 +361,7 @@ function FamilyCard({
             animate={shown}
             exit={listExit}
             transition={mountIn}
-            className="px-4 sm:px-5 pb-4"
+            className="pb-4"
           >
             <FamilyForm
               h={h}
@@ -372,7 +377,7 @@ function FamilyCard({
       </AnimatePresence>
 
       {/* login accounts */}
-      <div className="px-4 sm:px-5 py-4 border-t border-neutral-200/80 space-y-2">
+      <div className="py-4 border-t border-neutral-200/80 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className={EYEBROW}>{t('Login accounts', '登录账户')}</span>
           <span className="text-xs text-neutral-500">
@@ -423,7 +428,7 @@ function FamilyCard({
       </div>
 
       {/* people */}
-      <div className="px-4 sm:px-5 py-4 border-t border-neutral-200/80 space-y-3">
+      <div className="py-4 border-t border-neutral-200/80 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className={EYEBROW}>{t('Family members', '家庭成员')}</span>
           <button
@@ -526,7 +531,7 @@ function FamilyCard({
       </div>
 
       {/* invitations + activity */}
-      <div className="px-4 sm:px-5 py-4 border-t border-neutral-200/80">
+      <div className="py-4 border-t border-neutral-200/80">
         <InvitesBlock h={h} available={invitesAvailable} />
       </div>
     </section>
@@ -644,7 +649,7 @@ function FamilyForm({
   };
 
   return (
-    <form onSubmit={submit} className={`${CARD} space-y-5 bg-white`} noValidate>
+    <form onSubmit={submit} className="space-y-5" noValidate>
       <div className="grid gap-5 md:grid-cols-2">
         <Field label={`${t('Family name', '家庭名称')} *`}>
           <input className={INPUT} value={f.name} onChange={set('name')} required autoFocus />
@@ -732,11 +737,7 @@ function PersonForm({
   };
 
   return (
-    <form
-      onSubmit={submit}
-      className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 space-y-4"
-      noValidate
-    >
+    <form onSubmit={submit} className="space-y-4" noValidate>
       <div className="grid gap-4 md:grid-cols-2">
         <Field label={`${t('Full name', '姓名')} *`}>
           <input

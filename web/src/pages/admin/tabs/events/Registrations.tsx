@@ -4,7 +4,7 @@
 // filter (events with a gift only) and the CSV export.
 import { useEffect, useState } from 'react';
 import { Download, X } from 'lucide-react';
-import { CARD, LiquidToggle, Notice, SECONDARY, Spinner, Status, useAdmin } from '../../kit';
+import { DIVIDED, LiquidToggle, Notice, SECONDARY, Spinner, Status, useAdmin } from '../../kit';
 import {
   CHOICE_TYPES,
   answerText,
@@ -99,7 +99,7 @@ export function Registrations({ ev, onClose }: { ev: AdminEvent; onClose: () => 
   }
 
   const stat = (label: string, n: number | undefined, good = false) => (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+    <div>
       <div className="text-xs font-bold text-neutral-500">{label}</div>
       <div
         className={`mt-1 text-2xl font-bold tabular-nums ${good ? 'text-emerald-700' : 'text-ink'}`}
@@ -110,7 +110,7 @@ export function Registrations({ ev, onClose }: { ev: AdminEvent; onClose: () => 
   );
 
   return (
-    <section className={`${CARD} space-y-5`} aria-label={t('Registrations', '报名')}>
+    <section className="space-y-5" aria-label={t('Registrations', '报名')}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <span className="text-xs font-semibold text-brick block">
@@ -148,7 +148,7 @@ export function Registrations({ ev, onClose }: { ev: AdminEvent; onClose: () => 
 
       {data && (
         <>
-          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid gap-x-6 gap-y-6 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
             {stat(t('Total', '总数'), summary.total)}
             {stat(t('Confirmed account', '已验证账户'), summary.with_account)}
             {perk &&
@@ -159,7 +159,7 @@ export function Registrations({ ev, onClose }: { ev: AdminEvent; onClose: () => 
               )}
           </div>
           {questions.some((q) => CHOICE_TYPES.has(q.type)) && (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-x-6 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
               {questions
                 .filter((q) => CHOICE_TYPES.has(q.type))
                 .map((q) => {
@@ -170,7 +170,7 @@ export function Registrations({ ev, onClose }: { ev: AdminEvent; onClose: () => 
                   ]);
                   if (q.other || counts.other) lines.push([t('Other', '其他'), counts.other]);
                   return (
-                    <div key={q.id} className="rounded-2xl border border-neutral-200 bg-white p-4">
+                    <div key={q.id}>
                       <div className="text-xs font-bold text-neutral-500 mb-2">
                         {labelIn(q, lang)}
                       </div>
@@ -197,9 +197,9 @@ export function Registrations({ ev, onClose }: { ev: AdminEvent; onClose: () => 
             </p>
           ) : (
             <>
-              {/* Wide screens: one column per question, scrolling sideways inside the card. */}
-              <div className="hidden md:block overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
-                <table className="w-full text-sm">
+              {/* Wide screens: one column per question, scrolling sideways. */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm border-b border-neutral-200/80">
                   <thead>
                     <tr className="text-left text-xs font-bold text-neutral-500 border-b border-neutral-200">
                       <th className="px-3 py-3">#</th>
@@ -243,13 +243,10 @@ export function Registrations({ ev, onClose }: { ev: AdminEvent; onClose: () => 
                   </tbody>
                 </table>
               </div>
-              {/* Phones: one card per registrant. */}
-              <ul className="md:hidden space-y-3">
+              {/* Phones: a divided list, one entry per registrant. */}
+              <ul className={`md:hidden ${DIVIDED}`}>
                 {shown.map(({ r, n }) => (
-                  <li
-                    key={r.id}
-                    className="rounded-2xl border border-neutral-200 bg-white p-4 space-y-2 text-sm"
-                  >
+                  <li key={r.id} className="py-4 space-y-2 text-sm">
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="font-semibold text-ink break-all">
                         <span className="text-neutral-400 me-1.5">#{n}</span>

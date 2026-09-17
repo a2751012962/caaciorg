@@ -6,7 +6,7 @@ import { tr } from '../../../components/tokens/ui';
 import type { Lang } from '../../../lib/lang';
 import { listExit, listItem, mountIn, riseFromSm, shown } from '../../../lib/motion';
 import {
-  CARD,
+  DIVIDED,
   DragStepper,
   INPUT,
   InlineConfirm,
@@ -120,7 +120,7 @@ export default function DiscountsTab() {
         isEmpty={list.data ? rows.length === 0 : undefined}
         empty={t('No discount codes yet.', '暂无折扣码。')}
       >
-        <ul className="space-y-3">
+        <ul className={DIVIDED}>
           <AnimatePresence initial={false}>
             {rows.map((d, i) => (
               <motion.li
@@ -130,6 +130,7 @@ export default function DiscountsTab() {
                 animate={shown}
                 exit={listExit}
                 transition={listItem(i)}
+                className="py-5"
               >
                 <Row
                   d={d}
@@ -185,8 +186,8 @@ function Row({
   const used = `${d.times_redeemed}${d.max_redemptions != null ? ` / ${d.max_redemptions}` : ''}`;
 
   return (
-    <div className="bg-surface-2 rounded-2xl border border-neutral-200/80 shadow-xs">
-      <div className="p-4 sm:p-5 grid gap-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] md:items-center">
+    <div>
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] md:items-center">
         <div className="min-w-0">
           <div className="flex items-baseline gap-3">
             <code className="font-mono text-base font-bold text-ink tracking-wide">{d.code}</code>
@@ -254,7 +255,7 @@ function QrPanel({ d, lang }: { d: Discount; lang: Lang }) {
     /* shown as the notice below */
   }
   return (
-    <div className="px-4 sm:px-5 pb-5 pt-1 flex flex-col sm:flex-row gap-4 sm:items-center border-t border-neutral-200/80">
+    <div className="pt-4 pb-1 flex flex-col sm:flex-row gap-4 sm:items-center border-t border-neutral-200/80">
       {png ? (
         <img
           src={png}
@@ -318,7 +319,7 @@ function CreateForm({ lang, onCreated }: { lang: Lang; onCreated: (d: Discount) 
   };
 
   return (
-    <form onSubmit={submit} className={`${CARD} space-y-5`}>
+    <form onSubmit={submit} className="space-y-5">
       <div className="grid gap-5 md:grid-cols-2">
         <label className="block">
           <span className={LABEL}>{t('Code', '折扣码')} *</span>

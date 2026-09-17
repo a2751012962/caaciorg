@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Home, KeyRound, Mail, Pencil, Plus, Search as SearchIcon, X } from 'lucide-react';
 import { listExit, mountIn, riseFromSm, shown } from '../../../lib/motion';
 import {
-  CARD,
   DataTable,
   Field,
   INPUT,
@@ -677,7 +676,7 @@ function AddMember({
   };
 
   return (
-    <form onSubmit={submit} className={`${CARD} space-y-5`} noValidate>
+    <form onSubmit={submit} className="space-y-5" noValidate>
       <div className="grid gap-5 md:grid-cols-2">
         <Field label={t('Full name', '姓名')}>
           <input className={INPUT} value={f.full_name} onChange={set('full_name')} autoFocus />

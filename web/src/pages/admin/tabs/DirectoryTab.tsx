@@ -108,8 +108,8 @@ export default function DirectoryTab() {
         }
       />
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-surface-2 p-4 rounded-2xl border border-neutral-200/80 shadow-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-6">
+        <div>
           <div className="text-xs font-semibold text-neutral-500">
             {t('Pending review', '待审核')}
           </div>
