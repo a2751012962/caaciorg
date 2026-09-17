@@ -113,6 +113,20 @@ async function api(path, { method = 'GET', body, headers = {} } = {}) {
   return { ok: r.ok, status: r.status, data };
 }
 
+// An admin signs in straight to this panel, so the way to the token back office
+// (/token-admin/, in the React site) is a header link. It stays hidden unless
+// the server says tokens are switched on; any failure leaves it hidden.
+async function showTokensLink() {
+  const link = $('#caaci-tokens-link');
+  if (!link) return;
+  try {
+    const res = await api('/api/tokens/me');
+    if (res.ok && res.data.enabled === true) link.hidden = false;
+  } catch {
+    // offline or an older deployment: no link
+  }
+}
+
 // ---------- emailed verification code for sensitive actions ----------
 // Refunds and plan changes answer 428 + code_required until the request
 // carries the code POST /api/admin/action-code emailed to the admin (see
@@ -4503,6 +4517,7 @@ function wireMyAccount() {
   wirePlans();
   wireNews();
   wireMyAccount();
+  showTokensLink(); // not awaited: the panel does not wait on it
   await loadTiers();
   await loadDashboard(); // the tab that is showing
   await loadHouseholds(); // for the member "Family" dropdown
