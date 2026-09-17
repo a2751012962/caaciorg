@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Search } from 'lucide-react';
 import { FluidTabs } from '../components/FluidTabs';
 import {
-  CARD,
   DANGER,
   INPUT,
   LABEL,
@@ -33,6 +32,9 @@ import {
 } from '../lib/tokens';
 
 type Tab = 'overview' | 'merchants' | 'disputes' | 'ledger' | 'cash' | 'settings';
+// No cards on this page: blocks are separated by a rule and space alone.
+const SECTION = 'space-y-3 pt-6 border-t border-neutral-200/80';
+
 type Say = (tone: 'success' | 'error', text: string) => void;
 
 const central = (d = new Date()) => d.toLocaleDateString('sv-SE', { timeZone: 'America/Chicago' }); // YYYY-MM-DD
@@ -122,15 +124,15 @@ function OverviewTab({ lang, overview }: { lang: Lang; overview: Overview }) {
   const paidFor = (o.purchase ?? 0) + (o.cash ?? 0);
   const free = (o.grant ?? 0) + (o.mint ?? 0);
   const cell = (label: string, value: string, sub?: string) => (
-    <div className={CARD}>
+    <div>
       <p className="text-[11px] text-neutral-500">{label}</p>
       <p className="text-2xl font-bold text-ink tabular-nums mt-1">{value}</p>
       {sub && <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">{sub}</p>}
     </div>
   );
   return (
-    <div className="space-y-5">
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-6">
         {cell(
           t('Bought tokens still unspent', '未花完的已购币'),
           usd((paidFor * 100) / rate),
@@ -200,7 +202,7 @@ function MemberLookup({ lang }: { lang: Lang }) {
     } else setError(res.data.error || 'Search failed.');
   };
   return (
-    <div className={`${CARD} space-y-3`}>
+    <div className={SECTION}>
       <span className="text-xs font-semibold text-brick block">
         {t('Find a member', '查找会员')}
       </span>
@@ -286,45 +288,47 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
 
   if (!rows) return <Spinner label={t('Loading…', '加载中…')} />;
   return (
-    <div className="space-y-4">
-      {rows.map((m) => (
-        <div key={m.id} className={CARD}>
-          <button
-            type="button"
-            className="w-full flex items-center justify-between gap-3 text-left min-h-[44px] cursor-pointer"
-            onClick={() => setOpenId(openId === m.id ? '' : m.id)}
-            aria-expanded={openId === m.id}
-          >
-            <span className="min-w-0">
-              <span className="block text-base font-semibold text-neutral-900 truncate">
-                {m.name}
-                {m.name_zh ? ` · ${m.name_zh}` : ''}
+    <div className="space-y-8">
+      <div className="divide-y divide-neutral-200/80 border-y border-neutral-200/80">
+        {rows.map((m) => (
+          <div key={m.id} className="py-3">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between gap-3 text-left min-h-[44px] cursor-pointer"
+              onClick={() => setOpenId(openId === m.id ? '' : m.id)}
+              aria-expanded={openId === m.id}
+            >
+              <span className="min-w-0">
+                <span className="block text-base font-semibold text-neutral-900 truncate">
+                  {m.name}
+                  {m.name_zh ? ` · ${m.name_zh}` : ''}
+                </span>
+                <span className="block text-xs text-neutral-500">
+                  {m.kind === 'internal'
+                    ? t('CAACI’s own (never paid out)', '华协内部（不结算）')
+                    : t('Partner shop', '合作商家')}{' '}
+                  · {m.staff.length} {t('staff', '店员')} · {m.items.length}{' '}
+                  {t('menu items', '菜单项')}
+                </span>
               </span>
-              <span className="block text-xs text-neutral-500">
-                {m.kind === 'internal'
-                  ? t('CAACI’s own (never paid out)', '华协内部（不结算）')
-                  : t('Partner shop', '合作商家')}{' '}
-                · {m.staff.length} {t('staff', '店员')} · {m.items.length}{' '}
-                {t('menu items', '菜单项')}
+              <span className="text-right shrink-0">
+                {m.kind === 'partner' && (
+                  <span className="block text-sm font-bold tabular-nums">{usd(m.open_cents)}</span>
+                )}
+                {m.status === 'active' ? (
+                  <Status tone="good">{t('Active', '正常')}</Status>
+                ) : (
+                  <Status tone="bad">{t('Suspended', '已暂停')}</Status>
+                )}
               </span>
-            </span>
-            <span className="text-right shrink-0">
-              {m.kind === 'partner' && (
-                <span className="block text-sm font-bold tabular-nums">{usd(m.open_cents)}</span>
-              )}
-              {m.status === 'active' ? (
-                <Status tone="good">{t('Active', '正常')}</Status>
-              ) : (
-                <Status tone="bad">{t('Suspended', '已暂停')}</Status>
-              )}
-            </span>
-          </button>
-          {openId === m.id && <MerchantDetail lang={lang} m={m} act={act} />}
-        </div>
-      ))}
+            </button>
+            {openId === m.id && <MerchantDetail lang={lang} m={m} act={act} />}
+          </div>
+        ))}
+      </div>
 
       <form
-        className={`${CARD} space-y-3`}
+        className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
           void act(
@@ -380,7 +384,7 @@ function MerchantDetail({
   const [refs, setRefs] = useState<Record<string, string>>({});
 
   return (
-    <div className="mt-5 pt-5 border-t border-neutral-200/80 space-y-6">
+    <div className="mt-3 mb-3 space-y-6">
       {m.status === 'suspended' && (
         <Notice tone="warn">
           {t('Suspended', '已暂停')}: {m.suspended_reason}
@@ -738,9 +742,9 @@ function DisputesTab({
       <p className="text-sm text-neutral-500">{t('No open disputes.', '没有待处理的申诉。')}</p>
     );
   return (
-    <div className="space-y-4">
+    <div className="divide-y divide-neutral-200/80 border-y border-neutral-200/80">
       {rows.map((tx) => (
-        <div key={tx.id} className={`${CARD} space-y-3`}>
+        <div key={tx.id} className="py-5 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-neutral-900">
@@ -756,7 +760,7 @@ function DisputesTab({
             <p className="text-lg font-bold tabular-nums shrink-0">{-tx.amount}</p>
           </div>
           {tx.dispute_note && (
-            <p className="text-xs text-neutral-700 bg-white border border-neutral-200/80 rounded-xl p-3">
+            <p className="text-xs text-neutral-700 border-l-2 border-neutral-300 pl-3">
               “{tx.dispute_note}”
             </p>
           )}
@@ -805,7 +809,7 @@ function LedgerTab({ lang }: { lang: Lang }) {
   }, [kind, offset]);
 
   return (
-    <div className={`${CARD} space-y-3`}>
+    <div className="space-y-3">
       <div className="max-w-xs">
         <label className={LABEL} htmlFor="ledger-kind">
           {t('Kind', '类型')}
@@ -918,7 +922,7 @@ function CashTab({ lang }: { lang: Lang }) {
   }, [date]);
   const total = (rows ?? []).reduce((sum, r) => sum + r.cash_cents, 0);
   return (
-    <div className={`${CARD} space-y-4`}>
+    <div className="space-y-4">
       <div className="max-w-xs">
         <label className={LABEL} htmlFor="cash-date">
           {t('Day (Central time)', '日期（中部时间）')}
@@ -1053,8 +1057,8 @@ function SettingsTab({
   );
 
   return (
-    <div className="space-y-5">
-      <form className={`${CARD} space-y-4`} onSubmit={(e) => void save(e)}>
+    <div className="space-y-8">
+      <form className="space-y-4" onSubmit={(e) => void save(e)}>
         <span className="text-xs font-semibold text-brick block">
           {t('Root only: global settings', '仅 root：全局参数')}
         </span>
@@ -1097,7 +1101,7 @@ function SettingsTab({
         </button>
       </form>
 
-      <div className={`${CARD} space-y-3`}>
+      <div className={SECTION}>
         <span className="text-xs font-semibold text-brick block">
           {t('Root only: who is an admin', '仅 root：管理员名单')}
         </span>
