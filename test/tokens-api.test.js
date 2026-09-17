@@ -11,7 +11,10 @@ import { onRequestGet as scan } from '../functions/api/tokens/scan.js';
 import { onRequestPost as charge } from '../functions/api/tokens/charge.js';
 import { onRequestPost as buy } from '../functions/api/tokens/buy.js';
 import { onRequestGet as disputeGet } from '../functions/api/tokens/dispute.js';
-import { onRequestPost as adminTokens } from '../functions/api/admin/tokens.js';
+import {
+  onRequestPost as adminTokens,
+  onRequestGet as adminTokensGet,
+} from '../functions/api/admin/tokens.js';
 import { onRequestPost as roles } from '../functions/api/admin/roles.js';
 import { onRequestPost as adminMembers } from '../functions/api/admin/members.js';
 import { onRequestGet as verify } from '../functions/api/verify.js';
@@ -496,5 +499,36 @@ test('verify page: full name while tokens are off; family name and a merchant bu
     } finally {
       fetch.restore();
     }
+  }
+});
+
+test('admin ledger: filters by merchant and kind, and ignores a malformed merchant id', async () => {
+  const fetch = mockFetch(
+    backend({ members: [{ id: USER, is_admin: true, is_root: false }], token_tx: [] }),
+  );
+  try {
+    const ledgerCall = async (qs) => {
+      const r = await adminTokensGet({
+        request: fakeRequest({
+          url: `https://x/api/admin/tokens?view=ledger&${qs}`,
+          headers: auth,
+        }),
+        env: fakeEnv(ON),
+      });
+      assert.equal(r.status, 200);
+      const call = fetch.calls.filter((c) => c.url.includes('/rest/v1/token_tx')).pop();
+      return decodeURIComponent(call.url);
+    };
+    const one = await ledgerCall(`merchant_id=${SHOP}&kind=void`);
+    assert.ok(one.includes(`merchant_id=eq.${SHOP}`), one);
+    assert.ok(one.includes('kind=eq.void'), one);
+
+    const all = await ledgerCall('');
+    assert.doesNotMatch(all, /merchant_id=eq/, 'all merchants: no merchant filter');
+
+    const bad = await ledgerCall('merchant_id=not-a-uuid');
+    assert.doesNotMatch(bad, /merchant_id=eq/, 'a malformed id is not passed to the database');
+  } finally {
+    fetch.restore();
   }
 });
