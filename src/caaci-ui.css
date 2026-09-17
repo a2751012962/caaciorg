@@ -41,12 +41,16 @@
   /* The React site's greys (Tailwind 4 neutral-50…700, same oklch values), for
      the public Tabler pages' site header, which copies that site's header. */
   --caaci-neutral-50: oklch(98.5% 0 0);
+  --caaci-neutral-100: oklch(97% 0 0);
   --caaci-neutral-200: oklch(92.2% 0 0);
   --caaci-neutral-300: oklch(87% 0 0);
   --caaci-neutral-400: oklch(70.8% 0 0);
   --caaci-neutral-500: oklch(55.6% 0 0);
   --caaci-neutral-600: oklch(43.9% 0 0);
   --caaci-neutral-700: oklch(37.1% 0 0);
+  --caaci-neutral-800: oklch(26.9% 0 0);
+  --caaci-neutral-900: oklch(20.5% 0 0);
+  --caaci-site-ink: #1d1d1f; /* the React site's heading colour (text-ink) */
 
   /* ---- Status ---- */
   --caaci-success: #1a7f37;
