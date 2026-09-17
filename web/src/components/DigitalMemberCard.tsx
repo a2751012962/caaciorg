@@ -265,7 +265,7 @@ export function DigitalMemberCard({
           The card gives under the pointer (TiltCard, Bencho's press: the point
           you are over sinks, the far side rises) — a card being touched, not
           one displayed. The tilt draws the shadow, so the button carries none. */}
-      <TiltCard className="w-full">
+      <TiltCard className="w-full" gloss>
         <button
           type="button"
           onClick={() => setZoom(true)}

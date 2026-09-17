@@ -474,7 +474,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               viewport={inView}
               transition={rise(0.1)}
             >
-              <TiltCard>
+              <TiltCard gloss>
                 <div className="bg-ink text-white rounded-2xl p-5 sm:p-6 lg:p-7 border border-white/10 relative overflow-hidden group">
                   <div className="flex justify-between items-center pb-5 sm:pb-6 border-b border-white/10 gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">

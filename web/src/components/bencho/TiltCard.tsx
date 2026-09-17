@@ -85,12 +85,21 @@ export function TiltCard({
   corner = CORNER,
   /* how dark the dent gets, 0..100 */
   shade = SHADE,
+  gloss = false,
   className = '',
 }: {
   children?: ReactNode;
   tilt?: number;
   corner?: number;
   shade?: number;
+  /**
+   * CAACI: the card is dark. Bencho's dent darkens the point under the pointer
+   * and lights the rim opposite; on ink the darkening is invisible and all that
+   * shows is the light on the far corner — a highlight in the wrong place. With
+   * `gloss` the light is what sits under the pointer, as on a glossy card, and
+   * the far side is left alone.
+   */
+  gloss?: boolean;
   /** Sizing classes for the frame (e.g. `w-full`); it is otherwise unstyled. */
   className?: string;
 }) {
@@ -250,9 +259,11 @@ export function TiltCard({
           className="tlt-sheen"
           aria-hidden="true"
           style={{
-            backgroundImage: `radial-gradient(42% 34% at ${px}% ${py}%, rgba(9, 14, 28, ${dark}) 0%, rgba(9, 14, 28, 0) 100%), radial-gradient(52% 42% at ${
-              100 - px
-            }% ${100 - py}%, rgba(255, 255, 255, ${rim}) 0%, rgba(255, 255, 255, 0) 100%)`,
+            backgroundImage: gloss
+              ? `radial-gradient(42% 34% at ${px}% ${py}%, rgba(255, 255, 255, ${rim}) 0%, rgba(255, 255, 255, 0) 100%)`
+              : `radial-gradient(42% 34% at ${px}% ${py}%, rgba(9, 14, 28, ${dark}) 0%, rgba(9, 14, 28, 0) 100%), radial-gradient(52% 42% at ${
+                  100 - px
+                }% ${100 - py}%, rgba(255, 255, 255, ${rim}) 0%, rgba(255, 255, 255, 0) 100%)`,
           }}
         />
       </div>
