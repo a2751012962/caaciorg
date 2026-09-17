@@ -20,13 +20,13 @@ import {
   memberStatusLabel,
   memberStatusTone,
   usd,
-  usdShort,
   useAdmin,
   useLoad,
   type Column,
   type TabId,
 } from '../kit';
-import { LineChart, PieChart } from './dashboard/charts';
+import { ScrubChart } from '../../../components/bencho/ScrubChart';
+import { PieChart } from './dashboard/charts';
 import { MemberCell, useKindLabel, type Payment } from './payments/ledger';
 
 interface EventRef {
@@ -411,14 +411,7 @@ export default function DashboardTab() {
           </div>
           <div className="min-w-0">
             {months.length ? (
-              <LineChart
-                points={months}
-                fmt={usdShort}
-                idle={t(
-                  `${shownYear}: ${usd(rev.year_cents)} over ${rev.year_payments ?? 0} payments`,
-                  `${shownYear} 年合计 ${usd(rev.year_cents)}，共 ${rev.year_payments ?? 0} 笔`,
-                )}
-              />
+              <ScrubChart points={months} fmt={usd} />
             ) : (
               <Empty>
                 {isThisYear
@@ -447,7 +440,7 @@ export default function DashboardTab() {
           </div>
           <div className="min-w-0">
             {memberMonths.length ? (
-              <LineChart points={memberMonths} fmt={(n) => String(Math.round(n))} />
+              <ScrubChart points={memberMonths} fmt={(n) => String(Math.round(n))} />
             ) : (
               <Empty>{t('No membership history for this year.', '该年份没有会员记录。')}</Empty>
             )}
