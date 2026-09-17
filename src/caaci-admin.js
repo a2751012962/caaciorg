@@ -3608,15 +3608,18 @@ const BIZ_CATEGORIES = [
   'education_media',
   'services',
 ];
-const CATEGORY_LABEL = {
-  restaurant: () => t('Dining & Beverages', '餐饮与茶饮'),
-  groceries: () => t('Groceries & Markets', '超市与食品'),
-  dental: () => t('Dental Clinics', '牙科诊所'),
-  financial: () => t('Banking & Financial', '银行与金融'),
-  realestate: () => t('Real Estate & Insurance', '房产与保险'),
-  education_media: () => t('Education & Media', '教育与传媒'),
-  services: () => t('Other Services', '其他服务'),
+const CATEGORY_NAMES = {
+  restaurant: ['Dining & Beverages', '餐饮与茶饮'],
+  groceries: ['Groceries & Markets', '超市与食品'],
+  dental: ['Dental Clinics', '牙科诊所'],
+  financial: ['Banking & Financial', '银行与金融'],
+  realestate: ['Real Estate & Insurance', '房产与保险'],
+  education_media: ['Education & Media', '教育与传媒'],
+  services: ['Other Services', '其他服务'],
 };
+const CATEGORY_LABEL = Object.fromEntries(
+  Object.entries(CATEGORY_NAMES).map(([id, [en, zh]]) => [id, () => t(en, zh)]),
+);
 const BIZ_MAX_TAGS = 12; // same limits as functions/api/admin/business.js
 const BIZ_MAX_TAG_LENGTH = 40;
 
@@ -3667,6 +3670,222 @@ function wireTagInput(box) {
     if (x) x.closest('[data-tag]').remove();
     else if (e.target === box) entry.focus();
   });
+}
+
+// ---- live preview: the listing as the Business Services page will show it ----
+// Mirrors rowToMerchant + safeWebsite + directionsUrl + mapsName in
+// web/src/lib/directory.ts and the two card layouts in
+// web/src/pages/BusinessServicesPage.tsx; change them together.
+function bizWebsite(raw) {
+  const s = (raw || '').trim();
+  if (!s) return undefined;
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(s) ? s : `https://${s}`;
+  try {
+    const u = new URL(withScheme);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+const BIZ_HAN = /[㐀-鿿豈-﫿]/;
+function bizMapsName(name) {
+  const stripped = name
+    .replace(/[(（][^()（）]*[)）]/g, (m) => (BIZ_HAN.test(m) ? ' ' : m))
+    .replace(/[㐀-鿿豈-﫿]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return stripped || name.trim();
+}
+function bizCard(row, cardLang) {
+  const text = (s) => (s || '').trim();
+  const list = (a) => (Array.isArray(a) ? a.filter(Boolean) : []);
+  const zh = cardLang === 'zh';
+  const pick = (en, cn) => (zh ? text(cn) || text(en) : text(en) || text(cn));
+  const cat = CATEGORY_NAMES[row.category] ? row.category : 'services';
+  const tags = zh ? list(row.tags_zh) : list(row.tags);
+  const name = pick(row.name, row.name_zh);
+  const address = text(row.address);
+  const query = [bizMapsName(row.name || ''), address].filter(Boolean).join(', ');
+  return {
+    name,
+    categoryLabel: pick(row.label, row.label_zh) || CATEGORY_NAMES[cat][zh ? 1 : 0],
+    address,
+    phone: text(row.phone),
+    hours: pick(row.hours, row.hours_zh),
+    website: bizWebsite(row.website),
+    directions: address
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+      : '',
+    desc: pick(row.description, row.description_zh),
+    verified: !!row.verified,
+    tags: tags.length ? tags : zh ? list(row.tags) : list(row.tags_zh),
+  };
+}
+// Lucide icons (the public page's icon set), 24×24 paths.
+const BIZ_ICON = {
+  shield:
+    '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  pin: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+  phone:
+    '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  external:
+    '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  nav: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+};
+const bizIcon = (k, cls = '') =>
+  `<svg class="caaci-bp-icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${BIZ_ICON[k]}</svg>`;
+
+// layout 'phone' = the carousel card under 768px; 'desktop' = the list row.
+function bizPreviewHtml(row, cardLang, layout) {
+  const m = bizCard(row, cardLang);
+  const zh = cardLang === 'zh';
+  const phone = layout === 'phone';
+  const link = (href, cls, inner) =>
+    `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer" class="${cls}">${inner}</a>`;
+  const chips = [
+    `<span class="caaci-bp-chip">${esc(m.categoryLabel)}</span>`,
+    m.verified
+      ? `<span class="caaci-bp-chip caaci-bp-verified">${bizIcon('shield', 'caaci-bp-gold')}<span>${phone ? 'Verified' : 'CAACI Verified'}</span></span>`
+      : '',
+    ...m.tags.map((tag) => `<span class="caaci-bp-chip caaci-bp-tag">${esc(tag)}</span>`),
+  ].join('');
+  const facts = [
+    m.address &&
+      `<span class="caaci-bp-fact">${bizIcon('pin')}<span>${esc(m.address)}</span></span>`,
+    m.phone && `<span class="caaci-bp-fact">${bizIcon('phone')}<span>${esc(m.phone)}</span></span>`,
+    m.hours && `<span class="caaci-bp-fact">${bizIcon('clock')}<span>${esc(m.hours)}</span></span>`,
+  ]
+    .filter(Boolean)
+    .join('');
+  const actions = [
+    m.website &&
+      link(
+        m.website,
+        'caaci-bp-btn',
+        `<span>${phone ? (zh ? '网站' : 'Website') : zh ? '访问商户' : 'Visit Website'}</span>${bizIcon('external')}`,
+      ),
+    m.directions &&
+      link(
+        m.directions,
+        'caaci-bp-btn caaci-bp-btn-dark',
+        `${bizIcon('nav', phone ? 'caaci-bp-gold' : 'caaci-bp-brick')}<span>${phone ? (zh ? '导航' : 'Directions') : zh ? '导航路线' : 'Directions'}</span>`,
+      ),
+  ]
+    .filter(Boolean)
+    .join('');
+  const name = m.name
+    ? esc(m.name)
+    : `<span class="caaci-bp-empty">${zh ? '（商家名称）' : '(Business name)'}</span>`;
+  return `<div class="${phone ? 'caaci-bp-card' : 'caaci-bp-row'}" lang="${zh ? 'zh' : 'en'}">
+      <div class="caaci-bp-main">
+        <div class="caaci-bp-chips">${chips}</div>
+        <h3 class="caaci-bp-name">${name}</h3>
+        ${m.desc ? `<p class="caaci-bp-desc">${esc(m.desc)}</p>` : ''}
+        ${facts ? `<div class="caaci-bp-facts">${facts}</div>` : ''}
+      </div>
+      ${actions ? `<div class="caaci-bp-actions">${actions}</div>` : ''}
+    </div>`;
+}
+
+// The form's current values, in business_directory column names.
+function readBizDraft(form, tagBoxes) {
+  const val = (f) => form.querySelector(`[data-f="${f}"]`);
+  const body = {
+    name: val('name').value.trim(),
+    approved: val('approved').checked,
+    verified: val('verified').checked,
+    category: val('category').value,
+    sort_order: val('sort_order').value.trim(),
+    image_url: val('image_url').value.trim(),
+  };
+  for (const f of ['name_zh', 'label', 'label_zh', 'phone', 'website', 'address']) {
+    body[f] = val(f).value.trim();
+  }
+  for (const f of ['hours', 'hours_zh', 'description', 'description_zh']) {
+    body[f] = val(f).value.trim();
+  }
+  for (const box of tagBoxes) body[box.dataset.tags] = readTags(box);
+  return body;
+}
+
+// The preview panel inside the listing form: language + layout switches and
+// the card, redrawn on every keystroke, checkbox and tag chip.
+function wireBizPreview(form, tagBoxes) {
+  const panel = form.querySelector('[data-biz-preview]');
+  const state = { lang, layout: 'desktop' };
+  const render = () => {
+    const d = readBizDraft(form, tagBoxes);
+    panel.querySelectorAll('[data-pv-lang]').forEach((b) => {
+      b.classList.toggle('active', b.dataset.pvLang === state.lang);
+      b.setAttribute('aria-pressed', String(b.dataset.pvLang === state.lang));
+    });
+    panel.querySelectorAll('[data-pv-layout]').forEach((b) => {
+      b.classList.toggle('active', b.dataset.pvLayout === state.layout);
+      b.setAttribute('aria-pressed', String(b.dataset.pvLayout === state.layout));
+    });
+    panel.querySelector('[data-pv-card]').innerHTML = bizPreviewHtml(d, state.lang, state.layout);
+    const notes = [];
+    if (!d.approved)
+      notes.push(
+        t(
+          'Not approved: the public page will not show this listing.',
+          '未批准：公开页面不会显示此条目。',
+        ),
+      );
+    if (d.website && !bizWebsite(d.website))
+      notes.push(
+        t(
+          'The website is not a valid link, so no Website button is shown.',
+          '网站不是有效链接，页面不会显示网站按钮。',
+        ),
+      );
+    if (!d.address)
+      notes.push(t('No address, so no Directions button.', '没有地址，因此不显示导航按钮。'));
+    panel.querySelector('[data-pv-notes]').innerHTML = notes
+      .map((n) => `<div>${esc(n)}</div>`)
+      .join('');
+  };
+  panel.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pv-lang], [data-pv-layout]');
+    if (!b) return;
+    if (b.dataset.pvLang) state.lang = b.dataset.pvLang;
+    if (b.dataset.pvLayout) state.layout = b.dataset.pvLayout;
+    render();
+  });
+  form.addEventListener('input', render);
+  form.addEventListener('change', render);
+  // Chips are added and removed without input events.
+  const observer = new window.MutationObserver(render);
+  tagBoxes.forEach((box) => observer.observe(box, { childList: true }));
+  render();
+  return render;
+}
+
+function bizPreviewPanelHtml() {
+  const seg = (attr, items) =>
+    `<div class="btn-group btn-group-sm" role="group">${items
+      .map(
+        ([v, label]) => `<button type="button" class="btn" data-${attr}="${v}">${label}</button>`,
+      )
+      .join('')}</div>`;
+  return `<div class="caaci-biz-preview" data-biz-preview>
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div class="form-label mb-0">${t('Live preview', '实时预览')}</div>
+        <div class="d-flex flex-wrap gap-2">
+          ${seg('pv-lang', [
+            ['en', 'EN'],
+            ['zh', '中文'],
+          ])}
+          ${seg('pv-layout', [
+            ['desktop', t('Desktop', '电脑')],
+            ['phone', t('Phone', '手机')],
+          ])}
+        </div>
+      </div>
+      <div class="caaci-bp-stage" data-pv-card></div>
+      <div class="caaci-bp-notes small text-secondary mt-2" data-pv-notes></div>
+    </div>`;
 }
 
 async function loadBusiness() {
@@ -3774,6 +3993,8 @@ function businessForm(host, biz) {
   const hint = (en, zh) => `<div class="form-hint">${t(en, zh)}</div>`;
   host.innerHTML = `
     <form class="card card-body mb-3">
+      <div class="row g-4">
+      <div class="col-xl-7">
       <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
         ${field(`${t('Name (English page)', '名称（英文页）')} *`, `<input type="text" class="form-control" data-f="name" value="${v('name')}" required>`)}
         ${text(t('Name (Chinese page)', '名称（中文页）'), 'name_zh')}
@@ -3797,7 +4018,10 @@ function businessForm(host, biz) {
         <span class="form-check-label">${t('CAACI Verified badge', '显示 CAACI Verified 认证标记')}</span></label>
       <label class="form-check"><input type="checkbox" class="form-check-input" data-f="approved"${!edit || biz.approved ? ' checked' : ''} />
         <span class="form-check-label">${t('Approved (publicly listed)', '已批准（公开显示）')}</span></label>
-      <p>
+      </div>
+      <div class="col-xl-5">${bizPreviewPanelHtml()}</div>
+      </div>
+      <p class="mt-3">
         <button type="submit" class="btn btn-primary">${edit ? t('Save', '保存') : t('Create listing', '创建条目')}</button>
         <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
       </p>
@@ -3808,6 +4032,7 @@ function businessForm(host, biz) {
   wireImageField(form);
   const tagBoxes = [...form.querySelectorAll('[data-tags]')];
   tagBoxes.forEach(wireTagInput);
+  wireBizPreview(form, tagBoxes);
   form.querySelector('[data-act="cancel"]').addEventListener('click', () => {
     host.innerHTML = '';
   });
@@ -3820,22 +4045,7 @@ function businessForm(host, biz) {
         t(`At most ${BIZ_MAX_TAGS} tags per language.`, `每种语言最多 ${BIZ_MAX_TAGS} 个标签。`),
         false,
       );
-    const val = (f) => form.querySelector(`[data-f="${f}"]`);
-    const body = {
-      name: val('name').value.trim(),
-      approved: val('approved').checked,
-      verified: val('verified').checked,
-      category: val('category').value,
-      sort_order: val('sort_order').value.trim(),
-      image_url: val('image_url').value.trim(),
-    };
-    for (const f of ['name_zh', 'label', 'label_zh', 'phone', 'website', 'address']) {
-      body[f] = val(f).value.trim();
-    }
-    for (const f of ['hours', 'hours_zh', 'description', 'description_zh']) {
-      body[f] = val(f).value.trim();
-    }
-    for (const box of tagBoxes) body[box.dataset.tags] = readTags(box);
+    const body = readBizDraft(form, tagBoxes);
     if (!body.name) return notice(msg, t('Name is required.', '名称为必填项。'), false);
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
