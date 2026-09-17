@@ -12,23 +12,14 @@ import {
   tap,
 } from '../lib/motion';
 import { ContactSection } from '../components/ContactSection';
-import {
-  Check,
-  QrCode,
-  ShieldCheck,
-  Star,
-  Gift,
-  Utensils,
-  ChevronRight,
-  ChevronLeft,
-} from 'lucide-react';
+import { PlanCard } from '../components/PlanCard';
+import { QrCode, ShieldCheck, Star, Gift, Utensils, ChevronRight, ChevronLeft } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
-import { membershipPageDataEN, membershipPageDataZH, type TierCopy } from '../data/pagesContent';
+import { membershipPageDataEN, membershipPageDataZH } from '../data/pagesContent';
 import { api } from '../lib/api';
 import { loginUrl, useAuth } from '../lib/auth';
 import { statusLabel, usd } from '../lib/shared';
 import {
-  cardTotal,
   checkoutMode,
   currentTierId,
   discountedTotal,
@@ -81,12 +72,6 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
   const startXRef = useRef(0);
   const scrollLeftRef = useRef(0);
 
-  const copyFor = (tier: Tier): TierCopy => {
-    const copy = (data.tiers as Partial<Record<string, TierCopy>>)[tier.id];
-    if (copy) return copy;
-    const desc = lang === 'zh' ? tier.description_zh || tier.description : tier.description;
-    return { period: t('per year', '每年'), features: desc ? [desc] : [] };
-  };
   const shortLabel = (tier: Tier) =>
     lang === 'zh'
       ? tier.name_zh || tier.name
@@ -403,97 +388,20 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             onMouseMove={handleMouseMove}
             className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 overflow-x-auto md:overflow-visible no-scrollbar snap-x snap-mandatory md:snap-none -mx-4 px-6 sm:-mx-6 sm:px-8 md:mx-0 md:px-0 pt-5 pb-4 md:pt-0 md:pb-0 overscroll-x-contain cursor-grab active:cursor-grabbing select-none"
           >
-            {plans.map((tier, idx) => {
-              const copy = copyFor(tier);
-              const tierIsFree = isFree(tier);
-              const isPopular = copy.isPopular || tier.id === 'family';
-              const isCurrentSelected = selected?.id === tier.id;
-              const isMyPlan = member?.status === 'active' && member.tier_id === tier.id;
-
-              return (
-                <motion.div
-                  key={tier.id}
-                  initial={riseFrom}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={inView}
-                  transition={rise(idx * 0.1)}
-                  whileHover={hoverLift}
-                  whileTap={tap}
-                  className={`w-[82vw] max-w-[310px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-white rounded-2xl p-6 sm:p-7 border transition-all duration-300 flex flex-col justify-between relative ${
-                    isCurrentSelected
-                      ? 'border-ink shadow-lg ring-1 ring-ink'
-                      : 'border-neutral-200/80 shadow-xs hover:border-neutral-300'
-                  }`}
-                >
-                  {isPopular && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="absolute -top-3 left-6 z-20 bg-ink text-white text-[10px] font-semibold px-3 py-0.5 rounded-full shadow-md whitespace-nowrap"
-                    >
-                      {lang === 'en' ? 'Recommended' : '推荐首选'}
-                    </motion.div>
-                  )}
-
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-ink tracking-tight">
-                        {tierName(tier, lang)}
-                      </h3>
-                      <div className="mt-2 flex items-baseline gap-1">
-                        <span className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
-                          {tierIsFree ? t('Free', '免费') : money(tier.price_cents)}
-                        </span>
-                        <span className="text-xs text-neutral-400">/ {copy.period}</span>
-                      </div>
-                      <div className="mt-1 text-[11px] text-neutral-500 leading-snug">
-                        {tierIsFree
-                          ? t('No card needed', '无需付款')
-                          : t(
-                              `${usd(cardTotal(tier))} by card, incl. 3.5% fee`,
-                              `刷卡合计 ${usd(cardTotal(tier))}（含 3.5% 手续费）`,
-                            )}
-                      </div>
-                    </div>
-
-                    <ul className="space-y-2.5 pt-4 border-t border-neutral-100">
-                      {copy.features.map((feat, fIdx) => (
-                        <li
-                          key={fIdx}
-                          className="flex items-start gap-2.5 text-xs text-neutral-600 leading-normal"
-                        >
-                          <Check className="w-3.5 h-3.5 text-ink shrink-0 mt-0.5" />
-                          <span>{feat}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="pt-6 mt-6 border-t border-neutral-100">
-                    <motion.button
-                      whileHover={hoverScale}
-                      whileTap={tap}
-                      type="button"
-                      onClick={() => {
-                        selectTier(tier.id);
-                        scrollToForm();
-                      }}
-                      className={`w-full py-2.5 rounded-full text-xs font-medium tracking-wide transition-all duration-200 cursor-pointer ${
-                        isCurrentSelected
-                          ? 'bg-ink text-white shadow-sm'
-                          : 'bg-surface-3 text-ink hover:bg-neutral-200'
-                      }`}
-                    >
-                      {isMyPlan
-                        ? t('Your current plan ✓', '当前方案 ✓')
-                        : isCurrentSelected
-                          ? t('Selected ✓', '已选择 ✓')
-                          : t('Select Plan', '选择此方案')}
-                    </motion.button>
-                  </div>
-                </motion.div>
-              );
-            })}
+            {plans.map((tier, idx) => (
+              <PlanCard
+                key={tier.id}
+                tier={tier}
+                lang={lang}
+                index={idx}
+                selected={selected?.id === tier.id}
+                isMyPlan={member?.status === 'active' && member.tier_id === tier.id}
+                onSelect={() => {
+                  selectTier(tier.id);
+                  scrollToForm();
+                }}
+              />
+            ))}
           </div>
 
           {/* Mobile Swipe Indicator with Clickable Navigation Arrows & Direct Page Progress */}

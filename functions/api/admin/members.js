@@ -12,6 +12,15 @@ const STATUSES = ['pending', 'active', 'expired', 'cancelled', 'past_due'];
 const MAX_LIMIT = 50;
 const COLUMNS =
   'id,full_name,email,phone,tier_id,status,member_since,expires_at,household_id,stripe_customer_id,stripe_subscription_id,created_at';
+// ?sort=<column>.<asc|desc>. Only these columns; anything else falls back to newest first.
+const SORTABLE = ['created_at', 'full_name', 'email', 'expires_at', 'member_since'];
+
+export function memberOrder(sort) {
+  const [col, dir] = String(sort || '').split('.');
+  if (!SORTABLE.includes(col) || !['asc', 'desc'].includes(dir)) return 'created_at.desc,id.asc';
+  // Empty values sort last either way; id breaks ties so pages don't overlap.
+  return `${col}.${dir}.nullslast,id.asc`;
+}
 
 export async function onRequestGet({ request, env }) {
   const gate = await requireAdmin(request, env);
@@ -44,7 +53,7 @@ export async function onRequestGet({ request, env }) {
     const { rows, total } = await sb(env).select('members', {
       columns: COLUMNS,
       filters,
-      order: 'created_at.desc',
+      order: memberOrder(url.searchParams.get('sort')),
       limit,
       offset,
       count: 'exact',

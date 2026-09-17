@@ -7,7 +7,7 @@
 // window.supabase.createClient. Serving it from our own origin drops the runtime
 // dependency on esm.sh — blocked/slow on some networks (e.g. China), which
 // otherwise leaves this panel stuck on "Checking access…".
-import { LANG_KEY, preferredLang } from './caaci-shared.js';
+import { LANG_KEY, preferredLang, withFee } from './caaci-shared.js';
 
 const cfg = window.CAACI_CONFIG || {};
 const sb = window.supabase;
@@ -803,7 +803,9 @@ async function loadMembers() {
   const q = $('#caaci-q').value.trim();
   const status = $('#caaci-status').value;
   const tier = $('#caaci-tier').value;
+  const sort = $('#caaci-sort').value;
   const params = new URLSearchParams({ limit: String(LIMIT), offset: String(offset) });
+  if (sort) params.set('sort', sort);
   if (q) params.set('q', q);
   if (status) params.set('status', status);
   if (tier) params.set('tier_id', tier);
@@ -1177,6 +1179,10 @@ function wireMembers() {
     loadMembers();
   });
   $('#caaci-tier').addEventListener('change', () => {
+    offset = 0;
+    loadMembers();
+  });
+  $('#caaci-sort').addEventListener('change', () => {
     offset = 0;
     loadMembers();
   });
@@ -4085,6 +4091,195 @@ function wireBusiness() {
   if (tab) tab.addEventListener('click', () => loadBusiness());
 }
 
+// ---------- membership plans (price + card copy) ----------
+// Everything here is what /membership/ shows on a plan card. The price is the
+// annual base dues; the API moves the plan's Stripe Price before saving, and
+// asks for the emailed verification code. Benefit lines are one per line; an
+// empty box makes the page use its built-in lines. Limits match
+// functions/api/admin/tiers.js.
+const PLAN_MAX_LINES = 12;
+const PLAN_PREVIEW_MESSAGE = 'caaci-plan-preview'; // web/src/pages/PlanPreviewPage.tsx
+// Posts the open form's draft to its preview frame; replaced per open form.
+let sendPlanPreview = () => {};
+const linesOf = (text) =>
+  text
+    .split('\n')
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+async function loadPlans() {
+  const notp = $('#caaci-plans-notice');
+  const { ok, data } = await api('/api/admin/tiers');
+  if (!ok) {
+    notice(notp, data.error || t('Could not load plans.', '无法加载会员方案。'), false);
+    return;
+  }
+  notp.hidden = true;
+  const tb = $('#caaci-plans-body');
+  tb.innerHTML = '';
+  for (const p of data.rows || []) {
+    const price =
+      p.price_cents > 0
+        ? `${usdFmt(p.price_cents)} <div class="text-secondary small">${t('by card', '刷卡')} ${usdFmt(withFee(p.price_cents))}</div>`
+        : t('Free', '免费');
+    const lines = (p.features || []).length;
+    const linesZh = (p.features_zh || []).length;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${esc(p.name)}
+        ${p.invite_only ? `<span class="badge bg-purple-lt">${t('Invitation only', '仅限邀请')}</span>` : ''}
+        ${p.active === false ? `<span class="badge bg-secondary-lt">${t('Hidden', '已隐藏')}</span>` : ''}
+        <div class="text-secondary small">${esc(p.id)}</div></td>
+      <td>${price}</td>
+      <td>${
+        lines || linesZh
+          ? t(`${lines} English · ${linesZh} Chinese`, `英文 ${lines} 条 · 中文 ${linesZh} 条`)
+          : `<span class="text-secondary">${t('Built-in text', '使用内置文字')}</span>`
+      }</td>
+      <td><button type="button" class="btn btn-sm" data-act="edit">${t('Edit', '编辑')}</button></td>`;
+    tr.querySelector('[data-act="edit"]').addEventListener('click', () =>
+      planForm($('#caaci-plans-form-host'), p),
+    );
+    tb.appendChild(tr);
+  }
+}
+
+function planForm(host, plan) {
+  const paid = plan.price_cents > 0;
+  const area = (label, f, value, hint) =>
+    field(
+      label,
+      `<textarea class="form-control" data-f="${f}" rows="5">${esc(value)}</textarea>${hint ? `<div class="form-hint">${hint}</div>` : ''}`,
+    );
+  const onePerLine = t(
+    `One benefit per line, up to ${PLAN_MAX_LINES}. Leave empty to use the built-in text.`,
+    `每行一条权益，最多 ${PLAN_MAX_LINES} 条。留空则使用内置文字。`,
+  );
+  const priceHint = paid
+    ? t(
+        'Base dues; paying by card adds 3.5%. Needs the emailed verification code. Existing subscribers keep their current price at renewal.',
+        '基础年费；刷卡另加 3.5%。需要邮件验证码。已订阅会员续费时仍按原价。',
+      )
+    : t('Free and invitation-only plans stay at $0.', '免费和邀请制方案固定为 $0。');
+  host.innerHTML = `
+    <form class="card-body border-top border-bottom">
+      <h3 class="mb-3">${esc(plan.name)}</h3>
+      <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
+        ${field(
+          t('Annual price (USD)', '年费（美元）'),
+          `<input type="number" class="form-control" data-f="price" min="1" max="10000" step="0.01" value="${(plan.price_cents / 100).toFixed(2)}"${paid ? '' : ' disabled'}>
+           <div class="form-hint" data-f="price-hint">${priceHint}</div>`,
+        )}
+        <div class="col"></div>
+        ${area(t('Short description (English)', '简短描述（英文）'), 'description', plan.description || '')}
+        ${area(t('Short description (Chinese)', '简短描述（中文）'), 'description_zh', plan.description_zh || '')}
+        ${area(t('Card benefits (English page)', '卡片权益（英文页）'), 'features', (plan.features || []).join('\n'), onePerLine)}
+        ${area(t('Card benefits (Chinese page)', '卡片权益（中文页）'), 'features_zh', (plan.features_zh || []).join('\n'), onePerLine)}
+      </div>
+      <div class="mb-3">
+        <div class="form-label">${t('Preview (updates as you type, not saved yet)', '预览（随输入更新，尚未保存）')}</div>
+        <iframe src="/plan-preview/" data-plan-preview title="${esc(t('Plan card preview', '方案卡片预览'))}"
+          class="w-100 border rounded" style="height: 560px" loading="lazy"></iframe>
+      </div>
+      <p>
+        <button type="submit" class="btn btn-primary">${t('Save', '保存')}</button>
+        <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
+      </p>
+      <div data-code-host></div>
+      <div class="alert" data-msg hidden></div>
+    </form>`;
+  const form = host.querySelector('form');
+  const msg = form.querySelector('[data-msg]');
+  const val = (f) => form.querySelector(`[data-f="${f}"]`).value;
+  // Live preview: /plan-preview/ draws the real /membership/ card from the
+  // draft posted to it — on every keystroke, and when it says it is ready.
+  const frame = form.querySelector('[data-plan-preview]');
+  const draft = () => {
+    const dollars = parseFloat(val('price'));
+    const cents = Math.round(dollars * 100);
+    return {
+      ...plan,
+      price_cents: paid && dollars >= 1 && dollars <= 10000 ? cents : plan.price_cents,
+      description: val('description').trim(),
+      description_zh: val('description_zh').trim(),
+      features: linesOf(val('features')).slice(0, PLAN_MAX_LINES),
+      features_zh: linesOf(val('features_zh')).slice(0, PLAN_MAX_LINES),
+    };
+  };
+  sendPlanPreview = () => {
+    if (!frame.isConnected) return;
+    frame.contentWindow?.postMessage(
+      { type: PLAN_PREVIEW_MESSAGE, tier: draft() },
+      window.location.origin,
+    );
+  };
+  form.addEventListener('input', sendPlanPreview);
+  frame.addEventListener('load', sendPlanPreview);
+  form.querySelector('[data-act="cancel"]').addEventListener('click', () => {
+    host.innerHTML = '';
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = {
+      id: plan.id,
+      description: val('description').trim(),
+      description_zh: val('description_zh').trim(),
+      features: linesOf(val('features')),
+      features_zh: linesOf(val('features_zh')),
+    };
+    if (body.features.length > PLAN_MAX_LINES || body.features_zh.length > PLAN_MAX_LINES)
+      return notice(
+        msg,
+        t(`At most ${PLAN_MAX_LINES} benefit lines.`, `权益最多 ${PLAN_MAX_LINES} 条。`),
+        false,
+      );
+    if (paid) {
+      const dollars = parseFloat(val('price'));
+      if (!Number.isFinite(dollars) || dollars < 1 || dollars > 10000)
+        return notice(
+          msg,
+          t('Enter a price between $1 and $10,000.', '请输入 $1 到 $10,000 之间的价格。'),
+          false,
+        );
+      const cents = Math.round(dollars * 100);
+      if (cents !== plan.price_cents) {
+        if (
+          !window.confirm(
+            t(
+              `Change ${plan.name} from ${usdFmt(plan.price_cents)} to ${usdFmt(cents)} a year (${usdFmt(withFee(cents))} by card)?\n\nNew sign-ups and plan switches pay the new price right away. Existing subscribers keep their current price when they renew.`,
+              `将 ${plan.name} 的年费从 ${usdFmt(plan.price_cents)} 改为 ${usdFmt(cents)}（刷卡 ${usdFmt(withFee(cents))}）？\n\n新加入和更换方案的会员立即按新价格付款；已订阅会员续费时仍按原价。`,
+            ),
+          )
+        )
+          return;
+        body.price_cents = cents;
+      }
+    }
+    const submit = form.querySelector('[type="submit"]');
+    submit.disabled = true;
+    const { ok, data, cancelled } = await guarded(
+      form.querySelector('[data-code-host]'),
+      (headers) => api('/api/admin/tiers', { method: 'POST', headers, body }),
+    );
+    submit.disabled = false;
+    if (cancelled) return;
+    if (!ok) return notice(msg, data.error || t('Save failed.', '保存失败。'), false);
+    host.innerHTML = '';
+    await loadPlans();
+    notice($('#caaci-plans-notice'), t(`${plan.name} saved.`, `${plan.name} 已保存。`), true);
+  });
+}
+
+function wirePlans() {
+  // The preview frame asks for the draft once its app has started listening.
+  window.addEventListener('message', (e) => {
+    if (e.origin === window.location.origin && e.data?.type === `${PLAN_PREVIEW_MESSAGE}-ready`)
+      sendPlanPreview();
+  });
+  const tab = $('[data-tab="plans"]');
+  if (tab) tab.addEventListener('click', () => loadPlans());
+}
+
 // ---------- my account (the signed-in admin's own password) ----------
 // Mirrors the member account page: an email/password login confirms its
 // current password, a Google/Microsoft-only login sets a first one, and when
@@ -4305,6 +4500,7 @@ function wireMyAccount() {
   wireEvents();
   wireVolunteers();
   wireBusiness();
+  wirePlans();
   wireNews();
   wireMyAccount();
   await loadTiers();

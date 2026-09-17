@@ -27,9 +27,31 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
-export const CARD_SURCHARGE = 0.035; // must match functions/api/_lib.js
-export const lookupKey = (tierId) => `caaci_${tierId}_year`;
-export const chargeCents = (priceCents) => Math.round(priceCents * (1 + CARD_SURCHARGE));
+import {
+  lookupKey,
+  chargeCents,
+  listAll,
+  isYearlyAt,
+  candidateProducts,
+  pickProduct,
+  createdHere,
+  planTier,
+  applyTierPlan,
+} from './functions/api/_tier-price.js';
+import { CARD_SURCHARGE } from './functions/api/_lib.js';
+
+// The planning helpers live in functions/api/_tier-price.js (the admin Plans tab
+// uses them too); re-exported for existing callers and tests.
+export {
+  CARD_SURCHARGE,
+  lookupKey,
+  chargeCents,
+  isYearlyAt,
+  candidateProducts,
+  pickProduct,
+  createdHere,
+  planTier,
+};
 
 // Minimal .env reader so this can run from a fresh shell; real env wins.
 async function loadEnv(env) {
@@ -74,18 +96,6 @@ function stripeApi(key) {
   return { get: (p) => send('GET', p), post: (p, params) => send('POST', p, params) };
 }
 
-// Every page of a Stripe list endpoint.
-async function listAll(S, path) {
-  const out = [];
-  for (let after = ''; ;) {
-    const sep = path.includes('?') ? '&' : '?';
-    const page = await S.get(`${path}${sep}limit=100${after ? `&starting_after=${after}` : ''}`);
-    out.push(...(page.data || []));
-    if (!page.has_more || !page.data?.length) return out;
-    after = page.data.at(-1).id;
-  }
-}
-
 async function loadTiers(env) {
   const r = await fetch(
     `${env.SUPABASE_URL}/rest/v1/membership_tiers?select=id,name,price_cents,active&order=sort_order`,
@@ -98,75 +108,6 @@ async function loadTiers(env) {
   );
   if (!r.ok) throw new Error(`supabase membership_tiers: ${r.status} ${await r.text()}`);
   return (await r.json()).filter((t) => t.active !== false);
-}
-
-// A plain yearly USD Price charging exactly `want` cents.
-export function isYearlyAt(price, want) {
-  return (
-    price.currency === 'usd' &&
-    price.unit_amount === want &&
-    price.recurring?.interval === 'year' &&
-    (price.recurring.interval_count ?? 1) === 1 &&
-    (price.recurring.usage_type ?? 'licensed') === 'licensed' &&
-    (price.billing_scheme ?? 'per_unit') === 'per_unit'
-  );
-}
-
-// Active Products a tier may live on: those tagged with its tier_id, else those
-// with the same name (MemberPress products carry no tag).
-export function candidateProducts(tier, products) {
-  const active = products.filter((p) => p.active !== false);
-  const tagged = active.filter((p) => p.metadata?.tier_id === tier.id);
-  if (tagged.length) return tagged;
-  const norm = (s) =>
-    String(s || '')
-      .trim()
-      .toLowerCase();
-  return active.filter((p) => norm(p.name) === norm(tier.name));
-}
-
-// Among candidates, prefer one that already has a matching Price, then the oldest.
-export function pickProduct(candidates, pricesByProduct, want) {
-  return (
-    candidates.find((p) => (pricesByProduct[p.id] || []).some((x) => isYearlyAt(x, want))) ||
-    [...candidates].sort((a, b) => (a.created ?? 0) - (b.created ?? 0))[0] ||
-    null
-  );
-}
-
-// A Price this script created (older runs tagged only base_cents). Anything else
-// — e.g. a MemberPress plan — may be on legacy subscriptions or still sold by
-// WordPress, so the script never archives or re-activates it.
-export const createdHere = (price) =>
-  price?.metadata?.source === 'stripe-catalog.mjs' || price?.metadata?.base_cents != null;
-
-// Decide what to do for one tier given what Stripe currently has.
-//   existingPrice — the active Price holding this tier's lookup_key, if any
-//   product/prices — the Product the tier should live on and all its Prices
-export function planTier(tier, existingPrice, { product = null, prices = [] } = {}) {
-  if (!(tier.price_cents > 0)) return { action: 'skip', want: 0 };
-  const want = chargeCents(tier.price_cents);
-  if (existingPrice && isYearlyAt(existingPrice, want)) return { action: 'ok', want };
-  const from = existingPrice ? { from: existingPrice.unit_amount } : {};
-  // Any active Price of the right amount can be taken over; an archived one only
-  // if this script made it.
-  const matches = prices.filter((p) => isYearlyAt(p, want));
-  const reusable = matches.find((p) => p.active) || matches.find((p) => createdHere(p));
-  if (reusable)
-    return {
-      action: 'reuse',
-      want,
-      price: reusable.id,
-      reactivate: !reusable.active,
-      product: product?.id ?? reusable.product ?? null,
-      ...from,
-    };
-  return {
-    action: existingPrice ? 'reprice' : 'create',
-    want,
-    product: product?.id ?? existingPrice?.product ?? null,
-    ...from,
-  };
 }
 
 function describe(plan, product) {
@@ -238,60 +179,19 @@ export async function main(argv = process.argv.slice(2), rawEnv = process.env) {
       continue;
     }
 
-    let priceId = null;
-    let note = '';
-    if (plan.action === 'reuse') {
-      // No silent fallback: a duplicate Price is exactly what reuse is meant to
-      // avoid, so a refused tag stops this tier and is reported.
-      try {
-        await S.post(`prices/${plan.price}`, {
-          lookup_key: key,
-          transfer_lookup_key: true,
-          ...(plan.reactivate ? { active: true } : {}),
-        });
-      } catch (err) {
-        failures++;
-        console.log(
-          `  ✗ ${tier.id.padEnd(11)} ${dollars.padEnd(12)} could not tag ${plan.price}: ${err.message} — nothing written for this tier`,
-        );
-        continue;
-      }
-      priceId = plan.price;
-      note = plan.reactivate ? 'reused, re-activated' : 'reused';
+    let result;
+    try {
+      // No silent fallback: a refused lookup_key transfer on reuse stops this tier.
+      result = await applyTierPlan(S, tier, plan, existing, 'stripe-catalog.mjs');
+    } catch (err) {
+      if (!err.reuseFailed) throw err;
+      failures++;
+      console.log(
+        `  ✗ ${tier.id.padEnd(11)} ${dollars.padEnd(12)} could not tag ${plan.price}: ${err.message} — nothing written for this tier`,
+      );
+      continue;
     }
-    let productId = plan.product;
-    if (!priceId) {
-      if (!productId) {
-        productId = (
-          await S.post('products', {
-            name: tier.name,
-            metadata: { tier_id: tier.id, source: 'stripe-catalog.mjs' },
-          })
-        ).id;
-        note = 'created product';
-      } else {
-        note = note || 'new price on existing product';
-      }
-      const price = await S.post('prices', {
-        product: productId,
-        currency: 'usd',
-        unit_amount: plan.want,
-        recurring: { interval: 'year' },
-        lookup_key: key,
-        transfer_lookup_key: true,
-        nickname: `${tier.name} (incl. 3.5% card fee)`,
-        metadata: { tier_id: tier.id, base_cents: tier.price_cents, source: 'stripe-catalog.mjs' },
-      });
-      priceId = price.id;
-    }
-    if (existing && existing.id !== priceId) {
-      if (createdHere(existing)) {
-        await S.post(`prices/${existing.id}`, { active: false });
-        note += `, archived ${existing.id}`;
-      } else {
-        note += `, left ${existing.id} active (not created by this script)`;
-      }
-    }
+    const { priceId, productId, note } = result;
     console.log(
       `  ✓ ${tier.id.padEnd(11)} ${dollars.padEnd(12)} ${priceId}  (${productId})  ${note}`,
     );

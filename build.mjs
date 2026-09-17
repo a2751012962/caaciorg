@@ -192,6 +192,8 @@ const SPA_ROUTES = [
   'charge',
   'merchant',
   'token-admin',
+  // The admin Plans tab's edit preview (web/src/pages/PlanPreviewPage.tsx).
+  'plan-preview',
 ];
 const WEB_DIST = join(ROOT, 'web', 'dist');
 try {

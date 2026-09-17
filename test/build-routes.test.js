@@ -37,6 +37,7 @@ test('build: the React site is written at every route it serves, in English and 
     'charge/',
     'merchant/',
     'token-admin/',
+    'plan-preview/',
   ];
   const home = await dist('index.html');
   assert.match(home, /<div id="root"><\/div>/);

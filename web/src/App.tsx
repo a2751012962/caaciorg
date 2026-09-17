@@ -43,6 +43,9 @@ const MerchantPage = lazy(() =>
 const TokenAdminPage = lazy(() =>
   import('./pages/TokenAdminPage').then((m) => ({ default: m.TokenAdminPage })),
 );
+const PlanPreviewPage = lazy(() =>
+  import('./pages/PlanPreviewPage').then((m) => ({ default: m.PlanPreviewPage })),
+);
 const NotFoundPage = lazy(() =>
   import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
 );
@@ -291,7 +294,18 @@ function Site() {
   );
 }
 
+// The admin Plans tab's edit preview: a bare card, no site chrome or auth.
+const PLAN_PREVIEW_PATH = /^\/(?:zh\/)?plan-preview\/?$/i;
+
 export default function App() {
+  if (PLAN_PREVIEW_PATH.test(window.location.pathname))
+    return (
+      <MotionConfig reducedMotion="user">
+        <Suspense fallback={null}>
+          <PlanPreviewPage />
+        </Suspense>
+      </MotionConfig>
+    );
   return (
     <AuthProvider>
       {/* reducedMotion="user": every motion/react animation collapses to a plain

@@ -89,8 +89,9 @@ export const TIERS_FALLBACK = [
     invite_only: true, // granted by the Board from the admin panel; never sold
   },
 ];
-// membership_tiers has no Chinese columns, so a live row only overrides the
-// English name/description; the *_zh text always comes from this catalogue.
+// membership_tiers has no name_zh/highlight columns, so those always come from
+// this catalogue; description_zh and the benefit lines come from the row when
+// staff set them (migration 0023, admin Plans tab).
 
 // The self-serve $0 tier: anyone can join it, nothing goes through Stripe, and
 // it never expires. (Honorable is also $0 but invite_only — that one is granted
@@ -186,7 +187,11 @@ export function mergeTiers(rows) {
           name: row.name || t.name,
           price_cents: row.price_cents ?? t.price_cents,
           description: row.description || t.description,
+          description_zh: row.description_zh || t.description_zh,
           invite_only: row.invite_only ?? t.invite_only ?? false,
+          // Card benefit lines edited in the admin Plans tab (0023); empty = built-in copy.
+          features: row.features || [],
+          features_zh: row.features_zh || [],
         });
       else base.push({ ...row, highlight: '' });
     }
