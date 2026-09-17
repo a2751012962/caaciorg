@@ -799,39 +799,90 @@ const KINDS = [
   'transfer_out',
 ] as const;
 
+// A merchant's rows: its charges, and the voids and dispute reversals against them.
+const MERCHANT_KINDS = ['', 'charge', 'void', 'reversal'] as const;
+
 function LedgerTab({ lang }: { lang: Lang }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const [kind, setKind] = useState('');
+  const [merchantId, setMerchantId] = useState('');
+  const [merchants, setMerchants] = useState<AdminMerchant[]>([]);
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<{ total: number; rows: LedgerTx[] } | null>(null);
+
   useEffect(() => {
-    void tokens.admin.ledger({ kind, offset }).then((res) => res.ok && setData(res.data));
-  }, [kind, offset]);
+    void tokens.admin.merchants().then((res) => res.ok && setMerchants(res.data.rows));
+  }, []);
+
+  useEffect(() => {
+    // a slow answer for an earlier filter must not overwrite the current one
+    let current = true;
+    setData(null);
+    void tokens.admin
+      .ledger({ kind, merchant_id: merchantId, offset })
+      .then((res) => current && res.ok && setData(res.data));
+    return () => {
+      current = false;
+    };
+  }, [kind, merchantId, offset]);
+
+  // With a merchant picked, only the kinds a merchant can have are offered.
+  const kinds: readonly (typeof KINDS)[number][] = merchantId ? MERCHANT_KINDS : KINDS;
 
   return (
     <div className="space-y-3">
-      <div className="max-w-xs">
-        <label className={LABEL} htmlFor="ledger-kind">
-          {t('Kind', '类型')}
-        </label>
-        <select
-          id="ledger-kind"
-          className={INPUT}
-          value={kind}
-          onChange={(e) => {
-            setKind(e.target.value);
-            setOffset(0);
-          }}
-        >
-          {KINDS.map((k) => (
-            <option key={k} value={k}>
-              {k ? kindLabel(k, lang) : t('Everything', '全部')}
-            </option>
-          ))}
-        </select>
+      <div className="grid sm:grid-cols-2 gap-3 max-w-xl">
+        <div>
+          <label className={LABEL} htmlFor="ledger-merchant">
+            {t('Merchant', '商家')}
+          </label>
+          <select
+            id="ledger-merchant"
+            className={INPUT}
+            value={merchantId}
+            onChange={(e) => {
+              const next = e.target.value;
+              setMerchantId(next);
+              if (next && !(MERCHANT_KINDS as readonly string[]).includes(kind)) setKind('');
+              setOffset(0);
+            }}
+          >
+            <option value="">{t('All merchants', '全部商家')}</option>
+            {merchants.map((m) => (
+              <option key={m.id} value={m.id}>
+                {pickName(m, lang)}
+                {m.status === 'suspended' ? ` (${t('suspended', '已暂停')})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={LABEL} htmlFor="ledger-kind">
+            {t('Kind', '类型')}
+          </label>
+          <select
+            id="ledger-kind"
+            className={INPUT}
+            value={kind}
+            onChange={(e) => {
+              setKind(e.target.value);
+              setOffset(0);
+            }}
+          >
+            {kinds.map((k) => (
+              <option key={k} value={k}>
+                {k ? kindLabel(k, lang) : t('Everything', '全部')}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       {!data ? (
         <Spinner label={t('Loading…', '加载中…')} />
+      ) : data.rows.length === 0 ? (
+        <p className="text-xs text-neutral-500 py-6">
+          {t('No records for this filter.', '该筛选条件下没有记录。')}
+        </p>
       ) : (
         <>
           <ul className="divide-y divide-neutral-200/80">

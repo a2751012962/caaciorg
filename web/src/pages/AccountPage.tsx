@@ -315,9 +315,7 @@ export function AccountPage({
   const familyVisible = familyLoading || !!family;
 
   const lockedCard = (compact: boolean) => (
-    <div
-      className={`bg-white ${compact ? 'rounded-2xl sm:rounded-3xl p-6' : 'rounded-3xl p-6 sm:p-7 shadow-xs'} border border-neutral-200/90 text-center space-y-3`}
-    >
+    <div className={`${compact ? 'py-6' : 'py-8'} text-center space-y-3`}>
       <div className="w-12 h-12 rounded-full bg-neutral-100 text-neutral-400 flex items-center justify-center mx-auto">
         <Lock className="w-6 h-6" />
       </div>
@@ -354,7 +352,7 @@ export function AccountPage({
   );
 
   return (
-    <div className="min-h-screen bg-surface-hover pb-24 overflow-x-hidden">
+    <div className="min-h-screen bg-white pb-24 overflow-x-hidden">
       {/* Editorial Header - Desktop Only to keep Mobile clean & focused */}
       <div className="hidden sm:block">
         <SubpageHero
@@ -379,7 +377,7 @@ export function AccountPage({
         <section className="max-w-4xl mx-auto px-4 sm:px-6 pt-4 sm:pt-0 sm:-mt-8 relative z-20">
           <div
             role="status"
-            className="bg-white rounded-3xl border border-neutral-200/90 shadow-xl p-10 sm:p-12 flex items-center justify-center gap-2 text-sm text-neutral-500"
+            className="py-16 flex items-center justify-center gap-2 text-sm text-neutral-500"
           >
             <RefreshCw className="w-4 h-4 animate-spin text-brick" />
             <span>{t('Loading your account…', '正在加载您的账户…')}</span>
@@ -402,7 +400,7 @@ export function AccountPage({
           ) : (
             <div
               role="status"
-              className="bg-white rounded-3xl border border-neutral-200/90 shadow-xl p-10 sm:p-12 flex items-center justify-center gap-2 text-sm text-neutral-500"
+              className="py-16 flex items-center justify-center gap-2 text-sm text-neutral-500"
             >
               <RefreshCw className="w-4 h-4 animate-spin text-brick" />
               <span>{t('Taking you to sign in…', '正在前往登录页面…')}</span>
@@ -577,7 +575,7 @@ export function AccountPage({
             )}
 
             {/* Mobile Sticky Segmented Quick Tabs */}
-            <div className="lg:hidden sticky top-16 z-30 bg-surface-hover/95 backdrop-blur-md py-1.5 -mx-3.5 px-3.5 border-y border-neutral-200/70 shadow-xs">
+            <div className="lg:hidden sticky top-16 z-30 bg-white/95 backdrop-blur-md py-1.5 -mx-3.5 px-3.5 border-y border-neutral-200/70 shadow-xs">
               <FluidTabs<MobileTab>
                 id="account-sections"
                 tone="brand"
@@ -702,7 +700,7 @@ export function AccountPage({
           {/* MY REGISTERED EVENTS */}
           <div
             id="registered-events"
-            className={`${shownOn('events')} lg:block space-y-3 sm:space-y-4 scroll-mt-24 transition-all`}
+            className={`${shownOn('events')} lg:block space-y-3 sm:space-y-4 scroll-mt-24 lg:pt-6 lg:border-t lg:border-neutral-200/80`}
           >
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
@@ -722,11 +720,11 @@ export function AccountPage({
             </div>
 
             {events === undefined ? (
-              <div className="text-center py-8 text-xs text-neutral-500 bg-white rounded-2xl sm:rounded-3xl border border-neutral-200/90 shadow-xs">
+              <div className="text-center py-8 text-xs text-neutral-500">
                 {t('Loading your events…', '正在加载活动…')}
               </div>
             ) : !events || events.length === 0 ? (
-              <div className="text-center py-8 px-4 text-xs text-neutral-500 bg-white rounded-2xl sm:rounded-3xl border border-dashed border-neutral-200 shadow-xs">
+              <div className="text-center py-8 px-4 text-xs text-neutral-500">
                 <Ticket className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
                 <p>
                   {events === null
@@ -748,7 +746,7 @@ export function AccountPage({
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
+              <div className="divide-y divide-neutral-200/80 border-y border-neutral-200/80">
                 {events.map((r) => {
                   const over = eventOver(r.event);
                   const canOpenForm = r.source === 'registration' && !!r.event.slug && !over;
@@ -765,10 +763,10 @@ export function AccountPage({
                   return (
                     <div
                       key={r.key}
-                      className="p-4.5 rounded-2xl border border-neutral-200/90 bg-white shadow-xs flex flex-col justify-between space-y-3 hover:border-neutral-300 transition-colors"
+                      className="py-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"
                     >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
+                      <div className="space-y-2 min-w-0">
+                        <div className="flex items-center gap-3">
                           {!over ? (
                             <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
                               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
@@ -818,7 +816,7 @@ export function AccountPage({
                         </div>
                       </div>
 
-                      <div className="pt-2.5 border-t border-neutral-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2 shrink-0">
                         {canOpenForm ? (
                           <button
                             type="button"
@@ -872,9 +870,9 @@ export function AccountPage({
               {/* 1. 个人信息 (只能看，不能改) */}
               <div
                 id="edit-information"
-                className={`${shownOn('profile')} lg:block bg-white rounded-2xl sm:rounded-3xl border border-neutral-200/90 p-4.5 sm:p-7 shadow-xs space-y-5 transition-all duration-300 scroll-mt-24`}
+                className={`${shownOn('profile')} lg:block space-y-5 scroll-mt-24 pt-6 border-t border-neutral-200/80`}
               >
-                <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <User className="w-5 h-5 text-brick" />
                     <h3 className="text-base sm:text-lg font-bold text-ink">
@@ -891,7 +889,7 @@ export function AccountPage({
                   )}
                 </div>
 
-                <div className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200/70 text-xs text-neutral-600 flex items-start gap-2.5">
+                <div className="border-l-2 border-neutral-300 pl-3 text-xs text-neutral-600 flex items-start gap-2.5">
                   <Info className="w-4 h-4 text-neutral-400 shrink-0 mt-0.5" />
                   <p>
                     {FEATURES.profileEdit
@@ -906,7 +904,7 @@ export function AccountPage({
                   </p>
                 </div>
 
-                <div className="space-y-3.5">
+                <dl className="divide-y divide-neutral-200/80 border-y border-neutral-200/80">
                   {[
                     { label: t('Full Name', '姓名'), value: member?.full_name || '—', mono: false },
                     { label: t('Sign-in Email', '登录邮箱'), value: user.email || '—', mono: true },
@@ -921,29 +919,30 @@ export function AccountPage({
                       mono: false,
                     },
                   ].map((row) => (
-                    <div key={row.label}>
-                      <span className="block text-xs font-semibold text-neutral-500 mb-1">
-                        {row.label}
-                      </span>
-                      <div className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-neutral-100 border border-neutral-200 text-xs font-medium text-neutral-900 flex items-center justify-between gap-2">
+                    <div key={row.label} className="py-3 flex items-start justify-between gap-4">
+                      <dt className="text-xs text-neutral-500 shrink-0">{row.label}</dt>
+                      <dd className="text-xs font-medium text-neutral-900 text-right min-w-0">
                         <span className={`${row.mono ? 'font-mono' : ''} break-all`}>
                           {row.value}
                         </span>
-                        <Lock className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                      </div>
+                      </dd>
                     </div>
                   ))}
-                </div>
+                </dl>
               </div>
 
               {/* 2. 账户安全 (修改密码 / 设置密码、修改邮箱) */}
-              <SecurityCard lang={lang} user={user} className={`${shownOn('profile')} lg:block`} />
+              <SecurityCard
+                lang={lang}
+                user={user}
+                className={`${shownOn('profile')} lg:block pt-6 border-t border-neutral-200/80`}
+              />
 
               {/* 3. 订阅 (方案、状态、价格含3.5%手续费、到期日期、更改方案、管理账单、扣款失败提醒) */}
               <div
-                className={`${shownOn('billing')} lg:block bg-white rounded-2xl sm:rounded-3xl border border-neutral-200/90 p-4.5 sm:p-7 shadow-xs space-y-5`}
+                className={`${shownOn('billing')} lg:block space-y-5 pt-6 border-t border-neutral-200/80`}
               >
-                <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <CreditCard className="w-5 h-5 text-brick" />
                     <h3 className="text-base sm:text-lg font-bold text-ink">
@@ -1006,7 +1005,7 @@ export function AccountPage({
                 )}
 
                 {shownTier || viaFamily ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 text-xs">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-xs">
                     <div>
                       <span className="text-neutral-400 block text-[10px]">
                         {lang === 'en' ? 'Plan Tier' : '当前方案'}
@@ -1115,9 +1114,9 @@ export function AccountPage({
 
               {/* 4. 付款记录 (最近 10 笔) */}
               <div
-                className={`${shownOn('billing')} lg:block bg-white rounded-2xl sm:rounded-3xl border border-neutral-200/90 p-4.5 sm:p-7 shadow-xs space-y-4`}
+                className={`${shownOn('billing')} lg:block space-y-4 pt-6 border-t border-neutral-200/80`}
               >
-                <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <History className="w-5 h-5 text-brick" />
                     <h3 className="text-base sm:text-lg font-bold text-ink">
@@ -1143,7 +1142,7 @@ export function AccountPage({
                     {t('No payments yet.', '暂无付款记录。')}
                   </p>
                 ) : (
-                  <div className="divide-y divide-neutral-100 border border-neutral-200/80 rounded-2xl overflow-hidden">
+                  <div className="divide-y divide-neutral-200/80 border-y border-neutral-200/80">
                     {payments.map((p) => {
                       const amount = p.amount_cents ?? 0;
                       const refunded = p.refunded_cents ?? 0;
@@ -1157,13 +1156,13 @@ export function AccountPage({
                       return (
                         <div
                           key={p.id}
-                          className="p-3.5 sm:p-4 flex items-center justify-between gap-3 bg-white hover:bg-neutral-50 text-xs transition-colors"
+                          className="py-3 flex items-center justify-between gap-3 text-xs"
                         >
                           <div className="space-y-0.5 min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-semibold text-neutral-900">{kind}</span>
                               {refunded > 0 ? (
-                                <span className="text-[10px] text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full font-medium border border-neutral-200">
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 before:content-[''] before:w-1.5 before:h-1.5 before:rounded-full before:bg-current">
                                   {refunded >= amount
                                     ? t('Refunded', '已退款')
                                     : t('Partially refunded', '部分退款')}
@@ -1203,7 +1202,7 @@ export function AccountPage({
               {/* 1. 电子会员卡 (Desktop View - on mobile handled above) */}
               <div className="hidden lg:block space-y-3">
                 {cardActive ? (
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-w-md mx-auto">
                     {card(false)}
                     <p className="text-xs text-neutral-500 font-poppins text-center leading-relaxed px-2">
                       {lang === 'en'
@@ -1217,7 +1216,10 @@ export function AccountPage({
               </div>
 
               {/* 2. 家庭系统 (按身份显示不同内容) */}
-              <div id="family-section" className={`${shownOn('family')} lg:block scroll-mt-24`}>
+              <div
+                id="family-section"
+                className={`${shownOn('family')} lg:block scroll-mt-24 pt-6 border-t border-neutral-200/80`}
+              >
                 <FamilySection
                   lang={lang}
                   family={family}
