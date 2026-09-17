@@ -258,11 +258,23 @@ export function Search({
   width,
   /* the field's own corner, 0..32 */
   corner = CORNER,
+  /* CAACI: the three below make it a search somebody performs
+     rather than a block on a wall. `onChange` hears every edit
+     (and the clear on Escape); `label` is the placeholder and
+     the accessible name; `demo` restores Bencho's keyboard rule
+     — see the note on `inputMode` — which a real search must
+     not have, so it is off unless asked for. */
+  onChange,
+  label = 'Search',
+  demo = false,
 }: {
   give?: number;
   spring?: number;
   width?: number;
   corner?: number;
+  onChange?: (value: string) => void;
+  label?: string;
+  demo?: boolean;
 } = {}) {
   /* ── narrow, and it can change under you ────────────────
      A phone rotates and a desktop window gets dragged narrow;
@@ -492,8 +504,8 @@ export function Search({
           className="sek-field"
           type="text"
           value={value}
-          placeholder="Search"
-          aria-label="Search"
+          placeholder={label}
+          aria-label={label}
           /* ── NO SOFTWARE KEYBOARD ON A TOUCH SCREEN ──────
              This is a block on a wall, not a search anybody is
              performing: tapping it threw up the keyboard, which
@@ -511,10 +523,11 @@ export function Search({
              none means "I am focusable, I have a caret, do not
              raise the on-screen one", which is exactly the
              difference being asked for. */
-          inputMode={touch ? 'none' : undefined}
+          inputMode={demo && touch ? 'none' : undefined}
           tabIndex={open ? 0 : -1}
           onChange={(e) => {
             setValue(e.target.value);
+            onChange?.(e.target.value);
             tapped();
           }}
           onBlur={away}
@@ -522,6 +535,7 @@ export function Search({
             if (e.key !== 'Escape') return;
             e.preventDefault();
             setValue('');
+            onChange?.('');
             setOpen(false);
             field.current?.blur();
           }}
@@ -531,7 +545,7 @@ export function Search({
             the field is open this is the field's own job, and
             a second target sitting over it would swallow the
             click that places the caret. */}
-        {!open && <button className="sek-hit" aria-label="Search" onClick={start} />}
+        {!open && <button type="button" className="sek-hit" aria-label={label} onClick={start} />}
       </div>
     </div>
   );

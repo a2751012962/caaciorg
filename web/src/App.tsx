@@ -43,8 +43,9 @@ const MerchantPage = lazy(() =>
 const TokenAdminPage = lazy(() =>
   import('./pages/TokenAdminPage').then((m) => ({ default: m.TokenAdminPage })),
 );
-const DiscountsAdminPage = lazy(() =>
-  import('./pages/DiscountsAdminPage').then((m) => ({ default: m.DiscountsAdminPage })),
+// The React back office (/admin-next/): its own chrome, so it renders outside <Site>.
+const AdminApp = lazy(() =>
+  import('./pages/admin/AdminApp').then((m) => ({ default: m.AdminApp })),
 );
 const PlanPreviewPage = lazy(() =>
   import('./pages/PlanPreviewPage').then((m) => ({ default: m.PlanPreviewPage })),
@@ -66,7 +67,6 @@ export type PageId =
   | 'charge'
   | 'merchant'
   | 'token-admin'
-  | 'admin-discounts'
   // Cloudflare Pages serves dist/404.html (this app) at any address that
   // matches nothing; the page keeps that address and says so.
   | 'not-found';
@@ -85,7 +85,6 @@ const PAGE_BY_SEGMENT: Record<string, PageId> = {
   charge: 'charge',
   merchant: 'merchant',
   'token-admin': 'token-admin',
-  'admin-discounts': 'admin-discounts',
 };
 
 // The registration page also answers at /events/<slug>/register/ (with or
@@ -256,8 +255,6 @@ function Site() {
         return <MerchantPage key={route} {...pageProps} />;
       case 'token-admin':
         return <TokenAdminPage {...pageProps} />;
-      case 'admin-discounts':
-        return <DiscountsAdminPage {...pageProps} />;
       case 'not-found':
         return <NotFoundPage key={route} {...pageProps} />;
       case 'home':
@@ -303,8 +300,19 @@ function Site() {
 
 // The admin Plans tab's edit preview: a bare card, no site chrome or auth.
 const PLAN_PREVIEW_PATH = /^\/(?:zh\/)?plan-preview\/?$/i;
+const ADMIN_PATH = /^\/(?:zh\/)?admin-next\/?$/i;
 
 export default function App() {
+  if (ADMIN_PATH.test(window.location.pathname))
+    return (
+      <AuthProvider>
+        <MotionConfig reducedMotion="user">
+          <Suspense fallback={null}>
+            <AdminApp />
+          </Suspense>
+        </MotionConfig>
+      </AuthProvider>
+    );
   if (PLAN_PREVIEW_PATH.test(window.location.pathname))
     return (
       <MotionConfig reducedMotion="user">

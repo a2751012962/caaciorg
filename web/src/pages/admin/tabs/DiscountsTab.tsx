@@ -1,26 +1,26 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, Download, Plus, QrCode, X } from 'lucide-react';
+import { Download, Plus, QrCode, X } from 'lucide-react';
 import qrcode from 'qrcode-generator';
-import { DragStepper } from '../components/bencho/DragStepper';
-import { InlineConfirm } from '../components/bencho/InlineConfirm';
-import { LiquidToggle } from '../components/bencho/LiquidToggle';
+import { tr } from '../../../components/tokens/ui';
+import type { Lang } from '../../../lib/lang';
+import { listExit, listItem, mountIn, riseFromSm, shown } from '../../../lib/motion';
 import {
   CARD,
+  DragStepper,
   INPUT,
+  InlineConfirm,
   LABEL,
+  LiquidToggle,
+  Loaded,
   Notice,
   PRIMARY,
   SECONDARY,
-  Spinner,
   Status,
-  ToolPage,
-  tr,
-} from '../components/tokens/ui';
-import { api } from '../lib/api';
-import { loginUrl } from '../lib/auth';
-import type { Lang } from '../lib/lang';
-import { listExit, listItem, mountIn, riseFromSm, shown } from '../lib/motion';
+  TabHeader,
+  useAdmin,
+  useLoad,
+} from '../kit';
 
 interface Discount {
   code: string;
@@ -45,90 +45,60 @@ function qrPng(text: string) {
   return qr.createDataURL(8, 16);
 }
 
-// /admin-discounts/ — the admin Discounts tab rebuilt in React as a pilot for
-// the Bencho-style blocks: the active switch is a LiquidToggle, percent off a
+// Discount codes: the active switch is a LiquidToggle, percent off a
 // DragStepper, and Delete an InlineConfirm whose Undo holds the DELETE back.
-// Same endpoint as the Tabler tab (functions/api/admin/discounts.js).
-export function DiscountsAdminPage({ lang }: { lang: Lang }) {
-  const t = (en: string, zh: string) => tr(lang, en, zh);
-  const [rows, setRows] = useState<Discount[] | null>(null);
-  const [error, setError] = useState('');
+// functions/api/admin/discounts.js.
+export default function DiscountsTab() {
+  const { lang, t, api, toast } = useAdmin();
+  const list = useLoad(() => api<{ rows: Discount[] }>(ENDPOINT));
+  const rows = list.data?.rows ?? [];
+  const setRows = (next: (rs: Discount[]) => Discount[]) => list.set({ rows: next(rows) });
   const [adding, setAdding] = useState(false);
   const [qrFor, setQrFor] = useState<string | null>(null);
 
-  const fail = useCallback(
-    (status: number, message: string | undefined, fallback: string) => {
-      if (status === 401) return window.location.assign(loginUrl());
-      setError(status === 403 ? t('Admins only.', '仅限管理员。') : message || fallback);
-    },
-    [lang],
-  );
-
-  const load = useCallback(async () => {
-    const res = await api<{ rows: Discount[] }>(ENDPOINT, undefined, { auth: true });
-    if (res.ok) {
-      setRows(res.data.rows ?? []);
-      setError('');
-    } else
-      fail(res.status, res.data.error, t('Could not load discount codes.', '无法加载折扣码。'));
-  }, [fail]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   const setActive = async (d: Discount, active: boolean) => {
-    setRows((rs) => rs?.map((r) => (r.code === d.code ? { ...r, active } : r)) ?? rs);
-    const res = await api<{ discount: Discount }>(
-      ENDPOINT,
-      { code: d.code, active },
-      { auth: true },
-    );
-    if (res.ok) setRows((rs) => rs?.map((r) => (r.code === d.code ? res.data.discount : r)) ?? rs);
+    setRows((rs) => rs.map((r) => (r.code === d.code ? { ...r, active } : r)));
+    const res = await api<{ discount: Discount }>(ENDPOINT, { body: { code: d.code, active } });
+    if (res.ok) setRows((rs) => rs.map((r) => (r.code === d.code ? res.data.discount : r)));
     else {
-      setRows((rs) => rs?.map((r) => (r.code === d.code ? d : r)) ?? rs);
-      fail(res.status, res.data.error, t('Update failed.', '更新失败。'));
+      setRows((rs) => rs.map((r) => (r.code === d.code ? d : r)));
+      toast('error', res.data.error || t('Update failed.', '更新失败。'));
     }
   };
 
   const remove = async (d: Discount) => {
-    const res = await api(`${ENDPOINT}?code=${encodeURIComponent(d.code)}`, undefined, {
-      method: 'DELETE',
-      auth: true,
-    });
-    if (!res.ok) return fail(res.status, res.data.error, t('Delete failed.', '删除失败。'));
-    setRows((rs) => rs?.filter((r) => r.code !== d.code) ?? rs);
+    const res = await api(`${ENDPOINT}?code=${encodeURIComponent(d.code)}`, { method: 'DELETE' });
+    if (!res.ok) return toast('error', res.data.error || t('Delete failed.', '删除失败。'));
+    setRows((rs) => rs.filter((r) => r.code !== d.code));
     if (qrFor === d.code) setQrFor(null);
+    toast('success', t(`Deleted ${d.code}.`, `已删除 ${d.code}。`));
   };
 
   const created = (d: Discount) => {
-    setRows((rs) => [d, ...(rs ?? [])]);
+    setRows((rs) => [d, ...rs]);
     setAdding(false);
     setQrFor(d.code); // hand the QR over right away
   };
 
   return (
-    <ToolPage
-      eyebrow={t('Admin · pilot', '后台 · 试点')}
-      title={t('Discount codes', '折扣码')}
-      wide
-    >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <a href="/admin/" className={SECONDARY}>
-          <ArrowLeft className="w-4 h-4" aria-hidden />
-          {t('Back to admin', '返回后台')}
-        </a>
-        <button type="button" className={PRIMARY} onClick={() => setAdding((a) => !a)}>
-          {adding ? (
-            <X className="w-4 h-4" aria-hidden />
-          ) : (
-            <Plus className="w-4 h-4" aria-hidden />
-          )}
-          {adding ? t('Cancel', '取消') : t('New code', '新建折扣码')}
-        </button>
-      </div>
-
-      {error && <Notice tone="error">{error}</Notice>}
+    <div className="space-y-5">
+      <TabHeader
+        title={t('Discount codes', '折扣码')}
+        description={t(
+          'Codes members type at checkout, each with a QR code that opens the membership page with it applied.',
+          '会员结账时输入的折扣码；每个码都有二维码，扫码打开已带折扣的会员页。',
+        )}
+        actions={
+          <button type="button" className={PRIMARY} onClick={() => setAdding((a) => !a)}>
+            {adding ? (
+              <X className="w-4 h-4" aria-hidden />
+            ) : (
+              <Plus className="w-4 h-4" aria-hidden />
+            )}
+            {adding ? t('Cancel', '取消') : t('New code', '新建折扣码')}
+          </button>
+        }
+      />
 
       <AnimatePresence initial={false}>
         {adding && (
@@ -144,13 +114,12 @@ export function DiscountsAdminPage({ lang }: { lang: Lang }) {
         )}
       </AnimatePresence>
 
-      {rows === null ? (
-        !error && <Spinner label={t('Loading…', '加载中…')} />
-      ) : rows.length === 0 ? (
-        <p className={`${CARD} text-sm text-neutral-500`}>
-          {t('No discount codes yet.', '暂无折扣码。')}
-        </p>
-      ) : (
+      <Loaded
+        loading={list.loading}
+        error={list.error}
+        isEmpty={list.data ? rows.length === 0 : undefined}
+        empty={t('No discount codes yet.', '暂无折扣码。')}
+      >
         <ul className="space-y-3">
           <AnimatePresence initial={false}>
             {rows.map((d, i) => (
@@ -174,8 +143,8 @@ export function DiscountsAdminPage({ lang }: { lang: Lang }) {
             ))}
           </AnimatePresence>
         </ul>
-      )}
-    </ToolPage>
+      </Loaded>
+    </div>
   );
 }
 
@@ -312,6 +281,7 @@ function QrPanel({ d, lang }: { d: Discount; lang: Lang }) {
 
 function CreateForm({ lang, onCreated }: { lang: Lang; onCreated: (d: Discount) => void }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
+  const { api } = useAdmin();
   const [code, setCode] = useState('');
   const [percent, setPercent] = useState<number | null>(20);
   const [description, setDescription] = useState('');
@@ -332,17 +302,16 @@ function CreateForm({ lang, onCreated }: { lang: Lang; onCreated: (d: Discount) 
       );
     if (!percent) return setMsg(t('Percent off is required.', '折扣百分比为必填项。'));
     setBusy(true);
-    const res = await api<{ discount: Discount }>(
-      ENDPOINT,
-      {
+    const res = await api<{ discount: Discount }>(ENDPOINT, {
+      method: 'PUT',
+      body: {
         code: clean,
         percent_off: percent,
         description: description.trim(),
         expires_at: expires,
         max_redemptions: cap,
       },
-      { method: 'PUT', auth: true },
-    );
+    });
     setBusy(false);
     if (!res.ok) return setMsg(res.data.error || t('Could not create code.', '无法创建折扣码。'));
     onCreated(res.data.discount);
