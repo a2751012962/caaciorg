@@ -192,6 +192,8 @@ const SPA_ROUTES = [
   'charge',
   'merchant',
   'token-admin',
+  // The admin Discounts tab rebuilt with the Bencho-style blocks (pilot).
+  'admin-discounts',
   // The admin Plans tab's edit preview (web/src/pages/PlanPreviewPage.tsx).
   'plan-preview',
 ];

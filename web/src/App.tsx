@@ -43,6 +43,9 @@ const MerchantPage = lazy(() =>
 const TokenAdminPage = lazy(() =>
   import('./pages/TokenAdminPage').then((m) => ({ default: m.TokenAdminPage })),
 );
+const DiscountsAdminPage = lazy(() =>
+  import('./pages/DiscountsAdminPage').then((m) => ({ default: m.DiscountsAdminPage })),
+);
 const PlanPreviewPage = lazy(() =>
   import('./pages/PlanPreviewPage').then((m) => ({ default: m.PlanPreviewPage })),
 );
@@ -63,6 +66,7 @@ export type PageId =
   | 'charge'
   | 'merchant'
   | 'token-admin'
+  | 'admin-discounts'
   // Cloudflare Pages serves dist/404.html (this app) at any address that
   // matches nothing; the page keeps that address and says so.
   | 'not-found';
@@ -81,6 +85,7 @@ const PAGE_BY_SEGMENT: Record<string, PageId> = {
   charge: 'charge',
   merchant: 'merchant',
   'token-admin': 'token-admin',
+  'admin-discounts': 'admin-discounts',
 };
 
 // The registration page also answers at /events/<slug>/register/ (with or
@@ -251,6 +256,8 @@ function Site() {
         return <MerchantPage key={route} {...pageProps} />;
       case 'token-admin':
         return <TokenAdminPage {...pageProps} />;
+      case 'admin-discounts':
+        return <DiscountsAdminPage {...pageProps} />;
       case 'not-found':
         return <NotFoundPage key={route} {...pageProps} />;
       case 'home':
