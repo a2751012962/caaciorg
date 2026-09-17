@@ -2898,3 +2898,136 @@ test('admin volunteers: the CSV has a BOM, Chicago times, RFC 4180 quoting and "
       '\r\n',
   );
 });
+
+// ---------- plans ----------
+const PLANS = [
+  { id: 'free', name: 'Free Membership', price_cents: 0, invite_only: false, features: [] },
+  {
+    id: 'family',
+    name: 'Family <b>Membership</b>',
+    price_cents: 6000,
+    invite_only: false,
+    description: 'Covers your household.',
+    features: ['Up to 3 people', 'Kids perks'],
+    features_zh: ['最多 3 人'],
+  },
+];
+
+test('admin plans: lists prices and card text, saves copy without asking, confirms a price change', async () => {
+  let plans = PLANS;
+  const posts = [];
+  const fetch = mockFetch((u, o) => {
+    if (u.includes('/api/admin/tiers') && o.method === 'POST') {
+      const body = JSON.parse(o.body);
+      posts.push(body);
+      plans = plans.map((p) => (p.id === body.id ? { ...p, ...body } : p));
+      return { body: { ok: true } };
+    }
+    if (u.includes('/api/admin/tiers')) return { body: { rows: plans } };
+    return apiRoutes(u, o);
+  });
+  const asked = stubConfirm(true);
+  const $ = (s) => document.querySelector(s);
+  const rows = () => [...document.querySelectorAll('#caaci-plans-body tr')];
+  const form = () => $('#caaci-plans-form-host form');
+  const setField = (f, v) => {
+    form().querySelector(`[data-f="${f}"]`).value = v;
+  };
+  const submit = async () => {
+    form().querySelector('[type="submit"]').click();
+    await tick();
+  };
+  try {
+    $('[data-tab="plans"]').click();
+    await tick();
+    assert.equal($('[data-panel="plans"]').hidden, false);
+    assert.equal(rows().length, 2);
+    // Free plan: no card price, built-in text; paid plan: base + card total, escaped name.
+    assert.match(rows()[0].textContent, /Free/);
+    assert.match(rows()[0].textContent, /Built-in text/);
+    const family = rows()[1].querySelectorAll('td');
+    assert.equal(family[0].querySelector('b'), null);
+    assert.match(family[0].textContent, /Family <b>Membership<\/b>/);
+    assert.match(family[1].textContent, /\$60\.00\s+by card \$62\.10/);
+    assert.match(family[2].textContent, /2 English · 1 Chinese/);
+
+    // The free plan's price can't be edited.
+    rows()[0].querySelector('[data-act="edit"]').click();
+    assert.equal(form().querySelector('[data-f="price"]').disabled, true);
+
+    // Copy only: one line per benefit, blanks dropped, no price sent, no confirm.
+    rows()[1].querySelector('[data-act="edit"]').click();
+    assert.equal(form().querySelector('[data-f="features"]').value, 'Up to 3 people\nKids perks');
+
+    // The preview frame gets the unsaved draft on every edit and when it says it is ready.
+    const frame = form().querySelector('iframe[data-plan-preview]');
+    assert.equal(frame.getAttribute('src'), '/plan-preview/');
+    const previews = [];
+    frame.contentWindow.postMessage = (data, origin) => previews.push({ data, origin });
+    setField('price', '75.5');
+    setField('features_zh', '家庭 A\n\n家庭 B');
+    form().dispatchEvent(new window.Event('input', { bubbles: true }));
+    assert.equal(previews.length, 1);
+    assert.equal(previews[0].origin, 'https://caaci.example');
+    assert.equal(previews[0].data.type, 'caaci-plan-preview');
+    assert.equal(previews[0].data.tier.id, 'family');
+    assert.equal(previews[0].data.tier.price_cents, 7550);
+    assert.deepEqual(previews[0].data.tier.features_zh, ['家庭 A', '家庭 B']);
+    setField('price', 'abc'); // not a price yet: the card keeps the saved one
+    window.dispatchEvent(
+      new window.MessageEvent('message', {
+        origin: 'https://caaci.example',
+        data: { type: 'caaci-plan-preview-ready' },
+      }),
+    );
+    assert.equal(previews.length, 2);
+    assert.equal(previews[1].data.tier.price_cents, 6000);
+    // a message from another origin is ignored
+    window.dispatchEvent(
+      new window.MessageEvent('message', {
+        origin: 'https://evil.example',
+        data: { type: 'caaci-plan-preview-ready' },
+      }),
+    );
+    assert.equal(previews.length, 2);
+    setField('price', '60.00');
+    setField('features_zh', '最多 3 人');
+
+    setField('features', '  Up to 3 people \n\n Senior care ');
+    await submit();
+    assert.equal(asked.length, 0);
+    assert.deepEqual(posts[0], {
+      id: 'family',
+      description: 'Covers your household.',
+      description_zh: '',
+      features: ['Up to 3 people', 'Senior care'],
+      features_zh: ['最多 3 人'],
+    });
+    assert.equal(form(), null, 'form closes after saving');
+    assert.match($('#caaci-plans-notice').textContent, /saved/);
+
+    // A price change asks first and sends cents.
+    rows()[1].querySelector('[data-act="edit"]').click();
+    setField('price', '80');
+    await submit();
+    assert.equal(asked.length, 1);
+    assert.match(asked[0], /\$60\.00 to \$80\.00 a year \(\$82\.80 by card\)/);
+    assert.equal(posts[1].price_cents, 8000);
+
+    // Declining the confirm sends nothing; an out-of-range price is refused locally.
+    rows()[1].querySelector('[data-act="edit"]').click();
+    setField('price', '90');
+    window.confirm = () => false;
+    await submit();
+    assert.equal(posts.length, 2);
+    setField('price', '0.5');
+    // (a click is stopped by the input's min= in a browser too; the script checks as well)
+    form().dispatchEvent(new window.Event('submit', { cancelable: true }));
+    await tick();
+    assert.equal(posts.length, 2);
+    assert.match(form().querySelector('[data-msg]').textContent, /between \$1 and \$10,000/);
+  } finally {
+    asked.restore();
+    fetch.restore();
+  }
+});

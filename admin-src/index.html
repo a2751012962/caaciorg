@@ -208,6 +208,18 @@
                   <button
                     class="nav-link"
                     role="tab"
+                    data-tab="plans"
+                    aria-selected="false"
+                    data-en="Plans"
+                    data-zh="会员方案"
+                  >
+                    Plans
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    role="tab"
                     data-tab="news"
                     aria-selected="false"
                     data-en="Compose News"
@@ -1022,6 +1034,42 @@
                   </button>
                 </div>
                 <p class="alert m-3" id="caaci-biz-notice" hidden></p>
+              </section>
+
+              <!-- ============ Membership plans ============ -->
+              <section class="card" data-panel="plans" hidden>
+                <div class="card-header">
+                  <div>
+                    <div class="subheader" data-en="Membership page" data-zh="会员页面">
+                      Membership page
+                    </div>
+                    <h2 class="card-title mb-0" data-en="Plans" data-zh="会员方案">Plans</h2>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <p
+                    class="text-secondary mb-0"
+                    data-en="Edit each plan's price and the text on its card on the Membership page. A new price applies to new sign-ups and plan switches; existing subscribers keep the price they joined at when they renew."
+                    data-zh="编辑各会员方案的价格及会员页卡片上的文字。新价格适用于新加入和更换方案的会员；已订阅的会员续费时仍按原价。"
+                  >
+                    Edit each plan's price and the text on its card on the Membership page.
+                  </p>
+                </div>
+                <div id="caaci-plans-form-host"></div>
+                <div class="table-responsive">
+                  <table class="table table-vcenter card-table" id="caaci-plans-table">
+                    <thead>
+                      <tr>
+                        <th data-en="Plan" data-zh="方案">Plan</th>
+                        <th data-en="Annual price" data-zh="年费">Annual price</th>
+                        <th data-en="Card benefits" data-zh="卡片权益">Card benefits</th>
+                        <th data-en="Actions" data-zh="操作">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="caaci-plans-body"></tbody>
+                  </table>
+                </div>
+                <p class="alert m-3" id="caaci-plans-notice" hidden></p>
               </section>
 
               <!-- ============ Compose News ============ -->
