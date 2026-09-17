@@ -515,6 +515,11 @@ export function AccountPage({
             </div>
           </div>
 
+          {/* 华协币钱包, first on the page. Renders nothing until the server says
+              tokens are on. On a phone it is one row (the balance) until opened,
+              so the member card's QR below stays close. */}
+          <TokenWallet lang={lang} />
+
           {/* TOP ALERTS & MOBILE QUICK TABS */}
           <div className="space-y-4">
             <RecoveryNotice
@@ -1211,11 +1216,7 @@ export function AccountPage({
                 )}
               </div>
 
-              {/* 2. 华协币钱包: renders nothing until the server says tokens are on.
-                  On a phone it belongs to the Pass tab: the QR above is what pays. */}
-              <TokenWallet lang={lang} className={`${shownOn('pass')} lg:block`} />
-
-              {/* 3. 家庭系统 (按身份显示不同内容) */}
+              {/* 2. 家庭系统 (按身份显示不同内容) */}
               <div id="family-section" className={`${shownOn('family')} lg:block scroll-mt-24`}>
                 <FamilySection
                   lang={lang}
