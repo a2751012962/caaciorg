@@ -4,7 +4,9 @@ import { mergeTiers, isFreeTier, usd, withFee } from './shared';
 import type { MemberRow } from './auth';
 
 // One membership plan: a live membership_tiers row merged over TIERS_FALLBACK
-// (which supplies the Chinese name/description the table has no columns for).
+// (which supplies the Chinese name the table has no column for). features /
+// features_zh are the card's benefit lines from the admin Plans tab; empty means
+// the page uses its built-in lines.
 export interface Tier {
   id: string;
   name: string;
@@ -12,6 +14,8 @@ export interface Tier {
   price_cents: number;
   description?: string;
   description_zh?: string;
+  features?: string[];
+  features_zh?: string[];
   highlight?: string;
   highlight_zh?: string;
   featured?: boolean;

@@ -83,6 +83,9 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
   const copyFor = (tier: Tier): TierCopy => {
     const copy = (data.tiers as Partial<Record<string, TierCopy>>)[tier.id];
+    // Benefit lines saved in the admin Plans tab win over the built-in ones.
+    const live = lang === 'zh' ? tier.features_zh : tier.features;
+    if (live?.length) return { period: t('per year', '每年'), ...copy, features: live };
     if (copy) return copy;
     const desc = lang === 'zh' ? tier.description_zh || tier.description : tier.description;
     return { period: t('per year', '每年'), features: desc ? [desc] : [] };

@@ -39,6 +39,24 @@ test('tiers carry Chinese text that survives a live (English-only) row override'
   ]).filter((t) => t.id === 'student');
   assert.equal(student.description, '$10 per year.');
   assert.equal(student.description_zh, TIERS_FALLBACK[1].description_zh);
+  assert.deepEqual(student.features, []); // no lines saved → the page keeps its built-in copy
+});
+
+test('mergeTiers: copy saved in the admin Plans tab comes through', () => {
+  const [family] = mergeTiers([
+    {
+      id: 'family',
+      name: 'Family',
+      price_cents: 8000,
+      description_zh: '全家共享。',
+      features: ['Up to 3 people'],
+      features_zh: ['最多 3 人'],
+    },
+  ]).filter((t) => t.id === 'family');
+  assert.equal(family.price_cents, 8000);
+  assert.equal(family.description_zh, '全家共享。');
+  assert.deepEqual(family.features, ['Up to 3 people']);
+  assert.deepEqual(family.features_zh, ['最多 3 人']);
 });
 
 test('statusLabel: one language at a time, raw status when unknown', () => {
