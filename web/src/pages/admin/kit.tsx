@@ -197,9 +197,13 @@ export function AdminProvider({
       const data = (await res.json().catch(() => ({}))) as T & { error?: string };
       return { ok: res.ok, status: res.status, data };
     } catch {
-      return { ok: false, status: 0, data: { error: 'network' } as T & { error?: string } };
+      const error = t(
+        'Could not reach the server. Check the connection and try again.',
+        '无法连接服务器，请检查网络后重试。',
+      );
+      return { ok: false, status: 0, data: { error } as T & { error?: string } };
     }
-  }, []);
+  }, [t]);
 
   const guarded = useCallback<AdminContext['guarded']>(async (attempt) => {
     let error: string | undefined;
