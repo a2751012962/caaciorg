@@ -416,6 +416,24 @@ test('admin page: module boots against the real Tabler markup', async () => {
       assert.match(a.getAttribute('rel'), /noopener/);
     }
 
+    // Sorting: the first load asks for newest first; picking another order
+    // re-queries from page one with that order.
+    const memberGets = () =>
+      fetch.calls.filter(
+        (c) => c.url.includes('/api/admin/members?') && (c.options?.method || 'GET') === 'GET',
+      );
+    assert.equal(
+      new URL(memberGets().at(-1).url, 'https://x').searchParams.get('sort'),
+      'created_at.desc',
+    );
+    const sortSel = document.querySelector('#caaci-sort');
+    sortSel.value = 'expires_at.asc';
+    sortSel.dispatchEvent(new dom.window.Event('change'));
+    await tick();
+    const sorted = new URL(memberGets().at(-1).url, 'https://x').searchParams;
+    assert.equal(sorted.get('sort'), 'expires_at.asc');
+    assert.equal(sorted.get('offset'), '0');
+
     // Members loaded into the table with a Tabler soft badge.
     const badge = document.querySelector('#caaci-members-body .badge');
     assert.ok(badge, 'member status badge rendered');

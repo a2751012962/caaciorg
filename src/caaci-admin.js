@@ -803,7 +803,9 @@ async function loadMembers() {
   const q = $('#caaci-q').value.trim();
   const status = $('#caaci-status').value;
   const tier = $('#caaci-tier').value;
+  const sort = $('#caaci-sort').value;
   const params = new URLSearchParams({ limit: String(LIMIT), offset: String(offset) });
+  if (sort) params.set('sort', sort);
   if (q) params.set('q', q);
   if (status) params.set('status', status);
   if (tier) params.set('tier_id', tier);
@@ -1177,6 +1179,10 @@ function wireMembers() {
     loadMembers();
   });
   $('#caaci-tier').addEventListener('change', () => {
+    offset = 0;
+    loadMembers();
+  });
+  $('#caaci-sort').addEventListener('change', () => {
     offset = 0;
     loadMembers();
   });

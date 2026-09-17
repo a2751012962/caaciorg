@@ -3,7 +3,7 @@
 // does not.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { onRequestPost } from '../functions/api/admin/members.js';
+import { onRequestPost, memberOrder } from '../functions/api/admin/members.js';
 import { codeFor, currentSlot } from '../functions/api/admin/_action-code.js';
 import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
 
@@ -72,4 +72,13 @@ test('members: the same plan again, or any other field, needs no code', async ()
       fetch.restore();
     }
   }
+});
+
+test('members: ?sort maps to a whitelisted PostgREST order with a stable tiebreak', () => {
+  assert.equal(memberOrder(undefined), 'created_at.desc,id.asc');
+  assert.equal(memberOrder('full_name.asc'), 'full_name.asc.nullslast,id.asc');
+  assert.equal(memberOrder('expires_at.desc'), 'expires_at.desc.nullslast,id.asc');
+  assert.equal(memberOrder('is_admin.desc'), 'created_at.desc,id.asc');
+  assert.equal(memberOrder('full_name.sideways'), 'created_at.desc,id.asc');
+  assert.equal(memberOrder('full_name.asc,is_admin.desc'), 'created_at.desc,id.asc');
 });
