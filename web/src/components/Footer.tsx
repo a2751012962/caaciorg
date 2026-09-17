@@ -1,5 +1,6 @@
-import { Mail, MapPin } from 'lucide-react';
+import { Mail, MapPin, ArrowUpRight } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
+import { marketplaceUrl } from '../lib/marketplace';
 
 interface FooterProps {
   content: CAACIContent;
@@ -50,6 +51,15 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
               {content.footer.quickLinks}
             </h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
+              <a
+                href={marketplaceUrl('footer')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-8 items-center gap-1 text-tan hover:text-white transition-colors"
+              >
+                {content.nav.marketplace}
+                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+              </a>
               <button
                 type="button"
                 onClick={() => handleNav('home')}
