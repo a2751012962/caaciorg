@@ -6,6 +6,7 @@
 // Every request is gated by requireAdmin (validates session + is_admin).
 import { json, bad, sb, requireAdmin, authAdmin } from '../_lib.js';
 import { requireActionCode } from './_action-code.js';
+import { tokensEnabled } from '../_tokens.js';
 
 const STATUSES = ['pending', 'active', 'expired', 'cancelled', 'past_due'];
 const MAX_LIMIT = 50;
@@ -105,7 +106,12 @@ export async function onRequestPost({ request, env }) {
   if (b.full_name !== undefined) patch.full_name = b.full_name || null;
   if (b.phone !== undefined) patch.phone = b.phone || null;
   if (b.notes !== undefined) patch.notes = b.notes || null;
-  if (b.is_admin !== undefined) patch.is_admin = !!b.is_admin;
+  // With tokens on, an admin can mint what CAACI owes, so only root appoints
+  // admins (POST /api/admin/roles). Here the flag is simply not writable.
+  if (b.is_admin !== undefined) {
+    if (tokensEnabled(env)) return bad('Only root can appoint or remove an admin.', 403);
+    patch.is_admin = !!b.is_admin;
+  }
   if (Object.keys(patch).length === 0) return bad('Nothing to update.');
 
   try {
@@ -161,7 +167,7 @@ export async function onRequestPut({ request, env }) {
       status: b.status || 'active',
       household_id: b.household_id || null,
       notes: b.notes || null,
-      is_admin: !!b.is_admin,
+      is_admin: tokensEnabled(env) ? false : !!b.is_admin,
     };
     for (const f of ['member_since', 'expires_at']) {
       if (b[f]) {

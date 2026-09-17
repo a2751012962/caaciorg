@@ -138,7 +138,7 @@ create table if not exists public.token_tx (
   created_at        timestamptz not null default now(),
   member_id         uuid references auth.users(id) on delete set null,  -- history outlives the account
   kind              text not null check (kind in
-                      ('grant', 'purchase', 'cash', 'mint', 'charge', 'void', 'reversal', 'transfer_out', 'transfer_in')),
+                      ('grant', 'purchase', 'cash', 'mint', 'charge', 'void', 'reversal', 'transfer_out', 'transfer_in', 'adjust')),
   amount            integer not null,    -- > 0 credits the member, < 0 debits
   merchant_id       uuid references public.merchants(id) on delete restrict,
   actor_id          uuid references auth.users(id) on delete set null,  -- who pressed the button
@@ -158,9 +158,11 @@ create table if not exists public.token_tx (
   resolved_by       uuid references auth.users(id) on delete set null,
   resolution        text,
   settlement_id     uuid references public.merchant_settlements(id) on delete set null,
+  receipt_sent_at   timestamptz,         -- the member's email receipt went out
+  receipt_error     text,                -- or why it did not (the receipt is how a wrong charge gets noticed)
   constraint token_tx_sign check (
-    (kind in ('charge', 'transfer_out') and amount < 0)
-    or (kind not in ('charge', 'transfer_out') and amount > 0)
+    (kind in ('charge', 'transfer_out', 'adjust') and amount < 0)
+    or (kind not in ('charge', 'transfer_out', 'adjust') and amount > 0)
   )
 );
 create unique index if not exists token_tx_stripe_session on public.token_tx (stripe_session_id)
@@ -240,6 +242,28 @@ begin
   insert into public.token_lots (member_id, tx_id, source, amount, remaining, expires_at)
   values (p_member, v_tx, p_kind, p_amount, p_amount, p_expires);
   return v_tx;
+end $$;
+
+-- Take p_amount from the member's unexpired lots, earliest-expiring first, and
+-- remember which lots paid for debit p_tx. Internal: callers hold the member
+-- lock and have checked the balance.
+create or replace function public.token_draw(p_member uuid, p_tx uuid, p_amount integer)
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_left integer := p_amount; v_take integer; l record;
+begin
+  for l in
+    select id, remaining from public.token_lots
+     where member_id = p_member and remaining > 0 and (expires_at is null or expires_at > now())
+     order by expires_at asc nulls last, created_at asc, id asc
+     for update
+  loop
+    exit when v_left = 0;
+    v_take := least(l.remaining, v_left);
+    update public.token_lots set remaining = remaining - v_take where id = l.id;
+    insert into public.token_tx_lots (tx_id, lot_id, amount) values (p_tx, l.id, v_take);
+    v_left := v_left - v_take;
+  end loop;
+  if v_left <> 0 then raise exception 'token_draw: lots do not cover the amount'; end if;
 end $$;
 
 -- The yearly grant for the plan on the member's OWN row (a family's grant lands
@@ -386,10 +410,7 @@ declare
   s        public.token_settings%rowtype;
   mer      public.merchants%rowtype;
   v_tx     uuid;
-  v_left   integer;
-  v_take   integer;
   v_avail  integer;
-  l        record;
 begin
   if p_amount is null or p_amount <= 0 then return jsonb_build_object('error', 'invalid_amount'); end if;
   select * into s from public.token_settings;
@@ -426,21 +447,32 @@ begin
           nullif(btrim(coalesce(p_note, '')), ''), nullif(p_idem, ''))
   returning id into v_tx;
 
-  v_left := p_amount;
-  for l in
-    select id, remaining from public.token_lots
-     where member_id = p_member and remaining > 0 and (expires_at is null or expires_at > now())
-     order by expires_at asc nulls last, created_at asc, id asc
-     for update
-  loop
-    exit when v_left = 0;
-    v_take := least(l.remaining, v_left);
-    update public.token_lots set remaining = remaining - v_take where id = l.id;
-    insert into public.token_tx_lots (tx_id, lot_id, amount) values (v_tx, l.id, v_take);
-    v_left := v_left - v_take;
-  end loop;
-  if v_left <> 0 then raise exception 'token_charge: lots do not cover the balance'; end if;
+  perform public.token_draw(p_member, v_tx, p_amount);
+  return jsonb_build_object('ok', true, 'tx_id', v_tx, 'balance', public.token_balance(p_member));
+end $$;
 
+-- An admin takes tokens away: a refunded purchase, or a mint made by mistake.
+-- Needs a reason. An admin who is not root is held to admin_mint_cap per action.
+create or replace function public.token_admin_debit(p_member uuid, p_amount integer, p_actor uuid, p_reason text)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_root boolean; v_admin boolean; v_cap integer; v_avail integer; v_tx uuid;
+begin
+  if p_amount is null or p_amount <= 0 then return jsonb_build_object('error', 'invalid_amount'); end if;
+  if coalesce(btrim(p_reason), '') = '' then return jsonb_build_object('error', 'reason_required'); end if;
+  select is_admin, is_root into v_admin, v_root from public.members where id = p_actor;
+  if not coalesce(v_admin, false) and not coalesce(v_root, false) then
+    return jsonb_build_object('error', 'not_admin');
+  end if;
+  select admin_mint_cap into v_cap from public.token_settings;
+  if not coalesce(v_root, false) and p_amount > v_cap then
+    return jsonb_build_object('error', 'over_admin_cap', 'cap', v_cap);
+  end if;
+  perform public.token_lock(p_member);
+  v_avail := public.token_balance(p_member);
+  if v_avail < p_amount then return jsonb_build_object('error', 'insufficient_balance', 'balance', v_avail); end if;
+  insert into public.token_tx (member_id, kind, amount, actor_id, reason)
+  values (p_member, 'adjust', -p_amount, p_actor, btrim(p_reason)) returning id into v_tx;
+  perform public.token_draw(p_member, v_tx, p_amount);
   return jsonb_build_object('ok', true, 'tx_id', v_tx, 'balance', public.token_balance(p_member));
 end $$;
 
@@ -656,7 +688,49 @@ begin
   return jsonb_build_object('ok', true, 'settlement_id', v_id, 'tokens', v_tokens, 'amount_cents', v_cents);
 end $$;
 
+-- What the treasurer needs at a glance. `outstanding` is unexpired tokens still
+-- in members' accounts by where they came from: purchase + cash is money CAACI
+-- has taken and still owes; grant + mint is what it has promised for free.
+create or replace function public.token_overview()
+returns jsonb language sql stable security definer set search_path = public, pg_temp as $$
+  select jsonb_build_object(
+    'outstanding', (
+      select coalesce(jsonb_object_agg(source, total), '{}'::jsonb) from (
+        select source, sum(remaining)::integer as total from public.token_lots
+         where remaining > 0 and (expires_at is null or expires_at > now()) group by source) s),
+    'holders', (
+      select count(distinct member_id)::integer from public.token_lots
+       where remaining > 0 and (expires_at is null or expires_at > now())),
+    'owed_to_partners', (
+      select coalesce(-sum(t.amount), 0)::integer from public.token_tx t
+        join public.merchants m on m.id = t.merchant_id
+       where m.kind = 'partner' and t.settlement_id is null),
+    'statements_due_cents', (
+      select coalesce(sum(amount_cents), 0)::integer from public.merchant_settlements where status = 'due'),
+    'open_disputes', (select count(*)::integer from public.token_tx where state = 'disputed'),
+    'failed_receipts', (
+      select count(*)::integer from public.token_tx
+       where kind = 'charge' and receipt_error is not null and created_at > now() - interval '30 days')
+  );
+$$;
+
+-- Cash taken at the desk, per admin, between two instants: what the cash box
+-- should hold after an event.
+create or replace function public.token_cash_report(p_from timestamptz, p_to timestamptz)
+returns jsonb language sql stable security definer set search_path = public, pg_temp as $$
+  select coalesce(jsonb_agg(r order by r.cash_cents desc), '[]'::jsonb) from (
+    select t.actor_id, m.full_name as actor_name, count(*)::integer as count,
+           sum(t.cash_cents)::integer as cash_cents, sum(t.amount)::integer as tokens
+      from public.token_tx t left join public.members m on m.id = t.actor_id
+     where t.kind = 'cash' and t.created_at >= p_from and t.created_at < p_to
+     group by t.actor_id, m.full_name) r;
+$$;
+
 -- ---- functions are service-role only ----
+revoke execute on function public.token_overview() from public, anon, authenticated;
+revoke execute on function public.token_cash_report(timestamptz, timestamptz) from public, anon, authenticated;
+grant execute on function public.token_overview() to service_role;
+grant execute on function public.token_cash_report(timestamptz, timestamptz) to service_role;
 revoke execute on function public.members_guard_root() from public, anon, authenticated;
 revoke execute on function public.token_lock(uuid) from public, anon, authenticated;
 revoke execute on function public.token_balance(uuid) from public, anon, authenticated;
@@ -665,6 +739,8 @@ revoke execute on function public.token_membership_grant(uuid, uuid) from public
 revoke execute on function public.token_purchase_credit(uuid, integer, integer, text) from public, anon, authenticated;
 revoke execute on function public.token_admin_credit(uuid, text, integer, integer, uuid, text) from public, anon, authenticated;
 revoke execute on function public.token_charge(uuid, uuid, uuid, integer, jsonb, text, text) from public, anon, authenticated;
+revoke execute on function public.token_draw(uuid, uuid, integer) from public, anon, authenticated;
+revoke execute on function public.token_admin_debit(uuid, integer, uuid, text) from public, anon, authenticated;
 revoke execute on function public.token_undo_charge(public.token_tx, text, uuid, text, text) from public, anon, authenticated;
 revoke execute on function public.token_void(uuid, uuid, text) from public, anon, authenticated;
 revoke execute on function public.token_dispute_open(uuid, uuid, text) from public, anon, authenticated;
@@ -677,6 +753,7 @@ grant execute on function public.token_membership_grant(uuid, uuid) to service_r
 grant execute on function public.token_purchase_credit(uuid, integer, integer, text) to service_role;
 grant execute on function public.token_admin_credit(uuid, text, integer, integer, uuid, text) to service_role;
 grant execute on function public.token_charge(uuid, uuid, uuid, integer, jsonb, text, text) to service_role;
+grant execute on function public.token_admin_debit(uuid, integer, uuid, text) to service_role;
 grant execute on function public.token_void(uuid, uuid, text) to service_role;
 grant execute on function public.token_dispute_open(uuid, uuid, text) to service_role;
 grant execute on function public.token_dispute_resolve(uuid, uuid, boolean, text) to service_role;

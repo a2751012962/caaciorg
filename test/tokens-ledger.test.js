@@ -330,6 +330,24 @@ test('an admin is capped per action and per day; root is not; cash must match th
   assert.equal(lot.expires_at, null, 'cash-bought tokens never expire');
 });
 
+test('an admin can take tokens back, with a reason, never below zero', async () => {
+  const admin = await member({ admin: true });
+  const m = await member({ tier: 'free', expires: null });
+  await call('token_purchase_credit', m, 200, 2000, 'cs_refunded');
+
+  assert.equal((await call('token_admin_debit', m, 50, admin, '')).error, 'reason_required');
+  assert.equal(
+    (await call('token_admin_debit', m, 201, admin, 'refund')).error,
+    'insufficient_balance',
+  );
+  assert.equal((await call('token_admin_debit', m, 501, admin, 'refund')).error, 'over_admin_cap');
+  const d = await call('token_admin_debit', m, 200, admin, 'Stripe refund cs_refunded');
+  assert.equal(d.ok, true);
+  assert.equal(d.balance, 0);
+  const row = await one('select kind, amount from public.token_tx where id = $1', [d.tx_id]);
+  assert.deepEqual(row, { kind: 'adjust', amount: -200 });
+});
+
 // -------------------------------------------------------------- disputes ----
 test('a dispute needs the secret from the receipt; upheld ones reverse and suspend a shop at three', async () => {
   const clerk = await member();
