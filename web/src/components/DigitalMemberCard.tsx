@@ -122,7 +122,7 @@ export function DigitalMemberCard({
     try {
       const canvas = document.createElement('canvas');
       canvas.width = 1000;
-      canvas.height = 600;
+      canvas.height = 630; // ID-1 ratio, as the card on screen
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('no canvas');
       const sans = (px: number, weight = '') =>
@@ -131,7 +131,7 @@ export function DigitalMemberCard({
       // Card background
       ctx.fillStyle = '#1d1d1f';
       ctx.beginPath();
-      ctx.roundRect(0, 0, 1000, 600, 32);
+      ctx.roundRect(0, 0, 1000, 630, 32);
       ctx.fill();
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
       ctx.lineWidth = 2;
@@ -204,8 +204,8 @@ export function DigitalMemberCard({
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(65, 475);
-      ctx.lineTo(935, 475);
+      ctx.moveTo(65, 490);
+      ctx.lineTo(935, 490);
       ctx.stroke();
       ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
       ctx.font = sans(15);
@@ -214,7 +214,7 @@ export function DigitalMemberCard({
           ? 'Show at partner businesses · scanning the QR verifies membership live'
           : '在合作商家出示会员卡，扫码即可实时验证会员资格',
         65,
-        525,
+        550,
       );
 
       // Real verification QR on a white tile
@@ -249,79 +249,75 @@ export function DigitalMemberCard({
 
   return (
     <div className="space-y-4">
-      {/* Visual Digital Member Card */}
-      <div className="bg-ink text-white rounded-2xl p-6 sm:p-7 shadow-xl border border-white/10 relative overflow-hidden select-none">
-        {/* Top Header */}
-        <div className="flex justify-between items-center pb-6 border-b border-white/10">
-          <div className="flex items-center gap-2.5">
+      {/* The card itself, at the ID-1 bank-card ratio (85.60 × 53.98 mm, ISO/IEC 7810):
+          issuer and plan along the top, holder details bottom-left, the live QR
+          bottom-right. Everything is sized to fit a 320px-wide phone. */}
+      <div className="bg-ink text-white rounded-2xl shadow-xl border border-white/10 relative overflow-hidden select-none w-full max-w-md mx-auto aspect-[85.6/53.98] p-4 sm:p-5 flex flex-col justify-between">
+        <div className="flex justify-between items-start gap-3">
+          <div className="flex items-center gap-2 min-w-0">
             <img
               src="/images/logo.png"
               alt="CAACI"
-              className="h-7 w-auto bg-white/10 rounded p-0.5 object-contain"
+              className="h-6 w-auto shrink-0 bg-white/10 rounded p-0.5 object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
             />
-            <div>
-              <div className="text-sm font-semibold tracking-tight text-white">
+            <div className="min-w-0">
+              <div className="text-xs font-semibold tracking-tight text-white truncate">
                 CAACI Member Pass
               </div>
-              <div className="text-[10px] text-neutral-400">Central Illinois • 501(c)(3)</div>
+              <div className="text-[10px] text-neutral-400 truncate">
+                Central Illinois • 501(c)(3)
+              </div>
             </div>
           </div>
-
-          <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 text-neutral-200">
+          <span className="shrink-0 text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 text-neutral-200">
             {shortTier}
           </span>
         </div>
 
-        {/* Member Name */}
-        <div className="py-6 space-y-4">
-          <div>
-            <div className="text-[10px] text-neutral-400">
-              {lang === 'en' ? 'Cardholder Name' : '持卡人姓名'}
-            </div>
-            <div className="text-xl font-medium tracking-tight text-white mt-0.5 break-words">
-              {name}
-            </div>
-            {viaFamily && (
-              <div className="text-[11px] text-tan mt-1">
-                {lang === 'en' ? 'Covered by a family plan' : '由家庭会员共享'}
-              </div>
-            )}
-          </div>
-
-          {/* Member ID & Expires Grid */}
-          <div className="grid grid-cols-2 gap-4 text-xs">
-            <div>
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0 space-y-2">
+            <div className="min-w-0">
               <div className="text-[10px] text-neutral-400">
-                {lang === 'en' ? 'Member ID' : '会员编号'}
+                {lang === 'en' ? 'Cardholder Name' : '持卡人姓名'}
               </div>
-              <div className="font-mono text-neutral-200 mt-0.5">{shortId}</div>
+              <div
+                className="text-lg sm:text-xl font-medium tracking-tight text-white truncate"
+                title={name}
+              >
+                {name}
+              </div>
+              {viaFamily && (
+                <div className="text-[10px] text-tan truncate">
+                  {lang === 'en' ? 'Covered by a family plan' : '由家庭会员共享'}
+                </div>
+              )}
             </div>
-            <div>
-              <div className="text-[10px] text-neutral-400">
-                {lang === 'en' ? 'Valid Through' : '有效期至'}
+            <div className="flex gap-5 text-[11px]">
+              <div className="shrink-0">
+                <div className="text-[10px] text-neutral-400">
+                  {lang === 'en' ? 'Member ID' : '会员编号'}
+                </div>
+                <div className="font-mono text-neutral-200">{shortId}</div>
               </div>
-              <div className="text-neutral-200 mt-0.5">{validThrough}</div>
+              <div className="min-w-0">
+                <div className="text-[10px] text-neutral-400">
+                  {lang === 'en' ? 'Valid Through' : '有效期至'}
+                </div>
+                <div className="text-neutral-200 truncate">{validThrough}</div>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Bottom Bar with the live QR */}
-        <div className="pt-4 border-t border-white/10 flex items-center justify-between gap-3 text-xs text-neutral-400">
-          <span className="text-[10px] leading-relaxed">
-            {lang === 'en'
-              ? 'Show at partner businesses — scanning verifies your membership live'
-              : '在合作商家出示，扫码即可实时验证会员资格'}
-          </span>
           <button
             type="button"
             onClick={() => setZoom(true)}
             className="shrink-0 p-1 rounded-lg bg-white hover:ring-2 hover:ring-tan transition-all cursor-pointer"
+            aria-label={lang === 'en' ? 'Enlarge QR code' : '放大二维码'}
             title={lang === 'en' ? 'Enlarge QR code' : '放大二维码'}
           >
-            <QrCodeSvg text={qrText} className="w-14 h-14 block" />
+            <QrCodeSvg text={qrText} className="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] block" />
           </button>
         </div>
       </div>
