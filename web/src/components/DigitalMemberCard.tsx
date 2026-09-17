@@ -115,137 +115,134 @@ export function DigitalMemberCard({
     if (!ok) setError(t('Could not create the Wallet pass.', '无法生成钱包卡券。'));
   };
 
-  // Generate and download a PNG of the member card with the real QR.
-  const handleDownloadPNG = () => {
+  // The saved PNG, drawn as the card on screen: the same three bands and the same
+  // shares of the card's width, at 1000 × 630 (the ID-1 ratio). The QR sits a
+  // little larger than on screen so the saved image can still be scanned.
+  const handleDownloadPNG = async () => {
     setDownloading(true);
     setError(null);
     try {
+      const W = 1000;
+      const H = 630;
+      const P = 42; // 4.2% of the width, as on the card
       const canvas = document.createElement('canvas');
-      canvas.width = 1000;
-      canvas.height = 630; // ID-1 ratio, as the card on screen
+      canvas.width = W;
+      canvas.height = H;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('no canvas');
       const sans = (px: number, weight = '') =>
         `${weight} ${px}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif`;
+      const WHITE = '#ffffff';
+      const MUTED = '#a3a3a3'; // neutral-400, the label colour on the card
+      const VALUE = '#e5e5e5'; // neutral-200
+      const HAIRLINE = 'rgba(255, 255, 255, 0.12)';
+      const rule = (y: number) => {
+        ctx.strokeStyle = HAIRLINE;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(P, y);
+        ctx.lineTo(W - P, y);
+        ctx.stroke();
+      };
 
-      // Card background
       ctx.fillStyle = '#1d1d1f';
       ctx.beginPath();
-      ctx.roundRect(0, 0, 1000, 630, 32);
+      ctx.roundRect(0, 0, W, H, 32);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.strokeStyle = HAIRLINE;
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Top brand accent line
-      const topBarGradient = ctx.createLinearGradient(0, 0, 1000, 0);
-      topBarGradient.addColorStop(0, '#8e2e11');
-      topBarGradient.addColorStop(0.5, '#d3a971');
-      topBarGradient.addColorStop(1, '#8e2e11');
-      ctx.fillStyle = topBarGradient;
-      ctx.beginPath();
-      ctx.roundRect(40, 30, 920, 4, 2);
-      ctx.fill();
-
-      // Organization badge + name
-      ctx.fillStyle = '#8e2e11';
-      ctx.beginPath();
-      ctx.arc(85, 95, 32, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 30px serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('C', 85, 96);
-
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#ffffff';
-      ctx.font = sans(28, 'bold');
-      ctx.fillText('CAACI', 135, 86);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-      ctx.font = sans(16);
-      ctx.fillText('Chinese American Association of Central Illinois · 华人协会', 135, 112);
+      ctx.textBaseline = 'top';
 
-      // Tier badge
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      // ---- issuer band -------------------------------------------------------
+      const logo = await new Promise<HTMLImageElement | null>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = '/images/logo.png';
+      });
+      let textX = P;
+      if (logo?.naturalWidth) {
+        const h = 60;
+        const w = (logo.naturalWidth / logo.naturalHeight) * h;
+        ctx.drawImage(logo, P, P + 6, w, h);
+        textX = P + w + 22;
+      }
+      ctx.fillStyle = WHITE;
+      ctx.font = sans(34, '600');
+      ctx.fillText('CAACI Member Pass', textX, P);
+      ctx.fillStyle = MUTED;
+      ctx.font = sans(26);
+      ctx.fillText('Central Illinois • 501(c)(3)', textX, P + 44);
+
+      // tier pill, right-aligned
+      ctx.font = sans(26, '600');
+      const pillW = Math.min(ctx.measureText(shortTier).width + 48, 320);
+      const pillY = P + 14;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.beginPath();
-      ctx.roundRect(730, 68, 210, 44, 22);
+      ctx.roundRect(W - P - pillW, pillY, pillW, 46, 23);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = VALUE;
       ctx.textAlign = 'center';
-      fitFont(ctx, shortTier, 180, 16, (px) => sans(px, '600'));
-      ctx.fillText(shortTier, 835, 91);
-
-      // Hairline under the issuer row, as on the card on screen
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(65, 155);
-      ctx.lineTo(935, 155);
-      ctx.stroke();
-
-      // Cardholder
+      ctx.fillText(shortTier, W - P - pillW / 2, pillY + 9);
       ctx.textAlign = 'left';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = sans(14);
-      ctx.fillText(lang === 'en' ? 'CARDHOLDER NAME' : '持卡人姓名', 65, 220);
-      ctx.fillStyle = '#ffffff';
-      fitFont(ctx, name, 640, 40, (px) => sans(px, 'bold'));
-      ctx.fillText(name, 65, 270);
 
-      // Member reference + validity
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = sans(14);
-      ctx.fillText(lang === 'en' ? 'MEMBER ID' : '会员编号', 65, 380);
-      ctx.fillText(lang === 'en' ? 'VALID THROUGH' : '有效期至', 330, 380);
-      ctx.fillStyle = '#d3a971';
-      ctx.font = 'bold 26px monospace';
-      ctx.fillText(shortId, 65, 420);
-      ctx.fillStyle = '#ffffff';
-      fitFont(ctx, validThrough, 370, 24, (px) => sans(px, 'bold'));
-      ctx.fillText(validThrough, 330, 420);
+      rule(148);
 
-      // Divider + footer
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(65, 490);
-      ctx.lineTo(935, 490);
-      ctx.stroke();
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-      ctx.font = sans(15);
+      // ---- holder band -------------------------------------------------------
+      let y = 196;
+      ctx.fillStyle = MUTED;
+      ctx.font = sans(26);
+      ctx.fillText(t('Cardholder Name', '持卡人姓名'), P, y);
+      y += 34;
+      ctx.fillStyle = WHITE;
+      fitFont(ctx, name, W - 2 * P, 54, (px) => sans(px, '500'));
+      ctx.fillText(name, P, y);
+      y += 92;
+
+      const col2 = P + (W - 2 * P) / 2;
+      ctx.fillStyle = MUTED;
+      ctx.font = sans(26);
+      ctx.fillText(t('Member ID', '会员编号'), P, y);
+      ctx.fillText(t('Valid Through', '有效期至'), col2, y);
+      y += 32;
+      ctx.fillStyle = VALUE;
+      ctx.font = `30px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.fillText(shortId, P, y);
+      ctx.font = sans(30);
+      fitFont(ctx, validThrough, W - col2 - P, 30, (px) => sans(px));
+      ctx.fillText(validThrough, col2, y);
+
+      // ---- scan band ---------------------------------------------------------
+      rule(440);
+      const qrSize = 130;
+      const qrX = W - P - qrSize;
+      const qrY = H - P - qrSize;
+      ctx.fillStyle = MUTED;
+      ctx.font = sans(26);
       ctx.fillText(
-        lang === 'en'
-          ? 'Show at partner businesses · scanning the QR verifies membership live'
-          : '在合作商家出示会员卡，扫码即可实时验证会员资格',
-        65,
-        550,
+        t('Scan to verify membership', '扫码即可实时验证会员资格'),
+        P,
+        qrY + qrSize / 2 - 16,
       );
 
-      // Real verification QR on a white tile
-      const box = { x: 740, y: 180, size: 200 };
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = WHITE;
       ctx.beginPath();
-      ctx.roundRect(box.x, box.y, box.size, box.size, 16);
+      ctx.roundRect(qrX, qrY, qrSize, qrSize, 10);
       ctx.fill();
       const qr = makeQr(qrText);
       const n = qr.getModuleCount();
-      const cell = Math.floor((box.size - 24) / n);
+      const cell = Math.floor((qrSize - 16) / n);
       const qrPx = cell * n;
-      const ox = box.x + Math.floor((box.size - qrPx) / 2);
-      const oy = box.y + Math.floor((box.size - qrPx) / 2);
+      const ox = qrX + Math.floor((qrSize - qrPx) / 2);
+      const oy = qrY + Math.floor((qrSize - qrPx) / 2);
       ctx.fillStyle = '#1d1d1f';
       for (let r = 0; r < n; r++)
         for (let c = 0; c < n; c++)
           if (qr.isDark(r, c)) ctx.fillRect(ox + c * cell, oy + r * cell, cell, cell);
-
-      ctx.fillStyle = '#d3a971';
-      ctx.font = sans(13, 'bold');
-      ctx.textAlign = 'center';
-      ctx.fillText(lang === 'en' ? 'SCAN TO VERIFY' : '扫码实时验证', box.x + box.size / 2, 410);
 
       saveHref(canvas.toDataURL('image/png'), 'caaci-membership-card.png');
     } catch {
@@ -256,7 +253,7 @@ export function DigitalMemberCard({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full max-w-md mx-auto">
       {/* The card, at the ID-1 bank-card ratio (85.60 × 53.98 mm, ISO/IEC 7810),
           in three bands separated by hairlines — issuer, holder, scan line — the
           same design as the sample card on the membership page. The card is a
@@ -267,7 +264,7 @@ export function DigitalMemberCard({
         type="button"
         onClick={() => setZoom(true)}
         aria-label={t('Enlarge QR code', '放大二维码')}
-        className="@container w-full max-w-md mx-auto aspect-[85.6/53.98] rounded-2xl bg-ink text-white shadow-xl border border-white/10 overflow-hidden select-none text-left cursor-pointer hover:border-tan/40 transition-colors"
+        className="@container w-full aspect-[85.6/53.98] rounded-2xl bg-ink text-white shadow-xl border border-white/10 overflow-hidden select-none text-left cursor-pointer hover:border-tan/40 transition-colors"
       >
         {/* Padding lives inside the container: a cqw length on the container itself
             would measure the nearest ancestor container, not this card. */}
@@ -347,7 +344,7 @@ export function DigitalMemberCard({
       <div className="flex flex-col sm:flex-row items-center gap-3">
         <button
           type="button"
-          onClick={handleDownloadPNG}
+          onClick={() => void handleDownloadPNG()}
           disabled={downloading}
           className="w-full sm:flex-1 min-h-[44px] py-2.5 px-4 rounded-full bg-ink text-white hover:bg-neutral-800 text-xs font-semibold tracking-wide transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-xs border border-neutral-700 disabled:opacity-70"
         >

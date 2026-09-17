@@ -1202,7 +1202,7 @@ export function AccountPage({
               {/* 1. 电子会员卡 (Desktop View - on mobile handled above) */}
               <div className="hidden lg:block space-y-3">
                 {cardActive ? (
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-w-md mx-auto">
                     {card(false)}
                     <p className="text-xs text-neutral-500 font-poppins text-center leading-relaxed px-2">
                       {lang === 'en'
