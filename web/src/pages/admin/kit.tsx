@@ -179,31 +179,34 @@ export function AdminProvider({
   const actionCode = useRef<string | null>(null);
   const codeSentAt = useRef(0);
 
-  const api = useCallback(async function call<T>(
-    path: string,
-    { method, body, headers = {} }: ApiOpts = {},
-  ): Promise<ApiResult<T>> {
-    const { data: s } = await supabase.auth.getSession();
-    const h: Record<string, string> = { ...headers };
-    if (body !== undefined) h['content-type'] = 'application/json';
-    if (s.session) h.authorization = `Bearer ${s.session.access_token}`;
-    try {
-      const res = await fetch(path, {
-        method: method ?? (body === undefined ? 'GET' : 'POST'),
-        headers: h,
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
-      if (res.status === 401) window.location.assign(loginUrl());
-      const data = (await res.json().catch(() => ({}))) as T & { error?: string };
-      return { ok: res.ok, status: res.status, data };
-    } catch {
-      const error = t(
-        'Could not reach the server. Check the connection and try again.',
-        '无法连接服务器，请检查网络后重试。',
-      );
-      return { ok: false, status: 0, data: { error } as T & { error?: string } };
-    }
-  }, [t]);
+  const api = useCallback(
+    async function call<T>(
+      path: string,
+      { method, body, headers = {} }: ApiOpts = {},
+    ): Promise<ApiResult<T>> {
+      const { data: s } = await supabase.auth.getSession();
+      const h: Record<string, string> = { ...headers };
+      if (body !== undefined) h['content-type'] = 'application/json';
+      if (s.session) h.authorization = `Bearer ${s.session.access_token}`;
+      try {
+        const res = await fetch(path, {
+          method: method ?? (body === undefined ? 'GET' : 'POST'),
+          headers: h,
+          body: body === undefined ? undefined : JSON.stringify(body),
+        });
+        if (res.status === 401) window.location.assign(loginUrl());
+        const data = (await res.json().catch(() => ({}))) as T & { error?: string };
+        return { ok: res.ok, status: res.status, data };
+      } catch {
+        const error = t(
+          'Could not reach the server. Check the connection and try again.',
+          '无法连接服务器，请检查网络后重试。',
+        );
+        return { ok: false, status: 0, data: { error } as T & { error?: string } };
+      }
+    },
+    [t],
+  );
 
   const guarded = useCallback<AdminContext['guarded']>(async (attempt) => {
     let error: string | undefined;

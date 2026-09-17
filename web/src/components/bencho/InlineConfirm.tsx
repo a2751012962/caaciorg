@@ -20,7 +20,7 @@ interface InlineConfirmProps {
   doneLabel: string;
   undoLabel: string;
   /** Called once the undo window has passed (or the block unmounts inside it). */
-  onCommit: () => void;
+  onCommit: () => void | Promise<unknown>;
   undoMs?: number;
   disabled?: boolean;
 }
@@ -91,7 +91,13 @@ export function InlineConfirm({
     setPhase('done');
     timer.current = setTimeout(() => {
       timer.current = null;
-      commit.current();
+      // Back to the way in once the action has run. A block still on screen
+      // afterwards — a row whose delete was refused, a composer whose send
+      // failed — would otherwise be stuck offering an undo for work that is
+      // over, with no way back but a reload.
+      void Promise.resolve(commit.current()).finally(() => {
+        if (shell.current?.isConnected) setPhase('idle');
+      });
     }, undoMs);
   };
   const undo = () => {
