@@ -454,7 +454,8 @@
    are true whatever the pointer is doing. */
 .tlt {
   /* CAACI: Bencho's card fill is this site's own card fill,
-     `surface-2` (#fbfbfd), seen only until the picture loads. */
+     `surface-2` (#fbfbfd), seen only where the content inside
+     does not paint (the member card paints all of it). */
   --surface-2: var(--color-surface-2);
   position: relative;
   /* The frame is what the pointer is measured against and it
@@ -463,17 +464,18 @@
      the usual reason: on the card itself, `perspective` is
      applied per element and the vanishing point rides along
      with the rotation instead of staying put in the room. */
+  /* a finger dragged across the card tilts it; a finger
+     dragged up the page still scrolls */
+  touch-action: pan-y;
 }
 
 .tlt-card {
-  position: absolute;
-  inset: 0;
+  /* CAACI: in the flow, not `absolute; inset: 0` — the card
+     is the content's size (the member card sets its own
+     bank-card ratio), so the frame takes its height from here
+     instead of the content being fitted to a fixed frame. */
+  position: relative;
   background-color: var(--surface-2);
-  background-size: cover;
-  background-position: center;
-  /* `cover` and a fixed frame, so the crop is the one
-     scripts/butterfly.sh already made rather than a second
-     one on top of it */
   overflow: hidden;
   /* NO `will-change`. It would hold a composited layer for
      every copy of this block on the wall, permanently, to

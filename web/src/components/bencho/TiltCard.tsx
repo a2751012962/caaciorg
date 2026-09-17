@@ -1,16 +1,14 @@
 // TiltCard, from bencho.dev's "Tilt card" block (MIT, © 2026 Lorenzo Cabra,
 // bencho.dev/licence). Bencho names it Tilt; the notes below keep that name.
 // Its styles are the "Tilt" section of web/src/index.css.
-import { useEffect, useRef, useState } from 'react';
-
-/* BUTTERFLY was Bencho's own pictures, which are not licensed
-   to travel. Point this at yours.
-
-   CAACI: the Central Illinois street photo from the homepage
-   (web/public/images/central-il.jpg). It is landscape and the
-   card is portrait, so `cover` crops the middle: the stone
-   stoop and the arched doors, with no people to cut through. */
-const BUTTERFLY: string = '/images/central-il.jpg';
+//
+// CAACI: Bencho's card is a picture (BUTTERFLY, its own photos, which are not
+// licensed to travel). Here the card is whatever is put inside it — the digital
+// member card on the account page and the sample card on the membership page —
+// so the block takes children, and takes its size from them instead of the
+// fixed 260 × 320 portrait. The press itself is unchanged.
+import { useRef, useState, type ReactNode } from 'react';
+import { clamp, mix, stillness, useSpring } from './spring';
 
 /* ══ Tilt ═════════════════════════════════════════════════
    A picture card that gives under the pointer.
@@ -46,15 +44,6 @@ const BUTTERFLY: string = '/images/central-il.jpg';
    here has a transition of its own — see the note on Sound
    for why that matters, which is the same reason. */
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-const mix = (a: number, b: number, t: number) => a + (b - a) * t;
-
-/* Portrait, and the picture is cropped to it by
-   scripts/butterfly.sh rather than being fitted at runtime —
-   change one and change the other or the crop moves. */
-const W = 260;
-const H = 320;
-
 /* ── how deep the room is ──────────────────────────────────
    The one number that decides whether this reads as a card
    turning or as a poster being sheared. Perspective is the
@@ -68,7 +57,11 @@ const H = 320;
    corners are visibly different sizes. It is not a knob
    because it is not a separate idea from the tilt: both
    answer "how 3D", and two sliders for one feeling is how a
-   panel stops meaning anything. */
+   panel stops meaning anything.
+
+   CAACI: the member card is wider than Bencho's picture (up
+   to 448px at the bank-card ratio), so at 800 the corners
+   differ a little more than on the wall. Still a suggestion. */
 const DEPTH = 800;
 
 /* how far the whole card retreats while it is being touched.
@@ -85,138 +78,27 @@ const CORNER = 16;
 const TILT = 10;
 const SHADE = 60;
 
-/* ── inlined from ./spring ──────────────────────── */
-/* ── one spring, for everything that settles ───────────────
-   The maths was already on this bench twice, copied by hand:
-   Humidity's wheel and Brightness's column both accumulate
-   velocity toward a target, damp it, and snap when both the
-   delta and the velocity fall under 0.02. Two copies is a
-   coincidence; five would be a policy, so it comes out here
-   before the elastic blocks are written against it.
-
-   The two shipped copies are deliberately NOT refactored onto
-   this. They work, they are tuned, and rewriting the innards
-   of two live components to prove a point about duplication
-   is how a good afternoon becomes a bad one. This is the one
-   new code uses.
-
-   Frames, not milliseconds. `dt` is expressed in sixtieths of
-   a second and the damping is RAISED to it rather than
-   multiplied by it, so a dropped frame decays the same amount
-   of energy as the two frames it replaced. Multiplying is the
-   version that makes a spring behave differently on a busy
-   page, which is the hardest kind of bug to see.
-
-   The loop parks itself the moment the value has settled.
-   CLAUDE.md is not complimentary about the one permanent
-   requestAnimationFrame already on this bench and there is no
-   case for five more. */
-
-/* 0..100 into the two numbers a spring actually has.
-
-   50 is what Humidity and Brightness were tuned at, which is
-   the rule every elastic knob on this bench follows — see
-   lab/motion. Turn the panel to the middle and nothing has
-   changed.
-
-   Both ends have to be usable, which is what fixes the range:
-   at 0 it is slow and heavy and still arrives, at 100 it is
-   quick with a visible overshoot, and nowhere in between does
-   it ring for longer than it takes to read. */
-/* The pair is chosen by DAMPING RATIO and then written back
-   as stiffness and decay, because the ratio is the thing a
-   person is actually setting and the two numbers on their own
-   do not say what they add up to.
-
-     zeta = -ln(d) / (2 * sqrt(k))
-
-   The first version of this ran 0.06..0.26 stiffness against
-   0.93..0.74 decay, which reads as a sensible spread and is
-   not one: it puts zeta between 0.15 and 0.16 across the
-   WHOLE range, so every setting overshot by about sixty per
-   cent and the knob only changed how fast it did it. Pull's
-   return went 130px past its own resting position and lifted
-   the content off the top of the card.
-
-     0   → zeta ~0.85, heavy, arrives without a ring
-     50  → zeta ~0.41, near where Humidity and Brightness sit
-     100 → zeta ~0.20, lively, two visible rebounds
-
-   Both ends shippable, which is the constraint that fixed the
-   numbers rather than taste. */
-const springOf = (tune: number) => ({
-  /* stiffness: how hard it is pulled toward the target */
-  k: 0.08 + (tune / 100) * 0.16,
-  /* decay, per frame: how much of the velocity survives */
-  d: 0.62 + (tune / 100) * 0.2,
-});
-
-/* Units matter. The snap threshold is absolute, so a caller
-   works in pixels or in 0..100 — a spring driven over 0..1
-   would be "settled" before it had visibly moved. */
-function useSpring(target: number, tune = 50, instant = false) {
-  const [at, setAt] = useState(target);
-  const cur = useRef(target);
-  const vel = useRef(0);
-  const raf = useRef(0);
-
-  useEffect(() => {
-    if (instant) {
-      cur.current = target;
-      vel.current = 0;
-      setAt(target);
-      return;
-    }
-    const { k, d } = springOf(tune);
-    let prev = 0;
-    const tick = (t: number) => {
-      const dt = prev ? clamp((t - prev) / 16.67, 0, 2.5) : 1;
-      prev = t;
-      vel.current += (target - cur.current) * k * dt;
-      vel.current *= Math.pow(d, dt);
-      cur.current += vel.current * dt;
-      if (Math.abs(target - cur.current) < 0.02 && Math.abs(vel.current) < 0.02) {
-        cur.current = target;
-        vel.current = 0;
-        setAt(target);
-        raf.current = 0;
-        return;
-      }
-      setAt(cur.current);
-      raf.current = requestAnimationFrame(tick);
-    };
-    raf.current = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(raf.current);
-      raf.current = 0;
-    };
-    /* `tune` sits here beside `target` for the reason
-       Brightness spells out: the loop closes over it, so
-       without it a knob turned mid-flight would do nothing
-       until something else restarted the effect. Restarting
-       picks up from the refs, so it continues rather than
-       snapping. */
-  }, [target, tune, instant]);
-
-  return at;
-}
-
-/* Read once, the way the wheel and the pill nav do. A
-   preference, not a live input. */
-const stillness = () =>
-  typeof window !== 'undefined' &&
-  !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
 export function TiltCard({
+  children,
   /* the most either axis turns, in degrees */
   tilt = TILT,
   corner = CORNER,
   /* how dark the dent gets, 0..100 */
   shade = SHADE,
-}: { tilt?: number; corner?: number; shade?: number } = {}) {
+  className = '',
+}: {
+  children?: ReactNode;
+  tilt?: number;
+  corner?: number;
+  shade?: number;
+  /** Sizing classes for the frame (e.g. `w-full`); it is otherwise unstyled. */
+  className?: string;
+}) {
   const skin = useRef<HTMLDivElement | null>(null);
   const [at, setAt] = useState({ x: 0, y: 0 });
   const [on, setOn] = useState(false);
+  /* the frame's size at the last reading, for the dent below */
+  const size = useRef({ w: 0, h: 0 });
   const still = stillness();
 
   /* ── the state, and there is only this ───────────────────
@@ -245,9 +127,42 @@ export function TiltCard({
   /* the pointer in the card's own terms, as a PERCENTAGE —
      the wall and the overlay both draw this block at their
      own scale, and a gradient placed in pixels would land
-     somewhere else in each of them */
-  const px = ((sx + 1) / 2) * 100;
-  const py = ((sy + 1) / 2) * 100;
+     somewhere else in each of them
+
+     CAACI: the dent is drawn UNDER THE POINTER, not at the
+     sprung position. Two things put Bencho's dent beside the
+     cursor on a card this wide: the spring, which trails the
+     pointer by design, and the transform itself — a point at
+     px% of a card that has turned ten degrees and sunk 14px
+     lands somewhere else on screen (about 20px inward at the
+     edges of a 448px card). So the dent reads the raw pointer
+     and is placed through the current transform's inverse:
+     find the card-local point whose projection is the pointer.
+     The rotation, the sink and the shadow stay sprung; what
+     moved is only where the shading is painted. */
+  const s = SINK * lit;
+  const rxr = (rx * Math.PI) / 180;
+  const ryr = (ry * Math.PI) / 180;
+  const { w: fw, h: fh } = size.current;
+  // the pointer as a screen offset from the card's centre, px
+  const fx = (at.x * fw) / 2;
+  const fy = (at.y * fh) / 2;
+  let u = fx;
+  let v = fy;
+  /* translateZ(-s) rotateX(rx) rotateY(ry) on (u, v, 0), then the
+     frame's perspective; the distortion is small, so a few
+     fixed-point steps land on it */
+  for (let k = 0; k < 4; k++) {
+    const x1 = u * Math.cos(ryr);
+    const z1 = -u * Math.sin(ryr);
+    const y2 = v * Math.cos(rxr) - z1 * Math.sin(rxr);
+    const z2 = v * Math.sin(rxr) + z1 * Math.cos(rxr) - s;
+    const f = DEPTH / (DEPTH - z2);
+    u += fx - x1 * f;
+    v += fy - y2 * f;
+  }
+  const px = fw ? clamp(50 + (u / fw) * 100, 0, 100) : 50;
+  const py = fh ? clamp(50 + (v / fh) * 100, 0, 100) : 50;
 
   const dark = (clamp(shade, 0, 100) / 100) * 0.55 * lit;
   const rim = (clamp(shade, 0, 100) / 100) * 0.34 * lit;
@@ -260,6 +175,7 @@ export function TiltCard({
        is, and near the edges it has already turned away from
        the pointer that is asking. */
     const r = el.getBoundingClientRect();
+    size.current = { w: r.width, h: r.height };
     setAt({
       x: clamp(((e.clientX - r.left) / r.width) * 2 - 1, -1, 1),
       y: clamp(((e.clientY - r.top) / r.height) * 2 - 1, -1, 1),
@@ -269,9 +185,9 @@ export function TiltCard({
 
   return (
     <div
-      className="tlt"
+      className={`tlt ${className}`}
       ref={skin}
-      style={{ width: W, height: H, perspective: DEPTH }}
+      style={{ perspective: DEPTH }}
       /* pointer, not mouse: the same handler carries a finger
          dragged across the card, so a phone gets the effect
          while it is being touched rather than getting nothing
@@ -304,7 +220,6 @@ export function TiltCard({
         className="tlt-card"
         style={{
           borderRadius: clamp(corner, 0, 40),
-          backgroundImage: `url(${BUTTERFLY})`,
           /* translateZ FIRST, so the retreat is measured in
              the room's axes rather than in the card's own —
              after a rotation, the card's z points somewhere
@@ -323,6 +238,7 @@ export function TiltCard({
           )})`,
         }}
       >
+        {children}
         {/* ── the dent, and the rim opposite it ───────────
             The shadow pools where the surface is deepest,
             which is under the pointer, and the light catches
