@@ -305,7 +305,7 @@ export function ChargePage({ lang }: { lang: Lang }) {
               )}
         </Notice>
       ) : (
-        <div className={`${CARD} space-y-5`}>
+        <div className="space-y-5">
           {usable.length > 1 && (
             <div>
               <label className={LABEL} htmlFor="charge-merchant">
@@ -345,7 +345,7 @@ export function ChargePage({ lang }: { lang: Lang }) {
                 remember(LAST_GROUP, g);
               }}
               items={groups.map((g) => ({ value: g, label: g }))}
-              className="flex overflow-x-auto"
+              className="flex overflow-x-auto no-scrollbar"
             />
           )}
 
@@ -538,7 +538,7 @@ function AdminDesk({
   };
 
   return (
-    <div className={`${CARD} space-y-5`}>
+    <div className="space-y-5 pt-6 border-t border-neutral-200">
       <div>
         <span className="text-xs font-semibold text-brick block">
           {t('Admin desk', '管理员操作')}

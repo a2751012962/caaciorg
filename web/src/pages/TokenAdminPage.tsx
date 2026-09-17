@@ -98,7 +98,7 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
           setMessage(null);
         }}
         items={tabs}
-        className="flex overflow-x-auto max-w-full"
+        className="flex overflow-x-auto no-scrollbar max-w-full"
       />
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
       {tab === 'overview' && <OverviewTab lang={lang} overview={overview} />}
@@ -864,7 +864,13 @@ function LedgerTab({ lang }: { lang: Lang }) {
                     {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
                   </p>
                   {tx.state !== 'ok' && (
-                    <Status tone={tx.state === 'disputed' ? 'warn' : 'muted'}>{tx.state}</Status>
+                    <Status tone={tx.state === 'disputed' ? 'warn' : 'muted'}>
+                      {tx.state === 'disputed'
+                        ? t('Disputed', '争议中')
+                        : tx.state === 'voided'
+                          ? t('Voided', '已撤销')
+                          : t('Reversed', '已冲回')}
+                    </Status>
                   )}
                 </div>
               </li>
