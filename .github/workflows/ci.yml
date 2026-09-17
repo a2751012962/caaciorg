@@ -36,6 +36,12 @@ jobs:
         run: npm run typecheck
       - name: Check formatting
         run: npm run format:check
+      # Two test files (asset-versions, build-routes) each run `node build.mjs`,
+      # which builds web/ itself when web/dist/ is missing. On a fresh checkout
+      # both start that Vite build at once and race on emptying web/dist/
+      # (ENOTEMPTY). Building web/ once here means neither has to.
+      - name: Build web (once, before the tests)
+        run: npm run build -w web
       - name: Unit tests
         run: npm test
       - name: Build
