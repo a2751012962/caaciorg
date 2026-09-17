@@ -4,6 +4,7 @@
 // card can't pass. Reveals only name, tier, and validity — nothing else.
 import { sb, effectiveMembership } from './_lib.js';
 import { tokensEnabled, maskName } from './_tokens.js';
+import { SYSTEM_FONT_STACK } from './_fonts.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -25,7 +26,7 @@ function page({ ok, name, tierName, until, chargeId }) {
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>CAACI Member Verification · 会员验证</title>
 <style>
-  body{margin:0;font-family:Helvetica,Arial,'cwTeXFangSong',sans-serif;background:#f3f3f3;
+  body{margin:0;font-family:${SYSTEM_FONT_STACK};background:#f3f3f3;
        display:flex;align-items:center;justify-content:center;min-height:100vh}
   .card{background:#fff;border-radius:8px;box-shadow:0 15px 80px -6px rgba(0,0,0,.2);
         padding:40px 36px;max-width:420px;width:90%;text-align:center}

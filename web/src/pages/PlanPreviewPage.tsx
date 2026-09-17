@@ -46,7 +46,7 @@ export function PlanPreviewPage() {
     );
 
   return (
-    <div className="min-h-screen bg-surface-3 p-6 font-poppins">
+    <div className="min-h-screen bg-surface-3 p-6 font-sans">
       <div className="grid grid-cols-2 gap-6 max-w-[680px] mx-auto">
         {(['en', 'zh'] as const).map((lang) => (
           <div key={lang} className="flex flex-col gap-5" data-preview-lang={lang}>

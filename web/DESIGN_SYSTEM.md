@@ -78,14 +78,23 @@
 
 ## 2. 字体
 
-| 角色                 | 变量                    | 字体栈                                                     |
-| -------------------- | ----------------------- | ---------------------------------------------------------- |
-| Display / h1–h3      | `--font-caaci-serif`    | Playfair Display → Noto Serif SC → SimSun / Songti SC      |
-| 中文 Display         | `--font-caaci-serif-zh` | Noto Serif SC → Playfair Display（中文标题时优先中文衬线） |
-| 正文 / UI            | `--font-caaci-sans`     | Poppins → Microsoft YaHei → PingFang SC → Noto Sans SC     |
-| 数据 / 会员号 / 邮箱 | `font-mono`             | 系统等宽                                                   |
+全站字体只在一个地方声明：仓库根目录 `src/caaci-fonts.css`（`index.css` 直接 `@import`，
+Tabler 后台/登录页链接同一文件），`@theme` 把它映射成四个 Tailwind 工具类。Google Fonts
+只有一条请求：`src/caaci-shared.js` 的 `GOOGLE_FONTS_URL`，由 `vite.config.ts` 写进
+`index.html` 的 `<!--CAACI_FONTS-->`。守卫：`test/fonts.test.js`。
 
-工具类：`.font-serif-caaci`（15）、`.font-poppins`（52）。`h1/h2/h3` 已在 `@layer base` 里默认衬线，无需重复加类。
+| 角色                 | 工具类              | 变量                    | 字体栈                                                                    |
+| -------------------- | ------------------- | ----------------------- | ------------------------------------------------------------------------- |
+| 正文 / UI / 按钮     | `font-sans`（默认） | `--caaci-font-sans`     | Poppins → Microsoft YaHei → PingFang SC → Hiragino Sans GB → Noto Sans SC |
+| Display / h1–h3      | `font-display`      | `--caaci-font-serif`    | Playfair Display → Noto Serif SC → Songti SC → SimSun                     |
+| 中文页面的 Display   | 自动（`:lang(zh)`） | `--caaci-font-serif-zh` | Noto Serif SC → Playfair Display（中文标题里的数字/英文也用中文衬线）     |
+| 数据 / 会员号 / 邮箱 | `font-mono`         | `--caaci-font-mono`     | ui-monospace → Menlo → Consolas → Microsoft YaHei → PingFang SC           |
+
+规则：
+
+- `h1/h2/h3` 已在 `@layer base` 里默认 display 衬线，无需加类；其它元素要衬线时加 `font-display`。
+- 组件里不写 `style={{ fontFamily }}`，不写 `font-serif`（Tailwind 默认 Georgia）；`font-serif-caaci`、`font-poppins` 两个旧类已删除。
+- 中文标题不需要 `isZh` 分支：`/zh/` 下 `<html lang="zh-CN">`，`caaci-fonts.css` 的 `:lang(zh)` 规则会把所有 display 标题切到中文衬线栈。
 
 ### 2.1 字号阶梯（实际使用）
 
@@ -306,7 +315,7 @@ lucide-react。尺寸：行内 `w-3.5 h-3.5`，按钮 `w-4 h-4`，卡片 `w-5 h-
 ## 6. 双语规则
 
 - 每个可见字符串都有 en / zh 两版（`data/content.ts`）。
-- 中文标题使用 `--font-caaci-serif-zh`（`isZh` 分支），不要给中文加 `tracking-widest`。
+- 中文标题自动走中文衬线栈（`caaci-fonts.css` 的 `:lang(zh)` 规则，见 §2），组件不写 `isZh` 字体分支；不要给中文加 `tracking-widest`。
 - 字距（tracking）对中文无效且会拉开字，按钮/标签的 `tracking-wider` 只对英文有意义，可接受但不要再加大。
 - `uppercase` 对汉字没有任何效果（浏览器原样显示），所以导航项和主按钮这两处允许全大写的元素可以中英文共用同一组类，不必按语言切换（已定 2026-09-15）。
 

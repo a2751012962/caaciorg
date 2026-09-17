@@ -1,0 +1,44 @@
+/* caaci-fonts.css — the site's typefaces, declared once.
+ *
+ * Every surface reads its families from these four variables:
+ *   - the React site (web/src/index.css @imports this file and maps the
+ *     variables onto Tailwind's --font-sans / --font-display / --font-mono),
+ *   - the Tabler pages (/admin/, /login-3/, /privacy/) and the mirrored
+ *     WordPress pages, which link /assets/caaci-fonts.css before caaci-ui.css
+ *     (caaci-ui.css's --caaci-font-body/display/button are aliases of these).
+ * The Google Fonts request that loads Poppins, Playfair Display and Noto Serif
+ * SC is GOOGLE_FONTS_URL in src/caaci-shared.js — one URL, written into every
+ * page's <head> by build.mjs / web/vite.config.ts (<!--CAACI_FONTS-->).
+ * Emails and the tiny HTML pages under functions/ cannot load web fonts and
+ * use SYSTEM_FONT_STACK from functions/api/_fonts.js instead.
+ *
+ * Each web font is followed by a CJK face installed on Windows (Microsoft
+ * YaHei / SimSun) or macOS (PingFang SC / Songti SC), so the first layout of
+ * Chinese text does not search system fallbacks and swapping in the web fonts
+ * does not re-lay out the page. test/fonts.test.js keeps the family names out
+ * of every other file. */
+:root {
+  /* Body, UI, buttons, navigation. */
+  --caaci-font-sans:
+    'Poppins', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', Arial,
+    sans-serif;
+  /* Display: h1–h3 and .font-display. Latin in Playfair Display, CJK in Noto Serif SC. */
+  --caaci-font-serif: 'Playfair Display', 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+  /* Display on a Chinese page: digits and Latin inside a Chinese heading come
+     from Noto Serif SC too, so a title like "2026 中秋晚会" is one face. */
+  --caaci-font-serif-zh: 'Noto Serif SC', 'Playfair Display', 'Songti SC', 'SimSun', serif;
+  /* Data: member ids, emails, amounts, codes. System monospace with a CJK
+     fallback so a Chinese label inside a mono span does not drop to serif. */
+  --caaci-font-mono:
+    ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', 'Microsoft YaHei',
+    'PingFang SC', monospace;
+}
+
+/* Chinese pages (the React site sets <html lang="zh-CN"> on /zh/, the Tabler
+   pages lang="zh" from their toggle): every display heading takes the Chinese
+   serif stack. One rule here replaces a per-component isZh branch. Unlayered,
+   so it wins over Tailwind's @layer base h1–h3 and over the .font-display
+   utility without any component knowing about it. */
+:lang(zh) :is(h1, h2, h3, .h1, .h2, .h3, .font-display) {
+  font-family: var(--caaci-font-serif-zh);
+}

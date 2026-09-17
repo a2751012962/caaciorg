@@ -347,7 +347,7 @@ export function BusinessServicesPage({
           {/* Breadcrumb Path */}
           <nav
             aria-label="Breadcrumb"
-            className="flex items-center gap-1 sm:gap-1.5 md:gap-2 text-[11px] sm:text-xs md:text-sm text-neutral-500 font-poppins min-w-0"
+            className="flex items-center gap-1 sm:gap-1.5 md:gap-2 text-[11px] sm:text-xs md:text-sm text-neutral-500 font-sans min-w-0"
           >
             <button
               onClick={() => {

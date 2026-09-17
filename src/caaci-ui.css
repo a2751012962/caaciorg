@@ -59,17 +59,15 @@
   --caaci-error-rgb: 179, 38, 30;
 
   /* ---- Typography ---- */
-  /* NOTE: the live site overrides everything to cwTeXFangSong for the bilingual
-     layout; we list it first so added UI inherits the same face. */
-  /* Match the official site's font stacks exactly. Its preferred web fonts
-     (Poppins / Playfair Display / Saira Extra Condensed) are NOT loaded on the
-     mirror, so the live site actually renders Latin text in the Helvetica /
-     Georgia fallbacks below — listing the same stacks makes our added UI match.
-     cwTeXFangSong (the one face the mirror does load) sits last as the CJK (中文)
-     fallback so bilingual text still uses it for Chinese glyphs. */
-  --caaci-font-body: 'Poppins', Helvetica, Arial, 'cwTeXFangSong', sans-serif;
-  --caaci-font-display: 'Playfair Display', Georgia, 'Times New Roman', 'cwTeXFangSong', serif;
-  --caaci-font-button: 'Saira Extra Condensed', Helvetica, Arial, 'cwTeXFangSong', sans-serif;
+  /* The families live in caaci-fonts.css (--caaci-font-sans/serif/serif-zh/mono),
+     which every page links before this file; these are the names the component
+     rules below and caaci-theme.css already use. Buttons take the body face:
+     the React site's buttons are Poppins, so the Tabler and mirror buttons are
+     too (the Divi CTA's Saira Extra Condensed is no longer loaded). */
+  --caaci-font-body: var(--caaci-font-sans);
+  --caaci-font-display: var(--caaci-font-serif);
+  --caaci-font-button: var(--caaci-font-sans);
+  --caaci-font-mono: var(--caaci-font-mono);
 
   --caaci-fs-display: 48px; /* hero h1/h2  */
   --caaci-fs-h2: 38px; /* section heading */

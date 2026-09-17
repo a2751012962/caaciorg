@@ -1204,7 +1204,7 @@ export function AccountPage({
                 {cardActive ? (
                   <div className="space-y-3 max-w-md mx-auto">
                     {card(false)}
-                    <p className="text-xs text-neutral-500 font-poppins text-center leading-relaxed px-2">
+                    <p className="text-xs text-neutral-500 font-sans text-center leading-relaxed px-2">
                       {lang === 'en'
                         ? 'Show this card at partner businesses — scanning the QR verifies your membership live.'
                         : '在合作商家出示会员卡，扫码即可实时验证会员资格。'}

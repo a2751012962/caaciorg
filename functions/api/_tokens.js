@@ -2,6 +2,7 @@
 // in the SQL functions of 0024_tokens.sql; this file decides WHO may call them,
 // turns their error codes into sentences, and sends the receipt emails.
 import { bad, sb, requireUser } from './_lib.js';
+import { SYSTEM_FONT_STACK } from './_fonts.js';
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -209,7 +210,7 @@ export async function sendReceipt(
   const subject = isVoid
     ? `${amount} tokens returned · 已退回 ${amount} 币 — ${merchantName}`
     : `${amount} tokens spent · 已扣 ${amount} 币 — ${merchantName}`;
-  const html = `<div style="font-family:Helvetica,Arial,sans-serif;max-width:480px;color:#300200">
+  const html = `<div style="font-family:${SYSTEM_FONT_STACK};max-width:480px;color:#300200">
   <p style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#8e2e11;font-weight:700">CAACI Tokens · 华协币</p>
   <p style="font-size:22px;font-weight:700;margin:0 0 4px">${isVoid ? '+' : '−'}${amount} tokens · 币</p>
   <p style="margin:0 0 12px;color:#555">${esc(merchantName)} · ${esc(central(tx.created_at))} (Central)</p>

@@ -66,20 +66,28 @@ scheme plus the homepage/contact module).
 
 ## 2. Typography
 
-| Use                | Stack                                                                                      | Notes                                        |
-| ------------------ | ------------------------------------------------------------------------------------------ | -------------------------------------------- |
-| Display / headings | `--caaci-font-display` → `'Playfair Display', Georgia, 'Times New Roman', 'cwTeXFangSong'` | Color `--caaci-maroon`, letter-spacing 1–3px |
-| Body / UI          | `--caaci-font-body` → `'Poppins', Helvetica, Arial, 'cwTeXFangSong', sans-serif`           | line-height 1.8                              |
-| Buttons            | `--caaci-font-button` → `'Saira Extra Condensed', Helvetica, Arial, 'cwTeXFangSong'`       | uppercase, letter-spacing 1px, weight 600    |
+One typeface system for the whole site, declared once in `src/caaci-fonts.css`
+(guarded by `test/fonts.test.js`). The React site maps the same four variables
+onto Tailwind's `font-sans` / `font-display` / `font-display-zh` / `font-mono`
+(`web/DESIGN_SYSTEM.md` §2); the Tabler and mirror pages read them through the
+`--caaci-font-*` aliases below.
 
-What actually renders on the mirror (measured, not assumed): Divi sets all body and
-menu text to `cwTeXFangSong`, but that face is never served, so body copy and the
-navigation fall back to the **system sans-serif**. Headings really are Playfair
-Display and buttons really are Saira Extra Condensed — both loaded from Google
-Fonts by the mirror, and by `caaci-theme.css` for the Tabler pages. Poppins is in
-the body stack for parity with the theme settings; it is loaded only on the public
-Tabler pages, whose header copies the React site (§5), not on `/admin/`.
-`cwTeXFangSong` stays at the end of every stack as the CJK fallback.
+| Use                       | Variable                                                         | Stack                                                                             |
+| ------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Body / UI / buttons       | `--caaci-font-body`, `--caaci-font-button` → `--caaci-font-sans` | Poppins → Microsoft YaHei → PingFang SC → Hiragino Sans GB → Noto Sans SC → Arial |
+| Display / h1–h3           | `--caaci-font-display` → `--caaci-font-serif`                    | Playfair Display → Noto Serif SC → Songti SC → SimSun                             |
+| Display on a Chinese page | `--caaci-font-serif-zh` (applied by `:lang(zh)`)                 | Noto Serif SC → Playfair Display → Songti SC → SimSun                             |
+| Data (ids, emails, codes) | `--caaci-font-mono`                                              | ui-monospace → Menlo → Consolas → Microsoft YaHei → PingFang SC                   |
+
+The web fonts (Poppins, Playfair Display, Noto Serif SC) come from one Google
+Fonts request, `GOOGLE_FONTS_URL` in `src/caaci-shared.js`. Every page's `<head>`
+carries `<!--CAACI_FONTS-->`, which `build.mjs` (Tabler pages) and
+`web/vite.config.ts` (React) replace with that link, so `/admin/`, `/login-3/` and
+the public site render the same faces, body copy included. Buttons take the body
+face: the Divi CTA's Saira Extra Condensed is no longer loaded anywhere. Emails
+and the standalone `/api/verify` and dispute pages cannot load web fonts and use
+`SYSTEM_FONT_STACK` (`functions/api/_fonts.js`: Arial with the same CJK faces).
+Headings keep `--caaci-maroon` and 1–3px tracking; body copy line-height 1.8.
 
 **Type scale:** display `48px` · h2 `38px` · h3 `24px` · body `18px` · small `16px`
 · eyebrow `14px` (uppercase, letter-spacing 1px). Tokens: `--caaci-fs-*`.
@@ -147,12 +155,11 @@ badge, focus ring and corner takes the brand look with no page-level CSS:
 Three element rules finish the match with the mirror: `h1`–`h3` are set in
 `--caaci-font-display`, maroon, 1px tracking;
 `.btn-primary` is the Divi CTA — `--caaci-font-button`, uppercase, 1px tracking,
-`--caaci-radius-0` — the same shape as the overlay's `.caaci-btn`; and the theme
-`@import`s the Playfair Display and Saira Extra Condensed faces the mirror already
-loads from Google Fonts, so headings and buttons resolve to the same glyphs on both
-kinds of page. The public Tabler pages (login, privacy) also link
-the React site's Google Fonts (Poppins, Playfair Display, Noto Serif SC — the same
-`<link>` as `web/index.html`), so their header and body copy use the React site's
+`--caaci-radius-0` — the same shape as the overlay's `.caaci-btn`; and
+`--tblr-font-monospace` is `--caaci-font-mono`. The theme imports no fonts: each
+Tabler page's `<head>` has the `<!--CAACI_FONTS-->` marker that `build.mjs` fills
+with the site's Google Fonts link and `/assets/caaci-fonts.css` (§2), so `/admin/`,
+login and privacy render the React site's faces, and their header and body copy use the React site's
 faces; `/admin/` does not, and its text keeps the system sans-serif fallback.
 
 The public pages' site header (`member-src/_nav.html`, `.caaci-sitenav-site`) is a

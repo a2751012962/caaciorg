@@ -43,10 +43,7 @@ export function CommunityCalendarPage({
             <CalendarDays className="w-3.5 h-3.5" />
             <span>Community Portals</span>
           </div>
-          <h2
-            className="text-xl sm:text-2xl md:text-3xl font-bold text-maroon font-serif-caaci"
-            style={{ fontFamily: 'var(--font-caaci-serif)' }}
-          >
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-maroon font-display">
             {data.instruction}
           </h2>
           <div className="w-16 h-1 bg-brick mx-auto mt-4 rounded-full" />
@@ -74,19 +71,14 @@ export function CommunityCalendarPage({
                     />
                   </div>
 
-                  <h3
-                    className="text-lg font-bold text-maroon font-serif-caaci mb-3 group-hover:text-brick transition-colors"
-                    style={{ fontFamily: 'var(--font-caaci-serif)' }}
-                  >
+                  <h3 className="text-lg font-bold text-maroon font-display mb-3 group-hover:text-brick transition-colors">
                     {cal.name}
                   </h3>
 
-                  <p className="text-xs text-neutral-600 font-poppins leading-relaxed">
-                    {cal.desc}
-                  </p>
+                  <p className="text-xs text-neutral-600 font-sans leading-relaxed">{cal.desc}</p>
                 </div>
 
-                <div className="mt-8 pt-4 border-t border-neutral-100 flex items-center justify-center gap-1 text-xs font-bold text-brick font-poppins group-hover:underline">
+                <div className="mt-8 pt-4 border-t border-neutral-100 flex items-center justify-center gap-1 text-xs font-bold text-brick font-sans group-hover:underline">
                   <span>{lang === 'en' ? 'Open Calendar' : '进入日历'}</span>
                   <ExternalLink className="w-3.5 h-3.5 ml-1" />
                 </div>

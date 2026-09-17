@@ -415,7 +415,7 @@ export function DigitalMemberCard({
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>{t('Scan to verify membership', '扫码实时验证会员资格')}</span>
               </div>
-              <h3 className="text-lg font-bold font-serif-caaci text-neutral-900 break-words">
+              <h3 className="text-lg font-bold font-display text-neutral-900 break-words">
                 {name}
               </h3>
               <p className="text-xs text-neutral-500">

@@ -50,13 +50,11 @@ export function NotFoundPage({ content, lang, onOpenModal, onNavigate }: NotFoun
       <section className="py-16 sm:py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal className="bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 shadow-xs max-w-2xl mx-auto space-y-5">
-            <span className="text-xs font-semibold text-brick block font-poppins">
-              {data.eyebrow}
-            </span>
-            <p className="text-sm sm:text-base text-neutral-700 font-poppins leading-relaxed">
+            <span className="text-xs font-semibold text-brick block font-sans">{data.eyebrow}</span>
+            <p className="text-sm sm:text-base text-neutral-700 font-sans leading-relaxed">
               {data.body}
             </p>
-            <p className="text-xs text-neutral-500 font-poppins break-all">
+            <p className="text-xs text-neutral-500 font-sans break-all">
               {data.requested}
               {lang === 'en' ? ': ' : '：'}
               <code className="font-mono text-neutral-700">{requested}</code>

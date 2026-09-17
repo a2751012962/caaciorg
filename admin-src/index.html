@@ -8,7 +8,10 @@
     <!-- Tabler (MIT, tabler/tabler) — the panel's design system; self-hosted, no CDN.
          caaci-ui.css supplies the --caaci-* tokens and caaci-theme.css re-points
          Tabler's --tblr-* variables at them (brand colours, type, 3px corners).
-         FilePond CSS comes after so the uploader keeps its component styling. -->
+         FilePond CSS comes after so the uploader keeps its component styling.
+         build.mjs writes the site's Google Fonts link and /assets/caaci-fonts.css at the
+         CAACI_FONTS marker, so the back office renders the same faces as the public site. -->
+    <!--CAACI_FONTS-->
     <link rel="stylesheet" href="/assets/tabler.min.css" />
     <link rel="stylesheet" href="/assets/caaci-ui.css" />
     <link rel="stylesheet" href="/assets/caaci-theme.css" />
