@@ -187,6 +187,11 @@ const SPA_ROUTES = [
   // Public event registration. The _redirects rewrites above serve this copy at
   // /events/<slug>/register/, where the page reads the slug from the path.
   'event-register',
+  // Tokens: /charge/?m=<member> is where a scanned member card lands a signed-in
+  // merchant, /merchant/ is a shop's own console, /token-admin/ the back office.
+  'charge',
+  'merchant',
+  'token-admin',
 ];
 const WEB_DIST = join(ROOT, 'web', 'dist');
 try {

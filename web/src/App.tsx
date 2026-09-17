@@ -33,6 +33,16 @@ const BusinessServicesPage = lazy(() =>
 const EventRegisterPage = lazy(() =>
   import('./pages/EventRegisterPage').then((m) => ({ default: m.EventRegisterPage })),
 );
+// Token pages: reached from a scanned member card or the account page, never from the nav.
+const ChargePage = lazy(() =>
+  import('./pages/ChargePage').then((m) => ({ default: m.ChargePage })),
+);
+const MerchantPage = lazy(() =>
+  import('./pages/MerchantPage').then((m) => ({ default: m.MerchantPage })),
+);
+const TokenAdminPage = lazy(() =>
+  import('./pages/TokenAdminPage').then((m) => ({ default: m.TokenAdminPage })),
+);
 const NotFoundPage = lazy(() =>
   import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
 );
@@ -47,6 +57,9 @@ export type PageId =
   | 'community-calendar'
   | 'business-services'
   | 'event-register'
+  | 'charge'
+  | 'merchant'
+  | 'token-admin'
   // Cloudflare Pages serves dist/404.html (this app) at any address that
   // matches nothing; the page keeps that address and says so.
   | 'not-found';
@@ -62,6 +75,9 @@ const PAGE_BY_SEGMENT: Record<string, PageId> = {
   'community-calendar': 'community-calendar',
   'business-services': 'business-services',
   'event-register': 'event-register',
+  charge: 'charge',
+  merchant: 'merchant',
+  'token-admin': 'token-admin',
 };
 
 // The registration page also answers at /events/<slug>/register/ (with or
@@ -226,6 +242,12 @@ function Site() {
         // path once, so stepping back to a different /events/<slug>/register/
         // has to start it over rather than leave the old event on screen.
         return <EventRegisterPage key={route} {...pageProps} />;
+      case 'charge':
+        return <ChargePage key={route} {...pageProps} />;
+      case 'merchant':
+        return <MerchantPage key={route} {...pageProps} />;
+      case 'token-admin':
+        return <TokenAdminPage {...pageProps} />;
       case 'not-found':
         return <NotFoundPage key={route} {...pageProps} />;
       case 'home':
