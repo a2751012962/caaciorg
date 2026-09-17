@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Search } from 'lucide-react';
+import { LayoutDashboard, Search } from 'lucide-react';
 import { FluidTabs } from '../components/FluidTabs';
 import {
   DANGER,
@@ -64,6 +64,12 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
 
   const eyebrow = t('CAACI Tokens', '华协币');
   const title = t('Token back office', '代币后台');
+  const toAdmin = (
+    <a className={SECONDARY} href="/admin/">
+      <LayoutDashboard className="w-4 h-4" aria-hidden />
+      {t('Admin', '管理后台')}
+    </a>
+  );
   if (denied)
     return (
       <ToolPage eyebrow={eyebrow} title={title} wide>
@@ -90,7 +96,7 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
   ];
 
   return (
-    <ToolPage eyebrow={eyebrow} title={title} wide>
+    <ToolPage eyebrow={eyebrow} title={title} wide action={toAdmin}>
       <FluidTabs
         id="token-admin-tabs"
         tone="brand"

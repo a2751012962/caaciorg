@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, Coins, Send, Store, Wrench } from 'lucide-react';
+import { ChevronDown, Coins, LayoutDashboard, Send, Store, Wrench } from 'lucide-react';
 import type { Lang } from '../../lib/lang';
 import {
   day,
@@ -281,6 +281,12 @@ export function TokenWallet({ lang, className = '' }: { lang: Lang; className?: 
             <a className={SECONDARY} href={`${zh ? '/zh' : ''}/token-admin/`}>
               <Wrench className="w-4 h-4" aria-hidden />
               {t('Token back office', '代币后台')}
+            </a>
+          )}
+          {roles.admin && (
+            <a className={SECONDARY} href="/admin/">
+              <LayoutDashboard className="w-4 h-4" aria-hidden />
+              {t('Admin', '管理后台')}
             </a>
           )}
         </div>
