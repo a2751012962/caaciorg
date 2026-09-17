@@ -34,6 +34,17 @@
           </a>
           <span class="navbar-text fw-semibold" data-en="Admin" data-zh="管理后台">Admin</span>
           <div class="navbar-nav flex-row align-items-center">
+            <!-- Tokens live in the React site (/token-admin/). Hidden until
+                 GET /api/tokens/me says the feature is switched on (caaci-admin.js). -->
+            <a
+              href="/token-admin/"
+              id="caaci-tokens-link"
+              class="nav-link"
+              hidden
+              data-en="Tokens"
+              data-zh="华协币"
+              >Tokens</a
+            >
             <button type="button" class="nav-link" id="caaci-lang">中文</button>
             <a
               href="#"

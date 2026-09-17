@@ -18,14 +18,11 @@ import {
   ChevronRight,
   LogOut,
   RefreshCw,
-  Sparkles,
   Info,
   Users,
   Layers,
   Award,
   Maximize2,
-  Mail,
-  UserPlus,
   X,
 } from 'lucide-react';
 import { SubpageHero } from '../components/SubpageHero';
@@ -293,6 +290,21 @@ export function AccountPage({
   // /login-3/ returns to ?next= after signing in, so ?family_invite survives.
   const here = () => window.location.pathname + window.location.search;
 
+  // Signed out, this page has nothing of its own to show: the sign-in page is
+  // /login-3/, which comes straight back here (?next=) with any ?family_invite
+  // intact. replace(), so Back does not bounce through this page again.
+  //   * A dead email link (expired or already-used reset link) stays here: the
+  //     notice below is the only place that explains it.
+  //   * Someone who signs OUT while on this page is not sent to sign in again;
+  //     App.tsx takes them home. Only arriving signed out redirects.
+  const staysSignedOut = landing.recovery || landing.linkFailed;
+  const hadSession = useRef(false);
+  if (user) hadSession.current = true;
+  useEffect(() => {
+    if (!ready || user || hadSession.current || staysSignedOut) return;
+    window.location.replace(loginUrl(here()));
+  }, [ready, user, staysSignedOut]);
+
   const shownOn = (tab: MobileTab) =>
     activeMobileTab === tab || activeMobileTab === 'all' ? 'block' : 'hidden';
 
@@ -375,84 +387,27 @@ export function AccountPage({
         </section>
       ) : !user ? (
         /* ===================================================================== */
-        /* 1. NOT LOGGED IN STATE (没登录时) */
+        /* 1. NOT LOGGED IN: the sign-in page is /login-3/ (see the effect above). */
+        /* Only a dead email link is explained here, since the login page cannot.   */
         /* ===================================================================== */
         <section className="max-w-4xl mx-auto px-4 sm:px-6 pt-4 sm:pt-0 sm:-mt-8 relative z-20 space-y-4">
-          <RecoveryNotice
-            lang={lang}
-            recovery={landing.recovery}
-            linkFailed={landing.linkFailed}
-            signedIn={false}
-            onGoToSecurity={goToSecurity}
-          />
-
-          <div className="bg-white rounded-3xl border border-neutral-200/90 shadow-xl p-6 sm:p-12 text-center space-y-6">
-            <div className="w-16 h-16 rounded-full bg-neutral-100 border border-neutral-200 text-neutral-400 flex items-center justify-center mx-auto shadow-inner">
-              <User className="w-8 h-8 text-neutral-500" />
+          {staysSignedOut ? (
+            <RecoveryNotice
+              lang={lang}
+              recovery={landing.recovery}
+              linkFailed={landing.linkFailed}
+              signedIn={false}
+              onGoToSecurity={goToSecurity}
+            />
+          ) : (
+            <div
+              role="status"
+              className="bg-white rounded-3xl border border-neutral-200/90 shadow-xl p-10 sm:p-12 flex items-center justify-center gap-2 text-sm text-neutral-500"
+            >
+              <RefreshCw className="w-4 h-4 animate-spin text-brick" />
+              <span>{t('Taking you to sign in…', '正在前往登录页面…')}</span>
             </div>
-
-            <div className="space-y-2 max-w-md mx-auto">
-              <h2 className="text-xl sm:text-2xl font-bold font-serif-caaci text-ink">
-                {lang === 'en' ? 'You are not logged in' : '您尚未登录'}
-              </h2>
-              <p className="text-xs sm:text-sm text-neutral-500 leading-relaxed">
-                {lang === 'en'
-                  ? 'Please sign in to view your CAACI digital member card, subscription status, payments and family membership.'
-                  : '请登录后查看您的 CAACI 电子会员卡、会费订阅状态、付款记录以及家庭会员。'}
-              </p>
-            </div>
-
-            {/* Arrived from a family invitation email */}
-            {landing.familyInvite && (
-              <div className="max-w-md mx-auto p-4 bg-amber-50 border border-amber-200/90 rounded-2xl text-left space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
-                  <Mail className="w-4 h-4 text-amber-700" />
-                  <span>
-                    {lang === 'en'
-                      ? 'A family invitation is waiting'
-                      : '有一份家庭会员邀请等待您处理'}
-                  </span>
-                </div>
-                <p className="text-xs text-amber-800 leading-relaxed">
-                  {lang === 'en'
-                    ? 'Log in (or create an account) with the email address the invitation was sent to. You will come straight back here to accept or decline it.'
-                    : '请使用收到邀请的邮箱登录（或注册账号），登录后会自动回到此页面，即可接受或拒绝邀请。'}
-                </p>
-              </div>
-            )}
-
-            {/* Action Buttons: 登录、注册 */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 pt-2">
-              <button
-                type="button"
-                onClick={() => window.location.assign(loginUrl(here()))}
-                className="w-full sm:w-auto min-h-[44px] px-8 py-3 rounded-full bg-brick hover:brightness-110 text-white font-semibold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md inline-flex items-center justify-center gap-2 active:scale-98"
-              >
-                <KeyRound className="w-4 h-4" />
-                <span>{lang === 'en' ? 'Log In' : '登录'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => window.location.assign(loginUrl(here(), true))}
-                className="w-full sm:w-auto min-h-[44px] px-8 py-3 rounded-full bg-white border border-neutral-300 hover:border-neutral-900 text-neutral-800 font-semibold text-xs transition-all cursor-pointer inline-flex items-center justify-center gap-2 active:scale-98"
-              >
-                <UserPlus className="w-4 h-4 text-brick" />
-                <span>{lang === 'en' ? 'Create Account' : '注册账号'}</span>
-              </button>
-            </div>
-
-            <div className="pt-4 border-t border-neutral-100 max-w-sm mx-auto">
-              <button
-                type="button"
-                onClick={() => onNavigate('membership')}
-                className="min-h-[36px] text-xs text-brick hover:underline font-semibold inline-flex items-center gap-1 cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>{lang === 'en' ? 'See membership plans' : '查看会员方案'}</span>
-              </button>
-            </div>
-          </div>
+          )}
         </section>
       ) : (
         /* ===================================================================== */
@@ -559,6 +514,11 @@ export function AccountPage({
               </div>
             </div>
           </div>
+
+          {/* 华协币钱包, first on the page. Renders nothing until the server says
+              tokens are on. On a phone it is one row (the balance) until opened,
+              so the member card's QR below stays close. */}
+          <TokenWallet lang={lang} />
 
           {/* TOP ALERTS & MOBILE QUICK TABS */}
           <div className="space-y-4">
@@ -1256,11 +1216,7 @@ export function AccountPage({
                 )}
               </div>
 
-              {/* 2. 华协币钱包: renders nothing until the server says tokens are on.
-                  On a phone it belongs to the Pass tab: the QR above is what pays. */}
-              <TokenWallet lang={lang} className={`${shownOn('pass')} lg:block`} />
-
-              {/* 3. 家庭系统 (按身份显示不同内容) */}
+              {/* 2. 家庭系统 (按身份显示不同内容) */}
               <div id="family-section" className={`${shownOn('family')} lg:block scroll-mt-24`}>
                 <FamilySection
                   lang={lang}

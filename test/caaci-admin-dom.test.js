@@ -201,6 +201,8 @@ function apiRoutes(u, options = {}) {
       },
     };
   }
+  // tokens are switched on for this deployment
+  if (u.includes('/api/tokens/me')) return { body: { enabled: true, balance: 0 } };
   return { body: {} };
 }
 
@@ -218,6 +220,14 @@ test('admin page: module boots against the real Tabler markup', async () => {
   try {
     await import('../src/caaci-admin.js'); // boot IIFE runs on import
     await tick();
+
+    // An admin signs in straight to this panel, so the header carries the way to
+    // the token back office. It ships hidden and appears only once the server
+    // says tokens are on.
+    assert.match(html, /id="caaci-tokens-link"[^>]*\shidden\s/, 'hidden in the markup');
+    const tokensLink = document.querySelector('#caaci-tokens-link');
+    assert.equal(tokensLink.getAttribute('href'), '/token-admin/');
+    assert.equal(tokensLink.hidden, false, 'shown: /api/tokens/me answered enabled');
 
     // Gate passed: gate hidden, app revealed.
     assert.equal(document.querySelector('#caaci-admin-gate').hidden, true);
