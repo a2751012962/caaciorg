@@ -496,6 +496,54 @@
   border-radius: inherit;
   pointer-events: none;
 }
+
+/* ══ Scrub chart (components/bencho/ScrubChart.tsx) ═══════════
+   The ring pops and a hairline guide fades in while a finger is
+   on the line — Bencho's own timings: a small overshoot on the
+   ring, a plain fade on the guide. The ring scales about its own
+   centre, which for an SVG circle needs transform-box. */
+.scrub-tip {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.16s cubic-bezier(0.28, 1.4, 0.36, 1);
+}
+[data-scrub] .scrub-tip {
+  transform: scale(1.18);
+}
+.scrub-guide {
+  opacity: 0;
+  transition: opacity 0.14s;
+}
+[data-scrub] .scrub-guide {
+  opacity: 0.28;
+}
+
+/* ══ Odometer (components/bencho/Odometer.tsx) ═══════════════
+   Each digit is a 1em-tall window over a reel of 0–9; the reel
+   slides to the digit shown, on the pill curve Bencho uses for
+   its window tabs (a little overshoot, so a turning digit lands
+   like a counter wheel rather than a fade). */
+.odo {
+  display: inline-flex;
+  align-items: baseline;
+}
+.odo-col {
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  vertical-align: baseline;
+  line-height: 1;
+}
+.odo-reel {
+  display: block;
+  transition: transform 0.38s cubic-bezier(0.34, 1.16, 0.5, 1);
+  will-change: transform;
+}
+.odo-digit {
+  display: block;
+  height: 1em;
+  line-height: 1;
+}
 /* Less motion: keep every state change, drop the travel. Lenis and GSAP check
    the same query in JS (lib/motion.ts, utils/smoothScroll.ts). */
 @media (prefers-reduced-motion: reduce) {

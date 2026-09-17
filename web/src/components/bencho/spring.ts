@@ -73,10 +73,14 @@ export const springOf = (tune: number) => ({
 
 /* Units matter. The snap threshold is absolute, so a caller
    works in pixels or in 0..100 — a spring driven over 0..1
-   would be "settled" before it had visibly moved. */
-export function useSpring(target: number, tune = 50, instant = false) {
-  const [at, setAt] = useState(target);
-  const cur = useRef(target);
+   would be "settled" before it had visibly moved.
+
+   CAACI: `start` is where the spring is on mount (default: at
+   the target, as Bencho has it). ScrubChart starts its line's
+   progress at 0 so the line is seen travelling into place. */
+export function useSpring(target: number, tune = 50, instant = false, start = target) {
+  const [at, setAt] = useState(start);
+  const cur = useRef(start);
   const vel = useRef(0);
   const raf = useRef(0);
 

@@ -4,7 +4,16 @@
 // goo and the loading wheel stayed on the wall; this is the chart alone, and
 // it is not in a card: the figures, a smooth line and a ring at the reading,
 // on the page itself.
-import { useRef, useState } from 'react';
+//
+// What moves, and how (measured on bencho.dev, 2026-09-17): the ring pops to
+// 1.18 on a small overshoot curve while a finger is on the line, a hairline
+// guide fades in under it, and the figures are tabular so nothing shifts as
+// they change. Added here: the line itself travels from the series it showed
+// to the one it shows now (another year, a reload) instead of being swapped —
+// on the block's own spring, not a tween — and the digits of the figure roll
+// to their new value (Odometer).
+import { useEffect, useRef, useState } from 'react';
+import { Odometer } from './Odometer';
 import { clamp, stillness, useSpring } from './spring';
 
 export interface ScrubPoint {
@@ -60,6 +69,20 @@ function splineY(ys: number[], f: number) {
   );
 }
 
+/* A list of n heights read at m positions, so a line of one length can travel
+   to a line of another: the old shape is sampled where the new points fall. */
+function resample(ys: number[], m: number) {
+  const n = ys.length;
+  if (n === 0 || m === 0) return new Array<number>(m).fill(0);
+  if (n === m) return ys;
+  return Array.from({ length: m }, (_, i) => {
+    const f = m > 1 ? (i / (m - 1)) * (n - 1) : 0;
+    const a = Math.floor(f);
+    const b = Math.min(a + 1, n - 1);
+    return ys[a] + (ys[b] - ys[a]) * (f - a);
+  });
+}
+
 // "$1,904.50" → ["$1,904", ".50"]; "175" → ["175", ""]. The cents are set
 // smaller and grey: the figure is read at the dollar.
 const splitFraction = (s: string): [string, string] => {
@@ -99,6 +122,46 @@ export function ScrubChart({
   // On a phone the labels would collide: show every other one when crowded.
   const every = points.length > 8 ? 2 : 1;
 
+  /* ── the line travels ─────────────────────────────────────
+     A new series (another year, a reload) does not replace the
+     line, it moves it: every point goes from the height it had
+     (`from`) to the height it has (`ys`), and how far along it
+     is comes off one spring — the same spring as the ring, set
+     heavy (12: zeta ≈ 0.7, a hair of overshoot, no ring). Each
+     new series bumps `gen`; the spring travels the next hundred
+     and the line reads its progress off that. On mount it starts
+     at 0, rising out of the first reading's level, so the shape
+     is seen forming rather than found. */
+  const key = ys.join(',');
+  const [leg, setLeg] = useState(() => ({
+    from: ys.map(() => ys[0] ?? y(0)),
+    gen: 1,
+    /* where the spring was when this leg began; progress is read
+       from here, so a leg that starts mid-flight starts at 0 */
+    base: 0,
+    forKey: key,
+  }));
+  const progress = useSpring(leg.gen * 100, 12, still, 0);
+  const t = still ? 1 : (progress - leg.base) / (leg.gen * 100 - leg.base);
+  const drawn = ys.map((v, i) => (leg.from[i] ?? v) + (v - (leg.from[i] ?? v)) * t);
+  const shown = useRef({ drawn, progress });
+  shown.current = { drawn, progress };
+  useEffect(() => {
+    // the next leg starts where the line is now, however far the last one got.
+    // Keyed on the series the leg was made for, not on "first run": under
+    // StrictMode the mount effect runs twice, and a bump there would send the
+    // spring after 200 while it sat at 0 — a leg run backwards.
+    if (leg.forKey === key) return;
+    setLeg((l) => ({
+      from: resample(shown.current.drawn, ys.length),
+      gen: l.gen + 1,
+      base: shown.current.progress,
+      forKey: key,
+    }));
+    // `key` is the series; ys is rebuilt every render, so the effect keys on the values
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, leg.forKey]);
+
   /* ONE ARRAY IS THE WHOLE TRUTH. The balance is the last
      point, the change is last minus first, the percentage is
      that over the first, and the scrub just moves the index.
@@ -133,7 +196,8 @@ export function ScrubChart({
      reappearing there. The figures snap — they are readings,
      not positions. */
   const markX = useSpring(x(at), HOME, still || scrub != null);
-  const markY = last > 0 ? splineY(ys, clamp(((markX - padX) / w) * last, 0, last)) : y(value);
+  const markY =
+    last > 0 ? splineY(drawn, clamp(((markX - padX) / w) * last, 0, last)) : (drawn[0] ?? y(value));
 
   // the line takes the colour of the whole series' direction, as a balance does
   const overall = (series[last] ?? 0) - (series[0] ?? 0);
@@ -147,18 +211,23 @@ export function ScrubChart({
        was providing — same advance for every digit, so nothing
        shifts as the number changes under the pointer — and Inter
        has it. */
-    <div className="tabular-nums">
+    <div className="tabular-nums" data-scrub={scrub != null ? '' : undefined}>
       <div className="px-1">
         <div className="text-3xl sm:text-4xl font-bold tracking-tight text-ink leading-none">
-          {whole}
-          {frac && <span className="text-xl sm:text-2xl text-neutral-400">{frac}</span>}
+          <Odometer text={whole} />
+          {frac && <Odometer text={frac} className="text-xl sm:text-2xl text-neutral-400" />}
         </div>
         <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 text-sm">
           {points.length > 1 ? (
             <span className={`font-semibold ${tone}`}>
               {sign}
-              {fmt(Math.abs(change))}
-              {pct != null && <> · {pct}%</>}
+              <Odometer text={fmt(Math.abs(change))} />
+              {pct != null && (
+                <>
+                  {' · '}
+                  <Odometer text={`${pct}%`} />
+                </>
+              )}
             </span>
           ) : null}
           <span className="text-neutral-500">{points[at]?.label}</span>
@@ -167,7 +236,7 @@ export function ScrubChart({
       <svg
         ref={box}
         viewBox={`0 0 ${width} ${height}`}
-        className="mt-3 w-full h-auto touch-pan-y cursor-crosshair select-none"
+        className="scrub-plot mt-3 w-full h-auto touch-pan-y cursor-crosshair select-none"
         role="img"
         aria-label={points.map((p) => p.title).join('; ')}
         /* pointer, not mouse: a finger dragged along the line
@@ -197,7 +266,7 @@ export function ScrubChart({
         </g>
         <g className={line}>
           <path
-            d={splinePath(xs, ys)}
+            d={splinePath(xs, drawn)}
             fill="none"
             stroke="currentColor"
             strokeWidth={3}
@@ -205,14 +274,26 @@ export function ScrubChart({
             strokeLinejoin="round"
           />
           {last >= 0 && (
-            <circle
-              cx={num(markX)}
-              cy={num(markY)}
-              r={7}
-              fill="white"
-              stroke="currentColor"
-              strokeWidth={3}
-            />
+            <>
+              {/* the guide: a hairline under the ring, seen only while a finger is on the line */}
+              <line
+                className="scrub-guide"
+                x1={num(markX)}
+                x2={num(markX)}
+                y1={padT}
+                y2={padT + h}
+                stroke="currentColor"
+              />
+              <circle
+                className="scrub-tip"
+                cx={num(markX)}
+                cy={num(markY)}
+                r={7}
+                fill="white"
+                stroke="currentColor"
+                strokeWidth={3}
+              />
+            </>
           )}
         </g>
       </svg>
