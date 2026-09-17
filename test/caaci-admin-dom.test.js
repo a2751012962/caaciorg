@@ -641,6 +641,45 @@ test('admin page: module boots against the real Tabler markup', async () => {
     typeTag('奶茶');
     assert.equal(bizForm.querySelectorAll('[data-tags="tags_zh"] [data-tag]').length, 2);
     bizForm.querySelector('[data-tags="tags_zh"] [data-tag="奶茶"] .btn-close').click();
+
+    // Live preview: follows the fields and chips, with the public page's fallbacks.
+    const pv = bizForm.querySelector('[data-biz-preview]');
+    const pvCard = () => pv.querySelector('[data-pv-card]');
+    // Adding and removing chips fires no input event; the observer (async) redraws.
+    await tick();
+    assert.deepEqual(
+      [...pvCard().querySelectorAll('.caaci-bp-tag')].map((el) => el.textContent),
+      ['会员九折'],
+    );
+    bizForm
+      .querySelector('[data-f="name"]')
+      .dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    assert.equal(pvCard().querySelector('.caaci-bp-name').textContent, 'Kung Fu Tea');
+    assert.ok(pvCard().querySelector('.caaci-bp-row'), 'desktop row by default');
+    assert.match(pvCard().querySelector('.caaci-bp-verified').textContent, /CAACI Verified/);
+    assert.equal(pvCard().querySelector('.caaci-bp-chip').textContent, 'Other Services');
+    // No English tags: the English page shows the Chinese ones.
+    assert.deepEqual(
+      [...pvCard().querySelectorAll('.caaci-bp-tag')].map((el) => el.textContent),
+      ['会员九折'],
+    );
+    assert.equal(pvCard().querySelector('a'), null, 'no website, no address: no buttons');
+    const address = bizForm.querySelector('[data-f="address"]');
+    address.value = '1 Main St, Champaign';
+    address.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    assert.equal(
+      pvCard().querySelector('.caaci-bp-btn-dark').getAttribute('href'),
+      'https://www.google.com/maps/search/?api=1&query=Kung%20Fu%20Tea%2C%201%20Main%20St%2C%20Champaign',
+    );
+    pv.querySelector('[data-pv-lang="zh"]').click();
+    pv.querySelector('[data-pv-layout="phone"]').click();
+    assert.ok(pvCard().querySelector('.caaci-bp-card'));
+    assert.equal(pvCard().querySelector('.caaci-bp-chip').textContent, '其他服务');
+    assert.equal(pvCard().querySelector('.caaci-bp-verified').textContent, 'Verified');
+    assert.match(pvCard().querySelector('.caaci-bp-btn-dark').textContent, /导航/);
+    address.value = '';
+    address.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+
     entry.value = '学生优惠';
     bizForm.requestSubmit();
     await tick();
