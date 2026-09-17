@@ -85,7 +85,7 @@ export function TokenWallet({ lang, className = '' }: { lang: Lang; className?: 
   return (
     <section
       id="tokens"
-      className={`bg-white rounded-2xl sm:rounded-3xl border border-neutral-200/90 p-4.5 sm:p-7 shadow-xs space-y-5 scroll-mt-24 font-poppins ${className}`}
+      className={`pt-5 border-t border-neutral-200/80 space-y-5 scroll-mt-24 font-poppins ${className}`}
     >
       <div className="lg:grid lg:grid-cols-2 lg:gap-10">
         <div className="space-y-5">

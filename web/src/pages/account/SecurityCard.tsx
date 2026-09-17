@@ -253,11 +253,8 @@ export function SecurityCard({
   const resendIn = (left: number) => t(`Resend in ${left}s`, `${left} 秒后可重新发送`);
 
   return (
-    <div
-      id="account-security"
-      className={`${className} bg-white rounded-2xl sm:rounded-3xl border border-neutral-200/90 p-4.5 sm:p-7 shadow-xs space-y-6 scroll-mt-24`}
-    >
-      <div className="flex items-center gap-2 pb-3 border-b border-neutral-100">
+    <div id="account-security" className={`${className} space-y-6 scroll-mt-24`}>
+      <div className="flex items-center gap-2">
         <Shield className="w-5 h-5 text-brick" />
         <h3 className="text-base sm:text-lg font-bold text-ink">
           {t('Account Security', '账户安全')}
@@ -354,7 +351,7 @@ export function SecurityCard({
           </button>
 
           {reauthOpen && (
-            <div className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/80 space-y-2.5">
+            <div className="pt-5 border-t border-neutral-200/80 space-y-2.5">
               <p className="text-xs text-neutral-700">
                 {t(
                   `We emailed a verification code to ${email}. Enter it below to finish.`,
@@ -381,7 +378,7 @@ export function SecurityCard({
                   type="button"
                   onClick={handleConfirm}
                   disabled={confirming}
-                  className="min-h-[44px] px-5 py-2 rounded-xl bg-brick text-white hover:brightness-110 text-xs font-semibold cursor-pointer whitespace-nowrap active:scale-98 disabled:opacity-60"
+                  className="shrink-0 whitespace-nowrap min-h-[44px] px-5 py-2 rounded-xl bg-brick text-white hover:brightness-110 text-xs font-semibold cursor-pointer active:scale-98 disabled:opacity-60"
                 >
                   {confirming ? t('Confirming…', '确认中…') : t('Confirm', '确认')}
                 </button>
@@ -389,7 +386,7 @@ export function SecurityCard({
                   type="button"
                   onClick={sendCode}
                   disabled={sendingCode || codeCooldown.left > 0}
-                  className="min-h-[44px] px-4 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap active:scale-98"
+                  className="shrink-0 whitespace-nowrap min-h-[44px] px-4 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
                 >
                   {sendingCode
                     ? t('Sending…', '发送中…')
@@ -404,7 +401,7 @@ export function SecurityCard({
       </div>
 
       {/* Email Change Section */}
-      <div className="space-y-3 pt-5 border-t border-neutral-100">
+      <div className="space-y-3 pt-5 border-t border-neutral-200/80">
         <div>
           <h4 className="text-xs sm:text-sm font-bold text-neutral-900">
             {t('Change Email', '修改邮箱')}
@@ -435,7 +432,7 @@ export function SecurityCard({
           <button
             type="submit"
             disabled={emSaving}
-            className="min-h-[44px] px-5 py-2.5 rounded-full bg-white border border-neutral-300 hover:border-neutral-900 text-neutral-800 text-xs font-semibold cursor-pointer disabled:opacity-50 whitespace-nowrap active:scale-98"
+            className="shrink-0 whitespace-nowrap min-h-[44px] px-5 py-2.5 rounded-full bg-white border border-neutral-300 hover:border-neutral-900 text-neutral-800 text-xs font-semibold cursor-pointer disabled:opacity-50 active:scale-98"
           >
             {emSaving ? t('Saving…', '保存中…') : t('Send Confirmation Email', '发送确认邮件')}
           </button>
