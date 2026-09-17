@@ -543,6 +543,11 @@
   display: block;
   height: 1em;
   line-height: 1;
+  /* Poppins has no tabular figures, so a column is as wide as its
+     widest digit and a "1" would sit left in it. Centred, the
+     column reads as a tabular figure — the same advance for
+     every digit, which is the point of the reel. */
+  text-align: center;
 }
 /* Less motion: keep every state change, drop the travel. Lenis and GSAP check
    the same query in JS (lib/motion.ts, utils/smoothScroll.ts). */
