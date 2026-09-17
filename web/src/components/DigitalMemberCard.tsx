@@ -179,6 +179,14 @@ export function DigitalMemberCard({
       fitFont(ctx, shortTier, 180, 16, (px) => sans(px, '600'));
       ctx.fillText(shortTier, 835, 91);
 
+      // Hairline under the issuer row, as on the card on screen
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(65, 155);
+      ctx.lineTo(935, 155);
+      ctx.stroke();
+
       // Cardholder
       ctx.textAlign = 'left';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
@@ -249,78 +257,91 @@ export function DigitalMemberCard({
 
   return (
     <div className="space-y-4">
-      {/* The card itself, at the ID-1 bank-card ratio (85.60 × 53.98 mm, ISO/IEC 7810):
-          issuer and plan along the top, holder details bottom-left, the live QR
-          bottom-right. Everything is sized to fit a 320px-wide phone. */}
-      <div className="bg-ink text-white rounded-2xl shadow-xl border border-white/10 relative overflow-hidden select-none w-full max-w-md mx-auto aspect-[85.6/53.98] p-4 sm:p-5 flex flex-col justify-between">
-        <div className="flex justify-between items-start gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <img
-              src="/images/logo.png"
-              alt="CAACI"
-              className="h-6 w-auto shrink-0 bg-white/10 rounded p-0.5 object-contain"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <div className="min-w-0">
-              <div className="text-xs font-semibold tracking-tight text-white truncate">
-                CAACI Member Pass
-              </div>
-              <div className="text-[10px] text-neutral-400 truncate">
-                Central Illinois • 501(c)(3)
+      {/* The card, at the ID-1 bank-card ratio (85.60 × 53.98 mm, ISO/IEC 7810),
+          in three bands separated by hairlines — issuer, holder, scan line — the
+          same design as the sample card on the membership page. The card is a
+          container and every size below is a share of its width (cqw), so it
+          scales as one piece instead of reflowing on a narrow phone. Tapping it
+          opens the full-screen QR, which is what a merchant scans. */}
+      <button
+        type="button"
+        onClick={() => setZoom(true)}
+        aria-label={t('Enlarge QR code', '放大二维码')}
+        className="@container w-full max-w-md mx-auto aspect-[85.6/53.98] rounded-2xl bg-ink text-white shadow-xl border border-white/10 overflow-hidden select-none text-left cursor-pointer hover:border-tan/40 transition-colors"
+      >
+        {/* Padding lives inside the container: a cqw length on the container itself
+            would measure the nearest ancestor container, not this card. */}
+        <div className="h-full w-full p-[4.2cqw] flex flex-col">
+          <div className="flex items-center justify-between gap-[2cqw] pb-[3cqw] border-b border-white/10">
+            <div className="flex items-center gap-[2.2cqw] min-w-0">
+              <img
+                src="/images/logo.png"
+                alt="CAACI"
+                className="h-[7cqw] w-auto shrink-0 bg-white/10 rounded p-[0.4cqw] object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+              <div className="min-w-0">
+                <div className="text-[3.6cqw] font-semibold tracking-tight text-white truncate">
+                  CAACI Member Pass
+                </div>
+                <div className="text-[2.8cqw] text-neutral-400 truncate">
+                  Central Illinois • 501(c)(3)
+                </div>
               </div>
             </div>
+            <span className="shrink-0 text-[2.8cqw] font-semibold px-[2.4cqw] py-[0.6cqw] rounded-full bg-white/15 text-neutral-200">
+              {shortTier}
+            </span>
           </div>
-          <span className="shrink-0 text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 text-neutral-200">
-            {shortTier}
-          </span>
-        </div>
 
-        <div className="flex items-end justify-between gap-3">
-          <div className="min-w-0 space-y-2">
+          <div className="flex-1 min-h-0 py-[3cqw] flex flex-col justify-center gap-[2.5cqw]">
             <div className="min-w-0">
-              <div className="text-[10px] text-neutral-400">
-                {lang === 'en' ? 'Cardholder Name' : '持卡人姓名'}
+              <div className="text-[2.8cqw] text-neutral-400">
+                {t('Cardholder Name', '持卡人姓名')}
               </div>
               <div
-                className="text-lg sm:text-xl font-medium tracking-tight text-white truncate"
+                className="text-[5.4cqw] font-medium tracking-tight text-white truncate"
                 title={name}
               >
                 {name}
               </div>
               {viaFamily && (
-                <div className="text-[10px] text-tan truncate">
-                  {lang === 'en' ? 'Covered by a family plan' : '由家庭会员共享'}
+                <div className="text-[2.8cqw] text-tan truncate">
+                  {t('Covered by a family plan', '由家庭会员共享')}
                 </div>
               )}
             </div>
-            <div className="flex gap-5 text-[11px]">
-              <div className="shrink-0">
-                <div className="text-[10px] text-neutral-400">
-                  {lang === 'en' ? 'Member ID' : '会员编号'}
-                </div>
-                <div className="font-mono text-neutral-200">{shortId}</div>
+
+            <div className="grid grid-cols-2 gap-[3cqw]">
+              <div className="min-w-0">
+                <div className="text-[2.8cqw] text-neutral-400">{t('Member ID', '会员编号')}</div>
+                <div className="font-mono text-[3.2cqw] text-neutral-200 truncate">{shortId}</div>
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] text-neutral-400">
-                  {lang === 'en' ? 'Valid Through' : '有效期至'}
+                <div className="text-[2.8cqw] text-neutral-400">
+                  {t('Valid Through', '有效期至')}
                 </div>
-                <div className="text-neutral-200 truncate">{validThrough}</div>
+                <div className="text-[3.2cqw] text-neutral-200 truncate">{validThrough}</div>
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setZoom(true)}
-            className="shrink-0 p-1 rounded-lg bg-white hover:ring-2 hover:ring-tan transition-all cursor-pointer"
-            aria-label={lang === 'en' ? 'Enlarge QR code' : '放大二维码'}
-            title={lang === 'en' ? 'Enlarge QR code' : '放大二维码'}
-          >
-            <QrCodeSvg text={qrText} className="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] block" />
-          </button>
+
+          <div className="pt-[3cqw] border-t border-white/10 flex items-center justify-between gap-[3cqw]">
+            <span className="text-[2.8cqw] text-neutral-400 truncate">
+              {t(
+                'Tap to enlarge · show the QR for merchant discounts',
+                '轻触放大二维码，出示给商家扫码',
+              )}
+            </span>
+            <QrCodeSvg
+              text={qrText}
+              className="w-[11cqw] h-[11cqw] shrink-0 block rounded-[0.8cqw] overflow-hidden"
+            />
+          </div>
         </div>
-      </div>
+      </button>
 
       {/* Action Buttons: Download PNG + Apple Wallet */}
       <div className="flex flex-col sm:flex-row items-center gap-3">
