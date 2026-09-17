@@ -3882,6 +3882,9 @@ function wireBusiness() {
 // empty box makes the page use its built-in lines. Limits match
 // functions/api/admin/tiers.js.
 const PLAN_MAX_LINES = 12;
+const PLAN_PREVIEW_MESSAGE = 'caaci-plan-preview'; // web/src/pages/PlanPreviewPage.tsx
+// Posts the open form's draft to its preview frame; replaced per open form.
+let sendPlanPreview = () => {};
 const linesOf = (text) =>
   text
     .split('\n')
@@ -3957,6 +3960,11 @@ function planForm(host, plan) {
         ${area(t('Card benefits (English page)', '卡片权益（英文页）'), 'features', (plan.features || []).join('\n'), onePerLine)}
         ${area(t('Card benefits (Chinese page)', '卡片权益（中文页）'), 'features_zh', (plan.features_zh || []).join('\n'), onePerLine)}
       </div>
+      <div class="mb-3">
+        <div class="form-label">${t('Preview (updates as you type, not saved yet)', '预览（随输入更新，尚未保存）')}</div>
+        <iframe src="/plan-preview/" data-plan-preview title="${esc(t('Plan card preview', '方案卡片预览'))}"
+          class="w-100 border rounded" style="height: 560px" loading="lazy"></iframe>
+      </div>
       <p>
         <button type="submit" class="btn btn-primary">${t('Save', '保存')}</button>
         <button type="button" class="btn" data-act="cancel">${t('Cancel', '取消')}</button>
@@ -3967,6 +3975,30 @@ function planForm(host, plan) {
   const form = host.querySelector('form');
   const msg = form.querySelector('[data-msg]');
   const val = (f) => form.querySelector(`[data-f="${f}"]`).value;
+  // Live preview: /plan-preview/ draws the real /membership/ card from the
+  // draft posted to it — on every keystroke, and when it says it is ready.
+  const frame = form.querySelector('[data-plan-preview]');
+  const draft = () => {
+    const dollars = parseFloat(val('price'));
+    const cents = Math.round(dollars * 100);
+    return {
+      ...plan,
+      price_cents: paid && dollars >= 1 && dollars <= 10000 ? cents : plan.price_cents,
+      description: val('description').trim(),
+      description_zh: val('description_zh').trim(),
+      features: linesOf(val('features')).slice(0, PLAN_MAX_LINES),
+      features_zh: linesOf(val('features_zh')).slice(0, PLAN_MAX_LINES),
+    };
+  };
+  sendPlanPreview = () => {
+    if (!frame.isConnected) return;
+    frame.contentWindow?.postMessage(
+      { type: PLAN_PREVIEW_MESSAGE, tier: draft() },
+      window.location.origin,
+    );
+  };
+  form.addEventListener('input', sendPlanPreview);
+  frame.addEventListener('load', sendPlanPreview);
   form.querySelector('[data-act="cancel"]').addEventListener('click', () => {
     host.innerHTML = '';
   });
@@ -4023,6 +4055,11 @@ function planForm(host, plan) {
 }
 
 function wirePlans() {
+  // The preview frame asks for the draft once its app has started listening.
+  window.addEventListener('message', (e) => {
+    if (e.origin === window.location.origin && e.data?.type === `${PLAN_PREVIEW_MESSAGE}-ready`)
+      sendPlanPreview();
+  });
   const tab = $('[data-tab="plans"]');
   if (tab) tab.addEventListener('click', () => loadPlans());
 }

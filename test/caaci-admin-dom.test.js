@@ -2901,6 +2901,41 @@ test('admin plans: lists prices and card text, saves copy without asking, confir
     // Copy only: one line per benefit, blanks dropped, no price sent, no confirm.
     rows()[1].querySelector('[data-act="edit"]').click();
     assert.equal(form().querySelector('[data-f="features"]').value, 'Up to 3 people\nKids perks');
+
+    // The preview frame gets the unsaved draft on every edit and when it says it is ready.
+    const frame = form().querySelector('iframe[data-plan-preview]');
+    assert.equal(frame.getAttribute('src'), '/plan-preview/');
+    const previews = [];
+    frame.contentWindow.postMessage = (data, origin) => previews.push({ data, origin });
+    setField('price', '75.5');
+    setField('features_zh', '家庭 A\n\n家庭 B');
+    form().dispatchEvent(new window.Event('input', { bubbles: true }));
+    assert.equal(previews.length, 1);
+    assert.equal(previews[0].origin, 'https://caaci.example');
+    assert.equal(previews[0].data.type, 'caaci-plan-preview');
+    assert.equal(previews[0].data.tier.id, 'family');
+    assert.equal(previews[0].data.tier.price_cents, 7550);
+    assert.deepEqual(previews[0].data.tier.features_zh, ['家庭 A', '家庭 B']);
+    setField('price', 'abc'); // not a price yet: the card keeps the saved one
+    window.dispatchEvent(
+      new window.MessageEvent('message', {
+        origin: 'https://caaci.example',
+        data: { type: 'caaci-plan-preview-ready' },
+      }),
+    );
+    assert.equal(previews.length, 2);
+    assert.equal(previews[1].data.tier.price_cents, 6000);
+    // a message from another origin is ignored
+    window.dispatchEvent(
+      new window.MessageEvent('message', {
+        origin: 'https://evil.example',
+        data: { type: 'caaci-plan-preview-ready' },
+      }),
+    );
+    assert.equal(previews.length, 2);
+    setField('price', '60.00');
+    setField('features_zh', '最多 3 人');
+
     setField('features', '  Up to 3 people \n\n Senior care ');
     await submit();
     assert.equal(asked.length, 0);

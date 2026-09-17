@@ -187,6 +187,8 @@ const SPA_ROUTES = [
   // Public event registration. The _redirects rewrites above serve this copy at
   // /events/<slug>/register/, where the page reads the slug from the path.
   'event-register',
+  // The admin Plans tab's edit preview (web/src/pages/PlanPreviewPage.tsx).
+  'plan-preview',
 ];
 const WEB_DIST = join(ROOT, 'web', 'dist');
 try {
