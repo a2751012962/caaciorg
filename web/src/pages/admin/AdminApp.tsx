@@ -168,7 +168,7 @@ export function AdminApp() {
 
   if (!auth.ready || !auth.user)
     return (
-      <div className="min-h-screen bg-surface-3 font-poppins">
+      <div className="min-h-screen bg-white font-poppins">
         {header}
         <Spinner label={t('Checking access…', '正在验证权限…')} />
       </div>
@@ -176,7 +176,7 @@ export function AdminApp() {
 
   if (!isAdmin)
     return (
-      <div className="min-h-screen bg-surface-3 font-poppins">
+      <div className="min-h-screen bg-white font-poppins">
         {header}
         <div className="max-w-md mx-auto px-4 py-16">
           <Notice tone="error">
@@ -209,14 +209,15 @@ export function AdminApp() {
               aria-current={on ? 'page' : undefined}
               onClick={() => go(x.id)}
               className={`relative shrink-0 inline-flex items-center gap-2.5 min-h-[44px] px-3.5 rounded-full text-sm cursor-pointer transition-colors whitespace-nowrap ${
-                on ? 'text-white font-semibold' : 'text-neutral-600 hover:text-neutral-900'
+                on ? 'text-ink font-semibold' : 'text-neutral-600 hover:text-neutral-900'
               }`}
             >
+              {/* The page is white; grey is the mark of the tab that has focus. */}
               {on && (
                 <motion.span
                   layoutId="admin-tab-pill"
                   transition={fluidTab}
-                  className="absolute inset-0 rounded-full bg-brick shadow-sm"
+                  className="absolute inset-0 rounded-full bg-neutral-100"
                   aria-hidden
                 />
               )}
@@ -230,9 +231,9 @@ export function AdminApp() {
   );
 
   return (
-    <div className="min-h-screen bg-surface-3 font-poppins text-neutral-800">
+    <div className="min-h-screen bg-white font-poppins text-neutral-800">
       {header}
-      <div className="lg:hidden sticky top-16 z-30 bg-surface-3/95 backdrop-blur border-b border-neutral-200/60">
+      <div className="lg:hidden sticky top-16 z-30 bg-white/95 backdrop-blur border-b border-neutral-200/60">
         {nav(false)}
       </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:flex lg:gap-8">
