@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import {
-  CARD,
   INPUT,
   LABEL,
   Notice,
@@ -139,7 +138,7 @@ export function MerchantPage({ lang }: { lang: Lang }) {
         <Spinner label={t('Loading…', '加载中…')} />
       ) : (
         <>
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid sm:grid-cols-2 gap-6 sm:gap-10 items-start">
             <div className="bg-ink text-white rounded-2xl p-6 shadow-xl border border-white/10">
               <p className="text-[11px] text-neutral-400">{pickName(m, lang)}</p>
               {m.kind === 'internal' ? (
@@ -179,7 +178,7 @@ export function MerchantPage({ lang }: { lang: Lang }) {
               </div>
             </div>
 
-            <div className={CARD}>
+            <div>
               <span className="text-xs font-semibold text-brick block mb-3">
                 {t('Statements', '月结对账单')}
               </span>
@@ -219,7 +218,7 @@ export function MerchantPage({ lang }: { lang: Lang }) {
             </div>
           </div>
 
-          <div className={CARD}>
+          <div className="pt-6 border-t border-neutral-200/80">
             <div className="flex items-center justify-between gap-3 mb-3">
               <span className="text-xs font-semibold text-brick">{t('Charges', '扣币记录')}</span>
               <span className="text-[11px] text-neutral-500">

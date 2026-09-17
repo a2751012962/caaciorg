@@ -129,7 +129,7 @@ function PendingInviteRow({
   };
 
   return (
-    <div className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+    <div className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
       <div className="flex items-start gap-2.5 min-w-0">
         <Clock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
         <div className="min-w-0">
@@ -215,7 +215,7 @@ export function FamilySection({
   if (!family) {
     if (!loading) return null;
     return (
-      <div className="bg-white rounded-2xl border border-neutral-200/90 p-6 sm:p-7 shadow-xs">
+      <div>
         <div className="flex items-center gap-2 text-xs text-neutral-500">
           <Users className="w-4 h-4 text-neutral-400" />
           <span>{t('Loading your family…', '正在加载家庭信息…')}</span>
@@ -377,7 +377,7 @@ export function FamilySection({
   );
 
   const planSummary = (extra?: { label: string; value: string }) => (
-    <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-3">
+    <div className="space-y-3">
       <div className="text-sm font-bold text-neutral-900 break-words">
         {family.household?.name || t('Your family', '你的家庭')}
       </div>
@@ -431,7 +431,7 @@ export function FamilySection({
       <form
         onSubmit={submitInvite}
         noValidate
-        className="p-4 bg-neutral-50/80 rounded-2xl border border-neutral-200/80 space-y-3"
+        className="pt-5 border-t border-neutral-200/80 space-y-3"
       >
         <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800">
           <UserPlus className="w-4 h-4 text-brick" />
@@ -505,7 +505,7 @@ export function FamilySection({
       <form
         onSubmit={submitAdd}
         noValidate
-        className="p-4 bg-neutral-50/80 rounded-2xl border border-neutral-200/80 space-y-3"
+        className="pt-5 border-t border-neutral-200/80 space-y-3"
       >
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800">
@@ -565,8 +565,8 @@ export function FamilySection({
   const shownEvents = showAllEvents ? family.events : family.events.slice(0, 5);
 
   return (
-    <div className="bg-white rounded-2xl border border-neutral-200/90 p-6 sm:p-7 shadow-xs space-y-6">
-      <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <h3 className="text-base sm:text-lg font-bold text-ink">
           {lang === 'en' ? 'Family Plan & Shared Benefits' : '家庭方案与权益共享'}
         </h3>
@@ -720,14 +720,14 @@ export function FamilySection({
           {planSummary()}
 
           {/* People */}
-          <div className="space-y-2">
+          <div className="space-y-2 pt-5 border-t border-neutral-200/80">
             <div className="flex items-center justify-between">
               <span className={sectionLabel}>{t('People', '成员')}</span>
               <span className="text-[11px] text-neutral-500">
                 {t(`max ${seats.limit}, including you`, `最多 ${seats.limit} 人（含你本人）`)}
               </span>
             </div>
-            <div className="divide-y divide-neutral-100">
+            <div className="divide-y divide-neutral-200/80">
               {family.people.map((p) => {
                 const rel = relLabel(p.relationship, lang);
                 const last = !p.is_founder && others <= 1;
@@ -824,7 +824,7 @@ export function FamilySection({
                             <button
                               type="submit"
                               disabled={!!busy}
-                              className="min-h-[40px] px-3.5 py-2 rounded-lg bg-brick hover:brightness-110 text-white text-xs font-semibold cursor-pointer whitespace-nowrap disabled:opacity-50"
+                              className="shrink-0 whitespace-nowrap min-h-[40px] px-3.5 py-2 rounded-lg bg-brick hover:brightness-110 text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
                             >
                               {busy === `row-invite:${p.id}`
                                 ? t('Working…', '处理中…')
@@ -833,7 +833,7 @@ export function FamilySection({
                             <button
                               type="button"
                               onClick={() => setRowInvite(null)}
-                              className="min-h-[40px] px-3 py-2 rounded-lg border border-neutral-200 text-neutral-600 text-xs font-medium cursor-pointer"
+                              className="shrink-0 whitespace-nowrap min-h-[40px] px-3 py-2 rounded-lg border border-neutral-200 text-neutral-600 text-xs font-medium cursor-pointer"
                             >
                               {t('Cancel', '取消')}
                             </button>
@@ -849,9 +849,9 @@ export function FamilySection({
 
           {/* Pending invitations */}
           {pending.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2 pt-5 border-t border-neutral-200/80">
               <span className={sectionLabel}>{t('Pending invitations', '待接受的邀请')}</span>
-              <div className="divide-y divide-neutral-100">
+              <div className="divide-y divide-neutral-200/80">
                 {pending.map((inv) => (
                   <PendingInviteRow
                     key={inv.id}
@@ -880,12 +880,12 @@ export function FamilySection({
 
           {/* Family activity log */}
           {family.events.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-neutral-200">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-700 pt-2">
+            <div className="space-y-2 pt-5 border-t border-neutral-200/80">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-700">
                 <History className="w-3.5 h-3.5 text-neutral-400" />
                 <span>{t('Family Activity Log', '家庭动态记录')}</span>
               </div>
-              <div className="space-y-1.5">
+              <div className="divide-y divide-neutral-200/80">
                 {shownEvents.map((ev, i) => {
                   const label = Object.hasOwn(EVENT_LABEL, ev.type) ? EVENT_LABEL[ev.type] : null;
                   // Name-only people have no email; their events carry subject_name.
@@ -893,7 +893,7 @@ export function FamilySection({
                   return (
                     <div
                       key={`${ev.created_at}-${i}`}
-                      className="text-xs text-neutral-600 flex items-start gap-2 bg-neutral-50 px-3 py-2 rounded-lg"
+                      className="text-xs text-neutral-600 flex items-start gap-2 py-3"
                     >
                       <span className="font-mono text-[11px] text-neutral-400 shrink-0 mt-0.5">
                         {fmtDate(ev.created_at, lang, {
@@ -929,7 +929,7 @@ export function FamilySection({
           )}
 
           {/* Dissolve family */}
-          <div className="pt-2 flex flex-col items-end gap-1">
+          <div className="pt-5 border-t border-neutral-200/80 flex flex-col items-end gap-1">
             <button
               type="button"
               onClick={() => setShowDissolveModal(true)}
@@ -953,7 +953,7 @@ export function FamilySection({
       {role === 'member' && (
         <div className="space-y-4">
           {planSummary({ label: t('Founder', '创建人'), value: family.founder?.email || '—' })}
-          <p className="text-xs text-emerald-800 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+          <p className="text-xs text-neutral-700 border-l-2 border-neutral-300 pl-3">
             {t(
               'While the family plan is active you share its benefits, including the digital membership card.',
               '家庭会员有效期间，你共享其会员权益，包括电子会员卡。',
@@ -974,7 +974,7 @@ export function FamilySection({
       {/* FAMILY PLAN, NO FAMILY YET */}
       {canStart && (
         <div className="space-y-4">
-          <div className="p-5 bg-gradient-to-br from-neutral-50 to-amber-50/40 rounded-2xl border border-neutral-200 space-y-2 text-center">
+          <div className="space-y-2 text-center">
             <div className="w-11 h-11 rounded-full bg-brick/10 text-brick flex items-center justify-center mx-auto">
               <Sparkles className="w-5 h-5" />
             </div>
@@ -994,7 +994,7 @@ export function FamilySection({
 
       {/* NOT ON A FAMILY PLAN */}
       {role === 'none' && !canStart && forMe.length === 0 && !missingFocus && (
-        <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-200 text-center space-y-3">
+        <div className="space-y-3">
           <p className="text-xs text-neutral-600">
             {familyPriceLabel
               ? t(
