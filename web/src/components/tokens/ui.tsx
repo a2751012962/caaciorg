@@ -74,11 +74,14 @@ export function ToolPage({
   eyebrow,
   title,
   wide = false,
+  action,
   children,
 }: {
   eyebrow: string;
   title: string;
   wide?: boolean;
+  /** a small link beside the title, e.g. back to /admin/ */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -94,8 +97,13 @@ export function ToolPage({
         <div
           className={`${wide ? 'max-w-5xl' : 'max-w-xl'} mx-auto px-4 sm:px-6 lg:px-8 font-poppins`}
         >
-          <span className={EYEBROW}>{eyebrow}</span>
-          <h1 className="text-2xl sm:text-3xl font-bold text-maroon tracking-tight">{title}</h1>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <span className={EYEBROW}>{eyebrow}</span>
+              <h1 className="text-2xl sm:text-3xl font-bold text-maroon tracking-tight">{title}</h1>
+            </div>
+            {action}
+          </div>
           <div className="w-12 h-0.5 bg-brick mt-3 mb-6 rounded-full" />
           <div className="space-y-5">{children}</div>
         </div>
