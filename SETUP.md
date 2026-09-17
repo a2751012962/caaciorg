@@ -588,6 +588,66 @@ Both write `event_volunteers`.
   live Supabase database and sends real email. Sign up there against a separate,
   temporary published event, then delete that event (its volunteers cascade).
 
+## Tokens · 华协币 (`/charge/`, `/merchant/`, `/token-admin/`, `/api/tokens/*`)
+
+Stored value members spend by showing the QR on their member card. **$1 = 10 tokens.**
+CAACI pays partner merchants the face value of what they took, monthly, outside this
+system (cheque / Zelle); the system records what is owed.
+
+- **Off by default.** Everything is dark unless the Pages variable `TOKENS_ENABLED` is
+  `1`: every `/api/tokens/*` and token admin endpoint answers 404, the wallet on
+  `/account/` renders nothing, `/api/verify` keeps showing the full name and no
+  merchant button, and the webhook grants nothing. Unset it to switch the feature off
+  again; member cards and verification are untouched.
+- **Roles: root > admin > merchant > user.** `members.is_admin` is unchanged.
+  `members.is_root` can only be set from the SQL editor — a trigger refuses the change
+  from the API's `service_role`:
+  `update public.members set is_root = true, is_admin = true where email = '…';`
+  With tokens on, only root appoints or removes admins (`/token-admin/` → Settings, or
+  `POST /api/admin/roles`); `/api/admin/members` refuses `is_admin`. A merchant is a row
+  in `merchant_staff`, created by an admin from the person's existing account email.
+- **Who gets tokens.** Each membership year: student 150, individual 450, family 900
+  (one grant, on the founder, who can send tokens to the family from `/account/`); free,
+  business and honorary get none (`token_settings.grants`, root-editable). Granted on
+  checkout, on renewal and on an upgrade (topped up to the new plan). Existing members
+  are **not** back-filled: an admin scans their card at an event and taps "Grant", which
+  is safe to tap twice. Granted tokens expire with the membership year; bought tokens
+  (Stripe packs of $10 / $20 / $50 / $100 plus the 3.5% card fee, or cash at a desk,
+  minimum $5) never expire. A charge draws the earliest-expiring tokens first.
+- **Taking tokens.** The clerk scans the member's QR with the phone camera (not
+  WeChat: its browser blocks Google sign-in and has its own session), taps "Merchant
+  sign-in" on `/api/verify`, signs in once, and lands on `/charge/?m=<member>`: menu
+  buttons (prices read on the server), a custom amount, a spoken confirmation, then an
+  Undo. At most 500 tokens per charge. The QR is static by the board's decision, so the
+  **email receipt with its "this wasn't me" link is the only way a member notices a
+  charge made without them**: its outcome is stamped on the ledger row
+  (`receipt_sent_at` / `receipt_error`) and failures show on the back-office overview.
+- **Merchants** void their own charge within 24 hours and can never add tokens. **Admins**
+  mint at most 500 tokens per action and 2000 free tokens per day (root is exempt), take
+  cash (its own ledger kind, with the amount, so the cash box reconciles per admin per
+  day), void anything, and resolve disputes. Three upheld disputes in a calendar month
+  suspend a partner shop until an admin re-activates it.
+- **Statements.** `/token-admin/` → Merchants → "Close last month" stamps every
+  unsettled row before the cut-off onto a statement and records what is due; pay it
+  outside the system, then "Mark paid" with the cheque number. Under $20 nothing is
+  closed and the rows roll into the next month. A void or an upheld dispute after a
+  month was paid is an unstamped positive row, so it comes off the next statement by
+  itself. Charges in dispute wait for their outcome. CAACI's own merchant
+  ("CAACI Events", for event stalls; every admin can charge there) is never settled.
+- **Migration:** `0024_tokens.sql`. Paste it into the Supabase SQL editor (never
+  `supabase db push`) **before** setting `TOKENS_ENABLED`. It only adds (tables, functions,
+  `members.is_root` and its guard trigger), so deployed code keeps working. Every table is
+  server-only and every function is `service_role`-only. `test/tokens-ledger.test.js`
+  runs the file in PGlite and drives the ledger functions; confirm the live project
+  afterwards against `pg_policies` and `has_function_privilege`.
+- **Launch checklist:** apply 0024 → set root by SQL → set `TOKENS_ENABLED=1` on the
+  **preview** environment only and try a grant, a cash top-up, a charge, an undo and a
+  dispute there (preview uses the live database: use a test member and void what you
+  made) → enter the event menu under Merchants → add the volunteers as staff of
+  "CAACI Events" (they must have signed up first) → set `TOKENS_ENABLED=1` on production.
+  Have the treasurer confirm Illinois's rules for stored value / gift certificates
+  (expiry, refunds, unclaimed property) before selling tokens to the public.
+
 ## Family invitations (`/api/family`)
 
 A member on the family plan (`members.tier_id = 'family'`) is the family's

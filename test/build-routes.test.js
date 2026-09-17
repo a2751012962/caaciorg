@@ -33,6 +33,10 @@ test('build: the React site is written at every route it serves, in English and 
     'business-services/',
     'thank-you/',
     'event-register/',
+    // tokens: a scanned member card lands on /charge/?m=…
+    'charge/',
+    'merchant/',
+    'token-admin/',
     'plan-preview/',
   ];
   const home = await dist('index.html');

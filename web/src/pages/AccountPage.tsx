@@ -33,6 +33,7 @@ import { ContactSection } from '../components/ContactSection';
 import { DigitalMemberCard } from '../components/DigitalMemberCard';
 import { FamilySection } from '../components/FamilySection';
 import { SecurityCard } from './account/SecurityCard';
+import { TokenWallet } from '../components/tokens/TokenWallet';
 import { RecoveryNotice } from './account/RecoveryNotice';
 import { ProfileEdit } from './account/ProfileEditModal';
 import { EventFeedback } from './account/EventFeedback';
@@ -1255,7 +1256,11 @@ export function AccountPage({
                 )}
               </div>
 
-              {/* 2. 家庭系统 (按身份显示不同内容) */}
+              {/* 2. 华协币钱包: renders nothing until the server says tokens are on.
+                  On a phone it belongs to the Pass tab: the QR above is what pays. */}
+              <TokenWallet lang={lang} className={`${shownOn('pass')} lg:block`} />
+
+              {/* 3. 家庭系统 (按身份显示不同内容) */}
               <div id="family-section" className={`${shownOn('family')} lg:block scroll-mt-24`}>
                 <FamilySection
                   lang={lang}

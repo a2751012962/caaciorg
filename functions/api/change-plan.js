@@ -5,6 +5,7 @@
 // normal Checkout Session and returns { url } — so the client handles both the
 // same way.
 import { json, bad, sb, stripe, tierPrice, isFreeTier, activateFreeTier } from './_lib.js';
+import { grantMembershipTokens } from './_tokens.js';
 
 export async function onRequestPost({ request, env }) {
   let body;
@@ -76,6 +77,8 @@ export async function onRequestPost({ request, env }) {
 
     // Reflect the change immediately; renewal date (expires_at) is unchanged.
     await DB.update('members', { id: member.id }, { tier_id: tier.id });
+    // An upgrade tops the year's tokens up to the new plan's amount (never down).
+    await grantMembershipTokens(env, DB, member.id);
     return json({ ok: true, tier_id: tier.id });
   } catch (e) {
     return bad(e.message, 500);
