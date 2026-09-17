@@ -220,7 +220,7 @@ export function AdminProvider({
       .from('membership_tiers')
       .select('id,name')
       .order('sort_order')
-      .then(({ data }) => setTiers((data as Tier[] | null) ?? []));
+      .then(({ data }) => setTiers(Array.isArray(data) ? (data as Tier[]) : []));
   }, []);
   const tierName = useCallback(
     (id: string | null | undefined) => (id ? tiers.find((x) => x.id === id)?.name || id : '—'),
@@ -313,7 +313,11 @@ function CodeDialog({
     );
   }, [send, t]);
 
+  // A ref, not the effect alone: React's dev double-run would email twice.
+  const opened = useRef(false);
   useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
     if (sentRecently())
       setStatus(t('Use the code we just emailed you.', '请输入刚发送到您邮箱的验证码。'));
     else void sendNow();
@@ -546,74 +550,92 @@ export function DataTable<T>({
   expand?: (row: T) => ReactNode;
   actions?: (row: T) => ReactNode;
 }) {
+  // Only one layout is mounted, so an editor in `expand` exists once (its state,
+  // its requests) rather than once per layout with one of them hidden.
+  const wide = useWide();
   return (
     <div className="bg-surface-2 rounded-2xl border border-neutral-200/80 shadow-xs overflow-hidden">
-      <table className="w-full text-sm hidden md:table">
-        <thead>
-          <tr className="text-left text-xs font-bold text-neutral-500 border-b border-neutral-200/80">
-            {columns.map((c) => (
-              <th key={c.key} className={`px-4 py-3 font-bold ${c.className ?? ''}`}>
-                {c.label}
-              </th>
-            ))}
-            {actions && <th className="px-4 py-3" />}
-          </tr>
-        </thead>
-        <tbody>
+      {wide ? (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs font-bold text-neutral-500 border-b border-neutral-200/80">
+              {columns.map((c) => (
+                <th key={c.key} className={`px-4 py-3 font-bold ${c.className ?? ''}`}>
+                  {c.label}
+                </th>
+              ))}
+              {actions && <th className="px-4 py-3" />}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const extra = expand?.(r);
+              return (
+                <FragmentRows key={rowKey(r)}>
+                  <tr className="border-b border-neutral-200/60 last:border-0 hover:bg-white/70 transition-colors align-middle">
+                    {columns.map((c) => (
+                      <td key={c.key} className={`px-4 py-3 text-neutral-700 ${c.className ?? ''}`}>
+                        {c.render(r)}
+                      </td>
+                    ))}
+                    {actions && (
+                      <td className="px-4 py-2">
+                        <div className="flex items-center justify-end gap-2">{actions(r)}</div>
+                      </td>
+                    )}
+                  </tr>
+                  {extra && (
+                    <tr className="border-b border-neutral-200/60 bg-white">
+                      <td colSpan={columns.length + (actions ? 1 : 0)} className="p-4">
+                        {extra}
+                      </td>
+                    </tr>
+                  )}
+                </FragmentRows>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <ul className="divide-y divide-neutral-200/70">
           {rows.map((r) => {
             const extra = expand?.(r);
             return (
-              <FragmentRows key={rowKey(r)}>
-                <tr className="border-b border-neutral-200/60 last:border-0 hover:bg-white/70 transition-colors align-middle">
-                  {columns.map((c) => (
-                    <td key={c.key} className={`px-4 py-3 text-neutral-700 ${c.className ?? ''}`}>
-                      {c.render(r)}
-                    </td>
+              <li key={rowKey(r)} className="p-4 space-y-2">
+                {columns
+                  .filter((c) => !c.wideOnly)
+                  .map((c) => (
+                    <div key={c.key} className="flex items-baseline justify-between gap-3 text-sm">
+                      <span className="text-xs font-bold text-neutral-500 shrink-0">{c.label}</span>
+                      <span className="text-right text-neutral-700 min-w-0 break-words">
+                        {c.render(r)}
+                      </span>
+                    </div>
                   ))}
-                  {actions && (
-                    <td className="px-4 py-2">
-                      <div className="flex items-center justify-end gap-2">{actions(r)}</div>
-                    </td>
-                  )}
-                </tr>
-                {extra && (
-                  <tr className="border-b border-neutral-200/60 bg-white">
-                    <td colSpan={columns.length + (actions ? 1 : 0)} className="p-4">
-                      {extra}
-                    </td>
-                  </tr>
-                )}
-              </FragmentRows>
+                {actions && <div className="flex flex-wrap gap-2 pt-1">{actions(r)}</div>}
+                {extra && <div className="pt-2">{extra}</div>}
+              </li>
             );
           })}
-        </tbody>
-      </table>
-      <ul className="md:hidden divide-y divide-neutral-200/70">
-        {rows.map((r) => {
-          const extra = expand?.(r);
-          return (
-            <li key={rowKey(r)} className="p-4 space-y-2">
-              {columns
-                .filter((c) => !c.wideOnly)
-                .map((c) => (
-                  <div key={c.key} className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="text-xs font-bold text-neutral-500 shrink-0">{c.label}</span>
-                    <span className="text-right text-neutral-700 min-w-0 break-words">
-                      {c.render(r)}
-                    </span>
-                  </div>
-                ))}
-              {actions && <div className="flex flex-wrap gap-2 pt-1">{actions(r)}</div>}
-              {extra && <div className="pt-2">{extra}</div>}
-            </li>
-          );
-        })}
-      </ul>
+        </ul>
+      )}
     </div>
   );
 }
 function FragmentRows({ children }: { children: ReactNode }) {
   return <>{children}</>;
+}
+
+/** True at Tailwind's md breakpoint and up; follows window resizes. */
+export function useWide(query = '(min-width: 768px)') {
+  const [wide, setWide] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const on = () => setWide(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, [query]);
+  return wide;
 }
 
 /** Previous / next for offset paging. */
