@@ -101,10 +101,16 @@ export function NewsEditor({
           // Jodit's default frame style stretches every table to the full width
           // and draws cell borders, so a template's button showed as a wide,
           // boxed bar the email does not have. Keep the rest of that style.
-          iframeStyle: String(Jodit.defaultOptions?.iframeStyle || '').replace(
-            /table\{[^}]*\}th,td\{[^}]*\}/,
-            '',
-          ),
+          // Then the frame's body is the width of the email (the templates are
+          // 600px, functions/api/_event-emails.js), set on the left as a mail
+          // client shows it — not a 600px column floating in a 1200px frame.
+          iframeStyle:
+            String(Jodit.defaultOptions?.iframeStyle || '').replace(
+              /table\{[^}]*\}th,td\{[^}]*\}/,
+              '',
+            ) +
+            'body{max-width:600px;margin:0;padding:20px 24px;box-sizing:content-box}' +
+            'body table[width="100%"]{margin-left:0 !important}',
           controls: { font: { list: Jodit.atom(NEWS_FONTS) } },
           uploader: {
             url: '/api/admin/media',

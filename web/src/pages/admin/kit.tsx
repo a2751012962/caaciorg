@@ -21,28 +21,27 @@ import { supabase } from '../../lib/supabase';
 import { loginUrl } from '../../lib/auth';
 import type { Lang } from '../../lib/lang';
 import { mountIn, panelFrom, panelIn, panelShown, riseFromSm, shown } from '../../lib/motion';
-import {
-  CARD,
-  INPUT,
-  LABEL,
-  Notice,
-  PRIMARY,
-  SECONDARY,
-  Spinner,
-} from '../../components/tokens/ui';
+import { CARD, LABEL, Notice, PRIMARY, Spinner } from '../../components/tokens/ui';
 
 export {
   CARD,
   DANGER,
   EYEBROW,
-  INPUT,
   LABEL,
   Notice,
   PRIMARY,
-  SECONDARY,
   Spinner,
   Status,
 } from '../../components/tokens/ui';
+
+// The console's own INPUT and SECONDARY (the site's are in tokens/ui.tsx). The
+// page is white and grey is the mark of focus, so: inputs are white with a
+// light rule, not grey boxes; the second-rank button is a grey pill — Bencho's
+// window-tab pill — not a white one with a dark outline.
+export const INPUT =
+  'w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-white border border-neutral-200 text-neutral-900 text-sm hover:border-neutral-300 focus:outline-none focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200';
+export const SECONDARY =
+  'shrink-0 whitespace-nowrap min-h-[44px] px-5 py-2.5 rounded-full bg-neutral-100 text-ink hover:bg-neutral-200 text-xs font-semibold cursor-pointer transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed';
 export { InlineConfirm } from '../../components/bencho/InlineConfirm';
 export { LiquidToggle } from '../../components/bencho/LiquidToggle';
 export { DragStepper } from '../../components/bencho/DragStepper';
@@ -60,9 +59,10 @@ export const DIVIDED = 'divide-y divide-neutral-200/80 border-y border-neutral-2
 export const SELECT = `${INPUT} pr-9 cursor-pointer`;
 /** A multi-line INPUT. */
 export const TEXTAREA = `${INPUT} min-h-[96px] leading-relaxed`;
-/** Small pill button for row actions (44px tall for touch). */
+/** A row action: quiet text, grey under the pointer, 44px tall for touch. A
+ *  row of six outlined pills read as six little boxes; six words do not. */
 export const ROW_BTN =
-  'h-11 px-4 rounded-full border border-neutral-200 bg-white text-xs font-semibold text-neutral-700 hover:border-neutral-800 hover:text-neutral-900 inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap';
+  'h-11 px-3 rounded-full text-xs font-semibold text-neutral-600 hover:bg-neutral-100 hover:text-ink aria-expanded:bg-neutral-100 aria-expanded:text-ink inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap';
 
 // ------------------------------------------------------------------ formats
 

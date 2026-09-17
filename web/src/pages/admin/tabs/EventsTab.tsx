@@ -139,6 +139,8 @@ export default function EventsTab() {
             animate={shown}
             exit={listExit}
             transition={mountIn}
+            /* ruled off from the list below, so the form and the rows never read as one */
+            className="pb-6 border-b border-neutral-200/80"
           >
             <EventForm
               ev={editing === 'new' ? null : editing}
@@ -209,10 +211,12 @@ export default function EventsTab() {
       >
         <ul className={DIVIDED}>
           <AnimatePresence initial={false}>
+            {/* No `layout` on the rows: when the form above opens, a layout
+                animation drew every row at its old position, over the form,
+                until it caught up — the rows never reorder, so nothing is lost. */}
             {rows.map((e, i) => (
               <motion.li
                 key={e.id}
-                layout
                 initial={riseFromSm}
                 animate={shown}
                 exit={listExit}
@@ -282,18 +286,6 @@ function EventRow({
           <div className="min-w-0">
             <p className="font-bold text-ink break-words">{e.title}</p>
             {e.title_zh && <p className="text-xs text-neutral-500 break-words">{e.title_zh}</p>}
-            {open && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                <button type="button" className={ROW_BTN} onClick={onCopy}>
-                  <Copy className="w-4 h-4" aria-hidden />
-                  {t('Copy registration link', '复制报名链接')}
-                </button>
-                <button type="button" className={ROW_BTN} onClick={onQr} aria-expanded={qrOpen}>
-                  <QrCode className="w-4 h-4" aria-hidden />
-                  {t('Registration QR code', '报名二维码')}
-                </button>
-              </div>
-            )}
           </div>
         </div>
         <div className="min-w-0 space-y-1 text-xs text-neutral-600">
@@ -303,7 +295,33 @@ function EventRow({
             {e.published ? t('Published', '已发布') : t('Draft', '草稿')}
           </Status>
         </div>
-        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+        {/* One line of quiet actions. The registration link and its QR code
+            are icons here (they were two labelled buttons under the title,
+            which wrapped onto two lines beside a picture). */}
+        <div className="flex flex-wrap items-center gap-1 lg:justify-end">
+          {open && (
+            <>
+              <button
+                type="button"
+                className={ROW_BTN}
+                onClick={onCopy}
+                title={t('Copy registration link', '复制报名链接')}
+                aria-label={t('Copy registration link', '复制报名链接')}
+              >
+                <Copy className="w-4 h-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className={ROW_BTN}
+                onClick={onQr}
+                aria-expanded={qrOpen}
+                title={t('Registration QR code', '报名二维码')}
+                aria-label={t('Registration QR code', '报名二维码')}
+              >
+                <QrCode className="w-4 h-4" aria-hidden />
+              </button>
+            </>
+          )}
           <button type="button" className={ROW_BTN} onClick={onEdit}>
             <Pencil className="w-4 h-4" aria-hidden />
             {t('Edit', '编辑')}
