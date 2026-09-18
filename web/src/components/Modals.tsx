@@ -4,6 +4,7 @@ import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
 import { usd } from '../lib/shared';
 import { FluidTabs } from './FluidTabs';
+import { TurnstileBox, useTurnstile } from './Turnstile';
 
 export type ModalType = 'donate' | 'events' | 'membership' | 'volunteer' | null;
 
@@ -332,6 +333,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
   const [notes, setNotes] = useState('');
   const [hp, setHp] = useState('');
   const [busy, setBusy] = useState(false);
+  const turnstile = useTurnstile('volunteer');
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState<VolunteerEvent[] | null>(null);
 
@@ -374,6 +376,12 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
       .filter(Boolean)
       .join('\n');
 
+    // A Turnstile token is spent by the request that carries it: read it, send
+    // it, reset the widget whatever the answer was.
+    const problem = turnstile.problem(!en);
+    if (problem) return setError(problem);
+    const token = turnstile.token();
+
     setError('');
     setBusy(true);
     const { ok, status, data } = await api<{ ok?: boolean; events?: VolunteerEvent[] }>(
@@ -385,8 +393,10 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
         message,
         events: chosen,
         _hp: hp,
+        'cf-turnstile-response': token,
       },
     );
+    turnstile.reset();
     setBusy(false);
     if (ok) {
       setSubmitted(Array.isArray(data.events) ? data.events : []);
@@ -597,6 +607,8 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
           {error}
         </div>
       )}
+
+      <TurnstileBox handle={turnstile} />
 
       <button
         type="submit"

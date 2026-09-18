@@ -71,16 +71,25 @@ const SUPABASE_URL_DEFAULT = 'https://wslzeqhipvibeflmxznh.supabase.co';
 const SUPABASE_ANON_KEY_DEFAULT =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzbHplcWhpcHZpYmVmbG14em5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NTA2NDAsImV4cCI6MjEwNDMyNjY0MH0.kQ0LZ-O2jVxnPaW-S9cAIeYFFTgrbb_ddXDJSzfrkXc';
 await mkdir(join(DIST, 'assets'), { recursive: true });
+// The Turnstile sitekey. Public like the anon key — it identifies the widget,
+// and only the paired secret (a Pages Function secret, never here) can redeem a
+// token. Hardcoded as a default for the same reason as the values above: the
+// Pages Git build has no env vars.
+const TURNSTILE_SITE_KEY_DEFAULT = '0x4AAAAAAE7ZfoeHJiYpT96x';
 const config = `window.CAACI_CONFIG = ${JSON.stringify(
   {
     SUPABASE_URL: process.env.SUPABASE_URL || SUPABASE_URL_DEFAULT,
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_DEFAULT,
+    TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY || TURNSTILE_SITE_KEY_DEFAULT,
   },
   null,
   2,
 )};\n`;
 await writeFile(join(DIST, 'assets', 'caaci-config.js'), config);
 await copyFile(join(ROOT, 'src', 'caaci-app.js'), join(DIST, 'assets', 'caaci-app.js'));
+// Imported by caaci-app.js (mirror forms) and by the React bundle, which
+// inlines it — the copy is what the mirrored pages' module import resolves to.
+await copyFile(join(ROOT, 'src', 'caaci-turnstile.js'), join(DIST, 'assets', 'caaci-turnstile.js'));
 // The site's typefaces (--caaci-font-sans / --caaci-font-mono), linked before
 // caaci-ui.css on every page that is not the React bundle (which @imports it).
 await copyFile(join(ROOT, 'src', 'caaci-fonts.css'), join(DIST, 'assets', 'caaci-fonts.css'));

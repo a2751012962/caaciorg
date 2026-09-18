@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from 'r
 import { motion } from 'motion/react';
 import { AlertTriangle, Calendar, Check, Gift, MapPin, RefreshCw } from 'lucide-react';
 import { SubpageHero } from '../components/SubpageHero';
+import { TurnstileBox, useTurnstile } from '../components/Turnstile';
 import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
 import { loginUrl, useAuth } from '../lib/auth';
@@ -224,6 +225,7 @@ export function EventRegisterPage({
   const [volPhone, setVolPhone] = useState('');
 
   const [busy, setBusy] = useState(false);
+  const turnstile = useTurnstile('event_register');
   const [error, setError] = useState('');
   const [done, setDone] = useState<Done | null>(null);
   const [registeredEmail, setRegisteredEmail] = useState('');
@@ -354,11 +356,18 @@ export function EventRegisterPage({
       focus('ev-vol-name');
       return;
     }
+    // A Turnstile token is spent by the request that carries it: read it, send
+    // it, reset the widget whatever the answer was.
+    const problem = turnstile.problem(!en);
+    if (problem) return setError(problem);
+    const token = turnstile.token();
+
     const body = {
       event: slug,
       email: address,
       answers: read.answers,
       _hp: hp,
+      'cf-turnstile-response': token,
       ...volunteerBody(volPrefilled, volChecked, volName, volPhone),
     };
 
@@ -371,6 +380,7 @@ export function EventRegisterPage({
     } = await api<PostResult>('/api/event-register', body, {
       auth: true,
     });
+    turnstile.reset();
     setBusy(false);
     if (!ok) {
       const server = data.error;
@@ -855,6 +865,8 @@ export function EventRegisterPage({
           <span>{error}</span>
         </div>
       )}
+
+      <TurnstileBox handle={turnstile} />
 
       <button type="submit" disabled={busy} className={`${PRIMARY} w-full`}>
         {busy ? (en ? 'Submitting…' : '提交中…') : en ? 'Submit' : '提交'}

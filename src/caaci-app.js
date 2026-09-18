@@ -12,6 +12,22 @@
 // mirrored page can reach that flow any more. Nothing in this module needs the
 // Supabase client; wireAuthNav only reads the session supabase-js already stored.
 import { usd } from './caaci-shared.js';
+import { mountTurnstile, turnstileUnavailable } from './caaci-turnstile.js';
+
+// Put a Turnstile widget in front of a form's submit button and hand back its
+// controls (or null when the script or sitekey is missing, in which case the
+// server refuses anyway and the form says so instead of posting into a 403).
+async function guardForm(form, action, zh) {
+  const box = document.createElement('div');
+  box.className = 'caaci-turnstile';
+  box.setAttribute('data-no-dynamic-translation', '');
+  const submit = form.querySelector(
+    'button[type=submit], input[type=submit], .et_pb_contact_submit',
+  );
+  if (submit?.parentNode) submit.parentNode.insertBefore(box, submit);
+  else form.append(box);
+  return mountTurnstile(box, action, { lang: zh ? 'zh' : 'en' });
+}
 
 const $ = (s, r = document) => r.querySelector(s);
 // POST helper. A rejected fetch (offline, DNS, CORS) resolves to a normal error
@@ -214,6 +230,7 @@ const VOLUNTEER_COPY = {
     thanks: "Thank you for volunteering! We'll be in touch soon.",
     failed: 'Could not send. Please try again.',
     sending: 'Sending…',
+    verify: 'Please wait a moment for the verification box, then send again.',
   },
   zh: {
     legend: '您想为哪些活动做志愿者？',
@@ -222,6 +239,7 @@ const VOLUNTEER_COPY = {
     thanks: '感谢您报名志愿者！我们会尽快与您联系。',
     failed: '提交失败，请重试。',
     sending: '提交中…',
+    verify: '请稍候，等验证框完成后再提交一次。',
   },
 };
 
@@ -299,6 +317,10 @@ export async function wireVolunteer() {
   const submitBtn = form.querySelector('.et_pb_contact_submit, [type=submit]');
   form.addEventListener('submit', onSubmit);
 
+  // `let`, assigned below: onSubmit is bound before the awaits and must be able
+  // to read this without a temporal-dead-zone error if someone submits early.
+  let guard = null;
+
   // Bots fill in every field they can find; a real visitor never sees this one.
   // Off-screen through .caaci-hp rather than an inline style (UI_GUIDELINE §4).
   const hp = promoNode('input', 'caaci-hp');
@@ -331,6 +353,8 @@ export async function wireVolunteer() {
     anyBox.checked = eventBoxes().length === 0;
   };
 
+  guard = await guardForm(form, 'volunteer', zh);
+
   // A failed list is not a failed page: the form still takes an "any event"
   // sign-up, which is what most people pick anyway.
   const events = await fetch('/api/volunteer')
@@ -354,6 +378,10 @@ export async function wireVolunteer() {
   async function onSubmit(e) {
     e.preventDefault();
     if (submitBtn?.disabled) return;
+    // A token is spent by the request that carries it, so the widget is reset
+    // after every attempt and the form waits if it has not solved yet.
+    const token = guard?.token() || '';
+    if (!token) return notice(form, guard ? copy.verify : turnstileUnavailable(zh), false);
     const v = (sel) => (form.querySelector(sel) || {}).value || '';
     const label = submitBtn?.textContent;
     if (submitBtn) {
@@ -369,7 +397,9 @@ export async function wireVolunteer() {
         .filter((b) => b.checked)
         .map((b) => b.value),
       _hp: hp.value,
+      'cf-turnstile-response': token,
     });
+    guard?.reset();
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.textContent = label;
@@ -387,15 +417,32 @@ export function wireContact() {
   const form = $('.et_pb_contact_form') || document.querySelector('form[class*=contact]');
   // /volunteer/ hands the same form to wireVolunteer, which claimed it first.
   if (!form || form.dataset.caaciVolunteer) return;
+  let guard = null;
+  void guardForm(form, 'contact', /^\/zh(\/|$)/.test(location.pathname)).then((g) => {
+    guard = g;
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    // Spent by the request that carries it, so: read, send, reset.
+    const zh = /^\/zh(\/|$)/.test(location.pathname);
+    const token = guard?.token() || '';
+    if (!token)
+      return notice(
+        form,
+        guard
+          ? 'Please wait a moment for the verification box, then send again.'
+          : turnstileUnavailable(zh),
+        false,
+      );
     const v = (sel) => (form.querySelector(sel) || {}).value || '';
     const { ok, data } = await api('/api/contact', {
       name: v('[name*=name]'),
       email: v('[name*=email]'),
       phone: v('[name*=phone]'),
       message: v('[name*=message],textarea'),
+      'cf-turnstile-response': token,
     });
+    guard?.reset();
     notice(
       form,
       ok ? 'Thank you! Your message has been sent.' : data.error || 'Could not send.',

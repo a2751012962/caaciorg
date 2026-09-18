@@ -25,6 +25,7 @@ import { json, bad, sb, sendEmail } from './_lib.js';
 import { validateQuestions, validateAnswers, perkOf, registrationOpen } from './_event-form.js';
 import { registrationConfirmation, emailLogo } from './_event-emails.js';
 import { EMAIL_RE, optionalUser, volunteerFields, saveVolunteer } from './_volunteers.js';
+import { requireHuman, turnstileToken } from './_turnstile.js';
 
 const EVENT_COLUMNS =
   'id,slug,title,title_zh,description,description_zh,starts_at,ends_at,location,perk_deadline,perk_item_zh,perk_item_en,registration_questions,published';
@@ -118,6 +119,12 @@ export async function onRequestPost({ request, env }) {
     .trim()
     .toLowerCase();
   if (email.length > 254 || !EMAIL_RE.test(email)) return bad('Enter a valid email address.');
+
+  // A registration mails the address it is given and writes the row for that
+  // (event, email) pair — both worth proving a person asked for. After the
+  // field checks above: a typo should not spend a single-use Turnstile token.
+  const human = await requireHuman(request, env, 'event_register', turnstileToken(b));
+  if (human.error) return human.error;
 
   try {
     const DB = sb(env);

@@ -17,6 +17,7 @@
 import { json, bad, sb, sendEmail } from './_lib.js';
 import { esc, emailLogo, volunteerConfirmation } from './_event-emails.js';
 import { optionalUser, EMAIL_RE, upcomingEventFilters, saveVolunteer } from './_volunteers.js';
+import { requireHuman, turnstileToken } from './_turnstile.js';
 
 const EVENT_COLUMNS = 'id,slug,title,title_zh,starts_at,ends_at,location';
 const MAX_EVENTS = 20;
@@ -93,6 +94,14 @@ export async function onRequestPost({ request, env }) {
   const wanted = wantedSlugs(b.events);
   if (wanted.error) return bad(wanted.error);
   const { slugs } = wanted;
+
+  // Last gate before anything is read, written or sent: this endpoint mails a
+  // CAACI-branded confirmation to whatever address it is given, so without it a
+  // script could point it at a stranger, repeatedly. It sits after the field
+  // checks above so a typo answers 400 without spending the visitor's token —
+  // Turnstile tokens are single-use, and a burnt one means solving again.
+  const human = await requireHuman(request, env, 'volunteer', turnstileToken(b));
+  if (human.error) return human.error;
 
   try {
     const DB = sb(env);

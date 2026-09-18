@@ -32,7 +32,7 @@ test('the dialog lists upcoming events from GET /api/volunteer', async () => {
 test('a sign-up posts name, email, phone, message, events and the honeypot to /api/volunteer', async () => {
   const src = await volunteerPart();
   const post =
-    /'\/api\/volunteer',\s*\{\s*name: name\.trim\(\),\s*email: email\.trim\(\),\s*phone: phone\.trim\(\),\s*message,\s*events: chosen,\s*_hp: hp,\s*\}/;
+    /'\/api\/volunteer',\s*\{\s*name: name\.trim\(\),\s*email: email\.trim\(\),\s*phone: phone\.trim\(\),\s*message,\s*events: chosen,\s*_hp: hp,\s*'cf-turnstile-response': token,\s*\}/;
   assert.match(src, post);
   assert.doesNotMatch(
     src,

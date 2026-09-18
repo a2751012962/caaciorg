@@ -146,7 +146,8 @@ Create an API key, verify the sending domain, set `NOTIFY_FROM` / `NOTIFY_TO`.
    npx wrangler pages secret put STRIPE_SECRET_KEY         --project-name=caaci
    npx wrangler pages secret put STRIPE_WEBHOOK_SECRET     --project-name=caaci
    npx wrangler pages secret put RESEND_API_KEY            --project-name=caaci
-   # the same four for the preview branch: add  --env preview
+   npx wrangler pages secret put TURNSTILE_SECRET          --project-name=caaci
+   # the same five for the preview branch: add  --env preview
    ```
 
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `NOTIFY_FROM` and `NOTIFY_TO` are plaintext
@@ -156,6 +157,25 @@ Create an API key, verify the sending domain, set `NOTIFY_FROM` / `NOTIFY_TO`.
    `RESEND_API_KEY`, `STRIPE_SECRET_KEY` (live), `STRIPE_WEBHOOK_SECRET` (live endpoint)
    and `SUPABASE_SERVICE_ROLE_KEY`; preview has the same four names with the Stripe
    **test** key.
+
+   **`TURNSTILE_SECRET` — the human check on the public forms.** The volunteer
+   sign-up, the contact form, the business listing and event registration each
+   verify a Cloudflare Turnstile token server-side before they write or send
+   anything (`functions/api/_turnstile.js`). The check **fails closed**: with the
+   secret missing those four forms refuse every submission, so set it on
+   production _and_ preview before deploying the change that adds it. The paired
+   **sitekey is public** and lives in `build.mjs` (served to the browser in
+   `/assets/caaci-config.js`, like the Supabase anon key) — only the secret is a
+   secret. The widget's domain list in the Cloudflare dashboard must include
+   `caaciorg.com`, `caaci-8s2.pages.dev` and `localhost`, or the widget will not
+   render there and the form becomes unusable.
+
+   A refusal is deliberately the same sentence whether the caller was a bot or
+   the configuration is wrong; the deployment log says which
+   (`turnstile refused {"codes":["invalid-input-secret"],…}` means the secret
+   does not match the sitekey). To check a secret without deploying, POST it to
+   siteverify with a junk token: `invalid-input-response` back means the secret
+   is right, `invalid-input-secret` means it is not.
 
    **Preview only — `NEWS_TEST_ONLY`.** Preview shares the live member list and real
    Resend sending, so set this secret to `1` there. Admin → Compose News then refuses

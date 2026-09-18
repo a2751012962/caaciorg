@@ -6,7 +6,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { mockFetch } from './helpers.js';
+import { mockFetch, fakeTurnstile, TURNSTILE_TOKEN } from './helpers.js';
 import {
   notice,
   wireContact,
@@ -20,6 +20,7 @@ import {
 } from '../src/caaci-app.js';
 
 let dom;
+let turnstile; // the stand-in widget setup() installs: { render: [...], reset, remove }
 const tick = () => new Promise((r) => setTimeout(r, 10));
 
 // Build a jsdom document and wire the globals the module reads at call time.
@@ -31,6 +32,9 @@ function setup(html, pathname = '/') {
   globalThis.Event = dom.window.Event;
   globalThis.window = dom.window;
   globalThis.location = { pathname, origin: 'https://caaci.example', href: '', reload: () => {} };
+  // The contact and volunteer forms will not send without a Turnstile token, so
+  // the page gets the widget Cloudflare's script would have given it.
+  turnstile = fakeTurnstile(dom.window);
 }
 
 afterEach(() => {
@@ -65,6 +69,7 @@ test('wireContact posts the form to /api/contact and resets on success', async (
       <input name="your_phone" value="555">
       <textarea name="your_message">hello</textarea></form>`);
     wireContact();
+    await tick(); // the Turnstile widget mounts a microtask after wiring
     const form = document.querySelector('.et_pb_contact_form');
     form.dispatchEvent(new Event('submit', { cancelable: true }));
     await tick();
@@ -72,7 +77,19 @@ test('wireContact posts the form to /api/contact and resets on success', async (
     const call = fetch.calls.find((c) => c.url === '/api/contact');
     assert.ok(call, 'posted to /api/contact');
     const sent = JSON.parse(call.options.body);
-    assert.deepEqual(sent, { name: 'Pat', email: 'p@x.com', phone: '555', message: 'hello' });
+    assert.deepEqual(sent, {
+      name: 'Pat',
+      email: 'p@x.com',
+      phone: '555',
+      message: 'hello',
+      'cf-turnstile-response': TURNSTILE_TOKEN,
+    });
+    assert.equal(turnstile.render[0].action, 'contact');
+    assert.equal(
+      turnstile.reset,
+      1,
+      'a token is single-use, so the widget is reset after the send',
+    );
     assert.match(form.querySelector('.caaci-notice').textContent, /Thank you/);
   } finally {
     fetch.restore();
@@ -84,6 +101,7 @@ test('wireContact surfaces an error notice when the API fails', async () => {
   try {
     setup('<form class="et_pb_contact_form"><input name="your_name" value="Pat"></form>');
     wireContact();
+    await tick();
     const form = document.querySelector('.et_pb_contact_form');
     form.dispatchEvent(new Event('submit', { cancelable: true }));
     await tick();
@@ -205,7 +223,14 @@ test('wireVolunteer builds the event picker on /volunteer/ and posts the chosen 
       message: 'Weekends work best',
       events: ['mid-autumn-festival'],
       _hp: '',
+      'cf-turnstile-response': TURNSTILE_TOKEN,
     });
+    assert.equal(turnstile.render[0].action, 'volunteer');
+    assert.equal(
+      turnstile.reset,
+      1,
+      'a token is single-use, so the widget is reset after the send',
+    );
     assert.match(form.querySelector('.caaci-notice').textContent, /Thank you for volunteering/);
     assert.equal(form.querySelector('.caaci-notice').getAttribute('data-state'), null);
     assert.equal(form.querySelector('.et_pb_contact_submit').disabled, false, 'button released');
@@ -387,6 +412,7 @@ test('wireVolunteer leaves every other page to wireContact', async () => {
     const form = document.querySelector('.et_pb_contact_form');
     assert.equal(form.dataset.caaciVolunteer, undefined);
     wireContact();
+    await tick(); // the Turnstile widget mounts a microtask after wiring
     form.querySelector('[name*=email]').value = 'pat@x.com';
     form.dispatchEvent(new Event('submit', { cancelable: true }));
     await tick();

@@ -1,7 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestPost } from '../functions/api/contact.js';
-import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
+import { fakeRequest, mockFetch, fakeEnv, turnstileRoute, withTurnstile } from './helpers.js';
+
+// Every submission that gets past the required-field checks passes the Turnstile
+// check first; fakeRequest's default url is the host its token must come from.
+const route =
+  (handler = () => ({ body: '' })) =>
+  (url, options) =>
+    turnstileRoute(url, 'contact') ?? handler(url, options);
 
 const resendEnv = () =>
   fakeEnv({ RESEND_API_KEY: 're_1', NOTIFY_FROM: 'a@x.com', NOTIFY_TO: 'b@x.com' });
@@ -50,15 +57,15 @@ test('contact: honeypot _hp is silently accepted with no DB write', async () => 
 // The name goes into the subject and the address into reply_to, so a visitor
 // who types a line break must not be able to add a header of their own.
 test('contact: a name carrying CR/LF cannot open a second email header', async () => {
-  const fetch = mockFetch(() => ({ body: '' }));
+  const fetch = mockFetch(route());
   try {
     const r = await onRequestPost({
       request: fakeRequest({
-        body: {
+        body: withTurnstile({
           name: 'Pat\r\nBcc: harvest@attacker.example',
           email: 'pat@x.com\r\nBcc: harvest@attacker.example',
           message: 'hello',
-        },
+        }),
       }),
       env: resendEnv(),
     });
@@ -72,11 +79,16 @@ test('contact: a name carrying CR/LF cannot open a second email header', async (
 });
 
 test('contact: valid submission inserts and emails, escaping HTML', async () => {
-  const fetch = mockFetch(() => ({ body: '' }));
+  const fetch = mockFetch(route());
   try {
     const r = await onRequestPost({
       request: fakeRequest({
-        body: { name: 'A<b>', email: 'a@x.com', phone: '123', message: 'x & y > z' },
+        body: withTurnstile({
+          name: 'A<b>',
+          email: 'a@x.com',
+          phone: '123',
+          message: 'x & y > z',
+        }),
       }),
       env: resendEnv(),
     });
