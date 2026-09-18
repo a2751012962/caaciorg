@@ -254,13 +254,18 @@ for (const base of ['', 'zh/']) {
 }
 console.log(`React site written at ${SPA_ROUTES.length * 2} routes.`);
 
-// The mirror layer needs no Supabase client or runtime config any more: it wires
-// the contact form, the donation checkout and accessibility fixes, all of which
-// talk to /api/* directly. supabase.js + caaci-config.js are loaded only by the
-// Tabler pages that authenticate (admin + member-src).
+// The mirror layer needs no Supabase client: it wires the contact form, the
+// donation checkout and accessibility fixes, all of which talk to /api/*
+// directly. supabase.js is loaded only by the Tabler pages that authenticate
+// (admin + member-src). It does need caaci-config.js, and before caaci-app.js:
+// the contact forms on the mirrored business-directory pages post to
+// /api/contact, which requires a Turnstile token, and caaci-turnstile.js reads
+// the sitekey from window.CAACI_CONFIG — without it the widget never mounts and
+// the form can only report that the verification failed to load.
 const inject =
   `\n<link rel="stylesheet" href="/assets/caaci-fonts.css">\n` +
   `<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +
+  `<script src="/assets/caaci-config.js"></script>\n` +
   `<script type="module" src="/assets/caaci-app.js"></script>\n`;
 
 // Native-POST guard, injected at the TOP of <head> so it runs before the login

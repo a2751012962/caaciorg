@@ -6,7 +6,15 @@
 // form is: read the token, send it, reset. useTurnstile returns exactly that.
 // The widget takes its language from <html lang>, which the site already sets,
 // so no caller has to thread it through.
-import { useEffect, useRef, type RefObject } from 'react';
+//
+// The widget is mounted when the box is actually in the document, not when the
+// hook first runs: a form that appears after a fetch (event registration), lives
+// inside a dialog that opens later (business services), or is unmounted and
+// remounted around a success message (contact) has no box on the first render.
+// So TurnstileBox hands its element to the hook through a callback ref, and the
+// mount effect is keyed on that element — it runs again for every new box and
+// takes the old widget out when a box leaves.
+import { useEffect, useRef, useState } from 'react';
 import { mountTurnstile, turnstileUnavailable } from '../../../src/caaci-turnstile.js';
 
 interface Widget {
@@ -17,7 +25,7 @@ interface Widget {
 
 export interface TurnstileHandle {
   /** Goes on the element the widget renders into — use <TurnstileBox handle={…} />. */
-  boxRef: RefObject<HTMLDivElement | null>;
+  setBox: (el: HTMLDivElement | null) => void;
   /** The solved token, or '' while it is still working or unavailable. */
   token: () => string;
   /** Call after every submit attempt, successful or not. */
@@ -32,14 +40,18 @@ export interface TurnstileHandle {
 }
 
 export function useTurnstile(action: string): TurnstileHandle {
-  const boxRef = useRef<HTMLDivElement | null>(null);
+  // State, not a ref: the element arriving (or leaving) has to re-run the effect.
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
   const widget = useRef<Widget | null>(null);
   const state = useRef<'pending' | 'ok' | 'unavailable'>('pending');
 
   useEffect(() => {
+    // No box on the page (form not rendered yet, dialog closed): nothing to
+    // mount, and nothing to say either — the form cannot be submitted anyway.
+    if (!box) return;
     let alive = true;
     state.current = 'pending';
-    void mountTurnstile(boxRef.current, action).then((w: Widget | null) => {
+    void mountTurnstile(box, action).then((w: Widget | null) => {
       // Unmounted while the script was loading: take the widget straight back
       // out rather than leaving one attached to a detached node.
       if (!alive) return w?.remove();
@@ -50,11 +62,13 @@ export function useTurnstile(action: string): TurnstileHandle {
       alive = false;
       widget.current?.remove();
       widget.current = null;
+      state.current = 'pending';
     };
-  }, [action]);
+  }, [box, action]);
 
   return {
-    boxRef,
+    // A state setter is stable across renders, so the box's ref never changes.
+    setBox,
     token: () => widget.current?.token() ?? '',
     reset: () => widget.current?.reset(),
     problem: (zh: boolean) => {
@@ -73,7 +87,7 @@ export function TurnstileBox({
   handle: TurnstileHandle;
   className?: string;
 }) {
-  return <div ref={handle.boxRef} className={className} />;
+  return <div ref={handle.setBox} className={className} />;
 }
 
 // The one refusal a form shows when the token is not ready yet; the server's

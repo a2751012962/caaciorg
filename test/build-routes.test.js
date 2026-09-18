@@ -89,6 +89,30 @@ test('build: the login page stays Tabler; old pages point into the React site', 
   assert.match(await dist('zh/register/family-membership/index.html'), /"tier=family"/);
 });
 
+test('build: a mirrored page with a contact form gets the runtime config before caaci-app.js', async () => {
+  await built;
+  // The business-directory pages are still the mirrored Divi pages, and their
+  // contact form posts to /api/contact, which needs a Turnstile token. The
+  // sitekey travels in window.CAACI_CONFIG (caaci-config.js), so the injection
+  // has to load it, and load it before the module that reads it.
+  for (const page of [
+    'business-services/business-directory/index.html',
+    'zh/business-services/business-directory-restaurant/index.html',
+  ]) {
+    const html = await dist(page);
+    assert.match(html, /et_pb_contact_form/, `${page}: expected the mirrored Divi form`);
+    const config = html.search(
+      /<script src="\/assets\/caaci-config\.js(\?v=[0-9a-f]{12})?"><\/script>/,
+    );
+    const app = html.search(
+      /<script type="module" src="\/assets\/caaci-app\.js(\?v=[0-9a-f]{12})?"><\/script>/,
+    );
+    assert.notEqual(config, -1, `${page}: caaci-config.js not injected`);
+    assert.notEqual(app, -1, `${page}: caaci-app.js not injected`);
+    assert.ok(config < app, `${page}: caaci-config.js must load before caaci-app.js`);
+  }
+});
+
 test('build: _redirects rewrites /events/<slug>/register onto the React registration page', async () => {
   await built;
 
