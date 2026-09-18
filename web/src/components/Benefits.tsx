@@ -38,10 +38,7 @@ export function Benefits({ content }: BenefitsProps) {
           <span className="text-xs font-semibold text-brick block mb-2">
             Why Join CAACI · 为什么加入华协
           </span>
-          <h2
-            className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-ink"
-            style={{ fontFamily: 'var(--font-caaci-serif)' }}
-          >
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-ink">
             {content.whyJoin.heading}
           </h2>
           <div className="w-12 h-0.5 bg-brick mt-3 rounded-full" />
@@ -70,7 +67,7 @@ export function Benefits({ content }: BenefitsProps) {
                 </h3>
 
                 {/* Blurb Description */}
-                <p className="font-poppins text-neutral-600 text-xs sm:text-sm leading-relaxed">
+                <p className="font-sans text-neutral-600 text-xs sm:text-sm leading-relaxed">
                   {blurb.description}
                 </p>
               </div>

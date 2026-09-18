@@ -245,7 +245,7 @@ export function ChargePage({ lang }: { lang: Lang }) {
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-[11px] text-neutral-400">{t('Customer', '顾客')}</p>
-            <p className="text-2xl font-bold font-serif-caaci truncate">{scan.member.name}</p>
+            <p className="text-2xl font-bold truncate">{scan.member.name}</p>
             <p className="text-xs text-neutral-300 mt-1">
               {scan.member.valid
                 ? `${scan.member.tier_name ?? t('Member', '会员')}${scan.member.until ? ` · ${t('to', '至')} ${day(scan.member.until, lang)}` : ''}`

@@ -7,6 +7,7 @@
 //          charge stays out of the merchant's statement until an admin decides.
 import { sb, sendEmail } from '../_lib.js';
 import { tokensEnabled, UUID_RE } from '../_tokens.js';
+import { SYSTEM_FONT_STACK } from '../_fonts.js';
 
 const esc = (s) =>
   String(s ?? '').replace(
@@ -20,7 +21,7 @@ const shell = (inner, status = 200) =>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title>CAACI Tokens · 华协币</title>
 <style>
-  body{margin:0;font-family:Helvetica,Arial,sans-serif;background:#f3f3f3;display:flex;align-items:center;justify-content:center;min-height:100vh}
+  body{margin:0;font-family:${SYSTEM_FONT_STACK};background:#f3f3f3;display:flex;align-items:center;justify-content:center;min-height:100vh}
   .card{background:#fff;border-radius:8px;box-shadow:0 15px 80px -6px rgba(0,0,0,.2);padding:36px 32px;max-width:420px;width:90%;color:#300200}
   .org{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#8e2e11;font-weight:700;margin:0 0 18px}
   h1{font-size:22px;margin:0 0 10px} p{color:#555;line-height:1.5}

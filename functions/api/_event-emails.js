@@ -23,6 +23,7 @@
 // deadlines as words — "September 27, 2:00 PM Central Time" /
 // "9月27日下午2点（美国中部时间）" — never Intl's "GMT-5" / "CDT".
 import { perkOf, choiceAnswerLabels } from './_event-form.js';
+import { SYSTEM_FONT_STACK } from './_fonts.js';
 
 const TZ = 'America/Chicago'; // times are stored in UTC; the events are in Champaign
 const BRICK = '#8e2e11';
@@ -103,7 +104,7 @@ export function centralTime(iso, lang) {
 // (Jodit) fills an empty block with <br>, which put a blank line under the rule
 // in every sent email. A void element has nothing to fill.
 function frame(s, inner) {
-  return `<div style="max-width:600px;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;line-height:1.6;color:#333333;">
+  return `<div style="max-width:600px;font-family:${SYSTEM_FONT_STACK};font-size:15px;line-height:1.6;color:#333333;">
   <a href="${s.SITE_URL}/" style="text-decoration:none;">
     <img src="${s.LOGO_URL}" width="200" alt="CAACI 华人协会" style="display:block;width:200px;height:auto;border:0;">
   </a>

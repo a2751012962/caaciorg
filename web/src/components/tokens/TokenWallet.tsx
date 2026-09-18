@@ -252,7 +252,7 @@ export function TokenWallet({ lang, className = '' }: { lang: Lang; className?: 
   return (
     <section
       id="tokens"
-      className={`pt-5 border-t border-neutral-200/80 space-y-4 scroll-mt-24 font-poppins ${className}`}
+      className={`pt-5 border-t border-neutral-200/80 space-y-4 scroll-mt-24 font-sans ${className}`}
     >
       <div className="lg:grid lg:grid-cols-2 lg:gap-10">
         <div className="space-y-4">
@@ -415,10 +415,7 @@ function BottomSheet({
             transition={sheetIn}
           >
             <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
-              <h3
-                id="tokens-sheet-title"
-                className="text-lg font-bold font-serif-caaci text-maroon"
-              >
+              <h3 id="tokens-sheet-title" className="text-lg font-bold text-maroon">
                 {title}
               </h3>
               <button

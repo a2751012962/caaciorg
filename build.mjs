@@ -17,7 +17,7 @@ import { join, extname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { mirrorLangScript } from './src/caaci-shared.js';
+import { mirrorLangScript, googleFontLinks } from './src/caaci-shared.js';
 import { planAssetVersions, versionAssetRefs } from './asset-versions.mjs';
 
 // On Windows, a file copied into dist/ moments ago can still be held open by
@@ -81,7 +81,18 @@ const config = `window.CAACI_CONFIG = ${JSON.stringify(
 )};\n`;
 await writeFile(join(DIST, 'assets', 'caaci-config.js'), config);
 await copyFile(join(ROOT, 'src', 'caaci-app.js'), join(DIST, 'assets', 'caaci-app.js'));
+// The site's typefaces (--caaci-font-sans / --caaci-font-mono), linked before
+// caaci-ui.css on every page that is not the React bundle (which @imports it).
+await copyFile(join(ROOT, 'src', 'caaci-fonts.css'), join(DIST, 'assets', 'caaci-fonts.css'));
 await copyFile(join(ROOT, 'src', 'caaci-ui.css'), join(DIST, 'assets', 'caaci-ui.css'));
+// What replaces <!--CAACI_FONTS--> in the Tabler pages' <head>: the one Google
+// Fonts link (GOOGLE_FONTS_URL, shared with web/vite.config.ts) and the stacks.
+const FONTS_HTML = `${googleFontLinks()}\n<link rel="stylesheet" href="/assets/caaci-fonts.css">`;
+const withFonts = (page, name) => {
+  if (!page.includes('<!--CAACI_FONTS-->'))
+    throw new Error(`${name}: missing <!--CAACI_FONTS--> marker`);
+  return page.replace('<!--CAACI_FONTS-->', FONTS_HTML);
+};
 // Tabler skin: re-points --tblr-* at the --caaci-* tokens. Loaded only by the
 // Tabler pages (admin + member-src), after tabler.min.css and caaci-ui.css.
 await copyFile(join(ROOT, 'src', 'caaci-theme.css'), join(DIST, 'assets', 'caaci-theme.css'));
@@ -95,6 +106,10 @@ await copyFile(join(ROOT, 'src', 'supabase.js'), join(DIST, 'assets', 'supabase.
 // pages it loads every asset itself and carries the literal "caaci-app.js" in a
 // comment, which opts it out of the mirror-enhancement injection below.
 await cp(join(ROOT, 'admin-src'), join(DIST, 'admin'), { recursive: true });
+await writeFile(
+  join(DIST, 'admin', 'index.html'),
+  withFonts(await readFile(join(ROOT, 'admin-src', 'index.html'), 'utf8'), 'admin-src/index.html'),
+);
 await copyFile(join(ROOT, 'src', 'caaci-admin.js'), join(DIST, 'assets', 'caaci-admin.js'));
 // Self-hosted QR generator (MIT, kazuhikoarase/qrcode-generator) — used by the
 // admin Discounts tab to render shareable /membership/?code=… QR codes.
@@ -144,7 +159,7 @@ for (const [src, route] of [
   let page = await readFile(join(ROOT, 'member-src', src), 'utf8');
   if (!page.includes('<!--CAACI_NAV-->'))
     throw new Error(`${src}: missing <!--CAACI_NAV--> marker`);
-  page = page.replace('<!--CAACI_NAV-->', navPartial);
+  page = withFonts(page.replace('<!--CAACI_NAV-->', navPartial), src);
   await writeFile(join(DIST, route, 'index.html'), page);
 }
 // Cloudflare Pages rules, applied before static assets. Status 200 on a
@@ -235,7 +250,8 @@ console.log(`React site written at ${SPA_ROUTES.length * 2} routes.`);
 // talk to /api/* directly. supabase.js + caaci-config.js are loaded only by the
 // Tabler pages that authenticate (admin + member-src).
 const inject =
-  `\n<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +
+  `\n<link rel="stylesheet" href="/assets/caaci-fonts.css">\n` +
+  `<link rel="stylesheet" href="/assets/caaci-ui.css">\n` +
   `<script type="module" src="/assets/caaci-app.js"></script>\n`;
 
 // Native-POST guard, injected at the TOP of <head> so it runs before the login
