@@ -134,6 +134,25 @@ export async function onRequestPost({ request, env }) {
         if (check.error) return check.error;
       }
     }
+    // Taking the admin flag off someone is the first half of an account
+    // takeover: /api/admin/member-password refuses to re-key an administrator,
+    // so an attacker holding one admin's session would clear the victim's flag
+    // here and then set their password. Demotion therefore needs the emailed
+    // code — the control that exists for exactly this, "the signed-in session
+    // alone is not enough" — while appointing an admin is unchanged. Root's own
+    // flag is not writable here at all.
+    // `*`: is_root arrives with 0024, and this must not 400 on a database where
+    // that migration has not been applied yet (same reason households is read
+    // with `*` in _lib.js).
+    if (patch.is_admin !== undefined) {
+      const current = await sb(env).selectOne('members', { id: b.id }, '*');
+      if (!current) return bad('Member not found.', 404);
+      if (current.is_root === true) return bad("Root's admin access cannot be changed here.", 403);
+      if (current.is_admin === true && patch.is_admin === false) {
+        const check = await requireActionCode(request, env, gate.user.id);
+        if (check.error) return check.error;
+      }
+    }
     await sb(env).update('members', { id: b.id }, patch);
     const row = await sb(env).selectOne('members', { id: b.id }, COLUMNS);
     return json({ ok: true, member: row });
