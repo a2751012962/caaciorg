@@ -367,7 +367,7 @@ function CodeDialog({
         <div className="flex items-start gap-3">
           <ShieldCheck className="w-6 h-6 text-brick shrink-0" aria-hidden />
           <div>
-            <h2 id="admin-code-title" className="text-lg font-bold text-ink font-poppins">
+            <h2 id="admin-code-title" className="text-lg font-bold text-ink font-sans">
               {t('Verification code', '验证码')}
             </h2>
             <p className="text-sm text-neutral-600 mt-1">
