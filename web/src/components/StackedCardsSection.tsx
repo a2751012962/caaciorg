@@ -278,7 +278,7 @@ export function StackedCardsSection({
       tl.to({}, { duration: PANEL_HOLD });
     }, containerRef);
 
-    // Web fonts (Noto Serif SC) can finish after ScrollTrigger measured the
+    // The web font (Poppins) can finish loading after ScrollTrigger measured the
     // page; re-measure so the pin starts and ends where the section really is.
     let alive = true;
     document.fonts?.ready.then(() => {

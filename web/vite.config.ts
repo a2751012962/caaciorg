@@ -10,7 +10,7 @@ import { googleFontLinks } from '../src/caaci-shared.js';
 // runtime config and the login page to `npm run dev` at the repo root (:8788).
 const backend = 'http://localhost:8788';
 
-// The site's one Google Fonts link (Poppins, Playfair Display, Noto Serif SC)
+// The site's one Google Fonts link (Poppins, the only web font left)
 // goes into index.html at <!--CAACI_FONTS-->, from the same constant build.mjs
 // writes into the Tabler pages, so the two kinds of page cannot drift apart.
 const caaciFonts = (): Plugin => ({
