@@ -456,17 +456,7 @@ function Editor({
 
       <div className="mt-5 pt-5 border-t border-neutral-200/80 space-y-3">
         <span className={EYEBROW}>{t('Sign-in & password', '登录与密码')}</span>
-        <AuthEmails m={m} setMsg={setMsg} />
-        {m.id === myId ? (
-          <p className="text-xs text-neutral-500">
-            {t(
-              'To change your own password, use the My account tab.',
-              '修改自己的密码请到“我的账号”标签页。',
-            )}
-          </p>
-        ) : (
-          <SetPassword m={m} setMsg={setMsg} />
-        )}
+        <SignIn m={m} setMsg={setMsg} isSelf={m.id === myId} />
       </div>
 
       {/* Last, alone, and behind its own confirm: the only thing here that
@@ -497,13 +487,27 @@ function Editor({
   );
 }
 
-// Password reset / invitation emails, each with a 60 s countdown after a send
-// (or after the server says one went out very recently). It asks for itself, so
-// the question appears under the buttons that raised it.
-function AuthEmails({ m, setMsg }: { m: MemberRow; setMsg: (x: Msg) => void }) {
+// Everything you can do about a member's login, as one row of quiet buttons:
+// two emails — each with a 60 s countdown after a send (or after the server says
+// one went out very recently) — and, behind the third, the password box. The box
+// stays folded away until it is asked for, so the editor keeps a single filled
+// button: Save. It asks for itself, so the question appears under the button
+// that raised it. The server refuses a password for an administrator (your own
+// account included) and emails the member that it was changed.
+function SignIn({
+  m,
+  setMsg,
+  isSelf,
+}: {
+  m: MemberRow;
+  setMsg: (x: Msg) => void;
+  isSelf: boolean;
+}) {
   const { t, api } = useAdmin();
   const { ask, panel } = useAsk({ ruled: false });
   const [busy, setBusy] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState('');
   const cooling = (a: string) => (cooldownUntil.get(`${m.id}:${a}`) ?? 0) > Date.now();
   const now = useTick(cooling('reset') || cooling('invite'));
   const who = m.full_name || m.email || '';
@@ -562,6 +566,45 @@ function AuthEmails({ m, setMsg }: { m: MemberRow; setMsg: (x: Msg) => void }) {
     });
   };
 
+  const setNewPassword = () => {
+    if (password.length < 8)
+      return setMsg({
+        tone: 'error',
+        text: t('Password must be at least 8 characters.', '密码至少 8 位。'),
+      });
+    ask(
+      t(
+        `Set a new password for ${who}? It works immediately, and ${who} is emailed that an administrator changed it.`,
+        `为 ${who} 设置新密码？新密码立即生效，并会邮件通知 ${who} 密码已被管理员修改。`,
+      ),
+      t('Set password', '设置密码'),
+      async () => {
+        setBusy('password');
+        const res = await api('/api/admin/member-password', {
+          method: 'POST',
+          body: { member_id: m.id, password },
+        });
+        setBusy(null);
+        if (res.ok) {
+          setPassword('');
+          setShowPassword(false);
+          setMsg({
+            tone: 'success',
+            text: t(
+              `Password updated for ${who}. Give them the new password in person or through another channel you trust.`,
+              `已为 ${who} 更新密码。请当面或通过其他可靠渠道告知对方新密码。`,
+            ),
+          });
+          return;
+        }
+        setMsg({
+          tone: 'error',
+          text: res.data.error || t('Could not change the password.', '密码修改失败。'),
+        });
+      },
+    );
+  };
+
   return (
     <div className="space-y-2">
       {/* -ml-3 cancels the quiet button's own padding, so its text lines up
@@ -582,92 +625,67 @@ function AuthEmails({ m, setMsg }: { m: MemberRow; setMsg: (x: Msg) => void }) {
             </button>
           );
         })}
+        {!isSelf && (
+          <button
+            type="button"
+            className={ROW_BTN}
+            aria-expanded={showPassword}
+            onClick={() => setShowPassword((v) => !v)}
+          >
+            <KeyRound className="w-3.5 h-3.5" aria-hidden />
+            {t('Set a password', '直接设置密码')}
+          </button>
+        )}
       </div>
       {/* The sentence sits under the buttons, not beside them: on a narrow
-          column it is two lines of explanation, not a third button. */}
+          column it is two lines of explanation, not a fourth button. */}
       <p className="text-[11px] text-neutral-500 leading-relaxed">
-        {t(
-          "Members who haven't set up a login yet get an invitation; members who already have one get a link to set their password.",
-          '尚未启用登录账户的会员会收到邀请；已有账户的会员会收到设置密码的链接。',
-        )}
+        {isSelf
+          ? t(
+              'To change your own password, use the My account tab.',
+              '修改自己的密码请到“我的账号”标签页。',
+            )
+          : t(
+              "Members who haven't set up a login yet get an invitation; members who already have one get a link to set their password. A password you set here works immediately.",
+              '尚未启用登录账户的会员会收到邀请；已有账户的会员会收到设置密码的链接。在此设置的密码立即生效。',
+            )}
       </p>
-      {panel}
-    </div>
-  );
-}
-
-// Takes effect at once. The server refuses administrators (your own account
-// included) and emails the member that it was changed.
-function SetPassword({ m, setMsg }: { m: MemberRow; setMsg: (x: Msg) => void }) {
-  const { t, api } = useAdmin();
-  const { ask, panel } = useAsk({ ruled: false });
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const who = m.full_name || m.email || '';
-
-  const submit = () => {
-    if (password.length < 8)
-      return setMsg({
-        tone: 'error',
-        text: t('Password must be at least 8 characters.', '密码至少 8 位。'),
-      });
-    ask(
-      t(
-        `Set a new password for ${who}? It works immediately, and ${who} is emailed that an administrator changed it.`,
-        `为 ${who} 设置新密码？新密码立即生效，并会邮件通知 ${who} 密码已被管理员修改。`,
-      ),
-      t('Set password', '设置密码'),
-      async () => {
-        setBusy(true);
-        const res = await api('/api/admin/member-password', {
-          method: 'POST',
-          body: { member_id: m.id, password },
-        });
-        setBusy(false);
-        if (res.ok) {
-          setPassword('');
-          setMsg({
-            tone: 'success',
-            text: t(
-              `Password updated for ${who}. Give them the new password in person or through another channel you trust.`,
-              `已为 ${who} 更新密码。请当面或通过其他可靠渠道告知对方新密码。`,
-            ),
-          });
-          return;
-        }
-        setMsg({
-          tone: 'error',
-          text: res.data.error || t('Could not change the password.', '密码修改失败。'),
-        });
-      },
-    );
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-end gap-2">
-        <Field
-          className="w-full sm:w-80"
-          // Short enough to stay on one line above the box it labels.
-          label={t(
-            'Or set a password directly (min 8 characters)',
-            '或直接设置新密码（至少 8 位）',
-          )}
-        >
-          <input
-            type="password"
-            className={INPUT}
-            minLength={8}
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </Field>
-        <button type="button" className={SECONDARY} disabled={busy} onClick={submit}>
-          <KeyRound className="w-4 h-4" aria-hidden />
-          {t('Set password', '设置密码')}
-        </button>
-      </div>
+      <AnimatePresence initial={false}>
+        {showPassword && !isSelf && (
+          <motion.div
+            key="password"
+            initial={riseFromSm}
+            animate={shown}
+            exit={listExit}
+            transition={mountIn}
+            className="flex flex-wrap items-end gap-2"
+          >
+            <Field
+              className="w-full sm:w-80"
+              label={t('New password (min 8 characters)', '新密码（至少 8 位）')}
+            >
+              <input
+                type="password"
+                className={INPUT}
+                minLength={8}
+                autoComplete="new-password"
+                autoFocus
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && setNewPassword()}
+              />
+            </Field>
+            <button
+              type="button"
+              className={SECONDARY}
+              disabled={busy === 'password'}
+              onClick={setNewPassword}
+            >
+              {t('Set password', '设置密码')}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {panel}
     </div>
   );
