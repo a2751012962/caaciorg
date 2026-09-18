@@ -50,25 +50,23 @@ export function MarketplaceSection({
     <section aria-labelledby="marketplace-heading" className="bg-white py-12 sm:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal className="rounded-3xl border border-neutral-200/80 bg-surface-2 p-6 sm:p-10 lg:p-12">
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-semibold font-poppins">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-semibold">
             <span className="text-brick">{text.eyebrow}</span>
             <span className="text-neutral-600">{text.language}</span>
           </div>
           <div className="mt-6 grid gap-8 lg:grid-cols-2 lg:gap-14">
             <div>
-              <p className="text-sm font-semibold text-brick font-poppins">
-                Illini Market · Illini 集市
-              </p>
+              <p className="text-sm font-semibold text-brick">Illini Market · Illini 集市</p>
               <h2
                 id="marketplace-heading"
                 className="mt-3 text-2xl sm:text-3xl text-ink tracking-tight"
               >
                 {text.title}
               </h2>
-              <p className="mt-4 text-sm sm:text-base text-neutral-600 font-poppins leading-relaxed">
+              <p className="mt-4 text-sm sm:text-base text-neutral-600 leading-relaxed">
                 {text.description}
               </p>
-              <div className="mt-6 flex flex-col flex-wrap gap-3 sm:flex-row sm:items-center sm:gap-x-5 font-poppins">
+              <div className="mt-6 flex flex-col flex-wrap gap-3 sm:flex-row sm:items-center sm:gap-x-5">
                 <a
                   href={marketplaceUrl(placement)}
                   target="_blank"
@@ -88,11 +86,9 @@ export function MarketplaceSection({
                   <ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" />
                 </a>
               </div>
-              <p className="mt-4 text-xs text-neutral-500 font-poppins leading-relaxed">
-                {text.note}
-              </p>
+              <p className="mt-4 text-xs text-neutral-500 leading-relaxed">{text.note}</p>
             </div>
-            <ul className="space-y-5 font-poppins">
+            <ul className="space-y-5">
               {text.features.map((feature, index) => {
                 const Icon = featureIcons[index];
                 return (
@@ -101,9 +97,7 @@ export function MarketplaceSection({
                       <Icon className="w-5 h-5" aria-hidden="true" />
                     </span>
                     <div>
-                      <h3 className="text-base font-semibold font-poppins text-ink">
-                        {feature.title}
-                      </h3>
+                      <h3 className="text-base font-semibold text-ink">{feature.title}</h3>
                       <p className="mt-1 text-sm text-neutral-600 leading-relaxed">
                         {feature.description}
                       </p>
