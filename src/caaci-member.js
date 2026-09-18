@@ -867,7 +867,11 @@ export async function boot() {
     tgl.addEventListener('click', () => {
       lang = lang === 'en' ? 'zh' : 'en';
       localStorage.setItem(LANG_KEY, lang);
-      location.reload(); // dynamic content re-renders in the new language
+      // initLang gives the URL preference priority. Update it before navigating
+      // or a ?lang=en link would undo a switch to Chinese on every reload.
+      const params = new URLSearchParams(location.search || '');
+      params.set('lang', lang);
+      location.search = params.toString(); // preserve next= and the current hash
     });
   const page = document.body.dataset.page;
   try {

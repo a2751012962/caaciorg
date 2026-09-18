@@ -5,6 +5,7 @@ import { StackedCardsSection } from '../components/StackedCardsSection';
 import { Benefits } from '../components/Benefits';
 import { VibrantCommunity } from '../components/VibrantCommunity';
 import { ContactSection } from '../components/ContactSection';
+import { MarketplaceSection } from '../components/MarketplaceSection';
 import type { CAACIContent } from '../data/content';
 
 interface HomePageProps {
@@ -59,6 +60,7 @@ export function HomePage({ content, lang = 'en', onOpenModal, onNavigate }: Home
         </div>
       )}
       <Hero content={content} lang={lang} onOpenModal={onOpenModal} onNavigate={onNavigate} />
+      <MarketplaceSection lang={lang} placement="home" />
       <StackedCardsSection
         content={content}
         lang={lang}

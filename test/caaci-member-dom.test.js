@@ -42,6 +42,34 @@ const TIER_ROWS = [
   { id: 'individual', name: 'Individual Membership', price_cents: 3000, active: true },
 ];
 
+test('login language toggle survives navigation from an explicit language URL', async () => {
+  const nav = await readFile(new URL('../member-src/_nav.html', import.meta.url), 'utf8');
+  for (const [from, to] of [
+    ['en', 'zh'],
+    ['zh', 'en'],
+  ]) {
+    setup('login', { search: `?lang=${from}&next=%2Faccount%2F`, hash: '#signup' });
+    document.body.insertAdjacentHTML('afterbegin', nav);
+    member.__setSupa(supaStub());
+    await member.boot();
+    document.querySelector('#caaci-lang').click();
+    const params = new URLSearchParams(location.search);
+    assert.equal(params.get('lang'), to);
+    assert.equal(params.get('next'), '/account/');
+    assert.equal(location.hash, '#signup');
+    const nextSearch = `?${params.toString()}`;
+    setup('login', { search: nextSearch });
+    document.body.insertAdjacentHTML('afterbegin', nav);
+    member.__setSupa(supaStub());
+    await member.boot();
+    assert.equal(document.documentElement.lang, to);
+    assert.equal(
+      document.querySelector('a[href*="illinimarket.com"]').textContent,
+      to === 'zh' ? 'Illini 集市 ↗' : 'Illini Market ↗',
+    );
+  }
+});
+
 // `auth` overrides individual auth methods (e.g. an updateUser that fails);
 // every auth call is recorded in `stub.calls` as { name, args }.
 function supaStub({
