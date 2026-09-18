@@ -47,6 +47,30 @@ test('contact: honeypot _hp is silently accepted with no DB write', async () => 
   }
 });
 
+// The name goes into the subject and the address into reply_to, so a visitor
+// who types a line break must not be able to add a header of their own.
+test('contact: a name carrying CR/LF cannot open a second email header', async () => {
+  const fetch = mockFetch(() => ({ body: '' }));
+  try {
+    const r = await onRequestPost({
+      request: fakeRequest({
+        body: {
+          name: 'Pat\r\nBcc: harvest@attacker.example',
+          email: 'pat@x.com\r\nBcc: harvest@attacker.example',
+          message: 'hello',
+        },
+      }),
+      env: resendEnv(),
+    });
+    assert.equal(r.status, 200);
+    const sent = JSON.parse(fetch.calls.find((c) => c.url.includes('resend.com')).options.body);
+    assert.doesNotMatch(sent.subject, /[\r\n]/);
+    assert.doesNotMatch(sent.reply_to, /[\r\n]/);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('contact: valid submission inserts and emails, escaping HTML', async () => {
   const fetch = mockFetch(() => ({ body: '' }));
   try {
