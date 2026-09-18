@@ -47,7 +47,10 @@ wrangler.toml           Cloudflare Pages config (output dir = dist)
    `supabase/migrations/` in filename order (`0001_init.sql` first), then
    `supabase/seed.sql`. Apply every later migration the same way — see
    [Applying migrations](#applying-migrations).
-3. Auth → Providers: enable **Email** (password + magic link as desired).
+3. Auth → Providers: enable **Email** (password + magic link as desired). For the
+   login page's **Mobile number** tab, also enable **Phone** with Twilio credentials
+   and phone confirmations on — see _Phone sign-in_ under
+   [Self-service auth & billing](#self-service-auth--billing).
 4. Make yourself admin: in the SQL editor,
    `update members set is_admin = true where email = 'you@example.com';`
 
@@ -228,7 +231,9 @@ Set redirects in `dist/_redirects` if any old URL paths need mapping.
 - **Supabase Auth**: Site URL is `https://caaciorg.com`; the redirect allow list also
   covers `www`, `beta`, `caaci-8s2.pages.dev`, `*.caaci-8s2.pages.dev` and
   `localhost:8788`. Change the Site URL only to a host that serves the site, or the
-  daily Auth config check fails.
+  daily Auth config check fails. The **Phone** provider (Twilio) is on for the login
+  page's mobile-number tab; the same check asserts it stays on with phone confirmations
+  enabled.
 - **Preview shares the live database.** Anything created on beta — sign-ups, event
   registrations, donations, discount codes — lands in the production tables and can
   send real emails. Clean test data up afterwards. There is deliberately **no**
@@ -389,9 +394,12 @@ standalone **Tabler** page (same open-source UI kit as `/admin/`, self-hosted,
 bilingual EN/中文 with a toggle); `/membership/` and `/account/` are pages of the
 React site (`web/`), served in English and under `/zh/`:
 
-- **`/login-3/`** — sign in, create account (with duplicate-email detection),
-  forgot-password (reset link lands on `/account/?recovery=1`), and Google /
-  Microsoft OAuth.
+- **`/login-3/`** — sign in (an **Email** tab: password, or a one-time emailed
+  code; a **Mobile number** tab: a one-time texted code — see _Phone sign-in_ under
+  [Self-service auth & billing](#self-service-auth--billing)), create account (with
+  duplicate-email detection), forgot-password (reset link lands on
+  `/account/?recovery=1`), and Google / Microsoft OAuth. The tab used last is
+  remembered; `?method=phone` opens the phone tab directly.
 - **`/membership/`** — the plan grid (live `membership_tiers` merged over the
   built-in fallback), `?code=` discount validation, and the checkout dialog:
   fresh joins POST `/api/checkout` (Stripe Checkout), active members switching
@@ -811,6 +819,29 @@ size/MIME limits, behind the **Media** tab), and `0010_refunds.sql` (adds the
   send, matching the SMTP "minimum interval per user". The end time is kept in
   `localStorage` per action + address, so a reload does not reset it; a Supabase
   rate-limit reply starts the countdown from the seconds it reports.
+- **Phone sign-in**: the **Mobile number** tab on `/login-3/` texts a 6-digit code
+  (Supabase Auth's Phone provider → **Twilio**, `signInWithOtp({ phone })` with
+  `shouldCreateUser: false`) and signs in with `verifyOtp(type 'sms')`. Only a number
+  already **verified on an account** gets a code — a member adds theirs signed in,
+  under `/account/` → Account Security → _Sign in with a Mobile Number_
+  (`updateUser({ phone })`, then the texted code via `verifyOtp(type 'phone_change')`).
+  Numbers are normalised to E.164 (`normalizePhone` in `src/caaci-shared.js`): exactly 10
+  US/Canada digits become `+1…`; anything else must start with `+` and the country code
+  (11 bare digits starting with 1 are refused: `13800138000` is both a Chinese mobile and
+  `1` + an Ohio number, so neither reading is guessed). A number with no
+  account reads exactly like a real send, and Twilio's own error text is replaced with a
+  plain message. Both send buttons share the 60 s countdown (per number). Migration
+  `0025_phone_login.sql` copies a **confirmed** mobile number onto `members.phone`
+  (profile + admin panel); paste it into the SQL editor as usual — it only adds.
+  Dashboard (Authentication → Sign In / Providers → **Phone**): provider on, SMS
+  provider Twilio with Account SID, Auth Token and **Messaging Service SID**, template
+  `CAACI. Your code is {{ .Code }}`, OTP length 6, and **Enable phone confirmations ON**
+  — with it off, `updateUser({ phone })` saves a number without the texted code, so
+  anyone could claim someone else's number (the daily Auth config check asserts this).
+  Consider raising the SMS OTP expiry from the 60 s default to a few minutes: texts can
+  take a while to arrive. Twilio side: a US **A2P 10DLC** registration is needed to text
+  US numbers from a Messaging Service, and a trial account only texts verified numbers.
+  Every text costs money, so the login page never sends one for an invalid number.
 - **Account security** (`/account/`): change password (asks for the current
   password — turn on _Require current password when updating_ under Authentication →
   Sign In / Providers → Email so Supabase enforces it; Google/Microsoft-only members

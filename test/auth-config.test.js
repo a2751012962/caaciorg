@@ -181,6 +181,42 @@ test('both providers are enabled with the expected clients', { skip: skipConfig 
   assert.equal(cfg.disable_signup, false, 'new members could not register');
 });
 
+// The Mobile number tab on /login-3/ and the mobile-number section on /account/
+// send their codes through Supabase's Phone provider, which delivers via Twilio.
+// The credentials are secrets: only that they are set is checked, never a value,
+// and no failure message can print one.
+test('phone sign-in is enabled and delivers through Twilio', { skip: skipConfig }, async () => {
+  const cfg = await authConfig();
+
+  assert.equal(
+    cfg.external_phone_enabled,
+    true,
+    'the Phone provider is switched off — the login page cannot text sign-in codes',
+  );
+  assert.equal(cfg.sms_provider, 'twilio');
+  assert.ok(cfg.sms_twilio_account_sid, 'no Twilio Account SID');
+  assert.ok(cfg.sms_twilio_auth_token, 'no Twilio Auth Token');
+  assert.ok(
+    cfg.sms_twilio_message_service_sid,
+    'no Twilio Messaging Service SID — that is the sender the texts go out from',
+  );
+  assert.match(String(cfg.sms_template || ''), /\{\{\s*\.Code\s*\}\}/, 'the SMS carries no code');
+
+  // Both code fields accept 6–10 digits (pattern="[0-9]{6,10}"), so a code
+  // outside that range could never be typed in.
+  const length = Number(cfg.sms_otp_length);
+  assert.ok(length >= 6 && length <= 10, `SMS OTP length is ${cfg.sms_otp_length}, not 6–10`);
+
+  // With phone confirmations off, updateUser({ phone }) saves a number without
+  // the texted code — so anyone could put someone else's number on their
+  // account, and that number would then be blocked from its owner's account.
+  assert.equal(
+    cfg.sms_autoconfirm,
+    false,
+    'phone confirmations are off — turn on "Enable phone confirmations" under Authentication → Sign In / Providers → Phone',
+  );
+});
+
 // Deliberately asserts the invariant rather than a specific hostname: the
 // canonical domain is expected to change (pages.dev today, the custom domain
 // later), and a test pinned to one of them would just have to be edited every
