@@ -204,10 +204,11 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
     // Active paid subscriber: re-price the subscription in place (prorated).
     if (mode === 'switch') {
-      const { ok, data: res } = await api<{ url?: string }>('/api/change-plan', {
-        member_id: user.id,
-        tier_id: selected.id,
-      });
+      const { ok, data: res } = await api<{ url?: string }>(
+        '/api/change-plan',
+        { member_id: user.id, tier_id: selected.id },
+        { auth: true },
+      );
       if (res.url) {
         window.location.assign(res.url);
         return;
@@ -229,9 +230,12 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
       email: user.email,
     };
     if (mode === 'checkout' && applied) body.discount_code = applied.code;
+    // Membership checkout acts on the account, so it goes out signed in (the
+    // donation modal keeps calling /api/checkout without a token, as before).
     const { ok, data: res } = await api<{ url?: string; activated?: boolean }>(
       '/api/checkout',
       body,
+      { auth: true },
     );
     if (ok && res.url) {
       window.location.assign(res.url);

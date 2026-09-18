@@ -1,7 +1,16 @@
 // POST /api/checkout
 // Creates a Stripe Checkout Session for either a membership or a donation,
 // and returns { url } for the client to redirect to.
-import { json, bad, sb, stripe, tierPrice, isFreeTier, activateFreeTier } from './_lib.js';
+import {
+  json,
+  bad,
+  sb,
+  stripe,
+  tierPrice,
+  isFreeTier,
+  activateFreeTier,
+  requireUser,
+} from './_lib.js';
 import { lookupDiscount } from './discount.js';
 
 export async function onRequestPost({ request, env }) {
@@ -51,20 +60,27 @@ export async function onRequestPost({ request, env }) {
       return json({ url: session.url });
     }
 
-    // membership checkout
+    // Membership checkout — unlike a donation (open to anyone, above) this acts
+    // on an account, so the session says which one. Taking member_id from the
+    // body let a stranger activate the free tier on someone else's account,
+    // which silently wipes their paid tier. The webhook still activates by
+    // metadata.member_id; it is now the signed-in member, not a claim.
+    const gate = await requireUser(request, env);
+    if (gate.error) return gate.error;
+    const memberId = gate.user.id;
+    if (body.member_id && body.member_id !== memberId)
+      return bad('You can only buy a membership for your own account.', 403);
+
     const tier = await DB.selectOne('membership_tiers', { id: body.tier_id });
     if (!tier) return bad('Unknown membership tier.');
     // Honorable membership is granted by the Board from the admin panel, never sold.
     if (tier.invite_only) return bad('This membership is by invitation only.');
-    // The webhook activates the membership by member_id; a session without one
-    // would be paid but never activate anyone. Refuse up front instead.
-    if (!body.member_id) return bad('Please log in or create an account first.');
 
     // The self-serve free tier has nothing to charge, so it is activated right
     // here instead of round-tripping through Stripe. The client redirects to
     // /account/ on { activated: true }.
     if (isFreeTier(tier)) {
-      const r = await activateFreeTier(DB, body.member_id, tier);
+      const r = await activateFreeTier(DB, memberId, tier);
       if (r.error) return bad(r.error, 409);
       return json({ ok: true, activated: true, tier_id: tier.id });
     }
@@ -95,7 +111,7 @@ export async function onRequestPost({ request, env }) {
       metadata: {
         kind: 'membership',
         tier_id: tier.id,
-        member_id: body.member_id,
+        member_id: memberId,
         discount_code: discount?.code || '',
       },
     });
