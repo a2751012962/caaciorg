@@ -1,7 +1,7 @@
-// Runs supabase/migrations/0024_tokens.sql in a real Postgres (PGlite, in
+// Runs the token migrations (0024, then 0027) in a real Postgres (PGlite, in
 // process) and drives the ledger functions the way the API does. The token
 // ledger is money CAACI owes, so its rules are pinned against a database, not
-// only against the migration's text: balances, expiry order, the caps, voids,
+// only against the migration's text: balances, lot order, the caps, voids,
 // disputes, statements and the root guard.
 //
 // Only what 0024 needs from earlier migrations is stubbed here (auth.users,
@@ -11,7 +11,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 
-const MIGRATION = new URL('../supabase/migrations/0024_tokens.sql', import.meta.url);
+const MIGRATIONS = [
+  new URL('../supabase/migrations/0024_tokens.sql', import.meta.url),
+  new URL('../supabase/migrations/0027_tokens_never_expire.sql', import.meta.url),
+];
 
 let db;
 const q = async (sql, params = []) => (await db.query(sql, params)).rows;
@@ -75,9 +78,9 @@ before(async () => {
     grant usage on schema public to anon, authenticated, service_role;
     grant all on all tables in schema public to service_role;
   `);
-  await db.exec(await readFile(MIGRATION, 'utf8'));
-  // pasting it twice must be safe
-  await db.exec(await readFile(MIGRATION, 'utf8'));
+  for (const m of MIGRATIONS) await db.exec(await readFile(m, 'utf8'));
+  // pasting them twice must be safe
+  for (const m of MIGRATIONS) await db.exec(await readFile(m, 'utf8'));
   await db.exec('grant all on all tables in schema public to service_role;');
 });
 
@@ -145,17 +148,27 @@ test('an upgrade tops up to the new plan; a renewal starts a new year; a nudged 
   assert.equal(renewed.granted, 900, 'a renewal is a new membership year');
 });
 
-test('granted tokens expire with the membership; bought tokens do not', async () => {
+test('no token expires, and the DB refuses to give one an expiry (0027)', async () => {
   const m = await member({ tier: 'individual', expires: '10 days' });
   await call('token_membership_grant', m, null);
   await call('token_purchase_credit', m, 200, 2000, 'cs_test_1');
   assert.equal(await balance(m), 650);
 
-  // the membership year ends
-  await db.query(
-    `update public.token_lots set expires_at = now() - interval '1 minute' where source = 'grant'`,
+  const lots = await q(`select source, expires_at from public.token_lots where member_id = $1`, [m]);
+  assert.equal(lots.length, 2);
+  for (const l of lots) assert.equal(l.expires_at, null, `${l.source} must never expire`);
+
+  // The membership year ending no longer touches the tokens.
+  await db.query(`update public.members set expires_at = now() - interval '1 day' where id = $1`, [
+    m,
+  ]);
+  assert.equal(await balance(m), 650, 'a lapsed membership does not burn the balance');
+
+  // token_lots_never_expires makes the escheat exemption structural, not a habit.
+  await assert.rejects(
+    () => db.query(`update public.token_lots set expires_at = now() + interval '1 day'`),
+    /token_lots_never_expires/,
   );
-  assert.equal(await balance(m), 200, 'only the bought tokens are left');
 });
 
 test('a purchase is credited once per Stripe session', async () => {
@@ -168,13 +181,14 @@ test('a purchase is credited once per Stripe session', async () => {
 });
 
 // --------------------------------------------------------------- charges ----
-test('a charge draws the earliest-expiring tokens first and a void puts them back', async () => {
+test('a charge draws the oldest tokens first and a void puts them back', async () => {
   const clerk = await member();
   const shop = await merchant({ staff: [clerk] });
   const m = await member({ tier: 'student', expires: '30 days' });
-  await call('token_purchase_credit', m, 100, 1000, 'cs_fifo'); // never expires
-  await call('token_membership_grant', m, null); // 150, expires in 30 days
+  await call('token_purchase_credit', m, 100, 1000, 'cs_fifo'); // bought first
+  await call('token_membership_grant', m, null); // 150, granted second
 
+  // Since 0027 nothing expires, so "earliest-expiring" is plain FIFO by age.
   const c = await call('token_charge', m, shop, clerk, 180, null, 'two teas', 'idem-1');
   assert.equal(c.ok, true);
   assert.equal(c.balance, 70);
@@ -183,8 +197,8 @@ test('a charge draws the earliest-expiring tokens first and a void puts them bac
     [m],
   );
   assert.deepEqual(lots, [
-    { source: 'grant', remaining: 0 },
-    { source: 'purchase', remaining: 70 },
+    { source: 'grant', remaining: 70 },
+    { source: 'purchase', remaining: 0 },
   ]);
 
   const v = await call('token_void', c.tx_id, clerk, 'wrong customer');
@@ -458,7 +472,7 @@ test('a statement stamps what it covers; small months roll over; late reversals 
 });
 
 // -------------------------------------------------------------- transfer ----
-test('tokens move inside one family and keep their expiry', async () => {
+test('tokens move inside one family and stay non-expiring', async () => {
   const household = uuid();
   const founder = await member({ tier: 'family', household });
   const kid = await member({ household });
@@ -471,9 +485,11 @@ test('tokens move inside one family and keep their expiry', async () => {
   assert.equal(t.ok, true);
   assert.equal(await balance(founder), 600);
   assert.equal(await balance(kid), 300);
+  // Both sides are null since 0027, and `null = null` is null -- not true.
   const same = await one(
     `select (select expires_at from public.token_lots where member_id = $1 limit 1)
-          = (select expires_at from public.token_lots where member_id = $2 limit 1) as same`,
+          is not distinct from
+            (select expires_at from public.token_lots where member_id = $2 limit 1) as same`,
     [founder, kid],
   );
   assert.equal(same.same, true);
