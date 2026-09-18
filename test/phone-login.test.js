@@ -199,6 +199,20 @@ test('login page: the Mobile number tab swaps the panels, is remembered, and ?me
   assert.equal(q('#caaci-li-panel-email').hidden, false);
 });
 
+// The panels were looked up with `panels[wanted]`, which also reaches
+// Object.prototype: ?method=toString was truthy, matched neither panel, and
+// rendered a sign-in page with both forms hidden — then stored that word, so
+// every later visit from the same browser repeated it.
+test('login page: a method from Object.prototype falls back to email and is not remembered', async () => {
+  for (const word of ['toString', '__proto__', 'valueOf', 'constructor', 'hasOwnProperty']) {
+    await phoneTab(supaStub(), { search: `?method=${word}`, click: false });
+    assert.equal(q('#caaci-li-panel-email').hidden, false, word);
+    assert.equal(q('#caaci-li-panel-phone').hidden, true, word);
+    assert.equal(q('#caaci-li-tab-email').getAttribute('aria-selected'), 'true', word);
+    assert.equal(localStorage.getItem('caaci-login-method'), 'email', word);
+  }
+});
+
 test('login page: switching tabs clears the other way in’s message and offer', async (t) => {
   mockClock(t);
   const stub = supaStub();
@@ -261,6 +275,25 @@ test('login page: a valid number asks for a code without creating an account, th
   t.mock.timers.tick(61000);
   assert.equal(send.disabled, false);
   assert.equal(send.textContent, 'Text me another code');
+});
+
+// The countdown has to survive a reload, so it is kept in localStorage — where
+// it outlives the visit. On a shared machine the key itself must not hand the
+// next person the member's mobile number.
+test('login page: the SMS countdown is stored without the number in the key', async (t) => {
+  mockClock(t);
+  await phoneTab(supaStub());
+  typeInto('#caaci-ph-number', '(217) 555-0123');
+  submit('#caaci-phone-form');
+  await tick();
+
+  const keys = Object.keys(localStorage);
+  const cooldowns = keys.filter((k) => k.startsWith('caaci-cooldown:'));
+  assert.equal(cooldowns.length, 1, `stored: ${keys.join(', ')}`);
+  for (const key of keys) {
+    assert.doesNotMatch(key, /2175550123|\+1/, key);
+    assert.doesNotMatch(String(localStorage.getItem(key)), /2175550123/, key);
+  }
 });
 
 test('login page: a number that cannot be a phone is refused before anything is sent', async (t) => {

@@ -1,7 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestPost } from '../functions/api/business-listing.js';
-import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
+import { fakeRequest, mockFetch, fakeEnv, turnstileRoute, withTurnstile } from './helpers.js';
+
+// Every submission that gets past the required-field checks passes the Turnstile
+// check first; fakeRequest's default url is the host its token must come from.
+const route =
+  (handler = () => ({ body: '' })) =>
+  (url, options) =>
+    turnstileRoute(url, 'business_listing') ?? handler(url, options);
 
 const resendEnv = () =>
   fakeEnv({ RESEND_API_KEY: 're_1', NOTIFY_FROM: 'a@x.com', NOTIFY_TO: 'b@x.com' });
@@ -48,11 +55,11 @@ test('business-listing: honeypot _hp silently accepted, no DB write', async () =
 });
 
 test('business-listing: defaults category to "services" and approved to false', async () => {
-  const fetch = mockFetch(() => ({ body: '' }));
+  const fetch = mockFetch(route());
   try {
     const r = await onRequestPost({
       request: fakeRequest({
-        body: { name: 'Acme', email: 'a@x.com', description: 'we <sell> things' },
+        body: withTurnstile({ name: 'Acme', email: 'a@x.com', description: 'we <sell> things' }),
       }),
       env: resendEnv(),
     });

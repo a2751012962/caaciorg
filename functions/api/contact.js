@@ -1,5 +1,6 @@
 // POST /api/contact — stores a contact-form submission and emails a notification.
 import { json, bad, sb, sendEmail } from './_lib.js';
+import { requireHuman, turnstileToken } from './_turnstile.js';
 
 export async function onRequestPost({ request, env }) {
   let b;
@@ -10,6 +11,10 @@ export async function onRequestPost({ request, env }) {
   }
   if (!b.name || !b.email || !b.message) return bad('Name, email and message are required.');
   if (b._hp) return json({ ok: true }); // honeypot: silently accept bots
+
+  // Each submission mails staff and writes a row, both unbounded until now.
+  const human = await requireHuman(request, env, 'contact', turnstileToken(b));
+  if (human.error) return human.error;
 
   try {
     await sb(env).insert(

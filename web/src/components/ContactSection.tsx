@@ -4,6 +4,7 @@ import { gsap } from 'gsap';
 import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
 import { MOTION, reveal, revealGroup } from '../lib/motion';
+import { TurnstileBox, useTurnstile } from './Turnstile';
 
 interface ContactSectionProps {
   content: CAACIContent;
@@ -25,6 +26,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
   const [honeypot, setHoneypot] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'success'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const turnstile = useTurnstile('contact');
 
   useEffect(() => {
     if (!prefill) return;
@@ -66,6 +68,15 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
       return;
     }
 
+    // A Turnstile token is spent by the request that carries it: read it, send
+    // it, reset the widget whatever the answer was.
+    const problem = turnstile.problem(document.documentElement.lang.startsWith('zh'));
+    if (problem) {
+      setErrorMessage(problem);
+      return;
+    }
+    const token = turnstile.token();
+
     setErrorMessage('');
     setStatus('sending');
     const {
@@ -78,7 +89,9 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
       phone: formData.phone.trim(),
       message,
       _hp: honeypot,
+      'cf-turnstile-response': token,
     });
+    turnstile.reset();
     if (ok) {
       setStatus('success');
       setFormData(EMPTY_FORM);
@@ -225,6 +238,8 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                     onChange={(e) => setHoneypot(e.target.value)}
                   />
                 </div>
+
+                <TurnstileBox handle={turnstile} className="pt-2" />
 
                 <div className="contact-input-field pt-2">
                   <button

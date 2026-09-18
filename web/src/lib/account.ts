@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { supabase } from './supabase';
 import { api, type ApiResult } from './api';
-import { mergeTiers } from './shared';
+import { cooldownKey, mergeTiers } from './shared';
 import type { Lang } from './lang';
 import type {
   EventSummary,
@@ -435,11 +435,6 @@ export function emailRetryAfter(error: AuthErrorLike | null | undefined): number
     ? EMAIL_COOLDOWN_S
     : 0;
 }
-
-const cooldownKey = (action: string, email: string) =>
-  `caaci-cooldown:${action}:${String(email || '')
-    .trim()
-    .toLowerCase()}`;
 
 function storedCooldownEnd(action: string, email: string): number {
   try {

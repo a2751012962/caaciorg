@@ -5,7 +5,13 @@
 // routes; the behavioral contracts are identical — same API bodies, the same
 // duplicate-email guard — only the markup is Tabler.
 // The Supabase client comes from the self-hosted UMD bundle (assets/supabase.js).
-import { LANG_KEY, normalizePhone, preferredLang } from './caaci-shared.js';
+import {
+  LANG_KEY,
+  clearCooldowns,
+  cooldownKey,
+  normalizePhone,
+  preferredLang,
+} from './caaci-shared.js';
 
 const cfg = window.CAACI_CONFIG || {};
 const sbLib = window.supabase;
@@ -95,11 +101,9 @@ function notice(el, msg, good = true) {
 // action + address in localStorage so a reload does not reset the clock.
 // The text-message code on the phone tab shares all of this (keyed by the
 // number): Supabase's own SMS interval is shorter, but every text costs money.
+// cooldownKey (caaci-shared.js) digests the address or number rather than
+// writing it into localStorage, and the React account page uses the same one.
 const EMAIL_COOLDOWN_S = 60;
-const cooldownKey = (action, email) =>
-  `caaci-cooldown:${action}:${String(email || '')
-    .trim()
-    .toLowerCase()}`;
 const cooldownTimers = new WeakMap();
 
 // Stop a button's countdown without touching its label or the stored end time.
@@ -416,6 +420,9 @@ async function wireNav() {
       auth.href = '#';
       auth.addEventListener('click', async (e) => {
         e.preventDefault();
+        // Leave nothing about this member on a shared machine: the countdowns
+        // are keyed per recipient and nothing else sweeps them.
+        clearCooldowns();
         await supa.auth.signOut();
         location.href = '/';
       });
@@ -586,7 +593,11 @@ export async function wireAuthPage() {
   let resetBySms = params.get('reset') === '1';
   const resetHint = $('#caaci-ph-reset-hint');
   const showMethod = (wanted, { focus = false } = {}) => {
-    const method = panels[wanted] ? wanted : 'email';
+    // Own keys only: `panels[wanted]` also finds Object.prototype, so
+    // ?method=toString (or __proto__, valueOf, constructor…) was truthy, matched
+    // neither panel below, and left the page with both sign-in forms hidden —
+    // and then stored that word, so every later visit repeated it.
+    const method = Object.prototype.hasOwnProperty.call(panels, wanted) ? wanted : 'email';
     for (const tab of methodTabs) {
       const on = tab.dataset.method === method;
       tab.classList.toggle('active', on);

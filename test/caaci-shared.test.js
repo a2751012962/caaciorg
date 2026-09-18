@@ -11,7 +11,73 @@ import {
   isFreeTier,
   statusLabel,
   TIERS_FALLBACK,
+  COOLDOWN_PREFIX,
+  cooldownKey,
+  clearCooldowns,
 } from '../src/caaci-shared.js';
+
+// A localStorage stand-in with the parts clearCooldowns uses.
+function fakeStorage(entries = {}) {
+  const map = new Map(Object.entries(entries));
+  return {
+    get length() {
+      return map.size;
+    },
+    key: (i) => [...map.keys()][i] ?? null,
+    getItem: (k) => (map.has(k) ? map.get(k) : null),
+    setItem: (k, v) => map.set(k, String(v)),
+    removeItem: (k) => map.delete(k),
+    keys: () => [...map.keys()],
+  };
+}
+
+// The keys outlive the visit, so a shared machine must not be able to read a
+// member's mobile number, email address or account id back out of one.
+test('cooldownKey: the recipient is digested, never written into the key', () => {
+  for (const recipient of [
+    '+12175550123',
+    'mei@example.com',
+    '8f14e45f-ceea-467a-9575-2b4c0e9b1b7f',
+  ]) {
+    const key = cooldownKey('sms', recipient);
+    assert.ok(key.startsWith(COOLDOWN_PREFIX + 'sms:'), key);
+    assert.doesNotMatch(key, /@|\+|2175550123|8f14e45f/, key);
+    // Still usable as a key: same recipient, same key; different, different.
+    assert.equal(key, cooldownKey('sms', recipient));
+    assert.notEqual(key, cooldownKey('sms', recipient + '4'));
+    assert.notEqual(key, cooldownKey('email_change', recipient));
+  }
+  // Spelling of the same address does not start a second countdown.
+  assert.equal(
+    cooldownKey('reauth', ' Mei@Example.com '),
+    cooldownKey('reauth', 'mei@example.com'),
+  );
+  assert.equal(cooldownKey('sms', null), cooldownKey('sms', ''));
+});
+
+test('clearCooldowns: drops every countdown, including the old plaintext keys, and nothing else', () => {
+  const store = fakeStorage({
+    [cooldownKey('sms', '+12175550123')]: '1',
+    [cooldownKey('reauth', 'mei@example.com')]: '2',
+    'caaci-cooldown:sms:+12175550123': '3', // written before the digest
+    'caaci-lang': 'zh',
+    'caaci-login-method': 'phone',
+    'sb-wslzeq-auth-token': '{}',
+  });
+  clearCooldowns(store);
+  assert.deepEqual(store.keys(), ['caaci-lang', 'caaci-login-method', 'sb-wslzeq-auth-token']);
+});
+
+test('clearCooldowns: storage that is missing or blocked is not an error', () => {
+  assert.doesNotThrow(() => clearCooldowns(null));
+  assert.doesNotThrow(() =>
+    clearCooldowns({
+      get length() {
+        throw new Error('blocked');
+      },
+    }),
+  );
+});
 
 test('isFreeTier: the self-serve $0 tier, but not the invitation-only Honorable tier', () => {
   assert.equal(isFreeTier({ id: 'free', price_cents: 0 }), true);

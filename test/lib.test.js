@@ -212,6 +212,29 @@ test('sendEmail with `to` sends there, needing only RESEND_API_KEY and NOTIFY_FR
   }
 });
 
+// A line break in a header value ends that header and starts another, so text a
+// visitor typed (the name in a contact-form subject, their address in reply_to)
+// could otherwise add a Bcc of its own.
+test('sendEmail folds CR/LF out of every header value it sends', async () => {
+  const fetch = mockFetch(() => ({ body: { id: 'email_4' } }));
+  try {
+    await sendEmail(fakeEnv({ RESEND_API_KEY: 're_1', NOTIFY_FROM: 'a@x.com' }), {
+      subject: 'CAACI contact form: Pat\r\nBcc: harvest@attacker.example',
+      html: '<p>body is not a header</p>',
+      replyTo: 'p@x.com\nBcc: harvest@attacker.example',
+      to: 'staff@x.com\r\nBcc: harvest@attacker.example',
+    });
+    const sent = JSON.parse(fetch.calls[0].options.body);
+    for (const value of [sent.subject, sent.reply_to, sent.to]) {
+      assert.doesNotMatch(value, /[\r\n]/, value);
+      assert.match(value, /harvest@attacker\.example/, 'folded, not silently dropped');
+    }
+    assert.equal(sent.subject, 'CAACI contact form: Pat Bcc: harvest@attacker.example');
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('sendEmail with `to` goes to that address, not NOTIFY_TO, even when NOTIFY_TO is set', async () => {
   const fetch = mockFetch(() => ({ body: { id: 'email_3' } }));
   try {

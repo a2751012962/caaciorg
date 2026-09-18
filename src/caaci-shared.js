@@ -206,6 +206,54 @@ export function normalizePhone(raw) {
   return /^[2-9]\d{9}$/.test(digits) ? `+1${digits}` : null;
 }
 
+// ---------- "send again" cooldowns ----------
+// Every button that sends an email or a text counts down for the resend
+// interval, and the end time is kept per action + recipient in localStorage so
+// a reload does not restart the clock. Both the Tabler pages and the React
+// account page read the same keys, which is why the builder lives here.
+//
+// The recipient goes in as a digest rather than as itself. These keys outlive
+// the visit — nothing sweeps them until a countdown that is still on screen
+// runs out — so on a shared or library machine `caaci-cooldown:sms:+1217…`
+// left a member's mobile number where the next person could read it, and
+// `…:sms_change:<uuid>` their account id, which is what the membership QR
+// carries. The digest only has to tell two recipients apart; a collision costs
+// at most a countdown shown for the wrong one. It is deliberately a small
+// synchronous hash and not crypto.subtle, which is async and would turn every
+// key lookup into a promise.
+export const COOLDOWN_PREFIX = 'caaci-cooldown:';
+
+const digest = (value) => {
+  const s = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  let h = 0x811c9dc5; // FNV-1a, 32-bit
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+};
+
+export const cooldownKey = (action, recipient) =>
+  `${COOLDOWN_PREFIX}${action}:${digest(recipient)}`;
+
+// Drop every stored countdown. Called on sign-out, so a shared machine keeps
+// nothing about who was just signed in — including the plaintext keys written
+// before the digest, which is why this matches on the prefix.
+export function clearCooldowns(storage) {
+  try {
+    const store = storage || (typeof localStorage === 'undefined' ? null : localStorage);
+    if (!store) return;
+    for (let i = store.length - 1; i >= 0; i--) {
+      const key = store.key(i);
+      if (key && key.startsWith(COOLDOWN_PREFIX)) store.removeItem(key);
+    }
+  } catch {
+    // Storage blocked: there is nothing kept to clear.
+  }
+}
+
 // Merge live membership_tiers rows (from any Supabase client) over the fallback.
 export function mergeTiers(rows) {
   const base = TIERS_FALLBACK.map((t) => ({ ...t }));

@@ -115,6 +115,20 @@ test("member password: another administrator's password is refused", async () =>
   }
 });
 
+// Root is an administrator too, but the flag is separate: a row whose is_admin
+// has been cleared (or was never set) is still refused when is_root is true.
+test("member password: root's password is refused even with the admin flag off", async () => {
+  const fetch = mockFetch(route({ target: { id: 'm1', is_admin: false, is_root: true } }));
+  try {
+    const r = await post(GOOD, MAIL_ENV);
+    assert.equal(r.status, 403);
+    assert.equal(puts(fetch).length, 0);
+    assert.equal(mails(fetch).length, 0);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('member password: a member without a login gets 404 and nothing is written', async () => {
   const fetch = mockFetch(route({ authUser: null }));
   try {
