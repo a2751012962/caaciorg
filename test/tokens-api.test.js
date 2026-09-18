@@ -398,11 +398,12 @@ test('only root changes the settings or appoints an admin', async () => {
   }
 });
 
-test('admin cash top-up: tokens are derived from the cash at the going rate', async () => {
+test('admin cash top-up: tokens come from token_quote, not the amount in the body', async () => {
   const fetch = mockFetch(
     backend({
       members: [{ id: USER, is_admin: true }],
       token_settings: [{ tokens_per_dollar: 10 }],
+      token_quote: { cents: 1000, rate: 10, base: 100, bonus: 0, total: 100, bonus_active: false },
       token_admin_credit: { ok: true, tx_id: TX, balance: 100 },
     }),
   );
@@ -422,6 +423,34 @@ test('admin cash top-up: tokens are derived from the cash at the going rate', as
     assert.equal(args.p_cash_cents, 1000);
     assert.equal(args.p_kind, 'cash');
     assert.equal(args.p_actor, USER);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin cash top-up: a running promotion is handed over at the desk', async () => {
+  const fetch = mockFetch(
+    backend({
+      members: [{ id: USER, is_admin: true }],
+      token_settings: [{ tokens_per_dollar: 10 }],
+      token_quote: { cents: 1000, rate: 10, base: 100, bonus: 50, total: 150, bonus_active: true },
+      token_admin_credit: { ok: true, tx_id: TX, balance: 150 },
+    }),
+  );
+  try {
+    const r = await adminTokens({
+      request: fakeRequest({
+        headers: auth,
+        body: { action: 'cash', member_id: MEMBER, cash_cents: 1000 },
+      }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(r.status, 200);
+    const args = JSON.parse(
+      fetch.calls.find((c) => c.url.includes('rpc/token_admin_credit')).options.body,
+    );
+    assert.equal(args.p_amount, 150, '$10 buys 150 while the promotion is on');
+    assert.equal(args.p_cash_cents, 1000, 'the cash taken is still $10');
   } finally {
     fetch.restore();
   }

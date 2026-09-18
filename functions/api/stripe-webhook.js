@@ -167,6 +167,9 @@ export async function onRequestPost({ request, env }) {
         // A token pack. Credit only what Stripe says is paid; the ledger function
         // is idempotent on the session id, so a retried event credits once. A
         // failure here must 500 so Stripe retries: the member has paid.
+        // `tokens` here is the PAID-FOR amount only -- token_purchase_credit
+        // works out any running promotion itself (0028), so the webhook cannot
+        // hand out a bonus and a replayed event cannot double one.
         if (s.payment_status === 'paid') {
           const cents = Number(md.pack_cents);
           const settings = await DB.selectOne('token_settings', { id: true }, 'tokens_per_dollar');

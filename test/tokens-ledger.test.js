@@ -14,7 +14,17 @@ import { PGlite } from '@electric-sql/pglite';
 const MIGRATIONS = [
   new URL('../supabase/migrations/0024_tokens.sql', import.meta.url),
   new URL('../supabase/migrations/0027_tokens_never_expire.sql', import.meta.url),
+  new URL('../supabase/migrations/0028_token_purchase_bonus.sql', import.meta.url),
 ];
+
+// Open the bonus window around now() so the rate rules can be driven directly.
+const openBonus = (pct = 50, capCents = 10000) =>
+  db.query(
+    `update public.token_settings
+        set bonus_pct = $1, bonus_cap_cents = $2,
+            bonus_from = now() - interval '1 hour', bonus_to = now() + interval '1 hour'`,
+    [pct, capCents],
+  );
 
 let db;
 const q = async (sql, params = []) => (await db.query(sql, params)).rows;
@@ -91,7 +101,8 @@ beforeEach(async () => {
     delete from auth.users;
     update public.token_settings set grants = '{"student":150,"individual":450,"family":900}'::jsonb,
            max_charge = 500, admin_mint_cap = 500, admin_daily_cap = 2000, cash_min_cents = 500,
-           void_hours = 24, settle_min_cents = 2000, suspend_after = 3;
+           void_hours = 24, settle_min_cents = 2000, suspend_after = 3,
+           bonus_pct = 0, bonus_from = null, bonus_to = null, bonus_cap_cents = 10000;
   `);
 });
 
@@ -154,7 +165,9 @@ test('no token expires, and the DB refuses to give one an expiry (0027)', async 
   await call('token_purchase_credit', m, 200, 2000, 'cs_test_1');
   assert.equal(await balance(m), 650);
 
-  const lots = await q(`select source, expires_at from public.token_lots where member_id = $1`, [m]);
+  const lots = await q(`select source, expires_at from public.token_lots where member_id = $1`, [
+    m,
+  ]);
   assert.equal(lots.length, 2);
   for (const l of lots) assert.equal(l.expires_at, null, `${l.source} must never expire`);
 
@@ -178,6 +191,83 @@ test('a purchase is credited once per Stripe session', async () => {
   assert.equal(a.ok, true);
   assert.equal(b.duplicate, true);
   assert.equal(await balance(m), 100);
+});
+
+// ----------------------------------------------------------------- bonus ----
+test('outside the bonus window a dollar buys the plain rate (0028)', async () => {
+  const m = await member({ tier: 'free', expires: null });
+  const { q } = await one('select public.token_quote($1, 1000) as q', [m]);
+  assert.equal(q.bonus_active, false);
+  assert.deepEqual([q.base, q.bonus, q.total], [100, 0, 100]);
+
+  await call('token_purchase_credit', m, 100, 1000, 'cs_plain');
+  assert.equal(await balance(m), 100);
+  const tx = await one('select amount, bonus_tokens from public.token_tx where member_id = $1', [
+    m,
+  ]);
+  assert.deepEqual(tx, { amount: 100, bonus_tokens: 0 });
+});
+
+test('inside the window a purchase gets 50% more, booked apart from what was paid for', async () => {
+  const m = await member({ tier: 'free', expires: null });
+  await openBonus();
+  const r = await call('token_purchase_credit', m, 100, 1000, 'cs_bonus');
+  assert.equal(r.bonus, 50);
+  assert.equal(await balance(m), 150, '$10 buys 150 during the promotion');
+  const tx = await one(
+    'select amount, bonus_tokens, cash_cents from public.token_tx where member_id = $1',
+    [m],
+  );
+  assert.deepEqual(tx, { amount: 150, bonus_tokens: 50, cash_cents: 1000 });
+});
+
+test('the cash desk gives the bonus too, and refuses tokens that do not match the money', async () => {
+  const root = await member({ root: true });
+  const m = await member({ tier: 'free', expires: null });
+  await openBonus();
+
+  const wrong = await call('token_admin_credit', m, 'cash', 100, 1000, root, null);
+  assert.equal(wrong.error, 'cash_amount_mismatch');
+  assert.equal(wrong.expected, 150, 'the desk has to hand over the bonus');
+
+  const ok = await call('token_admin_credit', m, 'cash', 150, 1000, root, null);
+  assert.equal(ok.bonus, 50);
+  assert.equal(await balance(m), 150);
+});
+
+test('the bonus stops at the cap, and splitting the spend does not get around it', async () => {
+  const root = await member({ root: true });
+  const m = await member({ tier: 'free', expires: null });
+  await openBonus(50, 10000); // the first $100 each member spends
+
+  await call('token_purchase_credit', m, 600, 6000, 'cs_cap_1');
+  assert.equal(await balance(m), 900, '$60 -> 600 paid + 300 bonus');
+
+  const second = await call('token_purchase_credit', m, 600, 6000, 'cs_cap_2');
+  assert.equal(second.bonus, 200, 'only the $40 still inside the cap earns 50%');
+  assert.equal(await balance(m), 1700);
+
+  const third = await call('token_admin_credit', m, 'cash', 100, 1000, root, null);
+  assert.equal(third.bonus, 0, 'past the cap it is the plain rate again');
+  assert.equal(await balance(m), 1800);
+});
+
+test('a bonus token is still only worth ten cents to a merchant', async () => {
+  const clerk = await member();
+  const shop = await merchant({ staff: [clerk] });
+  const admin = await member({ admin: true });
+  const m = await member({ tier: 'free', expires: null });
+  await openBonus();
+
+  await call('token_purchase_credit', m, 100, 1000, 'cs_settle'); // $10 -> 150
+  assert.equal(await balance(m), 150);
+  await call('token_charge', m, shop, clerk, 150, null, 'dinner', 'idem-bonus');
+
+  // CAACI took $10 and owes the shop $15: the promotion comes out of margin,
+  // it does not devalue the token at settlement.
+  const s = await call('token_settlement_close', shop, new Date().toISOString(), admin);
+  assert.equal(s.tokens, 150);
+  assert.equal(s.amount_cents, 1500, '150 tokens settle at the plain rate, not the bonus one');
 });
 
 // --------------------------------------------------------------- charges ----
