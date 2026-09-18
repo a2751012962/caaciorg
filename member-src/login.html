@@ -31,100 +31,227 @@
             >
               Sign in to your account
             </h2>
-            <form id="caaci-login-form" novalidate>
-              <div class="mb-3">
-                <label
-                  class="form-label"
-                  for="caaci-li-email"
-                  data-en="Email address"
-                  data-zh="邮箱地址"
-                  >Email address</label
-                >
-                <input
-                  type="email"
-                  id="caaci-li-email"
-                  class="form-control"
-                  autocomplete="username"
-                  required
-                  data-ph-en="you@example.com"
-                  data-ph-zh="you@example.com"
-                  placeholder="you@example.com"
-                />
-              </div>
-              <div class="mb-2">
-                <!-- The "Forgot password?" link is a sibling of the label, not a
-                     child: inside it, clicking the link would also focus the
-                     password field. -->
-                <div class="d-flex justify-content-between align-items-baseline">
-                  <label class="form-label" for="caaci-li-pwd" data-en="Password" data-zh="密码"
-                    >Password</label
-                  >
-                  <span class="form-label-description">
-                    <a href="#" id="caaci-forgot" data-en="Forgot password?" data-zh="忘记密码？"
-                      >Forgot password?</a
-                    >
-                  </span>
-                </div>
-                <input
-                  type="password"
-                  id="caaci-li-pwd"
-                  class="form-control"
-                  autocomplete="current-password"
-                  required
-                />
-              </div>
-              <div class="form-footer">
+            <!-- Two ways in: email + password (or a code, see the legacy block
+                 below), or a code texted to a mobile number already verified on
+                 the account. wireAuthPage switches the panels and remembers the
+                 last one used; ?method=phone opens the second directly. -->
+            <ul class="nav nav-tabs nav-fill mb-3" role="tablist" id="caaci-li-methods">
+              <li class="nav-item" role="presentation">
                 <button
-                  type="submit"
-                  class="btn btn-primary w-100"
-                  data-en="Sign in"
-                  data-zh="登录"
+                  type="button"
+                  class="nav-link active"
+                  id="caaci-li-tab-email"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="caaci-li-panel-email"
+                  data-method="email"
+                  data-en="Email"
+                  data-zh="邮箱"
                 >
-                  Sign in
+                  Email
                 </button>
-              </div>
-            </form>
-            <!-- Revealed by "Forgot password?". Its own form and email field, so
-                 asking for a reset link never depends on the sign-in form. -->
-            <div class="mt-4" id="caaci-reset-panel" hidden>
-              <form id="caaci-reset-form" novalidate>
-                <h3 class="h4 mb-2" data-en="Reset your password" data-zh="重置密码">
-                  Reset your password
-                </h3>
-                <p
-                  class="text-secondary mb-3"
-                  data-en="Enter your account email and we will send you a link to set a new password."
-                  data-zh="请输入账户邮箱，我们会发送设置新密码的链接。"
+              </li>
+              <li class="nav-item" role="presentation">
+                <button
+                  type="button"
+                  class="nav-link"
+                  id="caaci-li-tab-phone"
+                  role="tab"
+                  aria-selected="false"
+                  tabindex="-1"
+                  aria-controls="caaci-li-panel-phone"
+                  data-method="phone"
+                  data-en="Mobile number"
+                  data-zh="手机号"
                 >
-                  Enter your account email and we will send you a link to set a new password.
-                </p>
+                  Mobile number
+                </button>
+              </li>
+            </ul>
+            <div id="caaci-li-panel-email" role="tabpanel" aria-labelledby="caaci-li-tab-email">
+              <form id="caaci-login-form" novalidate>
                 <div class="mb-3">
                   <label
                     class="form-label"
-                    for="caaci-reset-email"
+                    for="caaci-li-email"
                     data-en="Email address"
                     data-zh="邮箱地址"
                     >Email address</label
                   >
                   <input
                     type="email"
-                    id="caaci-reset-email"
+                    id="caaci-li-email"
                     class="form-control"
-                    autocomplete="email"
+                    autocomplete="username"
+                    required
+                    data-ph-en="you@example.com"
+                    data-ph-zh="you@example.com"
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <div class="mb-2">
+                  <!-- The "Forgot password?" link is a sibling of the label, not a
+                     child: inside it, clicking the link would also focus the
+                     password field. -->
+                  <div class="d-flex justify-content-between align-items-baseline">
+                    <label class="form-label" for="caaci-li-pwd" data-en="Password" data-zh="密码"
+                      >Password</label
+                    >
+                    <span class="form-label-description">
+                      <a href="#" id="caaci-forgot" data-en="Forgot password?" data-zh="忘记密码？"
+                        >Forgot password?</a
+                      >
+                    </span>
+                  </div>
+                  <input
+                    type="password"
+                    id="caaci-li-pwd"
+                    class="form-control"
+                    autocomplete="current-password"
                     required
                   />
                 </div>
-                <button
-                  type="submit"
-                  id="caaci-reset-send"
-                  class="btn w-100"
-                  data-en="Send reset link"
-                  data-zh="发送重置链接"
-                >
-                  Send reset link
-                </button>
+                <div class="form-footer">
+                  <button
+                    type="submit"
+                    class="btn btn-primary w-100"
+                    data-en="Sign in"
+                    data-zh="登录"
+                  >
+                    Sign in
+                  </button>
+                </div>
               </form>
-              <p class="alert mt-3 mb-0" id="caaci-reset-notice" role="alert" hidden></p>
+              <!-- Revealed by "Forgot password?". Its own form and email field, so
+                 asking for a reset link never depends on the sign-in form. -->
+              <div class="mt-4" id="caaci-reset-panel" hidden>
+                <form id="caaci-reset-form" novalidate>
+                  <h3 class="h4 mb-2" data-en="Reset your password" data-zh="重置密码">
+                    Reset your password
+                  </h3>
+                  <p
+                    class="text-secondary mb-3"
+                    data-en="Enter your account email and we will send you a link to set a new password."
+                    data-zh="请输入账户邮箱，我们会发送设置新密码的链接。"
+                  >
+                    Enter your account email and we will send you a link to set a new password.
+                  </p>
+                  <div class="mb-3">
+                    <label
+                      class="form-label"
+                      for="caaci-reset-email"
+                      data-en="Email address"
+                      data-zh="邮箱地址"
+                      >Email address</label
+                    >
+                    <input
+                      type="email"
+                      id="caaci-reset-email"
+                      class="form-control"
+                      autocomplete="email"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    id="caaci-reset-send"
+                    class="btn w-100"
+                    data-en="Send reset link"
+                    data-zh="发送重置链接"
+                  >
+                    Send reset link
+                  </button>
+                </form>
+                <p class="alert mt-3 mb-0" id="caaci-reset-notice" role="alert" hidden></p>
+              </div>
+            </div>
+            <!-- Sign in with a mobile number: Supabase texts a one-time code
+                 (signInWithOtp with shouldCreateUser:false, so only a number
+                 already verified under Account security gets one). -->
+            <div
+              id="caaci-li-panel-phone"
+              role="tabpanel"
+              aria-labelledby="caaci-li-tab-phone"
+              hidden
+            >
+              <form id="caaci-phone-form" novalidate>
+                <div class="mb-3">
+                  <label
+                    class="form-label"
+                    for="caaci-ph-number"
+                    data-en="Mobile number"
+                    data-zh="手机号"
+                    >Mobile number</label
+                  >
+                  <input
+                    type="tel"
+                    id="caaci-ph-number"
+                    class="form-control"
+                    autocomplete="tel"
+                    inputmode="tel"
+                    required
+                    data-ph-en="(217) 555-0123"
+                    data-ph-zh="(217) 555-0123"
+                    placeholder="(217) 555-0123"
+                  />
+                  <div
+                    class="form-hint"
+                    data-en="US and Canadian numbers as 10 digits. Elsewhere, start with + and the country code, e.g. +86."
+                    data-zh="美国/加拿大号码直接输入 10 位数字；其他国家请以 + 和国家代码开头，如 +86。"
+                  >
+                    US and Canadian numbers as 10 digits. Elsewhere, start with + and the country
+                    code, e.g. +86.
+                  </div>
+                </div>
+                <div class="form-footer">
+                  <button
+                    type="submit"
+                    id="caaci-ph-send"
+                    class="btn btn-primary w-100"
+                    data-en="Text me a sign-in code"
+                    data-zh="发送短信验证码"
+                  >
+                    Text me a sign-in code
+                  </button>
+                </div>
+              </form>
+              <form class="mt-3" id="caaci-ph-code-form" novalidate hidden>
+                <label
+                  class="form-label"
+                  for="caaci-ph-code"
+                  data-en="Code from the text message"
+                  data-zh="短信中的验证码"
+                  >Code from the text message</label
+                >
+                <div class="input-group">
+                  <input
+                    type="text"
+                    id="caaci-ph-code"
+                    class="form-control"
+                    inputmode="numeric"
+                    autocomplete="one-time-code"
+                    pattern="[0-9]{6,10}"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    id="caaci-ph-verify"
+                    class="btn btn-primary"
+                    data-en="Sign in"
+                    data-zh="登录"
+                  >
+                    Sign in
+                  </button>
+                </div>
+              </form>
+              <p
+                class="text-secondary small mt-3 mb-0"
+                data-en="Works for accounts with a verified mobile number. Add yours after signing in, under My Account → Account Security."
+                data-zh="仅适用于已验证手机号的账户。登录后可在“我的账户 → 账户安全”中添加手机号。"
+              >
+                Works for accounts with a verified mobile number. Add yours after signing in, under
+                My Account → Account Security.
+              </p>
             </div>
             <div class="hr-text" data-en="or continue with" data-zh="或使用以下方式登录">
               or continue with

@@ -189,6 +189,23 @@ export function mirrorLangBoot(w, alt, browserLang) {
 export const mirrorLangScript = (alt) =>
   `<script>(${mirrorLangBoot})(window,${JSON.stringify(alt).replace(/</g, '\\u003c')},${browserLang});</script>\n`;
 
+// ---------- Mobile numbers (sign-in by text message) ----------
+// Supabase Auth wants E.164 (+12175550123). Members type all sorts —
+// "(217) 555-0123", "217.555.0123", "+86 138 0013 8000" — so this reads what
+// they meant. Exactly ten digits without a country code is a US/Canada number
+// (+1), where nearly every member is; anything else has to start with + and
+// its country code. Eleven bare digits starting with 1 are refused on purpose:
+// 13800138000 is both a Chinese mobile and 1 + a Columbus, Ohio number, and a
+// code texted to the wrong reading goes to a stranger.
+// Returns the E.164 string, or null when the input cannot be a phone number.
+export function normalizePhone(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s || /[a-z]/i.test(s)) return null;
+  const digits = s.replace(/\D/g, '');
+  if (s.startsWith('+')) return /^[1-9]\d{7,14}$/.test(digits) ? `+${digits}` : null;
+  return /^[2-9]\d{9}$/.test(digits) ? `+1${digits}` : null;
+}
+
 // Merge live membership_tiers rows (from any Supabase client) over the fallback.
 export function mergeTiers(rows) {
   const base = TIERS_FALLBACK.map((t) => ({ ...t }));

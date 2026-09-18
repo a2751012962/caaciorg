@@ -13,4 +13,5 @@ export {
   LANG_KEY,
   browserLang,
   preferredLang,
+  normalizePhone,
 } from '../../../src/caaci-shared.js';
