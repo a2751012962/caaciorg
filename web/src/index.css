@@ -1,7 +1,7 @@
 @import 'tailwindcss';
-/* The site's typefaces, shared with the Tabler pages: --caaci-font-sans /
-   -serif / -serif-zh / -mono and the :lang(zh) display rule. Tailwind inlines
-   it, so the bundle carries the same stacks /assets/caaci-fonts.css serves. */
+/* The site's typefaces, shared with the Tabler pages: --caaci-font-sans and
+   --caaci-font-mono. Tailwind inlines it, so the bundle carries the same
+   stacks /assets/caaci-fonts.css serves. */
 @import '../../src/caaci-fonts.css';
 
 /* ---- Design tokens (see web/DESIGN_SYSTEM.md). Use bg-brick, text-ink, etc.;
@@ -27,14 +27,10 @@
   --color-surface-warm-2: #fbf9f6;
   --color-surface-cream: #fcfbf9;
 
-  /* Type: the four utilities components may use — font-sans (body, UI,
-     buttons; the default), font-display (h1–h3 are already display, the class
-     is for other elements), font-display-zh (rarely needed: :lang(zh) in
-     caaci-fonts.css already switches every heading), font-mono (ids, emails,
-     amounts). No other font-family belongs in a component. */
+  /* Type: one family. font-sans (the default: body, UI, buttons, headings —
+     headings differ by weight and size, not by face) and font-mono (ids,
+     emails, amounts). No other font-family belongs in a component. */
   --font-sans: var(--caaci-font-sans);
-  --font-display: var(--caaci-font-serif);
-  --font-display-zh: var(--caaci-font-serif-zh);
   --font-mono: var(--caaci-font-mono);
 
   /* Motion (mirrors MOTION in src/lib/motion.ts): ease-out utility + durations. */
@@ -64,12 +60,6 @@
     color: #333333;
     background-color: #ffffff;
     -webkit-font-smoothing: antialiased;
-  }
-
-  h1,
-  h2,
-  h3 {
-    font-family: var(--font-display);
   }
 }
 

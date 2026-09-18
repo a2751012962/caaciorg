@@ -18,7 +18,7 @@
   /* ---- Brand palette (warm earth tones — the CAACI identity) ---- */
   --caaci-brick: #8e2e11; /* primary action — button bg, section accents  */
   --caaci-brick-dark: #561100; /* primary action, hover/pressed                */
-  --caaci-maroon: #300200; /* display headings (Playfair)                  */
+  --caaci-maroon: #300200; /* display headings                             */
   --caaci-red: #cd5c5c; /* links, active nav, the Divi "red" scheme key */
   /* RGB triplets of the tokens Tabler needs as `r, g, b` (for rgba() tints,
      focus rings, -lt backgrounds). Keep in step with the hex above. */
@@ -59,13 +59,13 @@
   --caaci-error-rgb: 179, 38, 30;
 
   /* ---- Typography ---- */
-  /* The families live in caaci-fonts.css (--caaci-font-sans/serif/serif-zh/mono),
+  /* The families live in caaci-fonts.css (--caaci-font-sans / --caaci-font-mono),
      which every page links before this file; these are the names the component
-     rules below and caaci-theme.css already use. Buttons take the body face:
-     the React site's buttons are Poppins, so the Tabler and mirror buttons are
-     too (the Divi CTA's Saira Extra Condensed is no longer loaded). */
+     rules below and caaci-theme.css already use. One family: headings and
+     buttons take the body face too (the Divi CTA's Saira Extra Condensed and
+     the Playfair Display headings are no longer loaded). */
   --caaci-font-body: var(--caaci-font-sans);
-  --caaci-font-display: var(--caaci-font-serif);
+  --caaci-font-display: var(--caaci-font-sans);
   --caaci-font-button: var(--caaci-font-sans);
   --caaci-font-mono: var(--caaci-font-mono);
 

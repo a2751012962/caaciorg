@@ -81,7 +81,7 @@ const config = `window.CAACI_CONFIG = ${JSON.stringify(
 )};\n`;
 await writeFile(join(DIST, 'assets', 'caaci-config.js'), config);
 await copyFile(join(ROOT, 'src', 'caaci-app.js'), join(DIST, 'assets', 'caaci-app.js'));
-// The site's typefaces (--caaci-font-sans/serif/serif-zh/mono), linked before
+// The site's typefaces (--caaci-font-sans / --caaci-font-mono), linked before
 // caaci-ui.css on every page that is not the React bundle (which @imports it).
 await copyFile(join(ROOT, 'src', 'caaci-fonts.css'), join(DIST, 'assets', 'caaci-fonts.css'));
 await copyFile(join(ROOT, 'src', 'caaci-ui.css'), join(DIST, 'assets', 'caaci-ui.css'));

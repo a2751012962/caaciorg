@@ -409,7 +409,7 @@ function BottomSheet({
             transition={sheetIn}
           >
             <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-2">
-              <h3 id="tokens-sheet-title" className="text-lg font-bold font-display text-maroon">
+              <h3 id="tokens-sheet-title" className="text-lg font-bold text-maroon">
                 {title}
               </h3>
               <button

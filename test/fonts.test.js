@@ -50,13 +50,12 @@ const FONTS_CSS = 'src/caaci-fonts.css';
 const SHARED_JS = 'src/caaci-shared.js';
 const SYSTEM_JS = 'functions/api/_fonts.js';
 
-test('caaci-fonts.css declares the four stacks and the Chinese display rule', async () => {
+test('caaci-fonts.css declares one family for text and one for data', async () => {
   const css = await read(FONTS_CSS);
-  for (const v of ['sans', 'serif', 'serif-zh', 'mono'])
+  for (const v of ['sans', 'mono'])
     assert.match(css, new RegExp(`--caaci-font-${v}:`), `missing --caaci-font-${v}`);
-  assert.match(css, /'Poppins'/);
-  assert.match(css, /'Playfair Display', 'Noto Serif SC'/);
-  assert.match(css, /:lang\(zh\) :is\(h1, h2, h3/, 'Chinese headings switch to the zh serif stack');
+  assert.match(css, /--caaci-font-sans:\s*'Poppins', 'Microsoft YaHei', 'PingFang SC'/);
+  assert.doesNotMatch(uncommented(css), /serif'|Playfair|Noto Serif/, 'no second family');
 });
 
 test('the web font families are named only in caaci-fonts.css', async () => {
@@ -103,23 +102,22 @@ test('the Google Fonts request is one constant and every page head takes it from
     'admin-src/index.html',
   ])
     assert.match(await read(p), /<!--CAACI_FONTS-->/, `${p}: missing <!--CAACI_FONTS-->`);
-  for (const face of ['Poppins', 'Playfair+Display', 'Noto+Serif+SC'])
-    assert.ok(GOOGLE_FONTS_URL.includes(`family=${face}:`), `${face} not requested`);
-  assert.doesNotMatch(GOOGLE_FONTS_URL, /Saira/);
+  assert.ok(GOOGLE_FONTS_URL.includes('family=Poppins:'), 'Poppins not requested');
+  assert.equal(GOOGLE_FONTS_URL.match(/family=/g).length, 1, 'one family only');
   const links = googleFontLinks();
   assert.match(links, /rel="preconnect" href="https:\/\/fonts\.gstatic\.com" crossorigin/);
   assert.ok(links.includes(`href="${GOOGLE_FONTS_URL}" rel="stylesheet"`));
 });
 
-test('React components use the font-sans / font-display / font-mono utilities only', async () => {
+test('React components use the font-sans / font-mono utilities only', async () => {
   const hits = [];
   for (const f of sources) {
     const p = rel(f);
     if (!p.startsWith('web/src/') || !/\.tsx?$/.test(p)) continue;
     const s = await readAbs(f);
-    if (/fontFamily/.test(s)) hits.push(`${p}: style fontFamily — use font-display / font-mono`);
-    for (const m of s.matchAll(/\bfont-(serif-caaci|poppins|serif)\b(?!-)/g))
-      hits.push(`${p}: ${m[0]} — use font-display / font-sans`);
+    if (/fontFamily/.test(s)) hits.push(`${p}: style fontFamily — use font-sans / font-mono`);
+    for (const m of s.matchAll(/\bfont-(serif-caaci|poppins|serif|display(-zh)?)\b(?!-)/g))
+      hits.push(`${p}: ${m[0]} — one family: font-sans (weight/size make a heading)`);
   }
   assert.deepEqual(hits, []);
 });
@@ -128,9 +126,8 @@ test('web/src/index.css maps the Tailwind font utilities onto the shared stacks'
   const css = await read('web/src/index.css');
   assert.match(css, /@import '\.\.\/\.\.\/src\/caaci-fonts\.css';/);
   assert.match(css, /--font-sans: var\(--caaci-font-sans\);/);
-  assert.match(css, /--font-display: var\(--caaci-font-serif\);/);
-  assert.match(css, /--font-display-zh: var\(--caaci-font-serif-zh\);/);
   assert.match(css, /--font-mono: var\(--caaci-font-mono\);/);
+  assert.doesNotMatch(css, /--font-display|--font-serif/, 'one family: no display token');
 });
 
 test('the Tabler skin takes body and monospace from the shared stacks and imports no fonts', async () => {
@@ -140,6 +137,6 @@ test('the Tabler skin takes body and monospace from the shared stacks and import
   assert.match(theme, /--tblr-font-monospace: var\(--caaci-font-mono\);/);
   const ui = await read('src/caaci-ui.css');
   assert.match(ui, /--caaci-font-body: var\(--caaci-font-sans\);/);
-  assert.match(ui, /--caaci-font-display: var\(--caaci-font-serif\);/);
+  assert.match(ui, /--caaci-font-display: var\(--caaci-font-sans\);/);
   assert.match(ui, /--caaci-font-button: var\(--caaci-font-sans\);/);
 });

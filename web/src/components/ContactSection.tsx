@@ -111,7 +111,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
               <span className="text-xs font-semibold text-brick block mb-1">
                 Get In Touch · 联络我们
               </span>
-              <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight font-display">
+              <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
                 {content.contact.heading}
               </h2>
             </div>

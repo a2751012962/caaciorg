@@ -43,7 +43,7 @@ export function CommunityCalendarPage({
             <CalendarDays className="w-3.5 h-3.5" />
             <span>Community Portals</span>
           </div>
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-maroon font-display">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-maroon">
             {data.instruction}
           </h2>
           <div className="w-16 h-1 bg-brick mx-auto mt-4 rounded-full" />
@@ -71,7 +71,7 @@ export function CommunityCalendarPage({
                     />
                   </div>
 
-                  <h3 className="text-lg font-bold text-maroon font-display mb-3 group-hover:text-brick transition-colors">
+                  <h3 className="text-lg font-bold text-maroon mb-3 group-hover:text-brick transition-colors">
                     {cal.name}
                   </h3>
 

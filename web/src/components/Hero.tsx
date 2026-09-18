@@ -97,7 +97,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
             ref={leftColRef}
             className="lg:col-span-6 lg:row-span-2 lg:grid lg:grid-rows-subgrid space-y-4 sm:space-y-6 lg:space-y-0 will-change-transform"
           >
-            <h1 className="text-xl sm:text-3xl md:text-[34px] font-bold text-maroon leading-[1.3] tracking-tight font-display">
+            <h1 className="text-xl sm:text-3xl md:text-[34px] font-bold text-maroon leading-[1.3] tracking-tight">
               {content.welcome.heading}
             </h1>
 

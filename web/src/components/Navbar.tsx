@@ -154,7 +154,7 @@ export function Navbar({
                 }}
               />
               <div className="flex flex-col">
-                <span className="font-bold text-lg leading-tight tracking-tight text-maroon font-display">
+                <span className="font-bold text-lg leading-tight tracking-tight text-maroon">
                   CAACI
                 </span>
                 <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-sans hidden sm:inline">

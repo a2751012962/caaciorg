@@ -26,7 +26,7 @@
 | `brick-hover`   | `#a63715` | 主按钮 hover（亮一档）                                                     | 6        |
 | `brick-pressed` | `#72240d` | 主按钮 pressed / 深一档 hover                                              | 5        |
 | `brick-deep`    | `#73250e` | 首页三联横幅第二格                                                         | 2        |
-| `maroon`        | `#300200` | **Display 标题色**（Playfair）、Logo 文字、弹窗标题、三联横幅第三格        | 12       |
+| `maroon`        | `#300200` | **Display 标题色**、Logo 文字、弹窗标题、三联横幅第三格                    | 12       |
 | `rust`          | `#ce4327` | 页脚联系信息图标                                                           | 2        |
 | `gold`          | `#edbb5f` | 深色底上的 eyebrow / 星标 / 会员权益图标                                   | 10       |
 | `tan`           | `#d3a971` | 数字会员卡与页脚的点缀链接色                                               | 8        |
@@ -78,23 +78,21 @@
 
 ## 2. 字体
 
-全站字体只在一个地方声明：仓库根目录 `src/caaci-fonts.css`（`index.css` 直接 `@import`，
-Tabler 后台/登录页链接同一文件），`@theme` 把它映射成四个 Tailwind 工具类。Google Fonts
-只有一条请求：`src/caaci-shared.js` 的 `GOOGLE_FONTS_URL`，由 `vite.config.ts` 写进
-`index.html` 的 `<!--CAACI_FONTS-->`。守卫：`test/fonts.test.js`。
+全站只有一个字体家族（2026-09-17 决定：去掉 Playfair Display 与 Noto Serif SC 衬线标题，三个网络字体减为一个）。
+声明只在一个地方：仓库根目录 `src/caaci-fonts.css`（`index.css` 直接 `@import`，Tabler 后台/登录页链接同一文件），
+`@theme` 把它映射成两个 Tailwind 工具类。Google Fonts 只有一条请求：`src/caaci-shared.js` 的 `GOOGLE_FONTS_URL`，
+由 `vite.config.ts` 写进 `index.html` 的 `<!--CAACI_FONTS-->`。守卫：`test/fonts.test.js`。
 
-| 角色                 | 工具类              | 变量                    | 字体栈                                                                    |
-| -------------------- | ------------------- | ----------------------- | ------------------------------------------------------------------------- |
-| 正文 / UI / 按钮     | `font-sans`（默认） | `--caaci-font-sans`     | Poppins → Microsoft YaHei → PingFang SC → Hiragino Sans GB → Noto Sans SC |
-| Display / h1–h3      | `font-display`      | `--caaci-font-serif`    | Playfair Display → Noto Serif SC → Songti SC → SimSun                     |
-| 中文页面的 Display   | 自动（`:lang(zh)`） | `--caaci-font-serif-zh` | Noto Serif SC → Playfair Display（中文标题里的数字/英文也用中文衬线）     |
-| 数据 / 会员号 / 邮箱 | `font-mono`         | `--caaci-font-mono`     | ui-monospace → Menlo → Consolas → Microsoft YaHei → PingFang SC           |
+| 角色                    | 工具类              | 变量                | 字体栈                                                                    |
+| ----------------------- | ------------------- | ------------------- | ------------------------------------------------------------------------- |
+| 正文 / UI / 按钮 / 标题 | `font-sans`（默认） | `--caaci-font-sans` | Poppins → Microsoft YaHei → PingFang SC → Hiragino Sans GB → Noto Sans SC |
+| 数据 / 会员号 / 邮箱    | `font-mono`         | `--caaci-font-mono` | ui-monospace → Menlo → Consolas → Microsoft YaHei → PingFang SC           |
 
 规则：
 
-- `h1/h2/h3` 已在 `@layer base` 里默认 display 衬线，无需加类；其它元素要衬线时加 `font-display`。
-- 组件里不写 `style={{ fontFamily }}`，不写 `font-serif`（Tailwind 默认 Georgia）；`font-serif-caaci`、`font-poppins` 两个旧类已删除。
-- 中文标题不需要 `isZh` 分支：`/zh/` 下 `<html lang="zh-CN">`，`caaci-fonts.css` 的 `:lang(zh)` 规则会把所有 display 标题切到中文衬线栈。
+- 标题靠字重和字号区分（`font-bold` / `font-semibold` + 字号阶梯），不换字体；中文标题自然落到 PingFang / 微软雅黑粗体。
+- 组件里不写 `style={{ fontFamily }}`，不写 `font-serif` / `font-display`（Tailwind 默认 Georgia / 已删除的旧类）；`font-serif-caaci`、`font-poppins` 也已删除。
+- 中文标题不需要任何字体分支：同一个栈里 Poppins 没有的汉字自动由中文字体出字。
 
 ### 2.1 字号阶梯（实际使用）
 
@@ -293,7 +291,7 @@ Tabler 后台/登录页链接同一文件），`@theme` 把它映射成四个 Ta
 
 遮罩 `fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4`；
 面板 `w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-neutral-200 overflow-hidden`；
-头部 `px-6 py-4 border-b border-neutral-200 bg-neutral-50`，标题 `font-serif-caaci font-bold text-lg text-maroon`；
+头部 `px-6 py-4 border-b border-neutral-200 bg-neutral-50`，标题 `font-bold text-lg text-maroon`；
 关闭键 `p-1 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200`；内容 `p-6`。
 
 ### 5.8 导航栏 / 下拉
@@ -315,7 +313,7 @@ lucide-react。尺寸：行内 `w-3.5 h-3.5`，按钮 `w-4 h-4`，卡片 `w-5 h-
 ## 6. 双语规则
 
 - 每个可见字符串都有 en / zh 两版（`data/content.ts`）。
-- 中文标题自动走中文衬线栈（`caaci-fonts.css` 的 `:lang(zh)` 规则，见 §2），组件不写 `isZh` 字体分支；不要给中文加 `tracking-widest`。
+- 中英文同一个字体栈（见 §2），组件不写 `isZh` 字体分支；不要给中文加 `tracking-widest`。
 - 字距（tracking）对中文无效且会拉开字，按钮/标签的 `tracking-wider` 只对英文有意义，可接受但不要再加大。
 - `uppercase` 对汉字没有任何效果（浏览器原样显示），所以导航项和主按钮这两处允许全大写的元素可以中英文共用同一组类，不必按语言切换（已定 2026-09-15）。
 
@@ -346,7 +344,7 @@ lucide-react。尺寸：行内 `w-3.5 h-3.5`，按钮 `w-4 h-4`，卡片 `w-5 h-
 | `brick-700` / `brick-800` | `#6a220c` / `#5c1c0a` |     | `surface-3`                             | `#f5f5f7`                         |
 | `maroon`                  | `#300200`             |     | `surface-hover`                         | `#fafafc`                         |
 | `rust`                    | `#ce4327`             |     | `surface-warm` / `-2` / `surface-cream` | `#fbf9f8` / `#fbf9f6` / `#fcfbf9` |
-| `gold` / `tan`            | `#edbb5f` / `#d3a971` |     | `font-display` / `font-display-zh`      | 衬线 / 中文衬线                   |
+| `gold` / `tan`            | `#edbb5f` / `#d3a971` |     | `font-sans` / `font-mono`               | 唯一字体家族 / 数据等宽           |
 
 `animate-fadeIn`（下拉）与 `animate-in`（弹窗）的 keyframes 同样定义在 `index.css`，并遵守 `prefers-reduced-motion`。
 

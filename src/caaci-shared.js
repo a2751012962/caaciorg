@@ -113,14 +113,13 @@ export const statusLabel = (status, lang) =>
   STATUS_LABEL[status]?.[lang === 'zh' ? 1 : 0] || status;
 
 // ---------- Site language (EN / 中文) ----------
-// The one Google Fonts request for the whole site: Poppins (body/UI), Playfair
-// Display (display headings) and Noto Serif SC (Chinese display). The family
-// stacks that use them are in src/caaci-fonts.css. build.mjs writes
+// The one Google Fonts request for the whole site: Poppins, the single family
+// for body, UI, buttons and headings (src/caaci-fonts.css). build.mjs writes
 // googleFontLinks() into the Tabler pages' <head> and web/vite.config.ts into
 // the React site's, both at the <!--CAACI_FONTS--> marker, so no page carries
 // its own copy of the URL (test/fonts.test.js).
 export const GOOGLE_FONTS_URL =
-  'https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap';
+  'https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap';
 
 export const googleFontLinks = () =>
   `<link rel="preconnect" href="https://fonts.googleapis.com">\n` +

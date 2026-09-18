@@ -86,7 +86,7 @@ export function VibrantCommunity({ content, onOpenModal }: VibrantCommunityProps
             </div>
 
             {/* Main Title */}
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-maroon leading-[1.2] tracking-tight font-display mb-5">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-maroon leading-[1.2] tracking-tight mb-5">
               {content.community.heading}
             </h2>
 

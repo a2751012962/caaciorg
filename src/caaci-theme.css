@@ -18,9 +18,8 @@
  */
 
 /* Typefaces: every Tabler page's <head> carries <!--CAACI_FONTS-->, which
-   build.mjs replaces with the site's one Google Fonts link (Poppins, Playfair
-   Display, Noto Serif SC — GOOGLE_FONTS_URL in caaci-shared.js) and the
-   /assets/caaci-fonts.css stacks. Nothing is @imported here, so /admin/ renders
+   build.mjs replaces with the site's one Google Fonts link (Poppins —
+   GOOGLE_FONTS_URL in caaci-shared.js) and the /assets/caaci-fonts.css stacks. Nothing is @imported here, so /admin/ renders
    the same faces as the React site, body copy included. */
 
 /* ======================================================= Tabler → tokens === */
@@ -68,8 +67,9 @@
   border-color: rgba(var(--caaci-brick-rgb), 0.5);
 }
 
-/* Headings: the mirror sets every h1–h3 in Playfair Display, maroon, with a
-   little tracking (UI_GUIDELINE §2). Tabler's are bold Inter in body colour. */
+/* Headings: the site's one family at heading weight, maroon, tightened the
+   way the React headings are (Tailwind tracking-tight). Tabler's are bold
+   Inter in body colour. */
 h1,
 h2,
 h3,
@@ -78,7 +78,7 @@ h3,
 .h3 {
   font-family: var(--caaci-font-display);
   color: var(--caaci-maroon);
-  letter-spacing: 1px;
+  letter-spacing: -0.025em;
 }
 
 /* Primary action: the same square, uppercase, condensed CTA as the mirror's
@@ -598,7 +598,7 @@ h3,
 .caaci-bp-brick {
   color: var(--caaci-brick);
 }
-/* The admin theme sets h3 in Playfair maroon; the public card is sans ink. */
+/* The admin theme sets h3 in maroon; the public card is ink. */
 .caaci-bp-stage .caaci-bp-name {
   margin: 12px 0 0;
   font-family: inherit;

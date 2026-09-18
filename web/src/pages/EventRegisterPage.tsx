@@ -603,7 +603,7 @@ export function EventRegisterPage({
     >
       <Gift className={`w-5 h-5 shrink-0 ${perkOpen ? 'text-brick' : 'text-neutral-400'}`} />
       <div className="space-y-1">
-        <h2 className="text-lg sm:text-xl font-bold text-maroon font-display">
+        <h2 className="text-lg sm:text-xl font-bold text-maroon">
           {perkOpen
             ? en
               ? `Free ${perk.item_en}`
@@ -665,7 +665,7 @@ export function EventRegisterPage({
         <h2
           ref={doneTitle}
           tabIndex={-1}
-          className="text-2xl font-bold text-maroon font-display rounded focus:outline-none focus:ring-2 focus:ring-brick"
+          className="text-2xl font-bold text-maroon rounded focus:outline-none focus:ring-2 focus:ring-brick"
         >
           {en ? "You're registered" : '报名成功'}
         </h2>
@@ -741,7 +741,7 @@ export function EventRegisterPage({
   const formCard = () => (
     <form onSubmit={submit} className={`${CARD} relative space-y-5`} noValidate>
       <div>
-        <h2 className="text-xl font-bold text-maroon font-display">{en ? 'Register' : '报名'}</h2>
+        <h2 className="text-xl font-bold text-maroon">{en ? 'Register' : '报名'}</h2>
         <p className="text-xs text-neutral-500 mt-1">
           {en ? 'Fields marked * are required.' : '带 * 的为必填项。'}
         </p>
@@ -872,7 +872,7 @@ export function EventRegisterPage({
     if (status === 'missing')
       return (
         <div className={`${CARD} space-y-2`} role="alert">
-          <h2 className="text-lg sm:text-xl font-bold text-maroon font-display">
+          <h2 className="text-lg sm:text-xl font-bold text-maroon">
             {en ? 'This event is not open for registration' : '该活动未开放报名'}
           </h2>
           <p className="text-sm text-neutral-700 leading-relaxed">
@@ -913,7 +913,7 @@ export function EventRegisterPage({
           doneCard()
         ) : ev?.open === false ? (
           <div className={`${CARD} space-y-2`} role="status">
-            <h2 className="text-lg sm:text-xl font-bold text-maroon font-display">
+            <h2 className="text-lg sm:text-xl font-bold text-maroon">
               {en ? 'Registration has closed' : '报名已截止'}
             </h2>
             <p className="text-sm text-neutral-700">

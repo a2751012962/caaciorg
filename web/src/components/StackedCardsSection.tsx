@@ -356,7 +356,7 @@ export function StackedCardsSection({
               >
                 {/* 1. Giant Numeral Line Accent */}
                 <div className="panel-num-line flex items-baseline gap-4 mb-2 origin-top-left">
-                  <span className="panel-num text-5xl sm:text-6xl md:text-7xl font-display font-black text-brick/25 tracking-tighter">
+                  <span className="panel-num text-5xl sm:text-6xl md:text-7xl font-black text-brick/25 tracking-tighter">
                     {item.number}
                   </span>
                   <div className="h-[2px] flex-1 max-w-[140px] bg-brick/30" />
@@ -364,8 +364,6 @@ export function StackedCardsSection({
 
                 {/* 3. Typography Headline Block with Companion Small Number */}
                 <div className="mb-6 origin-top-left will-change-transform">
-                  {/* Chinese: the :lang(zh) rule in src/caaci-fonts.css switches the heading
-                      to the Chinese serif stack; no per-component branch. */}
                   <h3 className="panel-headline text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-maroon leading-[1.1] tracking-tight origin-top-left flex items-baseline flex-wrap">
                     {/* 小数字伴随标题：被滚上去时平滑展现 */}
                     <span className="panel-companion-num opacity-0 inline-block overflow-hidden font-mono font-bold text-xl sm:text-2xl md:text-3xl text-brick align-baseline whitespace-nowrap">

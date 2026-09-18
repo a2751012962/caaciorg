@@ -31,7 +31,7 @@ export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 bg-neutral-50">
           <div className="flex items-center gap-2">
             {modalType === 'donate' && <Heart className="w-5 h-5 text-brick" />}
-            <h3 className="font-display font-bold text-lg text-maroon">
+            <h3 className="font-bold text-lg text-maroon">
               {modalType === 'donate' && content.modals.donateTitle}
               {modalType === 'volunteer' &&
                 (lang === 'en' ? 'Volunteer with CAACI' : '加入 CAACI 志愿者')}

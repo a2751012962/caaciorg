@@ -30,7 +30,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
                   e.currentTarget.style.display = 'none';
                 }}
               />
-              <div className="font-display text-xl font-bold text-white tracking-wide">CAACI</div>
+              <div className="text-xl font-bold text-white tracking-wide">CAACI</div>
             </div>
 
             <p className="font-sans text-sm text-neutral-400 leading-relaxed max-w-md">

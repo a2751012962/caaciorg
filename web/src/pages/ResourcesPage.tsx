@@ -58,7 +58,7 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
                     <ExternalLink className="w-4 h-4 text-neutral-400 group-hover:text-brick transition-colors" />
                   </div>
 
-                  <h3 className="text-xl font-bold text-maroon font-display group-hover:text-brick transition-colors">
+                  <h3 className="text-xl font-bold text-maroon group-hover:text-brick transition-colors">
                     {item.title}
                   </h3>
 
