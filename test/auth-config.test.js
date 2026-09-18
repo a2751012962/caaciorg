@@ -207,13 +207,16 @@ test('phone sign-in is enabled and delivers through Twilio', { skip: skipConfig 
   const length = Number(cfg.sms_otp_length);
   assert.ok(length >= 6 && length <= 10, `SMS OTP length is ${cfg.sms_otp_length}, not 6–10`);
 
-  // With phone confirmations off, updateUser({ phone }) saves a number without
-  // the texted code — so anyone could put someone else's number on their
-  // account, and that number would then be blocked from its owner's account.
+  // Phone confirmations are OFF by decision: the number given when registering
+  // (0025's signup trigger) and one added under Account Security are saved at
+  // once, without a texted code — the code at sign-in is the only check. With
+  // them on, Account Security would start asking for a code (the page handles
+  // it) and 0025's trigger would claim numbers Supabase then treats as pending;
+  // SETUP.md describes the off state.
   assert.equal(
     cfg.sms_autoconfirm,
-    false,
-    'phone confirmations are off — turn on "Enable phone confirmations" under Authentication → Sign In / Providers → Phone',
+    true,
+    '"Enable phone confirmations" was switched on under Authentication → Sign In / Providers → Phone — the site is built for it off; switch it back, or update Account Security, 0025 and SETUP.md',
   );
 });
 

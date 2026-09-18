@@ -39,8 +39,15 @@ function NoticeLine({ notice }: { notice: Notice }) {
 const inputCls =
   'w-full min-h-[44px] px-3.5 py-2 text-sm bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brick';
 
-// The mobile number Supabase will text a sign-in code to: only one it has confirmed.
-const verifiedPhoneOf = (user: User) => (user.phone_confirmed_at && user.phone) || '';
+// The mobile number Supabase will text a sign-in code to: only one it has
+// confirmed. GoTrue stores and returns phones without the leading + ("12175550123");
+// shown and compared here in E.164, as normalizePhone produces it.
+const verifiedPhoneOf = (user: User) =>
+  user.phone_confirmed_at && user.phone
+    ? user.phone.startsWith('+')
+      ? user.phone
+      : `+${user.phone}`
+    : '';
 
 type AuthError = { message?: string; code?: string; status?: number } | null;
 
@@ -257,11 +264,12 @@ export function SecurityCard({
     emCooldown.start(EMAIL_COOLDOWN_S);
   };
 
-  // ---- mobile number (sign in by text message) ----
-  // updateUser({ phone }) has Supabase text a code to the new number and keeps
-  // the old one until verifyOtp(type 'phone_change') confirms it. With "Enable
-  // phone confirmations" switched off in the dashboard, Supabase saves the
-  // number at once instead and there is no code step; the reply says which.
+  // ---- mobile number (sign in, and reset the password, by text message) ----
+  // Phone confirmations are off in the dashboard (the Board's call), so
+  // updateUser({ phone }) saves the number at once and there is no code step.
+  // Should they ever be switched on, Supabase instead texts a code to the new
+  // number and keeps the old one until verifyOtp(type 'phone_change') confirms
+  // it; the reply says which happened, and the code step below covers it.
   const [verifiedPhone, setVerifiedPhone] = useState(() => verifiedPhoneOf(user));
   const [newPhone, setNewPhone] = useState('');
   const [pendingPhone, setPendingPhone] = useState(''); // E.164, awaiting its code
@@ -432,6 +440,20 @@ export function SecurityCard({
                   '您目前通过 Google 或 Microsoft 登录。设置密码后也可以使用邮箱登录。',
                 )}
           </p>
+          {/* The other way to a new password when the current one is gone: the
+              login page's phone tab signs in with a texted code and lands on
+              /account/?recovery=1, whose form asks for no current password. */}
+          {hasPassword && verifiedPhone && (
+            <a
+              href="/login-3/?method=phone&reset=1"
+              className="inline-block mt-1.5 text-[11px] font-semibold text-brick hover:underline"
+            >
+              {t(
+                'Forgot your current password? Reset it with a text message →',
+                '忘记当前密码？改用短信重置 →',
+              )}
+            </a>
+          )}
         </div>
 
         <NoticeLine notice={pwNotice} />
@@ -619,12 +641,12 @@ export function SecurityCard({
           <p className="text-[11px] text-neutral-500 mt-0.5">
             {verifiedPhone
               ? t(
-                  `You can sign in with a code texted to ${verifiedPhone}. Enter a new number below to change it; the old one works until the new one is confirmed.`,
-                  `您可以用发送到 ${verifiedPhone} 的短信验证码登录。在下方输入新号码即可更换；新号码确认前旧号码仍可使用。`,
+                  `You can sign in, or reset your password, with a code texted to ${verifiedPhone}. Enter a new number below to change it.`,
+                  `您可以用发送到 ${verifiedPhone} 的短信验证码登录或重置密码。在下方输入新号码即可更换。`,
                 )
               : t(
-                  'Add a mobile number and the sign-in page can text you a one-time code instead of asking for your password. US and Canadian numbers as 10 digits; elsewhere start with + and the country code.',
-                  '添加手机号后，登录页可以向您发送一次性短信验证码，无需输入密码。美国/加拿大号码直接输入 10 位数字；其他国家请以 + 和国家代码开头。',
+                  'Add a mobile number and the sign-in page can text you a one-time code — to sign in without your password, or to reset it if you forget it. Saved right away, no confirmation needed. US and Canadian numbers as 10 digits; elsewhere start with + and the country code.',
+                  '添加手机号后，登录页可以向您发送一次性短信验证码——无需密码即可登录，忘记密码时也能重置。添加即保存，无需确认。美国/加拿大号码直接输入 10 位数字；其他国家请以 + 和国家代码开头。',
                 )}
           </p>
         </div>
