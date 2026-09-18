@@ -71,6 +71,10 @@ function supaStub({ isAdmin = false, auth = {} } = {}) {
       data: { user: null, session: null },
       error: { code: 'invalid_credentials', status: 400, message: 'Invalid login credentials' },
     }),
+    signUp: async () => ({
+      data: { user: { id: 'u-new', identities: [{}] }, session: null },
+      error: null,
+    }),
     signInWithOtp: async () => ({ data: {}, error: null }),
     verifyOtp: async ({ phone, token }) =>
       token === GOOD_CODE
@@ -436,6 +440,94 @@ test('login page: a wrong or expired code says so and frees the button', async (
   }
 });
 
+// ------------------------------------------------- reset a password by text
+
+test('login page: "Reset it with a text message" opens the phone tab in reset mode, and the code lands on the set-password form', async (t) => {
+  mockClock(t);
+  const stub = supaStub();
+  await phoneTab(stub, { click: false });
+  q('#caaci-forgot').dispatchEvent(new Event('click'));
+  assert.equal(q('#caaci-reset-panel').hidden, false);
+  assert.equal(q('#caaci-ph-reset-hint').hidden, true, 'a plain phone sign-in shows no reset hint');
+
+  q('#caaci-reset-by-sms').dispatchEvent(new Event('click'));
+  assert.equal(q('#caaci-li-panel-phone').hidden, false);
+  assert.equal(q('#caaci-li-panel-email').hidden, true);
+  assert.equal(q('#caaci-ph-reset-hint').hidden, false);
+  assert.match(
+    q('#caaci-ph-reset-hint').textContent.replace(/\s+/g, ' '),
+    /set a new password on the next page/,
+  );
+  assert.equal(document.activeElement, q('#caaci-ph-number'));
+
+  typeInto('#caaci-ph-number', E164);
+  submit('#caaci-phone-form');
+  await tick();
+  assert.deepEqual(callsTo(stub, 'signInWithOtp'), [
+    [{ phone: E164, options: { shouldCreateUser: false } }],
+  ]);
+  q('#caaci-ph-code').value = GOOD_CODE;
+  submit('#caaci-ph-code-form');
+  await tick();
+  assert.deepEqual(callsTo(stub, 'verifyOtp'), [[{ phone: E164, token: GOOD_CODE, type: 'sms' }]]);
+  assert.equal(location.href, '/account/?recovery=1', 'the set-new-password form, not the account');
+});
+
+test('login page: going back to the Email tab leaves reset mode', async (t) => {
+  mockClock(t);
+  await phoneTab(supaStub(), { search: '?method=phone&reset=1', click: false });
+  assert.equal(q('#caaci-li-panel-phone').hidden, false, '?reset=1 opens the phone tab');
+  assert.equal(q('#caaci-ph-reset-hint').hidden, false);
+
+  q('#caaci-li-tab-email').click();
+  q('#caaci-li-tab-phone').click();
+  assert.equal(q('#caaci-ph-reset-hint').hidden, true);
+  typeInto('#caaci-ph-number', E164);
+  submit('#caaci-phone-form');
+  await tick();
+  q('#caaci-ph-code').value = GOOD_CODE;
+  submit('#caaci-ph-code-form');
+  await tick();
+  assert.equal(location.href, '/account/', 'a plain sign-in again');
+});
+
+test('login page: a signed-in member arriving from the account page to reset by text is not bounced away', async (t) => {
+  mockClock(t);
+  const me = { id: 'u-me', email: 'mei@x.com', phone: '12175550123' };
+  const stub = supaStub({ auth: { getUser: async () => ({ data: { user: me } }) } });
+  await phoneTab(stub, { search: '?method=phone&reset=1', click: false });
+  assert.equal(location.href, '', 'stays on the page');
+  assert.equal(q('#caaci-ph-reset-hint').hidden, false);
+
+  // Without reset mode the same visitor is sent on, as before.
+  await phoneTab(stub, { search: '?method=phone', click: false });
+  assert.equal(location.href, '/account/');
+});
+
+// ------------------------------------------------------------------ sign-up
+
+test('sign-up: a mobile number this page can read is stored in E.164, anything else as typed', async (t) => {
+  mockClock(t);
+  for (const [typed, stored] of [
+    ['(217) 555-0123', E164],
+    ['+86 138 0013 8000', '+8613800138000'],
+    ['ext. 5', 'ext. 5'],
+    ['', ''],
+  ]) {
+    const stub = supaStub();
+    await phoneTab(stub, { click: false });
+    q('#caaci-su-name').value = 'Mei';
+    q('#caaci-su-email').value = 'mei@x.com';
+    q('#caaci-su-phone').value = typed;
+    q('#caaci-su-pwd').value = 'longenough1';
+    q('#caaci-su-pwd2').value = 'longenough1';
+    submit('#caaci-signup-form');
+    await tick();
+    const [[{ options }]] = callsTo(stub, 'signUp');
+    assert.equal(options.data.phone, stored, JSON.stringify(typed));
+  }
+});
+
 test('login page: the emailed one-time code still verifies as type email', async (t) => {
   mockClock(t);
   const stub = supaStub({
@@ -483,12 +575,19 @@ test('account security: the texted code confirms the change as phone_change, and
     /verifyOtp\(\{\s*phone: pendingPhone,\s*token,\s*type: 'phone_change',?\s*\}\)/,
   );
   assert.match(SECURITY, /resend\(\{ type: 'phone_change', phone: pendingPhone \}\)/);
+  // GoTrue returns phones without the +; the comparison with the E.164 value
+  // must still say "saved", or the page would wait for a code that never comes.
   assert.match(
     SECURITY,
-    /const verifiedPhoneOf = \(user: User\) => \(user\.phone_confirmed_at && user\.phone\) \|\| ''/,
+    /user\.phone\.startsWith\('\+'\)\s*\?\s*user\.phone\s*:\s*`\+\$\{user\.phone\}`/,
   );
+  assert.match(SECURITY, /user\.phone_confirmed_at && user\.phone/);
   // Phone confirmations off in the dashboard: Supabase saves it at once — no code step.
   assert.match(SECURITY, /verifiedPhoneOf\(updated\) === value\) return phoneSaved\(value\)/);
+  // The other way to a new password: the login page's phone tab in reset mode.
+  assert.match(SECURITY, /href="\/login-3\/\?method=phone&reset=1"/);
+  assert.match(SECURITY, /Forgot your current password\? Reset it with a text message/);
+  assert.match(SECURITY, /忘记当前密码？改用短信重置/);
   // The same 60 s "send again" countdown as every auth email.
   assert.match(SECURITY, /useCooldown\('sms_change', user\.id\)/);
   assert.match(SECURITY, /phCooldown\.start\(SMS_COOLDOWN_S\)/);
@@ -520,6 +619,23 @@ test('0025_phone_login.sql copies a confirmed mobile number onto members.phone',
   assert.match(flat, /insert into public\.members \(id, email, full_name, phone\)/);
   assert.match(flat, /coalesce\(nullif\(new\.raw_user_meta_data->>'phone', ''\), new\.phone\)/);
   assert.match(flat, /on conflict \(id\) do nothing/);
+
+  // The number typed at sign-up (user_metadata.phone, E.164) becomes the account's
+  // mobile number before the row exists — unless another account has it, since a
+  // duplicate would fail the whole sign-up. Stored without the +, as GoTrue does.
+  assert.match(flat, /create or replace function public\.claim_signup_phone\(\)/);
+  assert.match(flat, /wanted ~ '\^\\\+\[1-9\]\[0-9\]\{7,14\}\$'/);
+  assert.match(
+    flat,
+    /not exists \(select 1 from auth\.users u where u\.phone = ltrim\(wanted, '\+'\)\)/,
+  );
+  assert.match(flat, /new\.phone := ltrim\(wanted, '\+'\)/);
+  assert.match(flat, /new\.phone_confirmed_at := now\(\)/);
+  assert.match(flat, /if new\.phone is null/, 'never overrides a phone GoTrue set itself');
+  assert.match(
+    flat,
+    /create trigger on_auth_user_signup_phone before insert on auth\.users for each row execute function public\.claim_signup_phone\(\)/,
+  );
 
   assert.match(flat, /create or replace function public\.handle_user_phone_change\(\)/);
   assert.match(flat, /security definer set search_path = public/);

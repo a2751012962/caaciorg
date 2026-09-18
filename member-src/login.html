@@ -167,17 +167,42 @@
                   </button>
                 </form>
                 <p class="alert mt-3 mb-0" id="caaci-reset-notice" role="alert" hidden></p>
+                <!-- The other way to a new password: sign in with a texted code,
+                     then set one on /account/?recovery=1 (wireAuthPage). -->
+                <p class="text-secondary small mt-3 mb-0">
+                  <span data-en="No access to that inbox?" data-zh="收不到邮件？"
+                    >No access to that inbox?</span
+                  >
+                  <a
+                    href="#"
+                    id="caaci-reset-by-sms"
+                    data-en="Reset it with a text message instead"
+                    data-zh="改用短信重置密码"
+                    >Reset it with a text message instead</a
+                  >
+                </p>
               </div>
             </div>
             <!-- Sign in with a mobile number: Supabase texts a one-time code
                  (signInWithOtp with shouldCreateUser:false, so only a number
-                 already verified under Account security gets one). -->
+                 already on an account gets one). -->
             <div
               id="caaci-li-panel-phone"
               role="tabpanel"
               aria-labelledby="caaci-li-tab-phone"
               hidden
             >
+              <p
+                class="alert alert-info mb-3"
+                id="caaci-ph-reset-hint"
+                role="status"
+                hidden
+                data-en="Resetting your password: sign in with the code we text you, then set a new password on the next page."
+                data-zh="重置密码：用短信验证码登录后，在下一页设置新密码。"
+              >
+                Resetting your password: sign in with the code we text you, then set a new password
+                on the next page.
+              </p>
               <form id="caaci-phone-form" novalidate>
                 <div class="mb-3">
                   <label
@@ -250,11 +275,11 @@
               </form>
               <p
                 class="text-secondary small mt-3 mb-0"
-                data-en="Works for accounts with a verified mobile number. Add yours after signing in, under My Account → Account Security."
-                data-zh="仅适用于已验证手机号的账户。登录后可在“我的账户 → 账户安全”中添加手机号。"
+                data-en="Works for accounts with a mobile number on file — the one given when registering, or added under My Account → Account Security."
+                data-zh="适用于已登记手机号的账户——注册时填写的，或在“我的账户 → 账户安全”中添加的。"
               >
-                Works for accounts with a verified mobile number. Add yours after signing in, under
-                My Account → Account Security.
+                Works for accounts with a mobile number on file — the one given when registering, or
+                added under My Account → Account Security.
               </p>
             </div>
             <div class="hr-text" data-en="or continue with" data-zh="或使用以下方式登录">
@@ -379,11 +404,25 @@
                 <label
                   class="form-label"
                   for="caaci-su-phone"
-                  data-en="Phone (optional)"
-                  data-zh="电话（可选）"
-                  >Phone (optional)</label
+                  data-en="Mobile number (optional)"
+                  data-zh="手机号（可选）"
+                  >Mobile number (optional)</label
                 >
-                <input type="tel" id="caaci-su-phone" class="form-control" autocomplete="tel" />
+                <input
+                  type="tel"
+                  id="caaci-su-phone"
+                  class="form-control"
+                  autocomplete="tel"
+                  inputmode="tel"
+                />
+                <div
+                  class="form-hint"
+                  data-en="Lets you sign in, or reset your password, with a texted code. Outside the US and Canada, start with + and the country code."
+                  data-zh="填写后可用短信验证码登录或重置密码。美国/加拿大以外的号码请以 + 和国家代码开头。"
+                >
+                  Lets you sign in, or reset your password, with a texted code. Outside the US and
+                  Canada, start with + and the country code.
+                </div>
               </div>
               <div class="mb-3">
                 <label

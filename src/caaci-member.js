@@ -577,6 +577,13 @@ export async function wireAuthPage() {
   const methodTabs = $$('#caaci-li-methods [data-method]');
   const panels = { email: $('#caaci-li-panel-email'), phone: $('#caaci-li-panel-phone') };
   const phoneInput = $('#caaci-ph-number');
+  // Resetting a password by text: the phone tab signs the member in with the
+  // code and hands them to /account/?recovery=1, whose set-new-password form
+  // asks for no current password. Entered from the forgot-password panel's
+  // link or from /login-3/?method=phone&reset=1 (the account page's link).
+  const params = new URLSearchParams(location.search || '');
+  let resetBySms = params.get('reset') === '1';
+  const resetHint = $('#caaci-ph-reset-hint');
   const showMethod = (wanted, { focus = false } = {}) => {
     const method = panels[wanted] ? wanted : 'email';
     for (const tab of methodTabs) {
@@ -589,6 +596,8 @@ export async function wireAuthPage() {
     // A message or the reset/code offer from the other way in would only confuse.
     notb.hidden = true;
     if (method === 'phone') hideLegacy();
+    else resetBySms = false; // back to a plain sign-in
+    resetHint.hidden = !resetBySms;
     try {
       localStorage.setItem(LOGIN_METHOD_KEY, method);
     } catch {
@@ -599,6 +608,11 @@ export async function wireAuthPage() {
   };
   for (const tab of methodTabs)
     tab.addEventListener('click', () => showMethod(tab.dataset.method, { focus: true }));
+  $('#caaci-reset-by-sms').addEventListener('click', (e) => {
+    e.preventDefault();
+    resetBySms = true;
+    showMethod('phone', { focus: true });
+  });
 
   // ---- the phone panel: text a code, then sign in with it ----
   const phoneSend = $('#caaci-ph-send');
@@ -656,8 +670,11 @@ export async function wireAuthPage() {
       { phone: codePhone },
       phoneCodeInput,
     );
+    if (!user) return;
     // Leave the button busy — the navigation below replaces the page.
-    if (user) location.href = await destinationAfterSignIn(user.id, next);
+    location.href = resetBySms
+      ? '/account/?recovery=1'
+      : await destinationAfterSignIn(user.id, next);
   });
 
   let rememberedMethod = null;
@@ -666,7 +683,7 @@ export async function wireAuthPage() {
   } catch {
     /* storage blocked */
   }
-  showMethod(new URLSearchParams(location.search || '').get('method') || rememberedMethod);
+  showMethod(resetBySms ? 'phone' : params.get('method') || rememberedMethod);
 
   $('#caaci-login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -786,13 +803,17 @@ export async function wireAuthPage() {
       return notice(suNote, t('Passwords do not match.', '两次输入的密码不一致。'), false);
     const btn = $('#caaci-su-submit');
     btn.disabled = true;
+    // A number this page can read becomes the account's mobile number (E.164,
+    // claimed by 0025's signup trigger) and works on the Mobile number tab from
+    // the first sign-in. Anything else is kept as typed, for the profile only.
+    const rawPhone = $('#caaci-su-phone').value.trim();
     const { data, error } = await supa.auth.signUp({
       email,
       password: pwd,
       options: {
         data: {
           full_name: $('#caaci-su-name').value.trim(),
-          phone: $('#caaci-su-phone').value.trim(),
+          phone: normalizePhone(rawPhone) || rawPhone,
         },
         emailRedirectTo: location.origin + (next || '/account/'),
       },
@@ -827,11 +848,13 @@ export async function wireAuthPage() {
   // that could not tell): skip the form. This runs only after every handler
   // above is attached, so a slow check never leaves the form without them. It
   // asks Supabase (getUser) instead of trusting the stored session — a revoked
-  // one must leave the form usable, not bounce to /account/ and back.
+  // one must leave the form usable, not bounce to /account/ and back. A member
+  // resetting their password by text arrives signed in from the account page
+  // and stays: the texted code is the point.
   const { data: { user } = { user: null } } = await withTimeout(supa.auth.getUser(), 3500, {
     data: { user: null },
   });
-  if (user) location.href = await destinationAfterSignIn(user.id, next);
+  if (user && !resetBySms) location.href = await destinationAfterSignIn(user.id, next);
 }
 
 // ---------- boot ----------
