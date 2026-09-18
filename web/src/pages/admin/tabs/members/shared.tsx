@@ -158,8 +158,11 @@ interface Asking {
 /**
  * `ask(text, confirmLabel, run)` shows the question inline; `run` goes only
  * after Confirm. Render `panel` where the question should appear.
+ *
+ * `ruled: false` drops the panel's own rule above, for a panel that already
+ * sits inside a ruled-off block — two rules there read as two blocks.
  */
-export function useAsk(): {
+export function useAsk({ ruled = true }: { ruled?: boolean } = {}): {
   ask: (text: string, confirmLabel: string, run: Asking['run']) => void;
   asking: boolean;
   panel: ReactNode;
@@ -181,7 +184,7 @@ export function useAsk(): {
           transition={mountIn}
           role="alertdialog"
           aria-live="polite"
-          className="pt-4 border-t border-neutral-200/80 space-y-3"
+          className={`space-y-3 ${ruled ? 'pt-4 border-t border-neutral-200/80' : 'pt-2'}`}
         >
           <div className="flex items-start gap-2 text-sm text-neutral-800">
             <HelpCircle className="w-4 h-4 mt-0.5 shrink-0 text-brick" aria-hidden />
