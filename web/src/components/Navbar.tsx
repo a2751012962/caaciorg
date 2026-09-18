@@ -154,10 +154,10 @@ export function Navbar({
                 }}
               />
               <div className="flex flex-col">
-                <span className="font-bold text-lg leading-tight tracking-tight text-maroon font-serif-caaci">
+                <span className="font-bold text-lg leading-tight tracking-tight text-maroon">
                   CAACI
                 </span>
-                <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-poppins hidden sm:inline">
+                <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-sans hidden sm:inline">
                   {lang === 'en' ? 'Central Illinois' : '伊利诺伊中部'}
                 </span>
               </div>
@@ -165,7 +165,7 @@ export function Navbar({
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center space-x-1 xl:space-x-2 font-poppins">
+          <nav className="hidden lg:flex items-center space-x-1 xl:space-x-2 font-sans">
             {/* Welcome / Home */}
             <button
               onClick={() => handleNavClick('home')}
@@ -418,7 +418,7 @@ export function Navbar({
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-white border-t border-neutral-200 px-4 pt-2 pb-6 space-y-2 shadow-xl font-poppins">
+        <div className="lg:hidden bg-white border-t border-neutral-200 px-4 pt-2 pb-6 space-y-2 shadow-xl font-sans">
           <button
             onClick={() => handleNavClick('home')}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${

@@ -92,7 +92,7 @@ export function ToolPage({
     <div className="bg-white">
       <section className="py-8 sm:py-14">
         <div
-          className={`${wide ? 'max-w-5xl' : 'max-w-xl'} mx-auto px-4 sm:px-6 lg:px-8 font-poppins`}
+          className={`${wide ? 'max-w-5xl' : 'max-w-xl'} mx-auto px-4 sm:px-6 lg:px-8 font-sans`}
         >
           <span className={EYEBROW}>{eyebrow}</span>
           <h1 className="text-2xl sm:text-3xl font-bold text-maroon tracking-tight">{title}</h1>

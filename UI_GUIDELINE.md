@@ -41,7 +41,7 @@ scheme plus the homepage/contact module).
 | -------------------- | --------- | -------------------------------------------------------------- |
 | `--caaci-brick`      | `#8e2e11` | **Primary action** — button background, section accent borders |
 | `--caaci-brick-dark` | `#561100` | Primary action hover / pressed                                 |
-| `--caaci-maroon`     | `#300200` | Display headings (Playfair)                                    |
+| `--caaci-maroon`     | `#300200` | Display headings                                               |
 | `--caaci-red`        | `#cd5c5c` | Links, active nav, the Divi "red" scheme key color             |
 | `--caaci-rust`       | `#ce4327` | Fixed-header active nav, warm accent                           |
 | `--caaci-rust-deep`  | `#aa4e20` | Dropdown borders, secondary warm accent                        |
@@ -66,20 +66,28 @@ scheme plus the homepage/contact module).
 
 ## 2. Typography
 
-| Use                | Stack                                                                                      | Notes                                        |
-| ------------------ | ------------------------------------------------------------------------------------------ | -------------------------------------------- |
-| Display / headings | `--caaci-font-display` → `'Playfair Display', Georgia, 'Times New Roman', 'cwTeXFangSong'` | Color `--caaci-maroon`, letter-spacing 1–3px |
-| Body / UI          | `--caaci-font-body` → `'Poppins', Helvetica, Arial, 'cwTeXFangSong', sans-serif`           | line-height 1.8                              |
-| Buttons            | `--caaci-font-button` → `'Saira Extra Condensed', Helvetica, Arial, 'cwTeXFangSong'`       | uppercase, letter-spacing 1px, weight 600    |
+One family for the whole site, declared once in `src/caaci-fonts.css` (guarded by
+`test/fonts.test.js`): Poppins for body copy, UI, buttons and headings — a heading
+is weight and size, not a second face — plus a system monospace for data. The
+React site maps the same two variables onto Tailwind's `font-sans` / `font-mono`
+(`web/DESIGN_SYSTEM.md` §2); the Tabler and mirror pages read them through the
+`--caaci-font-*` aliases below (decided 2026-09-17: Playfair Display and Noto
+Serif SC headings dropped, one web font instead of three).
 
-What actually renders on the mirror (measured, not assumed): Divi sets all body and
-menu text to `cwTeXFangSong`, but that face is never served, so body copy and the
-navigation fall back to the **system sans-serif**. Headings really are Playfair
-Display and buttons really are Saira Extra Condensed — both loaded from Google
-Fonts by the mirror, and by `caaci-theme.css` for the Tabler pages. Poppins is in
-the body stack for parity with the theme settings; it is loaded only on the public
-Tabler pages, whose header copies the React site (§5), not on `/admin/`.
-`cwTeXFangSong` stays at the end of every stack as the CJK fallback.
+| Use                            | Variable                                                                                 | Stack                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Body / UI / buttons / headings | `--caaci-font-body`, `--caaci-font-display`, `--caaci-font-button` → `--caaci-font-sans` | Poppins → Microsoft YaHei → PingFang SC → Hiragino Sans GB → Noto Sans SC → Arial |
+| Data (ids, emails, codes)      | `--caaci-font-mono`                                                                      | ui-monospace → Menlo → Consolas → Microsoft YaHei → PingFang SC                   |
+
+Poppins comes from one Google Fonts request, `GOOGLE_FONTS_URL` in
+`src/caaci-shared.js`. Every page's `<head>` carries `<!--CAACI_FONTS-->`, which
+`build.mjs` (Tabler pages) and `web/vite.config.ts` (React) replace with that
+link, so `/admin/`, `/login-3/` and the public site render the same face, body copy
+included. Emails and the standalone `/api/verify` and dispute pages cannot load
+web fonts and use `SYSTEM_FONT_STACK` (`functions/api/_fonts.js`: Arial with the
+same CJK faces). Headings keep `--caaci-maroon`, tightened `-0.025em` like the
+React headings; body copy line-height 1.8. Chinese headings are the CJK fallback
+at heading weight (PingFang / 微软雅黑 bold).
 
 **Type scale:** display `48px` · h2 `38px` · h3 `24px` · body `18px` · small `16px`
 · eyebrow `14px` (uppercase, letter-spacing 1px). Tokens: `--caaci-fs-*`.
@@ -144,16 +152,14 @@ badge, focus ring and corner takes the brand look with no page-level CSS:
 | `--tblr-font-sans-serif`                        | `--caaci-font-body`                   |
 | `--tblr-border-radius` (+ `-sm`, `-lg`)         | `--caaci-radius`                      |
 
-Three element rules finish the match with the mirror: `h1`–`h3` are set in
-`--caaci-font-display`, maroon, 1px tracking;
-`.btn-primary` is the Divi CTA — `--caaci-font-button`, uppercase, 1px tracking,
-`--caaci-radius-0` — the same shape as the overlay's `.caaci-btn`; and the theme
-`@import`s the Playfair Display and Saira Extra Condensed faces the mirror already
-loads from Google Fonts, so headings and buttons resolve to the same glyphs on both
-kinds of page. The public Tabler pages (login, privacy) also link
-the React site's Google Fonts (Poppins, Playfair Display, Noto Serif SC — the same
-`<link>` as `web/index.html`), so their header and body copy use the React site's
-faces; `/admin/` does not, and its text keeps the system sans-serif fallback.
+Three element rules finish the match with the React site: `h1`–`h3` are set in
+`--caaci-font-display` (the same Poppins as the body), maroon, `-0.025em` tracking;
+`.btn-primary` is the Divi CTA shape — `--caaci-font-button`, uppercase, 1px tracking,
+`--caaci-radius-0` — the same as the overlay's `.caaci-btn`; and
+`--tblr-font-monospace` is `--caaci-font-mono`. The theme imports no fonts: each
+Tabler page's `<head>` has the `<!--CAACI_FONTS-->` marker that `build.mjs` fills
+with the site's Google Fonts link and `/assets/caaci-fonts.css` (§2), so `/admin/`,
+login and privacy render the React site's face, body copy included.
 
 The public pages' site header (`member-src/_nav.html`, `.caaci-sitenav-site`) is a
 copy of the React header (`web/src/components/Navbar.tsx`), value for value from its
@@ -190,8 +196,8 @@ A page that needs something new gets a section here, written in tokens — not a
 4. **Bilingual first.** Every added string needs an EN and 中文 form; don't assume
    a font — inherit `--caaci-font-body`. Don't hard-set a Latin-only family.
 5. **Stay subordinate to the mirror.** Added UI should read as part of the page,
-   not as a different app. Match radius (3px), the warm palette, and the serif/
-   sans pairing above.
+   not as a different app. Match radius (3px), the warm palette, and the single
+   family above.
 6. **Tabler pages carry no CSS of their own.** No `<style>` blocks, no `style=""`
    attributes, no hex literals in `admin-src/` or `member-src/`. Shared chrome goes
    in `caaci-theme.css`; `--tblr-*` is overridden there and nowhere else.

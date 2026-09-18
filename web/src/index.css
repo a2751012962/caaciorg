@@ -1,15 +1,8 @@
 @import 'tailwindcss';
-
-/* Font stacks. Each web font is followed by a CJK face that is installed on
-   Windows (Microsoft YaHei / SimSun) or macOS (PingFang SC / Songti SC), so the
-   first layout doesn't search system fallbacks for Chinese text and swapping in
-   the web fonts doesn't re-lay out the page. Measured on the homepage: first
-   layout ~155ms -> ~102ms, and the ~64ms re-layout on font swap is gone. */
-:root {
-  --font-caaci-sans: 'Poppins', 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', Arial, sans-serif;
-  --font-caaci-serif: 'Playfair Display', 'Noto Serif SC', 'SimSun', 'Songti SC', serif;
-  --font-caaci-serif-zh: 'Noto Serif SC', 'Playfair Display', 'SimSun', 'Songti SC', serif;
-}
+/* The site's typefaces, shared with the Tabler pages: --caaci-font-sans and
+   --caaci-font-mono. Tailwind inlines it, so the bundle carries the same
+   stacks /assets/caaci-fonts.css serves. */
+@import '../../src/caaci-fonts.css';
 
 /* ---- Design tokens (see web/DESIGN_SYSTEM.md). Use bg-brick, text-ink, etc.;
    never write the hex in a className. ---- */
@@ -33,9 +26,12 @@
   --color-surface-warm: #fbf9f8;
   --color-surface-warm-2: #fbf9f6;
   --color-surface-cream: #fcfbf9;
-  --font-display: var(--font-caaci-serif);
-  --font-display-zh: var(--font-caaci-serif-zh);
-  --font-sans: var(--font-caaci-sans);
+
+  /* Type: one family. font-sans (the default: body, UI, buttons, headings —
+     headings differ by weight and size, not by face) and font-mono (ids,
+     emails, amounts). No other font-family belongs in a component. */
+  --font-sans: var(--caaci-font-sans);
+  --font-mono: var(--caaci-font-mono);
 
   /* Motion (mirrors MOTION in src/lib/motion.ts): ease-out utility + durations. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -60,26 +56,11 @@
   }
 
   body {
-    font-family: var(--font-caaci-sans);
+    font-family: var(--font-sans);
     color: #333333;
     background-color: #ffffff;
     -webkit-font-smoothing: antialiased;
   }
-
-  h1,
-  h2,
-  h3,
-  .font-display {
-    font-family: var(--font-caaci-serif);
-  }
-}
-
-.font-poppins {
-  font-family: var(--font-caaci-sans);
-}
-
-.font-serif-caaci {
-  font-family: var(--font-caaci-serif);
 }
 
 /* Custom Scrollbar Utilities */
