@@ -3,6 +3,7 @@
 // activates the membership / marks the donation paid in Supabase, and keeps the
 // payments ledger's refund total in step with refunds made anywhere in Stripe.
 import { sb, stripe } from './_lib.js';
+import { grantMembershipTokens, tokensEnabled } from './_tokens.js';
 
 // A Stripe field is sometimes a string id, sometimes an expanded object.
 const idOf = (v) => (v && typeof v === 'object' ? v.id : v) || null;
@@ -161,6 +162,26 @@ export async function onRequestPost({ request, env }) {
           discount_code: md.discount_code || null,
           stripe_session_id: s.id,
         });
+        await grantMembershipTokens(env, DB, md.member_id);
+      } else if (md.kind === 'tokens' && md.member_id && tokensEnabled(env)) {
+        // A token pack. Credit only what Stripe says is paid; the ledger function
+        // is idempotent on the session id, so a retried event credits once. A
+        // failure here must 500 so Stripe retries: the member has paid.
+        if (s.payment_status === 'paid') {
+          const cents = Number(md.pack_cents);
+          const settings = await DB.selectOne('token_settings', { id: true }, 'tokens_per_dollar');
+          const tokens = (cents * (settings?.tokens_per_dollar || 10)) / 100;
+          if (Number.isInteger(tokens) && tokens > 0) {
+            const result = await DB.rpc('token_purchase_credit', {
+              p_member: md.member_id,
+              p_amount: tokens,
+              p_cents: cents,
+              p_session: s.id,
+            });
+            if (!result?.ok)
+              throw new Error('token purchase not credited: ' + (result?.error || 'unknown'));
+          }
+        }
       }
     } else if (event.type === 'invoice.paid') {
       // Only RENEWALS extend the membership. The first invoice at signup has
@@ -204,6 +225,8 @@ export async function onRequestPost({ request, env }) {
             tier_id: m.tier_id || null,
             stripe_invoice_id: inv.id,
           });
+          // a renewal is a new membership year: the plan's tokens are granted again
+          await grantMembershipTokens(env, DB, m.id);
         }
       }
     } else if (event.type === 'invoice.payment_failed') {

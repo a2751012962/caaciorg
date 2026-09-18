@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestGet, onRequestPost } from '../functions/api/volunteer.js';
-import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
+import { fakeRequest, mockFetch, fakeEnv, turnstileRoute, withTurnstile } from './helpers.js';
 
 const API = 'https://beta.caaciorg.com/api/volunteer';
 
@@ -59,8 +59,19 @@ const resendEnv = () =>
 
 // Routes the auth lookup, the events select (which answers with whatever the
 // `in.(…)` list asks for out of `events`), the event_volunteers upsert and Resend.
-function route({ user = null, events = [LUNAR, PICNIC], upsert, resend } = {}) {
+function route({
+  user = null,
+  events = [LUNAR, PICNIC],
+  upsert,
+  resend,
+  hostname = new URL(API).hostname,
+} = {}) {
   return (url, options = {}) => {
+    // The Turnstile check, which every POST now passes through. The token has
+    // to come from the host the request was made to, so a test that posts from
+    // another origin says so here too.
+    const human = turnstileRoute(url, 'volunteer', { hostname });
+    if (human) return human;
     if (url.includes('/auth/v1/user')) return user ? { body: user } : { ok: false, status: 401 };
     if (url.includes('/rest/v1/events')) {
       const m = decodeURIComponent(url).match(/slug=in\.\(([^)]*)\)/);
@@ -79,7 +90,7 @@ function route({ user = null, events = [LUNAR, PICNIC], upsert, resend } = {}) {
 }
 
 const post = (body, { headers = {}, url = API, env = resendEnv() } = {}) =>
-  onRequestPost({ request: fakeRequest({ url, body, headers }), env });
+  onRequestPost({ request: fakeRequest({ url, body: withTurnstile(body), headers }), env });
 const get = ({ env = fakeEnv() } = {}) => onRequestGet({ request: fakeRequest({ url: API }), env });
 
 const callsTo = (fetch, part) => fetch.calls.filter((c) => c.url.includes(part));
@@ -386,7 +397,7 @@ test('volunteer POST: an invalid token is treated as anonymous, not an error', a
 });
 
 test('volunteer POST: staff get a reply-to notification, the volunteer a bilingual thank-you', async () => {
-  const fetch = mockFetch(route());
+  const fetch = mockFetch(route({ hostname: 'caaciorg.com' })); // posted from that origin below
   try {
     const r = await post(
       { ...VALID, email: 'Pat@Example.com', events: ['lunar-new-year', 'summer-picnic'] },

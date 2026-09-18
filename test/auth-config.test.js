@@ -181,6 +181,45 @@ test('both providers are enabled with the expected clients', { skip: skipConfig 
   assert.equal(cfg.disable_signup, false, 'new members could not register');
 });
 
+// The Mobile number tab on /login-3/ and the mobile-number section on /account/
+// send their codes through Supabase's Phone provider, which delivers via Twilio.
+// The credentials are secrets: only that they are set is checked, never a value,
+// and no failure message can print one.
+test('phone sign-in is enabled and delivers through Twilio', { skip: skipConfig }, async () => {
+  const cfg = await authConfig();
+
+  assert.equal(
+    cfg.external_phone_enabled,
+    true,
+    'the Phone provider is switched off — the login page cannot text sign-in codes',
+  );
+  assert.equal(cfg.sms_provider, 'twilio');
+  assert.ok(cfg.sms_twilio_account_sid, 'no Twilio Account SID');
+  assert.ok(cfg.sms_twilio_auth_token, 'no Twilio Auth Token');
+  assert.ok(
+    cfg.sms_twilio_message_service_sid,
+    'no Twilio Messaging Service SID — that is the sender the texts go out from',
+  );
+  assert.match(String(cfg.sms_template || ''), /\{\{\s*\.Code\s*\}\}/, 'the SMS carries no code');
+
+  // Both code fields accept 6–10 digits (pattern="[0-9]{6,10}"), so a code
+  // outside that range could never be typed in.
+  const length = Number(cfg.sms_otp_length);
+  assert.ok(length >= 6 && length <= 10, `SMS OTP length is ${cfg.sms_otp_length}, not 6–10`);
+
+  // Phone confirmations are OFF by decision: the number given when registering
+  // (0025's signup trigger) and one added under Account Security are saved at
+  // once, without a texted code — the code at sign-in is the only check. With
+  // them on, Account Security would start asking for a code (the page handles
+  // it) and 0025's trigger would claim numbers Supabase then treats as pending;
+  // SETUP.md describes the off state.
+  assert.equal(
+    cfg.sms_autoconfirm,
+    true,
+    '"Enable phone confirmations" was switched on under Authentication → Sign In / Providers → Phone — the site is built for it off; switch it back, or update Account Security, 0025 and SETUP.md',
+  );
+});
+
 // Deliberately asserts the invariant rather than a specific hostname: the
 // canonical domain is expected to change (pages.dev today, the custom domain
 // later), and a test pinned to one of them would just have to be edited every

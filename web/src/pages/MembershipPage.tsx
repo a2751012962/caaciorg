@@ -13,6 +13,7 @@ import {
 } from '../lib/motion';
 import { ContactSection } from '../components/ContactSection';
 import { PlanCard } from '../components/PlanCard';
+import { TiltCard } from '../components/bencho/TiltCard';
 import { QrCode, ShieldCheck, Star, Gift, Utensils, ChevronRight, ChevronLeft } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { membershipPageDataEN, membershipPageDataZH } from '../data/pagesContent';
@@ -203,10 +204,11 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
     // Active paid subscriber: re-price the subscription in place (prorated).
     if (mode === 'switch') {
-      const { ok, data: res } = await api<{ url?: string }>('/api/change-plan', {
-        member_id: user.id,
-        tier_id: selected.id,
-      });
+      const { ok, data: res } = await api<{ url?: string }>(
+        '/api/change-plan',
+        { member_id: user.id, tier_id: selected.id },
+        { auth: true },
+      );
       if (res.url) {
         window.location.assign(res.url);
         return;
@@ -228,9 +230,12 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
       email: user.email,
     };
     if (mode === 'checkout' && applied) body.discount_code = applied.code;
+    // Membership checkout acts on the account, so it goes out signed in (the
+    // donation modal keeps calling /api/checkout without a token, as before).
     const { ok, data: res } = await api<{ url?: string; activated?: boolean }>(
       '/api/checkout',
       body,
+      { auth: true },
     );
     if (ok && res.url) {
       window.location.assign(res.url);
@@ -326,7 +331,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
           <nav
             aria-label="Breadcrumb"
-            className="flex items-center gap-2 text-xs sm:text-sm text-neutral-500 font-poppins"
+            className="flex items-center gap-2 text-xs sm:text-sm text-neutral-500 font-sans"
           >
             <button
               onClick={() => {
@@ -464,70 +469,74 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               </p>
             </div>
 
-            {/* Apple Wallet Sleek Pass Card */}
+            {/* Apple Wallet Sleek Pass Card. It gives under the pointer
+                (TiltCard) rather than lifting: the same press as the member's
+                real card on the account page, and the tilt draws the shadow. */}
             <motion.div
               initial={riseFrom}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={inView}
               transition={rise(0.1)}
-              whileHover={hoverLift}
-              className="bg-ink text-white rounded-2xl p-5 sm:p-6 lg:p-7 shadow-xl border border-white/10 relative overflow-hidden group"
             >
-              <div className="flex justify-between items-center pb-5 sm:pb-6 border-b border-white/10 gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <img
-                    src="/images/logo.png"
-                    alt="CAACI"
-                    className="h-7 w-auto flex-shrink-0 bg-white/10 rounded p-0.5"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold tracking-tight text-white truncate">
-                      CAACI Member Pass
+              <TiltCard gloss>
+                <div className="bg-ink text-white rounded-2xl p-5 sm:p-6 lg:p-7 border border-white/10 relative overflow-hidden group">
+                  <div className="flex justify-between items-center pb-5 sm:pb-6 border-b border-white/10 gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src="/images/logo.png"
+                        alt="CAACI"
+                        className="h-7 w-auto flex-shrink-0 bg-white/10 rounded p-0.5"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold tracking-tight text-white truncate">
+                          CAACI Member Pass
+                        </div>
+                        <div className="text-[10px] text-neutral-400 truncate">
+                          Central Illinois • 501(c)(3)
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-[10px] text-neutral-400 truncate">
-                      Central Illinois • 501(c)(3)
+
+                    <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 text-neutral-200 flex-shrink-0">
+                      {selected ? shortLabel(selected) : ''}
+                    </span>
+                  </div>
+
+                  <div className="py-5 sm:py-6 space-y-4">
+                    <div>
+                      <div className="text-[10px] text-neutral-400">
+                        {lang === 'en' ? 'Cardholder Name' : '持卡人姓名'}
+                      </div>
+                      <div className="text-lg sm:text-xl font-medium tracking-tight text-white mt-0.5 truncate">
+                        {member?.full_name || (lang === 'en' ? 'Guest Member' : '华协新会员')}
+                      </div>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4 text-xs">
+                      <div>
+                        <div className="text-[10px] text-neutral-400">Member ID</div>
+                        <div className="font-mono text-neutral-200 mt-0.5 text-xs whitespace-nowrap">
+                          CAACI-••••
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-neutral-400">Expires</div>
+                        <div className="font-mono text-neutral-200 mt-0.5 text-xs whitespace-nowrap">
+                          {expiresLabel}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs text-neutral-400">
+                    <span className="text-[10px]">Tap or scan for merchant discounts</span>
+                    <QrCode className="w-5 h-5 text-neutral-300 flex-shrink-0 group-hover:text-white transition-colors" />
                   </div>
                 </div>
-
-                <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-white/15 text-neutral-200 flex-shrink-0">
-                  {selected ? shortLabel(selected) : ''}
-                </span>
-              </div>
-
-              <div className="py-5 sm:py-6 space-y-4">
-                <div>
-                  <div className="text-[10px] text-neutral-400">
-                    {lang === 'en' ? 'Cardholder Name' : '持卡人姓名'}
-                  </div>
-                  <div className="text-lg sm:text-xl font-medium tracking-tight text-white mt-0.5 truncate">
-                    {member?.full_name || (lang === 'en' ? 'Guest Member' : '华协新会员')}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 sm:gap-4 text-xs">
-                  <div>
-                    <div className="text-[10px] text-neutral-400">Member ID</div>
-                    <div className="font-mono text-neutral-200 mt-0.5 text-xs whitespace-nowrap">
-                      CAACI-••••
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-neutral-400">Expires</div>
-                    <div className="font-mono text-neutral-200 mt-0.5 text-xs whitespace-nowrap">
-                      {expiresLabel}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs text-neutral-400">
-                <span className="text-[10px]">Tap or scan for merchant discounts</span>
-                <QrCode className="w-5 h-5 text-neutral-300 flex-shrink-0 group-hover:text-white transition-colors" />
-              </div>
+              </TiltCard>
             </motion.div>
 
             {/* Quick Member Portal Link */}

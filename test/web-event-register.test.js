@@ -32,7 +32,7 @@ test('404 is "not open for registration", anything else offers a retry', async (
 test('a registration posts event, email, answers, the honeypot and the volunteer key', async () => {
   const src = await page();
   const body =
-    /const body = \{\s*event: slug,\s*email: address,\s*answers: read\.answers,\s*_hp: hp,\s*\.\.\.volunteerBody\(volPrefilled, volChecked, volName, volPhone\),\s*\}/;
+    /const body = \{\s*event: slug,\s*email: address,\s*answers: read\.answers,\s*_hp: hp,\s*'cf-turnstile-response': token,\s*\.\.\.volunteerBody\(volPrefilled, volChecked, volName, volPhone\),\s*\}/;
   assert.match(src, body, 'the three-way volunteer rule comes from volunteerBody');
   assert.match(
     src,

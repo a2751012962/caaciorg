@@ -3,9 +3,11 @@ import { AlertCircle, CheckCircle2, Shield } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
 import type { Lang } from '../../lib/lang';
+import { normalizePhone } from '../../lib/shared';
 import {
   EMAIL_COOLDOWN_S,
   EMAIL_RE,
+  SMS_COOLDOWN_S,
   emailRetryAfter,
   needsReauth,
   tr,
@@ -37,8 +39,20 @@ function NoticeLine({ notice }: { notice: Notice }) {
 const inputCls =
   'w-full min-h-[44px] px-3.5 py-2 text-sm bg-white border border-neutral-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-brick';
 
+// The mobile number Supabase will text a sign-in code to: only one it has
+// confirmed. GoTrue stores and returns phones without the leading + ("12175550123");
+// shown and compared here in E.164, as normalizePhone produces it.
+const verifiedPhoneOf = (user: User) =>
+  user.phone_confirmed_at && user.phone
+    ? user.phone.startsWith('+')
+      ? user.phone
+      : `+${user.phone}`
+    : '';
+
+type AuthError = { message?: string; code?: string; status?: number } | null;
+
 // Change / set password (with Supabase's reauthentication code when it asks for
-// one) and change email — securityCard in src/caaci-member.js.
+// one), change email, and add the mobile number for the phone tab on /login-3/.
 export function SecurityCard({
   lang,
   user,
@@ -250,14 +264,159 @@ export function SecurityCard({
     emCooldown.start(EMAIL_COOLDOWN_S);
   };
 
+  // ---- mobile number (sign in, and reset the password, by text message) ----
+  // Phone confirmations are off in the dashboard (the Board's call), so
+  // updateUser({ phone }) saves the number at once and there is no code step.
+  // Should they ever be switched on, Supabase instead texts a code to the new
+  // number and keeps the old one until verifyOtp(type 'phone_change') confirms
+  // it; the reply says which happened, and the code step below covers it.
+  const [verifiedPhone, setVerifiedPhone] = useState(() => verifiedPhoneOf(user));
+  const [newPhone, setNewPhone] = useState('');
+  const [pendingPhone, setPendingPhone] = useState(''); // E.164, awaiting its code
+  const [phCode, setPhCode] = useState('');
+  const [phSaving, setPhSaving] = useState(false);
+  const [phConfirming, setPhConfirming] = useState(false);
+  const [phResending, setPhResending] = useState(false);
+  const [phNotice, setPhNotice] = useState<Notice>(null);
+  // One pending number per account, so the countdown is keyed by the account.
+  const phCooldown = useCooldown('sms_change', user.id);
+
+  useEffect(() => {
+    // Supabase hands over a fresh user after the change is confirmed.
+    setVerifiedPhone(verifiedPhoneOf(user));
+  }, [user.id, user.phone, user.phone_confirmed_at]);
+
+  const phoneSaved = (phone: string) => {
+    setVerifiedPhone(phone);
+    setPendingPhone('');
+    setNewPhone('');
+    setPhCode('');
+    setPhNotice({
+      ok: true,
+      msg: t(
+        `Mobile number saved. You can now sign in with a code texted to ${phone}.`,
+        `手机号已保存。现在可以用发送到 ${phone} 的短信验证码登录。`,
+      ),
+    });
+  };
+
+  const phoneProblem = (error: NonNullable<AuthError>) =>
+    error.code === 'phone_exists' || /already\s+(been\s+)?registered/i.test(error.message || '')
+      ? t('That number is already on another account.', '该手机号已被其他账户使用。')
+      : error.code === 'sms_send_failed'
+        ? t(
+            'We could not send a text to that number right now. Check it and try again in a moment.',
+            '暂时无法向该号码发送短信。请核对号码后稍后重试。',
+          )
+        : error.message || network;
+
+  const handlePhone = async (e: FormEvent) => {
+    e.preventDefault();
+    if (phSaving) return;
+    const value = normalizePhone(newPhone);
+    if (!value)
+      return setPhNotice({
+        ok: false,
+        msg: t(
+          'Enter a valid mobile number. Outside the US and Canada, start with + and the country code.',
+          '请输入有效的手机号。美国/加拿大以外的号码请以 + 和国家代码开头。',
+        ),
+      });
+    if (value === verifiedPhone)
+      return setPhNotice({
+        ok: false,
+        msg: t('That is already the mobile number on your account.', '这已经是您账户上的手机号。'),
+      });
+    setPhSaving(true);
+    setPhNotice(null);
+    let updated: User | null = null;
+    let error: AuthError = null;
+    try {
+      const res = await supabase.auth.updateUser({ phone: value });
+      updated = res.data.user;
+      error = res.error;
+    } catch {
+      error = { message: network };
+    }
+    setPhSaving(false);
+    if (error) {
+      setPhNotice({ ok: false, msg: phoneProblem(error) });
+      const wait = emailRetryAfter(error);
+      if (wait) phCooldown.start(wait);
+      return;
+    }
+    if (updated && verifiedPhoneOf(updated) === value) return phoneSaved(value); // no code step
+    setPendingPhone(value);
+    setPhCode('');
+    setPhNotice({
+      ok: true,
+      msg: t(
+        `We texted a code to ${value}. Enter it below to finish.`,
+        `验证码已发送到 ${value}，请在下方输入以完成绑定。`,
+      ),
+    });
+    phCooldown.start(SMS_COOLDOWN_S);
+  };
+
+  const handlePhoneConfirm = async () => {
+    if (phConfirming || !pendingPhone) return;
+    const token = phCode.replace(/\s+/g, '');
+    if (!/^\d{6,10}$/.test(token))
+      return setPhNotice({
+        ok: false,
+        msg: t('Enter the code from the text message.', '请输入短信中的验证码。'),
+      });
+    setPhConfirming(true);
+    let error: AuthError = null;
+    try {
+      ({ error } = await supabase.auth.verifyOtp({
+        phone: pendingPhone,
+        token,
+        type: 'phone_change',
+      }));
+    } catch {
+      error = { message: network };
+    }
+    setPhConfirming(false);
+    if (error)
+      return setPhNotice({
+        ok: false,
+        msg: t(
+          'That code is wrong or has expired — request a new one.',
+          '验证码错误或已过期，请重新获取。',
+        ),
+      });
+    phoneSaved(pendingPhone);
+  };
+
+  const handlePhoneResend = async () => {
+    if (phResending || phCooldown.left > 0 || !pendingPhone) return;
+    setPhResending(true);
+    let error: AuthError = null;
+    try {
+      ({ error } = await supabase.auth.resend({ type: 'phone_change', phone: pendingPhone }));
+    } catch {
+      error = { message: network };
+    }
+    setPhResending(false);
+    if (error) {
+      setPhNotice({ ok: false, msg: phoneProblem(error) });
+      const wait = emailRetryAfter(error);
+      if (wait) phCooldown.start(wait);
+      return;
+    }
+    setPhNotice({
+      ok: true,
+      msg: t(`Code sent again to ${pendingPhone}.`, `验证码已重新发送到 ${pendingPhone}。`),
+    });
+    phCooldown.start(SMS_COOLDOWN_S);
+  };
+
   const resendIn = (left: number) => t(`Resend in ${left}s`, `${left} 秒后可重新发送`);
 
   return (
-    <div
-      id="account-security"
-      className={`${className} bg-white rounded-2xl sm:rounded-3xl border border-neutral-200/90 p-4.5 sm:p-7 shadow-xs space-y-6 scroll-mt-24`}
-    >
-      <div className="flex items-center gap-2 pb-3 border-b border-neutral-100">
+    <div id="account-security" className={`${className} space-y-6 scroll-mt-24`}>
+      <div className="flex items-center gap-2">
         <Shield className="w-5 h-5 text-brick" />
         <h3 className="text-base sm:text-lg font-bold text-ink">
           {t('Account Security', '账户安全')}
@@ -281,6 +440,20 @@ export function SecurityCard({
                   '您目前通过 Google 或 Microsoft 登录。设置密码后也可以使用邮箱登录。',
                 )}
           </p>
+          {/* The other way to a new password when the current one is gone: the
+              login page's phone tab signs in with a texted code and lands on
+              /account/?recovery=1, whose form asks for no current password. */}
+          {hasPassword && verifiedPhone && (
+            <a
+              href="/login-3/?method=phone&reset=1"
+              className="inline-block mt-1.5 text-[11px] font-semibold text-brick hover:underline"
+            >
+              {t(
+                'Forgot your current password? Reset it with a text message →',
+                '忘记当前密码？改用短信重置 →',
+              )}
+            </a>
+          )}
         </div>
 
         <NoticeLine notice={pwNotice} />
@@ -354,7 +527,7 @@ export function SecurityCard({
           </button>
 
           {reauthOpen && (
-            <div className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/80 space-y-2.5">
+            <div className="pt-5 border-t border-neutral-200/80 space-y-2.5">
               <p className="text-xs text-neutral-700">
                 {t(
                   `We emailed a verification code to ${email}. Enter it below to finish.`,
@@ -381,7 +554,7 @@ export function SecurityCard({
                   type="button"
                   onClick={handleConfirm}
                   disabled={confirming}
-                  className="min-h-[44px] px-5 py-2 rounded-xl bg-brick text-white hover:brightness-110 text-xs font-semibold cursor-pointer whitespace-nowrap active:scale-98 disabled:opacity-60"
+                  className="shrink-0 whitespace-nowrap min-h-[44px] px-5 py-2 rounded-xl bg-brick text-white hover:brightness-110 text-xs font-semibold cursor-pointer active:scale-98 disabled:opacity-60"
                 >
                   {confirming ? t('Confirming…', '确认中…') : t('Confirm', '确认')}
                 </button>
@@ -389,7 +562,7 @@ export function SecurityCard({
                   type="button"
                   onClick={sendCode}
                   disabled={sendingCode || codeCooldown.left > 0}
-                  className="min-h-[44px] px-4 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap active:scale-98"
+                  className="shrink-0 whitespace-nowrap min-h-[44px] px-4 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
                 >
                   {sendingCode
                     ? t('Sending…', '发送中…')
@@ -404,7 +577,7 @@ export function SecurityCard({
       </div>
 
       {/* Email Change Section */}
-      <div className="space-y-3 pt-5 border-t border-neutral-100">
+      <div className="space-y-3 pt-5 border-t border-neutral-200/80">
         <div>
           <h4 className="text-xs sm:text-sm font-bold text-neutral-900">
             {t('Change Email', '修改邮箱')}
@@ -435,7 +608,7 @@ export function SecurityCard({
           <button
             type="submit"
             disabled={emSaving}
-            className="min-h-[44px] px-5 py-2.5 rounded-full bg-white border border-neutral-300 hover:border-neutral-900 text-neutral-800 text-xs font-semibold cursor-pointer disabled:opacity-50 whitespace-nowrap active:scale-98"
+            className="shrink-0 whitespace-nowrap min-h-[44px] px-5 py-2.5 rounded-full bg-white border border-neutral-300 hover:border-neutral-900 text-neutral-800 text-xs font-semibold cursor-pointer disabled:opacity-50 active:scale-98"
           >
             {emSaving ? t('Saving…', '保存中…') : t('Send Confirmation Email', '发送确认邮件')}
           </button>
@@ -454,6 +627,99 @@ export function SecurityCard({
                 ? resendIn(emCooldown.left)
                 : t('Resend confirmation email', '重新发送确认邮件')}
           </button>
+        )}
+      </div>
+
+      {/* Mobile Number Section (sign in with a texted code) */}
+      <div id="account-phone" className="space-y-3 pt-5 border-t border-neutral-200/80">
+        <div>
+          <h4 className="text-xs sm:text-sm font-bold text-neutral-900">
+            {verifiedPhone
+              ? t('Mobile Number for Sign-in', '登录手机号')
+              : t('Sign in with a Mobile Number', '手机号登录')}
+          </h4>
+          <p className="text-[11px] text-neutral-500 mt-0.5">
+            {verifiedPhone
+              ? t(
+                  `You can sign in, or reset your password, with a code texted to ${verifiedPhone}. Enter a new number below to change it.`,
+                  `您可以用发送到 ${verifiedPhone} 的短信验证码登录或重置密码。在下方输入新号码即可更换。`,
+                )
+              : t(
+                  'Add a mobile number and the sign-in page can text you a one-time code — to sign in without your password, or to reset it if you forget it. Saved right away, no confirmation needed. US and Canadian numbers as 10 digits; elsewhere start with + and the country code.',
+                  '添加手机号后，登录页可以向您发送一次性短信验证码——无需密码即可登录，忘记密码时也能重置。添加即保存，无需确认。美国/加拿大号码直接输入 10 位数字；其他国家请以 + 和国家代码开头。',
+                )}
+          </p>
+        </div>
+
+        <NoticeLine notice={phNotice} />
+
+        <form onSubmit={handlePhone} className="flex flex-col sm:flex-row gap-2" noValidate>
+          <label htmlFor="caaci-ph-new" className="sr-only">
+            {t('Mobile number', '手机号')}
+          </label>
+          <input
+            id="caaci-ph-new"
+            type="tel"
+            autoComplete="tel"
+            inputMode="tel"
+            placeholder={verifiedPhone ? t('New mobile number', '新手机号') : '(217) 555-0123'}
+            value={newPhone}
+            onChange={(e) => setNewPhone(e.target.value)}
+            className={`${inputCls} sm:flex-1`}
+          />
+          <button
+            type="submit"
+            disabled={phSaving}
+            className="shrink-0 whitespace-nowrap min-h-[44px] px-5 py-2.5 rounded-full bg-white border border-neutral-300 hover:border-neutral-900 text-neutral-800 text-xs font-semibold cursor-pointer disabled:opacity-50 active:scale-98"
+          >
+            {phSaving
+              ? t('Sending…', '发送中…')
+              : verifiedPhone
+                ? t('Change Number', '更换手机号')
+                : t('Add Mobile Number', '添加手机号')}
+          </button>
+        </form>
+
+        {pendingPhone && (
+          <div className="space-y-2.5">
+            <label
+              htmlFor="caaci-ph-code"
+              className="block text-[11px] font-medium text-neutral-600"
+            >
+              {t('Code from the text message', '短信中的验证码')}
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                id="caaci-ph-code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={phCode}
+                onChange={(e) => setPhCode(e.target.value)}
+                className={`${inputCls} sm:flex-1 font-mono tracking-widest`}
+              />
+              <button
+                type="button"
+                onClick={handlePhoneConfirm}
+                disabled={phConfirming}
+                className="shrink-0 whitespace-nowrap min-h-[44px] px-5 py-2 rounded-xl bg-brick text-white hover:brightness-110 text-xs font-semibold cursor-pointer active:scale-98 disabled:opacity-60"
+              >
+                {phConfirming ? t('Confirming…', '确认中…') : t('Confirm', '确认')}
+              </button>
+              <button
+                type="button"
+                onClick={handlePhoneResend}
+                disabled={phResending || phCooldown.left > 0}
+                className="shrink-0 whitespace-nowrap min-h-[44px] px-4 py-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
+              >
+                {phResending
+                  ? t('Sending…', '发送中…')
+                  : phCooldown.left > 0
+                    ? resendIn(phCooldown.left)
+                    : t('Text the code again', '重新发送短信')}
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

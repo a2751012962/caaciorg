@@ -69,11 +69,13 @@ export async function onRequestPost({ request, env }) {
 
   let target;
   try {
-    target = await sb(env).selectOne('members', { id: memberId }, 'id,is_admin');
+    // `*`, not a column list: is_root arrives with 0024 and reading it by name
+    // would 400 on a database where that migration has not been applied.
+    target = await sb(env).selectOne('members', { id: memberId }, '*');
   } catch {
     return bad(UPSTREAM, 502);
   }
-  if (target?.is_admin === true)
+  if (target?.is_admin === true || target?.is_root === true)
     return bad(
       "An administrator's password can only be changed by that administrator, in the My account tab.",
       403,

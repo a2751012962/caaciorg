@@ -4,6 +4,7 @@ import { gsap } from 'gsap';
 import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
 import { MOTION, reveal, revealGroup } from '../lib/motion';
+import { TurnstileBox, useTurnstile } from './Turnstile';
 
 interface ContactSectionProps {
   content: CAACIContent;
@@ -25,6 +26,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
   const [honeypot, setHoneypot] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'success'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const turnstile = useTurnstile('contact');
 
   useEffect(() => {
     if (!prefill) return;
@@ -66,6 +68,15 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
       return;
     }
 
+    // A Turnstile token is spent by the request that carries it: read it, send
+    // it, reset the widget whatever the answer was.
+    const problem = turnstile.problem(document.documentElement.lang.startsWith('zh'));
+    if (problem) {
+      setErrorMessage(problem);
+      return;
+    }
+    const token = turnstile.token();
+
     setErrorMessage('');
     setStatus('sending');
     const {
@@ -78,7 +89,9 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
       phone: formData.phone.trim(),
       message,
       _hp: honeypot,
+      'cf-turnstile-response': token,
     });
+    turnstile.reset();
     if (ok) {
       setStatus('success');
       setFormData(EMPTY_FORM);
@@ -111,10 +124,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
               <span className="text-xs font-semibold text-brick block mb-1">
                 Get In Touch · 联络我们
               </span>
-              <h2
-                className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight font-serif-caaci"
-                style={{ fontFamily: 'var(--font-caaci-serif)' }}
-              >
+              <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
                 {content.contact.heading}
               </h2>
             </div>
@@ -125,10 +135,10 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                 className="p-8 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center space-y-3 animate-in fade-in"
               >
                 <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto" />
-                <h4 className="font-semibold text-emerald-900 font-poppins text-lg">
+                <h4 className="font-semibold text-emerald-900 font-sans text-lg">
                   {content.contact.sentTitle}
                 </h4>
-                <p className="text-emerald-700 font-poppins text-xs sm:text-sm leading-relaxed">
+                <p className="text-emerald-700 font-sans text-xs sm:text-sm leading-relaxed">
                   {content.contact.sentSuccess}
                 </p>
                 <button
@@ -162,7 +172,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder={`${content.contact.namePlaceholder} *`}
-                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-poppins transition-all"
+                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-sans transition-all"
                   />
                 </div>
 
@@ -178,7 +188,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder={`${content.contact.emailPlaceholder} *`}
-                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-poppins transition-all"
+                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-sans transition-all"
                   />
                 </div>
 
@@ -193,7 +203,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder={content.contact.phonePlaceholder}
-                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-poppins transition-all"
+                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-sans transition-all"
                   />
                 </div>
 
@@ -209,7 +219,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                     value={formData.message}
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                     placeholder={`${content.contact.messagePlaceholder} *`}
-                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-poppins resize-none transition-all"
+                    className="w-full px-4 py-3 text-sm rounded-xl bg-surface-2 border border-neutral-200/80 text-ink placeholder-neutral-400 focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink focus:bg-white font-sans resize-none transition-all"
                   />
                 </div>
 
@@ -229,11 +239,13 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                   />
                 </div>
 
+                <TurnstileBox handle={turnstile} className="pt-2" />
+
                 <div className="contact-input-field pt-2">
                   <button
                     type="submit"
                     disabled={status === 'sending'}
-                    className="w-full sm:w-auto px-8 py-3 font-poppins font-medium uppercase text-xs sm:text-sm tracking-wider text-white transition-all shadow-xs hover:bg-brick-hover active:scale-98 flex items-center justify-center gap-2 rounded-full cursor-pointer bg-brick disabled:opacity-70 disabled:cursor-wait"
+                    className="w-full sm:w-auto px-8 py-3 font-sans font-medium uppercase text-xs sm:text-sm tracking-wider text-white transition-all shadow-xs hover:bg-brick-hover active:scale-98 flex items-center justify-center gap-2 rounded-full cursor-pointer bg-brick disabled:opacity-70 disabled:cursor-wait"
                   >
                     <Send className="w-4 h-4" />
                     <span>
@@ -258,7 +270,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
 
             {/* Restrained Info Card matching /membership/ Apple Dark Card style */}
             <div className="p-8 rounded-2xl text-center text-white shadow-sm border border-white/10 bg-ink transition-all">
-              <div className="space-y-2.5 font-poppins">
+              <div className="space-y-2.5 font-sans">
                 <div className="flex items-center justify-center gap-2 text-white/90 text-sm">
                   <MapPin className="w-4 h-4 text-brick" />
                   <span className="font-medium text-base sm:text-lg">

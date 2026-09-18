@@ -35,7 +35,7 @@ export function HomePage({ content, lang = 'en', onOpenModal, onNavigate }: Home
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8">
           <div
             role="status"
-            className="p-5 sm:p-6 bg-emerald-50 border border-emerald-200/80 rounded-2xl flex items-start gap-3 sm:gap-4 font-poppins"
+            className="p-5 sm:p-6 bg-emerald-50 border border-emerald-200/80 rounded-2xl flex items-start gap-3 sm:gap-4 font-sans"
           >
             <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600 shrink-0" />
             <div className="flex-1 min-w-0 space-y-1">

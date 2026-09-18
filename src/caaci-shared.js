@@ -113,6 +113,19 @@ export const statusLabel = (status, lang) =>
   STATUS_LABEL[status]?.[lang === 'zh' ? 1 : 0] || status;
 
 // ---------- Site language (EN / 中文) ----------
+// The one Google Fonts request for the whole site: Poppins, the single family
+// for body, UI, buttons and headings (src/caaci-fonts.css). build.mjs writes
+// googleFontLinks() into the Tabler pages' <head> and web/vite.config.ts into
+// the React site's, both at the <!--CAACI_FONTS--> marker, so no page carries
+// its own copy of the URL (test/fonts.test.js).
+export const GOOGLE_FONTS_URL =
+  'https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap';
+
+export const googleFontLinks = () =>
+  `<link rel="preconnect" href="https://fonts.googleapis.com">\n` +
+  `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n` +
+  `<link href="${GOOGLE_FONTS_URL}" rel="stylesheet">`;
+
 // A visitor sees the language they last chose — the member-page toggle, a
 // ?lang= link and the mirror's language switcher all store it under LANG_KEY —
 // and, until they choose one, the language their browser asks for.
@@ -175,6 +188,71 @@ export function mirrorLangBoot(w, alt, browserLang) {
 // The inline <script> build.mjs puts at the top of a mirrored page's <head>.
 export const mirrorLangScript = (alt) =>
   `<script>(${mirrorLangBoot})(window,${JSON.stringify(alt).replace(/</g, '\\u003c')},${browserLang});</script>\n`;
+
+// ---------- Mobile numbers (sign-in by text message) ----------
+// Supabase Auth wants E.164 (+12175550123). Members type all sorts —
+// "(217) 555-0123", "217.555.0123", "+86 138 0013 8000" — so this reads what
+// they meant. Exactly ten digits without a country code is a US/Canada number
+// (+1), where nearly every member is; anything else has to start with + and
+// its country code. Eleven bare digits starting with 1 are refused on purpose:
+// 13800138000 is both a Chinese mobile and 1 + a Columbus, Ohio number, and a
+// code texted to the wrong reading goes to a stranger.
+// Returns the E.164 string, or null when the input cannot be a phone number.
+export function normalizePhone(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s || /[a-z]/i.test(s)) return null;
+  const digits = s.replace(/\D/g, '');
+  if (s.startsWith('+')) return /^[1-9]\d{7,14}$/.test(digits) ? `+${digits}` : null;
+  return /^[2-9]\d{9}$/.test(digits) ? `+1${digits}` : null;
+}
+
+// ---------- "send again" cooldowns ----------
+// Every button that sends an email or a text counts down for the resend
+// interval, and the end time is kept per action + recipient in localStorage so
+// a reload does not restart the clock. Both the Tabler pages and the React
+// account page read the same keys, which is why the builder lives here.
+//
+// The recipient goes in as a digest rather than as itself. These keys outlive
+// the visit — nothing sweeps them until a countdown that is still on screen
+// runs out — so on a shared or library machine `caaci-cooldown:sms:+1217…`
+// left a member's mobile number where the next person could read it, and
+// `…:sms_change:<uuid>` their account id, which is what the membership QR
+// carries. The digest only has to tell two recipients apart; a collision costs
+// at most a countdown shown for the wrong one. It is deliberately a small
+// synchronous hash and not crypto.subtle, which is async and would turn every
+// key lookup into a promise.
+export const COOLDOWN_PREFIX = 'caaci-cooldown:';
+
+const digest = (value) => {
+  const s = String(value ?? '')
+    .trim()
+    .toLowerCase();
+  let h = 0x811c9dc5; // FNV-1a, 32-bit
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+};
+
+export const cooldownKey = (action, recipient) =>
+  `${COOLDOWN_PREFIX}${action}:${digest(recipient)}`;
+
+// Drop every stored countdown. Called on sign-out, so a shared machine keeps
+// nothing about who was just signed in — including the plaintext keys written
+// before the digest, which is why this matches on the prefix.
+export function clearCooldowns(storage) {
+  try {
+    const store = storage || (typeof localStorage === 'undefined' ? null : localStorage);
+    if (!store) return;
+    for (let i = store.length - 1; i >= 0; i--) {
+      const key = store.key(i);
+      if (key && key.startsWith(COOLDOWN_PREFIX)) store.removeItem(key);
+    }
+  } catch {
+    // Storage blocked: there is nothing kept to clear.
+  }
+}
 
 // Merge live membership_tiers rows (from any Supabase client) over the fallback.
 export function mergeTiers(rows) {

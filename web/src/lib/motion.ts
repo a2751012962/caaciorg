@@ -86,6 +86,20 @@ export const panelFrom = { opacity: 0, scale: 0.96, y: MOTION.riseSm };
 export const panelShown = { opacity: 1, scale: 1, y: 0 };
 export const panelIn: Transition = { type: 'spring', damping: 26, stiffness: 320 };
 
+// Bottom sheet on a phone (e.g. the token wallet's Buy / History): rises from
+// the bottom edge on the site's one entrance curve, and drops back down.
+export const sheetFrom = { y: '100%' };
+export const sheetShown = { y: 0 };
+export const sheetIn: Transition = { duration: MOTION.duration.base, ease: MOTION.ease };
+export const sheetOut: Transition = { duration: MOTION.duration.fast, ease: MOTION.ease };
+
+// Bencho-style blocks (components/bencho/, after bencho.dev, MIT).
+/** InlineConfirm: the button's width is the animation, with a small overshoot. */
+export const confirmMorph: Transition = { type: 'spring', stiffness: 520, damping: 30, mass: 0.9 };
+/** LiquidToggle: where the thumb lands, and the drop chasing it. */
+export const liquidLand: Transition = { type: 'spring', stiffness: 220, damping: 18, mass: 0.9 };
+export const liquidChase = { stiffness: 300, damping: 22, mass: 1 };
+
 // ------------------------------------------------------------------------ GSAP
 
 type RevealOpts = {

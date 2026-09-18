@@ -278,7 +278,7 @@ export function StackedCardsSection({
       tl.to({}, { duration: PANEL_HOLD });
     }, containerRef);
 
-    // Web fonts (Noto Serif SC) can finish after ScrollTrigger measured the
+    // The web font (Poppins) can finish loading after ScrollTrigger measured the
     // page; re-measure so the pin starts and ends where the section really is.
     let alive = true;
     document.fonts?.ready.then(() => {
@@ -356,10 +356,7 @@ export function StackedCardsSection({
               >
                 {/* 1. Giant Numeral Line Accent */}
                 <div className="panel-num-line flex items-baseline gap-4 mb-2 origin-top-left">
-                  <span
-                    className="panel-num text-5xl sm:text-6xl md:text-7xl font-mono font-black text-brick/25 tracking-tighter"
-                    style={{ fontFamily: 'var(--font-caaci-serif)' }}
-                  >
+                  <span className="panel-num text-5xl sm:text-6xl md:text-7xl font-black text-brick/25 tracking-tighter">
                     {item.number}
                   </span>
                   <div className="h-[2px] flex-1 max-w-[140px] bg-brick/30" />
@@ -367,12 +364,7 @@ export function StackedCardsSection({
 
                 {/* 3. Typography Headline Block with Companion Small Number */}
                 <div className="mb-6 origin-top-left will-change-transform">
-                  <h3
-                    className="panel-headline text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-maroon leading-[1.1] tracking-tight font-serif-caaci origin-top-left flex items-baseline flex-wrap"
-                    style={{
-                      fontFamily: isZh ? 'var(--font-caaci-serif-zh)' : 'var(--font-caaci-serif)',
-                    }}
-                  >
+                  <h3 className="panel-headline text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-maroon leading-[1.1] tracking-tight origin-top-left flex items-baseline flex-wrap">
                     {/* 小数字伴随标题：被滚上去时平滑展现 */}
                     <span className="panel-companion-num opacity-0 inline-block overflow-hidden font-mono font-bold text-xl sm:text-2xl md:text-3xl text-brick align-baseline whitespace-nowrap">
                       {item.number}
@@ -383,7 +375,7 @@ export function StackedCardsSection({
 
                 {/* 4. Body Paragraph & Action Button */}
                 <div className="panel-body origin-top-left">
-                  <p className="font-poppins text-neutral-600 text-base sm:text-lg md:text-xl leading-relaxed max-w-3xl mb-8">
+                  <p className="font-sans text-neutral-600 text-base sm:text-lg md:text-xl leading-relaxed max-w-3xl mb-8">
                     {isZh ? item.descZh : item.descEn}
                   </p>
 

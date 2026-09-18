@@ -53,6 +53,7 @@ import {
   type BusinessSponsorTier,
 } from '../data/pagesContent';
 import { api } from '../lib/api';
+import { TurnstileBox, useTurnstile } from '../components/Turnstile';
 import { usd } from '../lib/shared';
 import { cardTotal, money, useTiers } from '../lib/tiers';
 import {
@@ -138,6 +139,9 @@ export function BusinessServicesPage({
   const [address, setAddress] = useState('');
   const [website, setWebsite] = useState('');
   const isListing = inquiryType === 'directory';
+  // One form, two endpoints: the widget re-mounts when the inquiry type changes
+  // so the token always carries the action the server will compare it against.
+  const turnstile = useTurnstile(isListing ? 'business_listing' : 'contact');
 
   // One pill per category that has at least one listed merchant, so every pill returns results.
   const categories = useMemo(() => {
@@ -193,6 +197,11 @@ export function BusinessServicesPage({
   const handleFormSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (sending) return;
+    // A Turnstile token is spent by the request that carries it: read it, send
+    // it, reset the widget whatever the answer was.
+    const problem = turnstile.problem(lang === 'zh');
+    if (problem) return setFormError(problem);
+    const token = turnstile.token();
     setFormError('');
     setSending(true);
     const res = isListing
@@ -205,6 +214,7 @@ export function BusinessServicesPage({
           phone: contactPhone.trim(),
           website: website.trim(),
           _hp: '',
+          'cf-turnstile-response': token,
         })
       : await api('/api/contact', {
           name: contactName.trim(),
@@ -218,7 +228,9 @@ export function BusinessServicesPage({
             .filter(Boolean)
             .join('\n\n'),
           _hp: '',
+          'cf-turnstile-response': token,
         });
+    turnstile.reset();
     setSending(false);
     if (!res.ok) {
       setFormError(
@@ -347,7 +359,7 @@ export function BusinessServicesPage({
           {/* Breadcrumb Path */}
           <nav
             aria-label="Breadcrumb"
-            className="flex items-center gap-1 sm:gap-1.5 md:gap-2 text-[11px] sm:text-xs md:text-sm text-neutral-500 font-poppins min-w-0"
+            className="flex items-center gap-1 sm:gap-1.5 md:gap-2 text-[11px] sm:text-xs md:text-sm text-neutral-500 font-sans min-w-0"
           >
             <button
               onClick={() => {
@@ -1572,6 +1584,8 @@ export function BusinessServicesPage({
                         {formError}
                       </p>
                     )}
+
+                    <TurnstileBox handle={turnstile} />
 
                     <div className="pt-2">
                       <button

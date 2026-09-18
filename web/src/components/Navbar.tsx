@@ -156,10 +156,10 @@ export function Navbar({
                 }}
               />
               <div className="flex flex-col">
-                <span className="font-bold text-lg leading-tight tracking-tight text-maroon font-serif-caaci">
+                <span className="font-bold text-lg leading-tight tracking-tight text-maroon">
                   CAACI
                 </span>
-                <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-poppins hidden sm:inline">
+                <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-sans hidden sm:inline">
                   {lang === 'en' ? 'Central Illinois' : '伊利诺伊中部'}
                 </span>
               </div>
@@ -167,7 +167,7 @@ export function Navbar({
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center space-x-1 xl:space-x-2 font-poppins">
+          <nav className="hidden lg:flex items-center space-x-1 xl:space-x-2 font-sans">
             {/* Welcome / Home */}
             <button
               onClick={() => handleNavClick('home')}
@@ -309,10 +309,10 @@ export function Navbar({
                     href={marketplaceUrl('navigation')}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-brick hover:bg-neutral-50 transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors"
                   >
                     {content.nav.marketplace}
-                    <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+                    <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
                   </a>
                 </div>
               )}
@@ -442,7 +442,7 @@ export function Navbar({
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-white border-t border-neutral-200 px-4 pt-2 pb-6 space-y-2 shadow-xl font-poppins">
+        <div className="lg:hidden bg-white border-t border-neutral-200 px-4 pt-2 pb-6 space-y-2 shadow-xl font-sans">
           <button
             onClick={() => handleNavClick('home')}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
@@ -530,10 +530,10 @@ export function Navbar({
             href={marketplaceUrl('navigation')}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex min-h-11 items-center gap-2 py-2 text-sm font-semibold uppercase tracking-wider text-brick"
+            className="flex min-h-11 w-full items-center gap-1.5 py-2 text-sm font-semibold uppercase text-neutral-700"
           >
             {content.nav.marketplace}
-            <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+            <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
           </a>
 
           {isLoggedIn && user ? (

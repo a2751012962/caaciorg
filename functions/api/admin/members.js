@@ -6,6 +6,7 @@
 // Every request is gated by requireAdmin (validates session + is_admin).
 import { json, bad, sb, requireAdmin, authAdmin } from '../_lib.js';
 import { requireActionCode } from './_action-code.js';
+import { tokensEnabled } from '../_tokens.js';
 
 const STATUSES = ['pending', 'active', 'expired', 'cancelled', 'past_due'];
 const MAX_LIMIT = 50;
@@ -114,7 +115,12 @@ export async function onRequestPost({ request, env }) {
   if (b.full_name !== undefined) patch.full_name = b.full_name || null;
   if (b.phone !== undefined) patch.phone = b.phone || null;
   if (b.notes !== undefined) patch.notes = b.notes || null;
-  if (b.is_admin !== undefined) patch.is_admin = !!b.is_admin;
+  // With tokens on, an admin can mint what CAACI owes, so only root appoints
+  // admins (POST /api/admin/roles). Here the flag is simply not writable.
+  if (b.is_admin !== undefined) {
+    if (tokensEnabled(env)) return bad('Only root can appoint or remove an admin.', 403);
+    patch.is_admin = !!b.is_admin;
+  }
   if (Object.keys(patch).length === 0) return bad('Nothing to update.');
 
   try {
@@ -124,6 +130,25 @@ export async function onRequestPost({ request, env }) {
       const current = await sb(env).selectOne('members', { id: b.id }, 'id,tier_id');
       if (!current) return bad('Member not found.', 404);
       if ((current.tier_id || null) !== patch.tier_id) {
+        const check = await requireActionCode(request, env, gate.user.id);
+        if (check.error) return check.error;
+      }
+    }
+    // Taking the admin flag off someone is the first half of an account
+    // takeover: /api/admin/member-password refuses to re-key an administrator,
+    // so an attacker holding one admin's session would clear the victim's flag
+    // here and then set their password. Demotion therefore needs the emailed
+    // code — the control that exists for exactly this, "the signed-in session
+    // alone is not enough" — while appointing an admin is unchanged. Root's own
+    // flag is not writable here at all.
+    // `*`: is_root arrives with 0024, and this must not 400 on a database where
+    // that migration has not been applied yet (same reason households is read
+    // with `*` in _lib.js).
+    if (patch.is_admin !== undefined) {
+      const current = await sb(env).selectOne('members', { id: b.id }, '*');
+      if (!current) return bad('Member not found.', 404);
+      if (current.is_root === true) return bad("Root's admin access cannot be changed here.", 403);
+      if (current.is_admin === true && patch.is_admin === false) {
         const check = await requireActionCode(request, env, gate.user.id);
         if (check.error) return check.error;
       }
@@ -170,7 +195,7 @@ export async function onRequestPut({ request, env }) {
       status: b.status || 'active',
       household_id: b.household_id || null,
       notes: b.notes || null,
-      is_admin: !!b.is_admin,
+      is_admin: tokensEnabled(env) ? false : !!b.is_admin,
     };
     for (const f of ['member_since', 'expires_at']) {
       if (b[f]) {

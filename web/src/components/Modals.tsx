@@ -4,6 +4,7 @@ import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
 import { usd } from '../lib/shared';
 import { FluidTabs } from './FluidTabs';
+import { TurnstileBox, useTurnstile } from './Turnstile';
 
 export type ModalType = 'donate' | 'events' | 'membership' | 'volunteer' | null;
 
@@ -31,7 +32,7 @@ export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 bg-neutral-50">
           <div className="flex items-center gap-2">
             {modalType === 'donate' && <Heart className="w-5 h-5 text-brick" />}
-            <h3 className="font-serif-caaci font-bold text-lg text-maroon">
+            <h3 className="font-bold text-lg text-maroon">
               {modalType === 'donate' && content.modals.donateTitle}
               {modalType === 'volunteer' &&
                 (lang === 'en' ? 'Volunteer with CAACI' : '加入 CAACI 志愿者')}
@@ -120,7 +121,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
         : `${recurring ? '每月' : ''}捐赠 ${usd(cents)}`;
 
   return (
-    <form onSubmit={submit} className="space-y-5 font-poppins">
+    <form onSubmit={submit} className="space-y-5 font-sans">
       <p className="text-sm text-neutral-600 leading-relaxed">{content.modals.donateDesc}</p>
 
       <div>
@@ -332,6 +333,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
   const [notes, setNotes] = useState('');
   const [hp, setHp] = useState('');
   const [busy, setBusy] = useState(false);
+  const turnstile = useTurnstile('volunteer');
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState<VolunteerEvent[] | null>(null);
 
@@ -374,6 +376,12 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
       .filter(Boolean)
       .join('\n');
 
+    // A Turnstile token is spent by the request that carries it: read it, send
+    // it, reset the widget whatever the answer was.
+    const problem = turnstile.problem(!en);
+    if (problem) return setError(problem);
+    const token = turnstile.token();
+
     setError('');
     setBusy(true);
     const { ok, status, data } = await api<{ ok?: boolean; events?: VolunteerEvent[] }>(
@@ -385,8 +393,10 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
         message,
         events: chosen,
         _hp: hp,
+        'cf-turnstile-response': token,
       },
     );
+    turnstile.reset();
     setBusy(false);
     if (ok) {
       setSubmitted(Array.isArray(data.events) ? data.events : []);
@@ -411,7 +421,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
   if (submitted) {
     const names = submitted.map((ev) => (en ? ev.title : ev.title_zh || ev.title));
     return (
-      <div role="status" className="text-center py-6 space-y-3 font-poppins">
+      <div role="status" className="text-center py-6 space-y-3 font-sans">
         <Check className="w-12 h-12 text-green-600 mx-auto" />
         <h4 className="text-lg font-bold text-neutral-900">
           {en ? 'Thank You for Volunteering!' : '感谢您支持社区志愿服务！'}
@@ -446,7 +456,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
     }`;
 
   return (
-    <form onSubmit={submit} className="relative space-y-3 font-poppins text-xs">
+    <form onSubmit={submit} className="relative space-y-3 font-sans text-xs">
       <p className="text-neutral-600 leading-relaxed text-sm">
         {en
           ? 'Join our enthusiastic volunteer team! Opportunities include event coordination, stage management, translation, graphic design, and senior support.'
@@ -597,6 +607,8 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
           {error}
         </div>
       )}
+
+      <TurnstileBox handle={turnstile} />
 
       <button
         type="submit"

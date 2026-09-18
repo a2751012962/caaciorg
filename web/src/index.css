@@ -1,15 +1,8 @@
 @import 'tailwindcss';
-
-/* Font stacks. Each web font is followed by a CJK face that is installed on
-   Windows (Microsoft YaHei / SimSun) or macOS (PingFang SC / Songti SC), so the
-   first layout doesn't search system fallbacks for Chinese text and swapping in
-   the web fonts doesn't re-lay out the page. Measured on the homepage: first
-   layout ~155ms -> ~102ms, and the ~64ms re-layout on font swap is gone. */
-:root {
-  --font-caaci-sans: 'Poppins', 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', Arial, sans-serif;
-  --font-caaci-serif: 'Playfair Display', 'Noto Serif SC', 'SimSun', 'Songti SC', serif;
-  --font-caaci-serif-zh: 'Noto Serif SC', 'Playfair Display', 'SimSun', 'Songti SC', serif;
-}
+/* The site's typefaces, shared with the Tabler pages: --caaci-font-sans and
+   --caaci-font-mono. Tailwind inlines it, so the bundle carries the same
+   stacks /assets/caaci-fonts.css serves. */
+@import '../../src/caaci-fonts.css';
 
 /* ---- Design tokens (see web/DESIGN_SYSTEM.md). Use bg-brick, text-ink, etc.;
    never write the hex in a className. ---- */
@@ -33,9 +26,12 @@
   --color-surface-warm: #fbf9f8;
   --color-surface-warm-2: #fbf9f6;
   --color-surface-cream: #fcfbf9;
-  --font-display: var(--font-caaci-serif);
-  --font-display-zh: var(--font-caaci-serif-zh);
-  --font-sans: var(--font-caaci-sans);
+
+  /* Type: one family. font-sans (the default: body, UI, buttons, headings —
+     headings differ by weight and size, not by face) and font-mono (ids,
+     emails, amounts). No other font-family belongs in a component. */
+  --font-sans: var(--caaci-font-sans);
+  --font-mono: var(--caaci-font-mono);
 
   /* Motion (mirrors MOTION in src/lib/motion.ts): ease-out utility + durations. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -60,26 +56,11 @@
   }
 
   body {
-    font-family: var(--font-caaci-sans);
+    font-family: var(--font-sans);
     color: #333333;
     background-color: #ffffff;
     -webkit-font-smoothing: antialiased;
   }
-
-  h1,
-  h2,
-  h3,
-  .font-display {
-    font-family: var(--font-caaci-serif);
-  }
-}
-
-.font-poppins {
-  font-family: var(--font-caaci-sans);
-}
-
-.font-serif-caaci {
-  font-family: var(--font-caaci-serif);
 }
 
 /* Custom Scrollbar Utilities */
@@ -120,6 +101,434 @@
 }
 .animate-in {
   animation: zoomIn 0.2s ease-out;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Bencho blocks (bencho.dev, MIT © 2026 Lorenzo Cabra — bencho.dev/licence).
+   Components in web/src/components/bencho/. Their CSS reads Bencho's design
+   tokens; each block's root maps them onto this site's own (DESIGN_SYSTEM.md)
+   so nothing new becomes global.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── flat panes ────────────────────────────────────────────
+   Set data-surface="flat" on any ancestor and every glass
+   surface under it becomes a solid fill with a hairline. The
+   inner buttons already sit on rgba(var(--ink-rgb), 0.05)
+   with no border, which is what flat wants anyway, so they
+   need nothing.
+
+   The frost is switched off at the element rather than through
+   a token. A var() holding a url() filter cannot be validated
+   at parse time, so the browser would treat it as invalid at
+   computed-value time and drop the property outright — which
+   breaks the two-declaration fallback the glass depends on. */
+/* ══ stroke ═════════════════════════════════════════════════
+   Whether a component draws a hairline round itself. OFF by
+   default, which is the change: every glass surface carried
+   one unconditionally, and a grey line round everything makes
+   a wall of components look like a wall of boxes rather than
+   a wall of things.
+
+   The line is not load-bearing. A flat pane is a fill against
+   a different fill and reads on its own; the ring was there
+   to sharpen an edge that was already there.
+
+   Placed ABOVE the glass rules on purpose. Glass draws its
+   own lit rim, and that rim is the material rather than a
+   stroke — it is what gives a pane thickness. So glass wins
+   the border wherever the two meet, and Stroke governs the
+   drawn line that flat surfaces would otherwise have. */
+/* CAACI: only Seek's selector is kept. The rest of Bencho's
+   list (.lab, .gcard, .gpane, .gnav, .gdock, .esc-btn,
+   .slo-track) names blocks this site does not have. */
+/* the playful blocks. None of them is glass, so none has a
+   lit rim for the stroke to lose to — the hairline is the
+   only edge they can have, and it is the whole of what this
+   control does for them. */
+[data-stroke='on'] .sek-skin::before {
+  border-color: var(--pane-edge);
+}
+
+/* ══ Seek ═══════════════════════════════════════════════════
+   A search icon that becomes a search field, as one object.
+
+   Everything below is width and radius. There is no crossfade
+   between two components, no second element to keep in sync,
+   and nothing that animates on a clock of its own — the box
+   is sprung in JS and every other value here is derived from
+   how far through that spring it is. That is the whole reason
+   the transformation reads as continuous: there is only one
+   number, so nothing can arrive at the wrong time relative to
+   anything else. */
+.sek {
+  /* ── Bencho's tokens, as this site's (CAACI) ─────────────
+     Declared on the block's root, so they reach only its own
+     children and never shadow anything else on the page. */
+  /* the ground behind the focus ring's gap: pages are white */
+  --bg: var(--color-white);
+  /* UI type: Poppins → YaHei / PingFang (DESIGN_SYSTEM §2) */
+  --font-ui: var(--font-sans);
+  --ink: var(--color-ink);
+  /* the site's grey ladder for text (DESIGN_SYSTEM §1.2):
+     body 700, secondary 500, quietest 400. Bencho has one more
+     rung than the site, so its two faintest share 400 — the
+     next step down, 300, is the site's input border and too
+     faint to read as a placeholder. */
+  --ink-2: var(--color-neutral-700);
+  --ink-3: var(--color-neutral-500);
+  --ink-4: var(--color-neutral-400);
+  --ink-5: var(--color-neutral-400);
+  /* the site has no -rgb tokens; this is --color-ink #1d1d1f
+     as the bare numbers rgba() is built from */
+  --ink-rgb: 29, 29, 31;
+  /* the fill of the site's round tracks and steppers
+     (FluidTabs, DragStepper), and its card hairline */
+  --pane: var(--color-neutral-100);
+  --pane-edge: var(--color-neutral-200);
+  /* the site has no glass: no frost, no colour boost */
+  --g-blur: 0px;
+  --g-sat: 100%;
+
+  /* the frame is the composition. It never moves, which is
+     what gives the magnet a stable home to measure from and
+     keeps the object centred at every width. */
+  position: relative;
+  display: grid;
+  place-items: center;
+  /* ── THE FRAME IS `--frame`, and it was not ──────────────
+     Seek.tsx computes `--frame` and `--frameh` from the width
+     that is actually set — its note explains why at length:
+     the wall fits a card by the BOUNDING BOX, so a frame sized
+     for the widest the knob goes makes every smaller setting
+     draw smaller. It has been publishing those two numbers to
+     a stylesheet that ignored them and used a hard 380 x 96.
+
+     Measured on a phone card: the frame reserved 380 for a
+     field set to 320, the wall fitted 380 into 260, and the
+     shut button — the only thing drawn at rest — came out at
+     44px. The 36px of nothing was being paid for in the one
+     part of the object you are looking at.
+
+     With the variables wired up the knob does what its own
+     comment says it does, and the frame is tight to what is
+     set on every screen. */
+  width: var(--frame, 380px);
+  height: var(--frameh, 96px);
+  font-family: var(--font-ui);
+}
+
+/* ── the object ─────────────────────────────────────────────
+   Width is the state. Height is fixed, so the radius can be
+   derived from the width rather than animated beside it —
+   at 44 the corner is 22 and the shape IS a circle, and there
+   is no frame where the two disagree.
+
+   The surface is the quietest thing that still reads as an
+   object: a low-alpha ink fill and a hairline. No shadow, no
+   glass, no gradient — at this size any of them would be the
+   loudest thing on an otherwise empty page. */
+.sek-skin {
+  position: relative;
+  width: var(--w);
+  /* --shut, NOT a number. The component sets the closed width
+     and the height from one constant precisely so they cannot
+     drift, and its own comment says so: "the skin's height and
+     the closed width are the same number by definition, and
+     two places holding it is two places to get it wrong."
+     Hard-coded here at 44 against a --shut of 64, the closed
+     state was a 64x44 lozenge — a circle that is not round is
+     the one shape everybody notices. */
+  height: var(--shut);
+  /* ── ONE SHAPE RULE ─────────────────────────────────────
+     Fully round, at every width. The radius used to
+     interpolate 22 → 13, which was a second thing to keep in
+     agreement with the first; a stadium corner needs no
+     agreement at all. At --shut wide it is a circle and at 320
+     a pill, and those are the same rule rather than two ends
+     of a tween. Height is fixed, so it cannot be anything
+     else. */
+  /* the Corner knob's, and ::before and .sek-hit inherit it */
+  border-radius: var(--sek-r, 999px);
+  /* ── FLAT, and glass only if asked ──────────────────────
+     `--pane` is the bench's own material token, so this
+     follows the Glass dial rather than deciding for itself:
+     at 0 it resolves to a solid board and at 100 to the
+     frosted pane. It was a translucent ink wash with an inset
+     hairline, which is glass by every visual measure while
+     answering to no control — the worst of both, since it
+     could not be turned off.
+
+     And it picks up Fill for free. Flat resolves --pane to
+     --board, and Fill redeclares --board, so a dark fill
+     gives a dark pill without this rule naming a colour. */
+  background: var(--pane);
+  -webkit-backdrop-filter: blur(var(--g-blur, 2px)) saturate(var(--g-sat, 150%))
+    brightness(var(--g-bright, 100%));
+  backdrop-filter: blur(var(--g-blur, 2px)) saturate(var(--g-sat, 150%))
+    brightness(var(--g-bright, 100%));
+  isolation: isolate;
+  /* the magnet, and the press, on one transform — two
+     transforms on one element is one of them winning */
+  transform: translate(var(--lx), var(--ly)) scale(var(--sk, 1));
+  transition:
+    transform 260ms cubic-bezier(0.22, 0.9, 0.28, 1),
+    background 220ms ease;
+  /* the field is inside from the first frame; this is what
+     keeps it from spilling out of a 44px circle */
+  overflow: hidden;
+}
+
+/* the edge, and NOTHING until Stroke asks for it. A hairline
+   nobody switched on is a hairline the control cannot remove,
+   which is the same bug the background had. */
+.sek-skin::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid transparent;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Hover: it comes up a hair and lifts off the ground. Both
+   are small enough to be felt rather than seen, which is the
+   point — a hover state you notice is a hover state that has
+   said too much. */
+.sek:not([data-open='true']) .sek-skin:hover {
+  --sk: 1.045;
+  /* the surface answers, without drawing an edge it was not
+     given — brightness rather than an outline */
+  --g-bright: 104%;
+}
+
+/* pressed: it yields before it moves. A thing that gives
+   under a click reads as having been pushed; a thing that
+   only expands reads as having been triggered. */
+.sek[data-press='true'] .sek-skin {
+  --sk: 0.93;
+  transition: transform 90ms cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+/* the field is a text target, and the object is a button */
+.sek[data-open='true'] .sek-skin {
+  cursor: text;
+}
+
+/* ── the lens ───────────────────────────────────────────────
+   Fixed to the box's left inset and never animated. At the
+   shut width that inset centres it; at the open width it is
+   the field's padding. The lens crossing the page is the box
+   growing around a mark that stayed still. */
+.sek-lens {
+  position: absolute;
+  left: var(--inset);
+  top: 50%;
+  width: var(--lens);
+  height: var(--lens);
+  margin-top: calc(var(--lens) / -2);
+  fill: none;
+  stroke: var(--ink-3);
+  /* 1.5, AND THE NUMBER CANNOT BE COMPARED TO LUCIDE'S.
+     Every lucide glyph is drawn on a 24-unit grid; this one is
+     drawn on 18. A stroke-width of u paints at u/viewBox of
+     the icon's size, so lucide's 2-on-24 is 0.0833 and a 2
+     here would be 0.1111 — the same number, a third heavier.
+     1.5/18 is 0.0833 exactly, which is the radial menu's
+     weight and the nav's.
+
+     The value that stood here was 1.6 (0.0889). That was very
+     nearly right; it was changed to 2 on the assumption that
+     the two viewBoxes matched, and they never did. */
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  pointer-events: none;
+  transition:
+    stroke 200ms ease,
+    stroke-width 200ms ease;
+}
+
+.sek-skin:hover .sek-lens {
+  stroke: var(--ink);
+}
+
+.sek[data-open='true'] .sek-lens {
+  stroke: var(--ink-4);
+}
+
+/* typing: the lens thickens a hair and darkens. One beat per
+   burst, not one per keystroke — a mark that flickers at the
+   rate of your typing is noise wearing the costume of
+   feedback. */
+/* still "a hair", and still the same proportion of the base it
+   always was — 1.9 was to 1.6 as 1.8 is to 1.5 */
+.sek[data-busy='true'] .sek-lens {
+  stroke: var(--ink-2);
+  stroke-width: 1.8;
+}
+
+/* ── the field ──────────────────────────────────────────────
+   Present from the first frame and revealed by --say, which
+   is the last third of the width's own progress. It slides a
+   few pixels as it arrives, from the left, so it reads as
+   having come out of the lens rather than as having faded up
+   where it stood. */
+.sek-field {
+  position: absolute;
+  left: calc(var(--inset) + var(--lens) + 11px);
+  right: 14px;
+  top: 0;
+  height: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  /* 14 is the NAV's size, and the nav's field is 44px tall.
+     This pill is --shut, 64, and carrying header type in it
+     left the words looking like a caption inside the object
+     rather than its content. 18 restores roughly the
+     proportion the bar has — 0.28 of the height against the
+     bar's 0.32 — on a control that is the whole component
+     rather than one item in a row of them. */
+  font-size: 18px;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  outline: none;
+  opacity: var(--say);
+  transform: translateX(calc((1 - var(--say)) * -6px));
+  /* until it is most of the way open it is not a target, and
+     a caret that can be placed in a 44px circle is a caret in
+     the wrong place */
+  pointer-events: var(--say-hit, none);
+}
+
+.sek[data-open='true'] .sek-field {
+  --say-hit: auto;
+}
+
+.sek-field::placeholder {
+  color: var(--ink-5);
+}
+
+/* the way in, while there is one */
+.sek-hit {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  cursor: pointer;
+}
+
+.sek-hit:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px rgba(var(--ink-rgb), 0.4);
+}
+
+/* ══ Tilt ═══════════════════════════════════════════════════
+   A picture card that gives under the pointer. Almost nothing
+   is here: the rotation, both gradients and the shadow are
+   written per frame from the pointer's position, and a rule
+   in this file that also had an opinion about any of them
+   would be a second author. What is left is the things that
+   are true whatever the pointer is doing. */
+.tlt {
+  /* CAACI: Bencho's card fill is this site's own card fill,
+     `surface-2` (#fbfbfd), seen only where the content inside
+     does not paint (the member card paints all of it). */
+  --surface-2: var(--color-surface-2);
+  position: relative;
+  /* The frame is what the pointer is measured against and it
+     is deliberately the ONLY thing in here that never moves.
+     The perspective lives on it rather than on the card for
+     the usual reason: on the card itself, `perspective` is
+     applied per element and the vanishing point rides along
+     with the rotation instead of staying put in the room. */
+  /* a finger dragged across the card tilts it; a finger
+     dragged up the page still scrolls */
+  touch-action: pan-y;
+}
+
+.tlt-card {
+  /* CAACI: in the flow, not `absolute; inset: 0` — the card
+     is the content's size (the member card sets its own
+     bank-card ratio), so the frame takes its height from here
+     instead of the content being fitted to a fixed frame. */
+  position: relative;
+  background-color: var(--surface-2);
+  overflow: hidden;
+  /* NO `will-change`. It would hold a composited layer for
+     every copy of this block on the wall, permanently, to
+     save one frame on a hover that may never come — the same
+     bookkeeping CLAUDE.md objects to for permanent rAF. The
+     browser promotes this on its own once the transform
+     starts moving. */
+}
+
+/* ── the dent and the rim ───────────────────────────────────
+   One element, two gradients, both placed from the pointer —
+   the dark one under it and the light one at its mirror. It
+   inherits the corner rather than being told one, so the knob
+   only has to reach the card. */
+.tlt-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* ══ Scrub chart (components/bencho/ScrubChart.tsx) ═══════════
+   The ring pops and a hairline guide fades in while a finger is
+   on the line — Bencho's own timings: a small overshoot on the
+   ring, a plain fade on the guide. The ring scales about its own
+   centre, which for an SVG circle needs transform-box. */
+.scrub-tip {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.16s cubic-bezier(0.28, 1.4, 0.36, 1);
+}
+[data-scrub] .scrub-tip {
+  transform: scale(1.18);
+}
+.scrub-guide {
+  opacity: 0;
+  transition: opacity 0.14s;
+}
+[data-scrub] .scrub-guide {
+  opacity: 0.28;
+}
+
+/* ══ Odometer (components/bencho/Odometer.tsx) ═══════════════
+   Each digit is a 1em-tall window over a reel of 0–9; the reel
+   slides to the digit shown, on the pill curve Bencho uses for
+   its window tabs (a little overshoot, so a turning digit lands
+   like a counter wheel rather than a fade). */
+.odo {
+  display: inline-flex;
+  align-items: baseline;
+}
+.odo-col {
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  vertical-align: baseline;
+  line-height: 1;
+}
+.odo-reel {
+  display: block;
+  transition: transform 0.38s cubic-bezier(0.34, 1.16, 0.5, 1);
+  will-change: transform;
+}
+.odo-digit {
+  display: block;
+  height: 1em;
+  line-height: 1;
+  /* Poppins has no tabular figures, so a column is as wide as its
+     widest digit and a "1" would sit left in it. Centred, the
+     column reads as a tabular figure — the same advance for
+     every digit, which is the point of the reel. */
+  text-align: center;
 }
 /* Less motion: keep every state change, drop the travel. Lenis and GSAP check
    the same query in JS (lib/motion.ts, utils/smoothScroll.ts). */

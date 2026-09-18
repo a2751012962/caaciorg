@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { supabase } from './supabase';
 import { api, type ApiResult } from './api';
-import { mergeTiers } from './shared';
+import { cooldownKey, mergeTiers } from './shared';
 import type { Lang } from './lang';
 import type {
   EventSummary,
@@ -410,6 +410,8 @@ export function eventTime(e: EventSummary, lang: Lang): string {
 // ---------- auth email helpers ----------
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const EMAIL_COOLDOWN_S = 60;
+// Text messages too: Supabase's own SMS interval is shorter, but each one costs.
+export const SMS_COOLDOWN_S = 60;
 
 interface AuthErrorLike {
   message?: string;
@@ -421,19 +423,18 @@ export const needsReauth = (error: AuthErrorLike | null | undefined) =>
   !!error &&
   (error.code === 'reauthentication_needed' || /reauthenticat/i.test(error.message || ''));
 
-// How long Supabase wants us to wait before another email, or 0 when the error
-// is not a rate limit. "…after N seconds" when GoTrue says so, else 60 s.
+// How long Supabase wants us to wait before another email or text, or 0 when
+// the error is not a rate limit. "…after N seconds" when GoTrue says so, else 60 s.
 export function emailRetryAfter(error: AuthErrorLike | null | undefined): number {
   if (!error) return 0;
   const m = /after (\d+) seconds?/i.exec(error.message || '');
   if (m) return Number(m[1]);
-  return error.code === 'over_email_send_rate_limit' || error.status === 429 ? EMAIL_COOLDOWN_S : 0;
+  return (error.code &&
+    ['over_email_send_rate_limit', 'over_sms_send_rate_limit'].includes(error.code)) ||
+    error.status === 429
+    ? EMAIL_COOLDOWN_S
+    : 0;
 }
-
-const cooldownKey = (action: string, email: string) =>
-  `caaci-cooldown:${action}:${String(email || '')
-    .trim()
-    .toLowerCase()}`;
 
 function storedCooldownEnd(action: string, email: string): number {
   try {

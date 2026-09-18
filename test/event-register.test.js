@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestGet, onRequestPost } from '../functions/api/event-register.js';
-import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
+import { fakeRequest, mockFetch, fakeEnv, turnstileRoute, withTurnstile } from './helpers.js';
 
 const API = 'https://beta.caaciorg.com/api/event-register';
 const FIRST_AT = '2026-09-14T15:04:05.123456+00:00';
@@ -104,8 +104,14 @@ function route({
   upsert,
   volunteerUpsert,
   resend,
+  hostname = new URL(API).hostname,
 } = {}) {
   return (url, options = {}) => {
+    // The Turnstile check every POST passes through. The token has to come from
+    // the host the request was made to, so a test that posts from another
+    // origin says so here too.
+    const human = turnstileRoute(url, 'event_register', { hostname });
+    if (human) return human;
     if (url.includes('/auth/v1/user')) return user ? { body: user } : { ok: false, status: 401 };
     if (url.includes('/rest/v1/events')) return { body: event ? [event] : [] };
     if (url.includes('/rest/v1/event_registrations')) {
@@ -130,7 +136,7 @@ function route({
 }
 
 const post = (body, { headers = {}, url = API, env = resendEnv() } = {}) =>
-  onRequestPost({ request: fakeRequest({ url, body, headers }), env });
+  onRequestPost({ request: fakeRequest({ url, body: withTurnstile(body), headers }), env });
 const get = (query, { headers = {}, env = fakeEnv() } = {}) =>
   onRequestGet({ request: fakeRequest({ url: `${API}${query}`, headers }), env });
 
@@ -543,7 +549,7 @@ test('event-register POST: resubmission -> already=true, keeps the first created
 });
 
 test('event-register POST: first registration emails the registrant with links from the request origin', async () => {
-  const fetch = mockFetch(route());
+  const fetch = mockFetch(route({ hostname: 'caaciorg.com' })); // posted from that origin below
   try {
     const r = await post(
       { ...VALID, email: 'Pat@Example.com' },

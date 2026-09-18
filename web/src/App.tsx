@@ -33,6 +33,20 @@ const BusinessServicesPage = lazy(() =>
 const EventRegisterPage = lazy(() =>
   import('./pages/EventRegisterPage').then((m) => ({ default: m.EventRegisterPage })),
 );
+// Token pages: reached from a scanned member card or the account page, never from the nav.
+const ChargePage = lazy(() =>
+  import('./pages/ChargePage').then((m) => ({ default: m.ChargePage })),
+);
+const MerchantPage = lazy(() =>
+  import('./pages/MerchantPage').then((m) => ({ default: m.MerchantPage })),
+);
+const TokenAdminPage = lazy(() =>
+  import('./pages/TokenAdminPage').then((m) => ({ default: m.TokenAdminPage })),
+);
+// The React back office (/admin-next/): its own chrome, so it renders outside <Site>.
+const AdminApp = lazy(() =>
+  import('./pages/admin/AdminApp').then((m) => ({ default: m.AdminApp })),
+);
 const PlanPreviewPage = lazy(() =>
   import('./pages/PlanPreviewPage').then((m) => ({ default: m.PlanPreviewPage })),
 );
@@ -50,6 +64,9 @@ export type PageId =
   | 'community-calendar'
   | 'business-services'
   | 'event-register'
+  | 'charge'
+  | 'merchant'
+  | 'token-admin'
   // Cloudflare Pages serves dist/404.html (this app) at any address that
   // matches nothing; the page keeps that address and says so.
   | 'not-found';
@@ -65,6 +82,9 @@ const PAGE_BY_SEGMENT: Record<string, PageId> = {
   'community-calendar': 'community-calendar',
   'business-services': 'business-services',
   'event-register': 'event-register',
+  charge: 'charge',
+  merchant: 'merchant',
+  'token-admin': 'token-admin',
 };
 
 // The registration page also answers at /events/<slug>/register/ (with or
@@ -229,6 +249,12 @@ function Site() {
         // path once, so stepping back to a different /events/<slug>/register/
         // has to start it over rather than leave the old event on screen.
         return <EventRegisterPage key={route} {...pageProps} />;
+      case 'charge':
+        return <ChargePage key={route} {...pageProps} />;
+      case 'merchant':
+        return <MerchantPage key={route} {...pageProps} />;
+      case 'token-admin':
+        return <TokenAdminPage {...pageProps} />;
       case 'not-found':
         return <NotFoundPage key={route} {...pageProps} />;
       case 'home':
@@ -242,7 +268,7 @@ function Site() {
     : undefined;
 
   return (
-    <div className="min-h-screen bg-white text-neutral-800 font-poppins selection:bg-brick selection:text-white flex flex-col justify-between">
+    <div className="min-h-screen bg-white text-neutral-800 font-sans selection:bg-brick selection:text-white flex flex-col justify-between">
       <Navbar
         content={content}
         lang={lang}
@@ -274,8 +300,19 @@ function Site() {
 
 // The admin Plans tab's edit preview: a bare card, no site chrome or auth.
 const PLAN_PREVIEW_PATH = /^\/(?:zh\/)?plan-preview\/?$/i;
+const ADMIN_PATH = /^\/(?:zh\/)?admin-next\/?$/i;
 
 export default function App() {
+  if (ADMIN_PATH.test(window.location.pathname))
+    return (
+      <AuthProvider>
+        <MotionConfig reducedMotion="user">
+          <Suspense fallback={null}>
+            <AdminApp />
+          </Suspense>
+        </MotionConfig>
+      </AuthProvider>
+    );
   if (PLAN_PREVIEW_PATH.test(window.location.pathname))
     return (
       <MotionConfig reducedMotion="user">

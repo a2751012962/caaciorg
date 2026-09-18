@@ -31,35 +31,24 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
                   e.currentTarget.style.display = 'none';
                 }}
               />
-              <div className="font-serif-caaci text-xl font-bold text-white tracking-wide">
-                CAACI
-              </div>
+              <div className="text-xl font-bold text-white tracking-wide">CAACI</div>
             </div>
 
-            <p className="font-poppins text-sm text-neutral-400 leading-relaxed max-w-md">
+            <p className="font-sans text-sm text-neutral-400 leading-relaxed max-w-md">
               {content.footer.aboutText}
             </p>
 
-            <div className="text-xs text-neutral-500 font-poppins pt-2">
+            <div className="text-xs text-neutral-500 font-sans pt-2">
               Serving Champaign, Urbana, Savoy, and the greater Central Illinois area since 2000.
             </div>
           </div>
 
           {/* Quick Links */}
-          <div className="md:col-span-4 space-y-3 font-poppins text-sm">
+          <div className="md:col-span-4 space-y-3 font-sans text-sm">
             <h4 className="font-bold text-white text-xs border-b border-neutral-700 pb-2">
               {content.footer.quickLinks}
             </h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <a
-                href={marketplaceUrl('footer')}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-8 items-center gap-1 text-tan hover:text-white transition-colors"
-              >
-                {content.nav.marketplace}
-                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
-              </a>
               <button
                 type="button"
                 onClick={() => handleNav('home')}
@@ -130,11 +119,21 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
               >
                 {content.nav.volunteer}
               </button>
+              {/* A partner site: last in the list, styled like the site's own links. */}
+              <a
+                href={marketplaceUrl('footer')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-neutral-400 hover:text-white transition-colors"
+              >
+                {content.nav.marketplace}
+                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+              </a>
             </div>
           </div>
 
           {/* Contact Details */}
-          <div className="md:col-span-3 space-y-3 font-poppins text-sm">
+          <div className="md:col-span-3 space-y-3 font-sans text-sm">
             <h4 className="font-bold text-white text-xs border-b border-neutral-700 pb-2">
               Contact
             </h4>
@@ -161,7 +160,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
         </div>
 
         {/* Copyright */}
-        <div className="pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-neutral-500 font-poppins gap-4">
+        <div className="pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-neutral-500 font-sans gap-4">
           <div>{content.footer.copyright}</div>
           <div className="flex items-center gap-4">
             <a

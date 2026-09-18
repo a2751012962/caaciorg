@@ -11,7 +11,8 @@
 ## 0. 一句话原则
 
 **砖红点睛，黑白承载，圆润轻盈。**
-品牌色只用在"要人点/要人看"的地方；其余一律用中性灰；卡片大圆角、浅阴影、细边框。
+品牌色只用在"要人点/要人看"的地方；其余一律用中性灰。
+**能不用卡片就不用卡片**：区块之间靠细线和留白分隔，列表用分隔线；只有必须单独跳出来的那一块才做成卡片（见 §5.3）。
 
 ---
 
@@ -25,7 +26,7 @@
 | `brick-hover`   | `#a63715` | 主按钮 hover（亮一档）                                                     | 6        |
 | `brick-pressed` | `#72240d` | 主按钮 pressed / 深一档 hover                                              | 5        |
 | `brick-deep`    | `#73250e` | 首页三联横幅第二格                                                         | 2        |
-| `maroon`        | `#300200` | **Display 标题色**（Playfair）、Logo 文字、弹窗标题、三联横幅第三格        | 12       |
+| `maroon`        | `#300200` | **Display 标题色**、Logo 文字、弹窗标题、三联横幅第三格                    | 12       |
 | `rust`          | `#ce4327` | 页脚联系信息图标                                                           | 2        |
 | `gold`          | `#edbb5f` | 深色底上的 eyebrow / 星标 / 会员权益图标                                   | 10       |
 | `tan`           | `#d3a971` | 数字会员卡与页脚的点缀链接色                                               | 8        |
@@ -77,14 +78,21 @@
 
 ## 2. 字体
 
-| 角色                 | 变量                    | 字体栈                                                     |
-| -------------------- | ----------------------- | ---------------------------------------------------------- |
-| Display / h1–h3      | `--font-caaci-serif`    | Playfair Display → Noto Serif SC → SimSun / Songti SC      |
-| 中文 Display         | `--font-caaci-serif-zh` | Noto Serif SC → Playfair Display（中文标题时优先中文衬线） |
-| 正文 / UI            | `--font-caaci-sans`     | Poppins → Microsoft YaHei → PingFang SC → Noto Sans SC     |
-| 数据 / 会员号 / 邮箱 | `font-mono`             | 系统等宽                                                   |
+全站只有一个字体家族（2026-09-17 决定：去掉 Playfair Display 与 Noto Serif SC 衬线标题，三个网络字体减为一个）。
+声明只在一个地方：仓库根目录 `src/caaci-fonts.css`（`index.css` 直接 `@import`，Tabler 后台/登录页链接同一文件），
+`@theme` 把它映射成两个 Tailwind 工具类。Google Fonts 只有一条请求：`src/caaci-shared.js` 的 `GOOGLE_FONTS_URL`，
+由 `vite.config.ts` 写进 `index.html` 的 `<!--CAACI_FONTS-->`。守卫：`test/fonts.test.js`。
 
-工具类：`.font-serif-caaci`（15）、`.font-poppins`（52）。`h1/h2/h3` 已在 `@layer base` 里默认衬线，无需重复加类。
+| 角色                    | 工具类              | 变量                | 字体栈                                                                    |
+| ----------------------- | ------------------- | ------------------- | ------------------------------------------------------------------------- |
+| 正文 / UI / 按钮 / 标题 | `font-sans`（默认） | `--caaci-font-sans` | Poppins → Microsoft YaHei → PingFang SC → Hiragino Sans GB → Noto Sans SC |
+| 数据 / 会员号 / 邮箱    | `font-mono`         | `--caaci-font-mono` | ui-monospace → Menlo → Consolas → Microsoft YaHei → PingFang SC           |
+
+规则：
+
+- 标题靠字重和字号区分（`font-bold` / `font-semibold` + 字号阶梯），不换字体；中文标题自然落到 PingFang / 微软雅黑粗体。
+- 组件里不写 `style={{ fontFamily }}`，不写 `font-serif` / `font-display`（Tailwind 默认 Georgia / 已删除的旧类）；`font-serif-caaci`、`font-poppins` 也已删除。
+- 中文标题不需要任何字体分支：同一个栈里 Poppins 没有的汉字自动由中文字体出字。
 
 ### 2.1 字号阶梯（实际使用）
 
@@ -216,6 +224,7 @@
 | **胶囊小按钮**（语言切换等） | `px-3 py-1.5 rounded-full border border-neutral-300 bg-neutral-50 text-xs font-semibold hover:border-brick hover:text-brick`                                                                                                                                                 |
 
 手机端主按钮 `w-full sm:w-auto`。触控目标 `min-h-[44px]`（29 处，作为硬性要求）。
+按钮文字不折行（已定 2026-09-17）：与输入框并排的按钮加 `shrink-0 whitespace-nowrap`，宁可让输入框变窄，也不要让"搜索"变成两行。
 
 ### 5.2 输入框
 
@@ -225,8 +234,28 @@
 紧凑（表单内）：`... py-2 text-sm bg-white ... focus:ring-1 focus:ring-brick`。
 多行：追加 `resize-none`。焦点只用 brick ring；黑色 ring（`#1d1d1f`，9 处）限于会员页搜索框。
 
-### 5.3 卡片
+### 5.3 区块与卡片
 
+**默认不用卡片**（已定 2026-09-17）。边框、底色、圆角、阴影每一样都在说"这是一个独立的对象"；每块都这么做，页面就没有了主次，手机上还白白吃掉两侧宽度。
+
+默认写法：
+
+| 场景                           | 写法                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| 页面里的一个区块               | `space-y-3 pt-6 border-t border-neutral-200/80`，区块标题用 eyebrow（§2.2）                             |
+| 列表（记录、成员、商家、申诉） | 外层 `divide-y divide-neutral-200/80`，需要收口时加 `border-y`；每行 `py-3`，点开的详情直接展开在该行下 |
+| 一组数字（总览）               | 直接平铺 `grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-6`，数字 `text-2xl font-bold tabular-nums`      |
+| 引用 / 用户写的说明            | `border-l-2 border-neutral-300 pl-3`，不用灰底框                                                        |
+| 表单                           | 输入框自己有边框，外面不再包框                                                                          |
+
+只有这两种情况才用卡片：
+
+1. **全页唯一的焦点**：一眼就要看到的那一块。例如数字会员卡、扣币页顶部的"顾客 + 余额"。一页最多一块。
+2. **本身就是一个可点选的对象**：套餐选择、扣币页的菜单项。这时边框表示"可以点"，不是装饰。
+
+**不要卡片套卡片**：一列带边框的行，外面不再包一层卡片（2026-09-17 扣币页、代币后台均按此改过）。
+
+需要卡片时的写法：
 `bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 shadow-xs hover:border-neutral-300 transition-colors`
 卡片内图标圈：`w-10 h-10 rounded-full bg-white border border-neutral-200/70 shadow-2xs`，图标 `w-5 h-5 text-brick`。
 深色卡片：`bg-ink text-white rounded-2xl p-6 shadow-xl border border-white/10`。
@@ -262,7 +291,7 @@
 
 遮罩 `fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4`；
 面板 `w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-neutral-200 overflow-hidden`；
-头部 `px-6 py-4 border-b border-neutral-200 bg-neutral-50`，标题 `font-serif-caaci font-bold text-lg text-maroon`；
+头部 `px-6 py-4 border-b border-neutral-200 bg-neutral-50`，标题 `font-bold text-lg text-maroon`；
 关闭键 `p-1 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200`；内容 `p-6`。
 
 ### 5.8 导航栏 / 下拉
@@ -284,7 +313,7 @@ lucide-react。尺寸：行内 `w-3.5 h-3.5`，按钮 `w-4 h-4`，卡片 `w-5 h-
 ## 6. 双语规则
 
 - 每个可见字符串都有 en / zh 两版（`data/content.ts`）。
-- 中文标题使用 `--font-caaci-serif-zh`（`isZh` 分支），不要给中文加 `tracking-widest`。
+- 中英文同一个字体栈（见 §2），组件不写 `isZh` 字体分支；不要给中文加 `tracking-widest`。
 - 字距（tracking）对中文无效且会拉开字，按钮/标签的 `tracking-wider` 只对英文有意义，可接受但不要再加大。
 - `uppercase` 对汉字没有任何效果（浏览器原样显示），所以导航项和主按钮这两处允许全大写的元素可以中英文共用同一组类，不必按语言切换（已定 2026-09-15）。
 
@@ -315,7 +344,7 @@ lucide-react。尺寸：行内 `w-3.5 h-3.5`，按钮 `w-4 h-4`，卡片 `w-5 h-
 | `brick-700` / `brick-800` | `#6a220c` / `#5c1c0a` |     | `surface-3`                             | `#f5f5f7`                         |
 | `maroon`                  | `#300200`             |     | `surface-hover`                         | `#fafafc`                         |
 | `rust`                    | `#ce4327`             |     | `surface-warm` / `-2` / `surface-cream` | `#fbf9f8` / `#fbf9f6` / `#fcfbf9` |
-| `gold` / `tan`            | `#edbb5f` / `#d3a971` |     | `font-display` / `font-display-zh`      | 衬线 / 中文衬线                   |
+| `gold` / `tan`            | `#edbb5f` / `#d3a971` |     | `font-sans` / `font-mono`               | 唯一字体家族 / 数据等宽           |
 
 `animate-fadeIn`（下拉）与 `animate-in`（弹窗）的 keyframes 同样定义在 `index.css`，并遵守 `prefers-reduced-motion`。
 
@@ -332,7 +361,9 @@ lucide-react。尺寸：行内 `w-3.5 h-3.5`，按钮 `w-4 h-4`，卡片 `w-5 h-
 ## 9. 禁止事项
 
 - 不用蓝色、紫色、渐变主色。
+- 不用卡片包普通区块、表单或列表；不在卡片里再套卡片（§5.3）。
 - 不用 `rounded-lg` 以下做卡片；不用 `shadow-md` 以上做静态卡片。
+- 不让按钮文字折成两行（§5.1）。
 - 不写内联 `style=` 颜色，不写 `[#xxxxxx]` 任意值（测试会拦）。
 - 不在浅色底上用 `gold` / `tan`。
 - 不出现小于 10px 的文字。
@@ -342,13 +373,15 @@ lucide-react。尺寸：行内 `w-3.5 h-3.5`，按钮 `w-4 h-4`，卡片 `w-5 h-
 
 ## 10. 决策记录
 
-| 日期       | 项                                                         | 决定                                                                                   | 状态                                            |
-| ---------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| 2026-09-15 | 状态徽章                                                   | 色点 + 文字，去掉胶囊 / 底色 / 边框                                                    | 已落地                                          |
-| 2026-09-15 | 全大写                                                     | 只留导航与主按钮                                                                       | 已落地（Hero.tsx 两处小标待另一会话收尾后再改） |
-| 2026-09-15 | 中文与 `uppercase`                                         | 不按语言切换：`uppercase` 对汉字无效，共用类名即可；只禁 `tracking-widest`             | 已落地（改规范，代码不动）                      |
-| 2026-09-15 | 二选一控件                                                 | 保留分段胶囊                                                                           | 维持现状                                        |
-| 2026-09-15 | 反馈提示、列表卡片、会员等级、账户 Tab、圆角档位、最小字号 | 再议                                                                                   | 待用户给方向                                    |
-| 2026-09-15 | 全局动效                                                   | 令牌收进 `lib/motion.ts`，一条曲线 + 五档时长，进场只触发一次，reduced-motion 三层生效 | 已落地；手感用户选定 B 克制（即代码现值）       |
+| 日期       | 项                                               | 决定                                                                                    | 状态                                                  |
+| ---------- | ------------------------------------------------ | --------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| 2026-09-15 | 状态徽章                                         | 色点 + 文字，去掉胶囊 / 底色 / 边框                                                     | 已落地                                                |
+| 2026-09-15 | 全大写                                           | 只留导航与主按钮                                                                        | 已落地（Hero.tsx 两处小标待另一会话收尾后再改）       |
+| 2026-09-15 | 中文与 `uppercase`                               | 不按语言切换：`uppercase` 对汉字无效，共用类名即可；只禁 `tracking-widest`              | 已落地（改规范，代码不动）                            |
+| 2026-09-15 | 二选一控件                                       | 保留分段胶囊                                                                            | 维持现状                                              |
+| 2026-09-15 | 反馈提示、会员等级、账户 Tab、圆角档位、最小字号 | 再议                                                                                    | 待用户给方向                                          |
+| 2026-09-17 | 卡片 / 列表卡片                                  | 默认不用卡片：细线 + 留白分隔，列表用分隔线；只留全页焦点和可点选对象两种卡片；不套卡片 | 已落地：代币后台、扣币页（`nf/token-admin-no-cards`） |
+| 2026-09-17 | 按钮文字折行                                     | 与输入框并排的按钮 `shrink-0 whitespace-nowrap`                                         | 已落地（华协币各页）                                  |
+| 2026-09-15 | 全局动效                                         | 令牌收进 `lib/motion.ts`，一条曲线 + 五档时长，进场只触发一次，reduced-motion 三层生效  | 已落地；手感用户选定 B 克制（即代码现值）             |
 
 总方向（用户原话）：少卡片、少无用胶囊、简洁表达。

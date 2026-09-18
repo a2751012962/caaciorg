@@ -1,6 +1,7 @@
 // POST /api/business-listing — submits a business for the directory (pending approval).
 import { json, bad, sb, sendEmail } from './_lib.js';
 import { CATEGORIES } from './admin/business.js';
+import { requireHuman, turnstileToken } from './_turnstile.js';
 
 export async function onRequestPost({ request, env }) {
   let b;
@@ -11,6 +12,10 @@ export async function onRequestPost({ request, env }) {
   }
   if (!b.name || !b.email) return bad('Business name and contact email are required.');
   if (b._hp) return json({ ok: true });
+
+  // Every submission is a row staff must triage and an email they must read.
+  const human = await requireHuman(request, env, 'business_listing', turnstileToken(b));
+  if (human.error) return human.error;
 
   try {
     await sb(env).insert(

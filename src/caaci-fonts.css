@@ -1,0 +1,33 @@
+/* caaci-fonts.css — the site's typefaces, declared once.
+ *
+ * One family for everything the visitor reads — Poppins for body copy, UI,
+ * buttons and headings (headings differ by weight and size, not by face) —
+ * plus a system monospace for data. Every surface reads its families from
+ * these two variables:
+ *   - the React site (web/src/index.css @imports this file and maps the
+ *     variables onto Tailwind's --font-sans / --font-mono),
+ *   - the Tabler pages (/admin/, /login-3/, /privacy/) and the mirrored
+ *     WordPress pages, which link /assets/caaci-fonts.css before caaci-ui.css
+ *     (caaci-ui.css's --caaci-font-body/display/button are aliases of these).
+ * The Google Fonts request that loads Poppins is GOOGLE_FONTS_URL in
+ * src/caaci-shared.js — one URL, written into every page's <head> by
+ * build.mjs / web/vite.config.ts (<!--CAACI_FONTS-->). Emails and the tiny
+ * HTML pages under functions/ cannot load web fonts and use SYSTEM_FONT_STACK
+ * from functions/api/_fonts.js instead.
+ *
+ * The web font is followed by a CJK face installed on Windows (Microsoft
+ * YaHei) or macOS (PingFang SC), so the first layout of Chinese text does not
+ * search system fallbacks and swapping in Poppins does not re-lay out the
+ * page; bold Chinese headings come from those same faces at heading weight.
+ * test/fonts.test.js keeps the family names out of every other file. */
+:root {
+  /* Body, UI, buttons, navigation, headings. */
+  --caaci-font-sans:
+    'Poppins', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', Arial,
+    sans-serif;
+  /* Data: member ids, emails, amounts, codes. System monospace with a CJK
+     fallback so a Chinese label inside a mono span does not drop to serif. */
+  --caaci-font-mono:
+    ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', 'Microsoft YaHei',
+    'PingFang SC', monospace;
+}

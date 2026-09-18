@@ -8,7 +8,10 @@
     <!-- Tabler (MIT, tabler/tabler) — the panel's design system; self-hosted, no CDN.
          caaci-ui.css supplies the --caaci-* tokens and caaci-theme.css re-points
          Tabler's --tblr-* variables at them (brand colours, type, 3px corners).
-         FilePond CSS comes after so the uploader keeps its component styling. -->
+         FilePond CSS comes after so the uploader keeps its component styling.
+         build.mjs writes the site's Google Fonts link and /assets/caaci-fonts.css at the
+         CAACI_FONTS marker, so the back office renders the same faces as the public site. -->
+    <!--CAACI_FONTS-->
     <link rel="stylesheet" href="/assets/tabler.min.css" />
     <link rel="stylesheet" href="/assets/caaci-ui.css" />
     <link rel="stylesheet" href="/assets/caaci-theme.css" />
@@ -34,6 +37,17 @@
           </a>
           <span class="navbar-text fw-semibold" data-en="Admin" data-zh="管理后台">Admin</span>
           <div class="navbar-nav flex-row align-items-center">
+            <!-- Tokens live in the React site (/token-admin/). Hidden until
+                 GET /api/tokens/me says the feature is switched on (caaci-admin.js). -->
+            <a
+              href="/token-admin/"
+              id="caaci-tokens-link"
+              class="nav-link"
+              hidden
+              data-en="Tokens"
+              data-zh="华协币"
+              >Tokens</a
+            >
             <button type="button" class="nav-link" id="caaci-lang">中文</button>
             <a
               href="#"

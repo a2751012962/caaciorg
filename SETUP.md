@@ -47,7 +47,10 @@ wrangler.toml           Cloudflare Pages config (output dir = dist)
    `supabase/migrations/` in filename order (`0001_init.sql` first), then
    `supabase/seed.sql`. Apply every later migration the same way — see
    [Applying migrations](#applying-migrations).
-3. Auth → Providers: enable **Email** (password + magic link as desired).
+3. Auth → Providers: enable **Email** (password + magic link as desired). For the
+   login page's **Mobile number** tab, also enable **Phone** with Twilio credentials,
+   phone confirmations **off** — see _Phone sign-in_ under
+   [Self-service auth & billing](#self-service-auth--billing).
 4. Make yourself admin: in the SQL editor,
    `update members set is_admin = true where email = 'you@example.com';`
 
@@ -143,7 +146,8 @@ Create an API key, verify the sending domain, set `NOTIFY_FROM` / `NOTIFY_TO`.
    npx wrangler pages secret put STRIPE_SECRET_KEY         --project-name=caaci
    npx wrangler pages secret put STRIPE_WEBHOOK_SECRET     --project-name=caaci
    npx wrangler pages secret put RESEND_API_KEY            --project-name=caaci
-   # the same four for the preview branch: add  --env preview
+   npx wrangler pages secret put TURNSTILE_SECRET          --project-name=caaci
+   # the same five for the preview branch: add  --env preview
    ```
 
    `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `NOTIFY_FROM` and `NOTIFY_TO` are plaintext
@@ -153,6 +157,25 @@ Create an API key, verify the sending domain, set `NOTIFY_FROM` / `NOTIFY_TO`.
    `RESEND_API_KEY`, `STRIPE_SECRET_KEY` (live), `STRIPE_WEBHOOK_SECRET` (live endpoint)
    and `SUPABASE_SERVICE_ROLE_KEY`; preview has the same four names with the Stripe
    **test** key.
+
+   **`TURNSTILE_SECRET` — the human check on the public forms.** The volunteer
+   sign-up, the contact form, the business listing and event registration each
+   verify a Cloudflare Turnstile token server-side before they write or send
+   anything (`functions/api/_turnstile.js`). The check **fails closed**: with the
+   secret missing those four forms refuse every submission, so set it on
+   production _and_ preview before deploying the change that adds it. The paired
+   **sitekey is public** and lives in `build.mjs` (served to the browser in
+   `/assets/caaci-config.js`, like the Supabase anon key) — only the secret is a
+   secret. The widget's domain list in the Cloudflare dashboard must include
+   `caaciorg.com`, `caaci-8s2.pages.dev` and `localhost`, or the widget will not
+   render there and the form becomes unusable.
+
+   A refusal is deliberately the same sentence whether the caller was a bot or
+   the configuration is wrong; the deployment log says which
+   (`turnstile refused {"codes":["invalid-input-secret"],…}` means the secret
+   does not match the sitekey). To check a secret without deploying, POST it to
+   siteverify with a junk token: `invalid-input-response` back means the secret
+   is right, `invalid-input-secret` means it is not.
 
    **Preview only — `NEWS_TEST_ONLY`.** Preview shares the live member list and real
    Resend sending, so set this secret to `1` there. Admin → Compose News then refuses
@@ -228,7 +251,9 @@ Set redirects in `dist/_redirects` if any old URL paths need mapping.
 - **Supabase Auth**: Site URL is `https://caaciorg.com`; the redirect allow list also
   covers `www`, `beta`, `caaci-8s2.pages.dev`, `*.caaci-8s2.pages.dev` and
   `localhost:8788`. Change the Site URL only to a host that serves the site, or the
-  daily Auth config check fails.
+  daily Auth config check fails. The **Phone** provider (Twilio) is on for the login
+  page's mobile-number tab; the same check asserts it stays on, with phone confirmations
+  off (numbers are taken as given, the texted code at sign-in is the check).
 - **Preview shares the live database.** Anything created on beta — sign-ups, event
   registrations, donations, discount codes — lands in the production tables and can
   send real emails. Clean test data up afterwards. There is deliberately **no**
@@ -389,9 +414,12 @@ standalone **Tabler** page (same open-source UI kit as `/admin/`, self-hosted,
 bilingual EN/中文 with a toggle); `/membership/` and `/account/` are pages of the
 React site (`web/`), served in English and under `/zh/`:
 
-- **`/login-3/`** — sign in, create account (with duplicate-email detection),
-  forgot-password (reset link lands on `/account/?recovery=1`), and Google /
-  Microsoft OAuth.
+- **`/login-3/`** — sign in (an **Email** tab: password, or a one-time emailed
+  code; a **Mobile number** tab: a one-time texted code — see _Phone sign-in_ under
+  [Self-service auth & billing](#self-service-auth--billing)), create account (with
+  duplicate-email detection), forgot-password (reset link lands on
+  `/account/?recovery=1`), and Google / Microsoft OAuth. The tab used last is
+  remembered; `?method=phone` opens the phone tab directly.
 - **`/membership/`** — the plan grid (live `membership_tiers` merged over the
   built-in fallback), `?code=` discount validation, and the checkout dialog:
   fresh joins POST `/api/checkout` (Stripe Checkout), active members switching
@@ -588,6 +616,66 @@ Both write `event_volunteers`.
   live Supabase database and sends real email. Sign up there against a separate,
   temporary published event, then delete that event (its volunteers cascade).
 
+## Tokens · 华协币 (`/charge/`, `/merchant/`, `/token-admin/`, `/api/tokens/*`)
+
+Stored value members spend by showing the QR on their member card. **$1 = 10 tokens.**
+CAACI pays partner merchants the face value of what they took, monthly, outside this
+system (cheque / Zelle); the system records what is owed.
+
+- **Off by default.** Everything is dark unless the Pages variable `TOKENS_ENABLED` is
+  `1`: every `/api/tokens/*` and token admin endpoint answers 404, the wallet on
+  `/account/` renders nothing, `/api/verify` keeps showing the full name and no
+  merchant button, and the webhook grants nothing. Unset it to switch the feature off
+  again; member cards and verification are untouched.
+- **Roles: root > admin > merchant > user.** `members.is_admin` is unchanged.
+  `members.is_root` can only be set from the SQL editor — a trigger refuses the change
+  from the API's `service_role`:
+  `update public.members set is_root = true, is_admin = true where email = '…';`
+  With tokens on, only root appoints or removes admins (`/token-admin/` → Settings, or
+  `POST /api/admin/roles`); `/api/admin/members` refuses `is_admin`. A merchant is a row
+  in `merchant_staff`, created by an admin from the person's existing account email.
+- **Who gets tokens.** Each membership year: student 150, individual 450, family 900
+  (one grant, on the founder, who can send tokens to the family from `/account/`); free,
+  business and honorary get none (`token_settings.grants`, root-editable). Granted on
+  checkout, on renewal and on an upgrade (topped up to the new plan). Existing members
+  are **not** back-filled: an admin scans their card at an event and taps "Grant", which
+  is safe to tap twice. Granted tokens expire with the membership year; bought tokens
+  (Stripe packs of $10 / $20 / $50 / $100 plus the 3.5% card fee, or cash at a desk,
+  minimum $5) never expire. A charge draws the earliest-expiring tokens first.
+- **Taking tokens.** The clerk scans the member's QR with the phone camera (not
+  WeChat: its browser blocks Google sign-in and has its own session), taps "Merchant
+  sign-in" on `/api/verify`, signs in once, and lands on `/charge/?m=<member>`: menu
+  buttons (prices read on the server), a custom amount, a spoken confirmation, then an
+  Undo. At most 500 tokens per charge. The QR is static by the board's decision, so the
+  **email receipt with its "this wasn't me" link is the only way a member notices a
+  charge made without them**: its outcome is stamped on the ledger row
+  (`receipt_sent_at` / `receipt_error`) and failures show on the back-office overview.
+- **Merchants** void their own charge within 24 hours and can never add tokens. **Admins**
+  mint at most 500 tokens per action and 2000 free tokens per day (root is exempt), take
+  cash (its own ledger kind, with the amount, so the cash box reconciles per admin per
+  day), void anything, and resolve disputes. Three upheld disputes in a calendar month
+  suspend a partner shop until an admin re-activates it.
+- **Statements.** `/token-admin/` → Merchants → "Close last month" stamps every
+  unsettled row before the cut-off onto a statement and records what is due; pay it
+  outside the system, then "Mark paid" with the cheque number. Under $20 nothing is
+  closed and the rows roll into the next month. A void or an upheld dispute after a
+  month was paid is an unstamped positive row, so it comes off the next statement by
+  itself. Charges in dispute wait for their outcome. CAACI's own merchant
+  ("CAACI Events", for event stalls; every admin can charge there) is never settled.
+- **Migration:** `0024_tokens.sql`. Paste it into the Supabase SQL editor (never
+  `supabase db push`) **before** setting `TOKENS_ENABLED`. It only adds (tables, functions,
+  `members.is_root` and its guard trigger), so deployed code keeps working. Every table is
+  server-only and every function is `service_role`-only. `test/tokens-ledger.test.js`
+  runs the file in PGlite and drives the ledger functions; confirm the live project
+  afterwards against `pg_policies` and `has_function_privilege`.
+- **Launch checklist:** apply 0024 → set root by SQL → set `TOKENS_ENABLED=1` on the
+  **preview** environment only and try a grant, a cash top-up, a charge, an undo and a
+  dispute there (preview uses the live database: use a test member and void what you
+  made) → enter the event menu under Merchants → add the volunteers as staff of
+  "CAACI Events" (they must have signed up first) → set `TOKENS_ENABLED=1` on production.
+  Have the treasurer confirm Illinois's rules for stored value / gift certificates
+  (expiry, refunds, unclaimed property) before selling tokens to the public.
+
 ## Family invitations (`/api/family`)
 
 A member on the family plan (`members.tier_id = 'family'`) is the family's
@@ -641,9 +729,16 @@ active (families an admin made by hand, with no founder, keep using the
   4. For founder emails, set the `RESEND_API_KEY` and `NOTIFY_FROM` secrets in
      Cloudflare Pages.
 
-## Admin / back-office panel (`/admin/`)
+## Admin / back-office panel (`/admin-next/`, formerly `/admin/`)
 
-A staff panel lives at **`/admin/`**. Its UI is built on **Tabler** (`@tabler/core`
+**The way in is `/admin-next/`**, the same back office rebuilt in React
+(`web/src/pages/admin/`): signing in as an admin lands there, and the token wallet and
+token back office link there. The Tabler `/admin/` below is still built and still works
+if you type the address — it is the fallback, not the entrance, and it is the panel the
+rest of this section describes tab by tab. Both talk to the same `/api/admin/*`
+Functions, so either one may be used and they cannot disagree.
+
+Its UI is built on **Tabler** (`@tabler/core`
 1.4.0, MIT — an open-source Bootstrap-5 admin/dashboard kit designed for exactly this
 kind of subscription back office), self-hosted at `/assets/tabler.min.css` +
 `/assets/tabler.min.js` from `src/vendor/` — the same no-CDN policy as supabase.js,
@@ -751,6 +846,39 @@ size/MIME limits, behind the **Media** tab), and `0010_refunds.sql` (adds the
   send, matching the SMTP "minimum interval per user". The end time is kept in
   `localStorage` per action + address, so a reload does not reset it; a Supabase
   rate-limit reply starts the countdown from the seconds it reports.
+- **Phone sign-in**: the **Mobile number** tab on `/login-3/` texts a 6-digit code
+  (Supabase Auth's Phone provider → **Twilio**, `signInWithOtp({ phone })` with
+  `shouldCreateUser: false`) and signs in with `verifyOtp(type 'sms')`. Only a number
+  already **on an account** gets a code, and nobody is asked to confirm a number
+  (phone confirmations stay **off** — the Board's decision; the code at sign-in is the
+  only check): the mobile number typed when **registering** becomes the account's
+  number at once (`0025_phone_login.sql`'s `before insert` trigger claims
+  `user_metadata.phone` as `auth.users.phone`, unless another account has it), and one
+  added later under `/account/` → Account Security → _Sign in with a Mobile Number_
+  (`updateUser({ phone })`) is saved at once. (Should confirmations ever be switched on,
+  that section asks for the texted code via `verifyOtp(type 'phone_change')`.)
+  Numbers are normalised to E.164 (`normalizePhone` in `src/caaci-shared.js`): exactly 10
+  US/Canada digits become `+1…`; anything else must start with `+` and the country code
+  (11 bare digits starting with 1 are refused: `13800138000` is both a Chinese mobile and
+  `1` + an Ohio number, so neither reading is guessed). GoTrue stores and returns phones
+  without the `+`. A number with no account reads exactly like a real send, and Twilio's
+  own error text is replaced with a plain message. Both send buttons share the 60 s
+  countdown (per number). `0025` also copies a confirmed number onto `members.phone`
+  (profile + admin panel); paste it into the SQL editor as usual — it only adds.
+  Dashboard (Authentication → Sign In / Providers → **Phone**): provider on, SMS
+  provider Twilio with Account SID, Auth Token and **Messaging Service SID**, template
+  `CAACI. Your code is {{ .Code }}`, OTP length 6, **Enable phone confirmations OFF**
+  (the daily Auth config check asserts all of this). Consider raising the SMS OTP expiry
+  from the 60 s default to a few minutes: texts can take a while to arrive. Twilio side:
+  a US **A2P 10DLC** registration is needed to text US numbers from a Messaging Service,
+  and a trial account only texts verified numbers. Every text costs money, so the login
+  page never sends one for an invalid number.
+- **Password reset by text**: the second way to a new password. "Forgot password?" on
+  `/login-3/` offers _Reset it with a text message instead_ (and Account Security links
+  to `/login-3/?method=phone&reset=1`): the phone tab signs the member in with the texted
+  code and lands on `/account/?recovery=1`, whose set-new-password form asks for no
+  current password — the same form a reset **email** link lands on. A signed-in member
+  arriving with `?reset=1` is not bounced back to `/account/`.
 - **Account security** (`/account/`): change password (asks for the current
   password — turn on _Require current password when updating_ under Authentication →
   Sign In / Providers → Email so Supabase enforces it; Google/Microsoft-only members

@@ -446,6 +446,16 @@ export async function activateFreeTier(DB, memberId, tier, member = null) {
   return { ok: true };
 }
 
+// A value about to become an email header. A carriage return or newline in one
+// ends that header and starts another, so text a visitor typed — the name in
+// `CAACI contact form: ${b.name}`, their address in reply_to — could add
+// headers of its own (a Bcc to the sender, say) if the mail API passes it
+// through. Nothing legitimate needs a line break in a subject or an address, so
+// they fold to a space here, at the one place every send goes through, rather
+// than at each of the callers.
+export const headerLine = (v) =>
+  Array.isArray(v) ? v.map(headerLine) : String(v ?? '').replace(/[\r\n]+/g, ' ');
+
 // Send an email (Resend by default; falls back to no-op if unset). Without `to`
 // it is a staff notification to NOTIFY_TO; with `to` (e.g. a registrant's
 // confirmation) only RESEND_API_KEY and NOTIFY_FROM are needed.
@@ -457,10 +467,10 @@ export async function sendEmail(env, { subject, html, replyTo, to }) {
     headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
     body: JSON.stringify({
       from: env.NOTIFY_FROM,
-      to: recipient,
-      subject,
+      to: headerLine(recipient),
+      subject: headerLine(subject),
       html,
-      ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(replyTo ? { reply_to: headerLine(replyTo) } : {}),
     }),
   });
 }
@@ -477,8 +487,8 @@ export async function sendEmailBatch(env, messages) {
     body: JSON.stringify(
       messages.map((m) => ({
         from: env.NOTIFY_FROM,
-        to: m.to,
-        subject: m.subject,
+        to: headerLine(m.to),
+        subject: headerLine(m.subject),
         html: m.html,
         ...(m.text ? { text: m.text } : {}),
       })),

@@ -13,4 +13,8 @@ export {
   LANG_KEY,
   browserLang,
   preferredLang,
+  normalizePhone,
+  COOLDOWN_PREFIX,
+  cooldownKey,
+  clearCooldowns,
 } from '../../../src/caaci-shared.js';

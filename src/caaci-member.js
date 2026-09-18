@@ -5,7 +5,13 @@
 // routes; the behavioral contracts are identical — same API bodies, the same
 // duplicate-email guard — only the markup is Tabler.
 // The Supabase client comes from the self-hosted UMD bundle (assets/supabase.js).
-import { LANG_KEY, preferredLang } from './caaci-shared.js';
+import {
+  LANG_KEY,
+  clearCooldowns,
+  cooldownKey,
+  normalizePhone,
+  preferredLang,
+} from './caaci-shared.js';
 
 const cfg = window.CAACI_CONFIG || {};
 const sbLib = window.supabase;
@@ -93,11 +99,11 @@ function notice(el, msg, good = true) {
 // resend interval (60 s). Every button that sends one counts down instead of
 // letting the member click into that error, and the end time is kept per
 // action + address in localStorage so a reload does not reset the clock.
+// The text-message code on the phone tab shares all of this (keyed by the
+// number): Supabase's own SMS interval is shorter, but every text costs money.
+// cooldownKey (caaci-shared.js) digests the address or number rather than
+// writing it into localStorage, and the React account page uses the same one.
 const EMAIL_COOLDOWN_S = 60;
-const cooldownKey = (action, email) =>
-  `caaci-cooldown:${action}:${String(email || '')
-    .trim()
-    .toLowerCase()}`;
 const cooldownTimers = new WeakMap();
 
 // Stop a button's countdown without touching its label or the stored end time.
@@ -173,11 +179,15 @@ function emailRetryAfter(error) {
   if (!error) return 0;
   const m = /after (\d+) seconds?/i.exec(error.message || '');
   if (m) return Number(m[1]);
-  return error.code === 'over_email_send_rate_limit' || error.status === 429 ? EMAIL_COOLDOWN_S : 0;
+  return ['over_email_send_rate_limit', 'over_sms_send_rate_limit'].includes(error.code) ||
+    error.status === 429
+    ? EMAIL_COOLDOWN_S
+    : 0;
 }
 
-// One "send email" request on `btn`: busy while in flight, a notice with the
-// outcome, then the cooldown (Supabase's own wait when it rate-limited us).
+// One "send email" (or text message) request on `btn`: busy while in flight, a
+// notice with the outcome, then the cooldown (Supabase's own wait when it
+// rate-limited us).
 async function sendEmail(btn, note, { action, email, send, sent, label }) {
   const done = busy(btn, t('Sending…', '发送中…'));
   let error;
@@ -252,19 +262,70 @@ const sendSignInCode = (btn, note, { email, label, redirectTo }) =>
     ),
   });
 
-// Signs in with the emailed code. Resolves to the user — leaving `btn` busy,
-// since the caller moves on — or to null after saying why, with `btn` free again.
-async function verifySignInCode(btn, note, email, input) {
+// ---------- sign in with a mobile number ----------
+// The phone tab: signInWithOtp texts a code to a number (Supabase → Twilio),
+// verifyOtp signs in with it. Only a number already verified on an account
+// under Account security gets one — shouldCreateUser:false — so a stray number
+// never mints an email-less account that checkout, the member card and the
+// family plan could not use. As with the email code, a number with no account
+// reads exactly like a real send.
+const sendSmsCode = (btn, note, { phone, label }) =>
+  sendEmail(btn, note, {
+    action: 'sms',
+    email: phone,
+    label,
+    send: async () => {
+      const result = await supa.auth.signInWithOtp({
+        phone,
+        options: { shouldCreateUser: false },
+      });
+      if (isNoAccountError(result?.error)) return { error: null };
+      // Twilio's refusal comes back verbatim ("Error sending sms: …"); say
+      // something a member can act on instead.
+      if (result?.error?.code === 'sms_send_failed')
+        return {
+          error: {
+            ...result.error,
+            message: t(
+              'We could not send a text to that number right now. Try again in a moment, or sign in with your email.',
+              '暂时无法向该号码发送短信。请稍后重试，或改用邮箱登录。',
+            ),
+          },
+        };
+      return result;
+    },
+    sent: t(
+      "If this number is on an account, we've texted it a sign-in code.",
+      '如果该手机号已绑定账户，验证码已通过短信发送。',
+    ),
+  });
+
+// Signs in with the emailed or texted code. `target` is { email } or { phone }
+// (E.164), which picks the OTP type. Resolves to the user — leaving `btn`
+// busy, since the caller moves on — or to null after saying why, with `btn`
+// free again.
+async function verifySignInCode(btn, note, target, input) {
   if (btn.getAttribute('aria-busy')) return null; // Enter pressed mid-request
+  const viaSms = !!target.phone;
   const token = input.value.replace(/\s+/g, '');
   if (!/^\d{6,10}$/.test(token)) {
-    notice(note, t('Enter the code from the email.', '请输入邮件中的验证码。'), false);
+    notice(
+      note,
+      viaSms
+        ? t('Enter the code from the text message.', '请输入短信中的验证码。')
+        : t('Enter the code from the email.', '请输入邮件中的验证码。'),
+      false,
+    );
     return null;
   }
   const done = busy(btn, t('Signing in…', '登录中…'));
   let result;
   try {
-    result = await supa.auth.verifyOtp({ email, token, type: 'email' });
+    result = await supa.auth.verifyOtp(
+      viaSms
+        ? { phone: target.phone, token, type: 'sms' }
+        : { email: target.email, token, type: 'email' },
+    );
   } catch {
     done();
     notice(note, t('Network error — please try again.', '网络错误，请重试。'), false);
@@ -287,6 +348,8 @@ async function verifySignInCode(btn, note, email, input) {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Which sign-in tab (email | phone) the visitor used last.
+const LOGIN_METHOD_KEY = 'caaci-login-method';
 // Supabase obfuscates an existing account: signUp "succeeds" but returns a user
 // with an EMPTY identities array. Without this guard someone could pay for a
 // membership that never activates on their real account.
@@ -357,6 +420,9 @@ async function wireNav() {
       auth.href = '#';
       auth.addEventListener('click', async (e) => {
         e.preventDefault();
+        // Leave nothing about this member on a shared machine: the countdowns
+        // are keyed per recipient and nothing else sweeps them.
+        clearCooldowns();
         await supa.auth.signOut();
         location.href = '/';
       });
@@ -385,12 +451,13 @@ function nextPath() {
   }
 }
 
-// Admins land in the back-office; everyone else where they came from, or on
-// their account page.
+// Admins land in the back-office — the React console at /admin-next/, which is
+// now the one way in (the Tabler /admin/ is still built, but nothing points at
+// it). Everyone else goes where they came from, or to their account page.
 async function destinationAfterSignIn(uid, next) {
   if (uid) {
     const { data: me } = await supa.from('members').select('is_admin').eq('id', uid).maybeSingle();
-    if (me?.is_admin) return '/admin/';
+    if (me?.is_admin) return '/admin-next/';
   }
   return next || '/account/';
 }
@@ -502,10 +569,133 @@ export async function wireAuthPage() {
   });
   codeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const user = await verifySignInCode($('#caaci-li-code-verify'), notb, legacyEmail, codeInput);
+    const user = await verifySignInCode(
+      $('#caaci-li-code-verify'),
+      notb,
+      { email: legacyEmail },
+      codeInput,
+    );
     // Leave the button busy — the navigation below replaces the page.
     if (user) location.href = await destinationAfterSignIn(user.id, next);
   });
+
+  // ---- Email | Mobile number tabs ----
+  // The choice is remembered, so someone who signs in by phone lands on that
+  // tab next time; ?method=phone (a link from the account page) wins over it.
+  const methodTabs = $$('#caaci-li-methods [data-method]');
+  const panels = { email: $('#caaci-li-panel-email'), phone: $('#caaci-li-panel-phone') };
+  const phoneInput = $('#caaci-ph-number');
+  // Resetting a password by text: the phone tab signs the member in with the
+  // code and hands them to /account/?recovery=1, whose set-new-password form
+  // asks for no current password. Entered from the forgot-password panel's
+  // link or from /login-3/?method=phone&reset=1 (the account page's link).
+  const params = new URLSearchParams(location.search || '');
+  let resetBySms = params.get('reset') === '1';
+  const resetHint = $('#caaci-ph-reset-hint');
+  const showMethod = (wanted, { focus = false } = {}) => {
+    // Own keys only: `panels[wanted]` also finds Object.prototype, so
+    // ?method=toString (or __proto__, valueOf, constructor…) was truthy, matched
+    // neither panel below, and left the page with both sign-in forms hidden —
+    // and then stored that word, so every later visit repeated it.
+    const method = Object.prototype.hasOwnProperty.call(panels, wanted) ? wanted : 'email';
+    for (const tab of methodTabs) {
+      const on = tab.dataset.method === method;
+      tab.classList.toggle('active', on);
+      tab.setAttribute('aria-selected', String(on));
+      tab.tabIndex = on ? 0 : -1;
+    }
+    for (const [name, panel] of Object.entries(panels)) panel.hidden = name !== method;
+    // A message or the reset/code offer from the other way in would only confuse.
+    notb.hidden = true;
+    if (method === 'phone') hideLegacy();
+    else resetBySms = false; // back to a plain sign-in
+    resetHint.hidden = !resetBySms;
+    try {
+      localStorage.setItem(LOGIN_METHOD_KEY, method);
+    } catch {
+      /* storage blocked — the tab still switches */
+    }
+    if (focus)
+      (method === 'phone' ? phoneInput : $('#caaci-li-email')).focus({ preventScroll: true });
+  };
+  for (const tab of methodTabs)
+    tab.addEventListener('click', () => showMethod(tab.dataset.method, { focus: true }));
+  $('#caaci-reset-by-sms').addEventListener('click', (e) => {
+    e.preventDefault();
+    resetBySms = true;
+    showMethod('phone', { focus: true });
+  });
+
+  // ---- the phone panel: text a code, then sign in with it ----
+  const phoneSend = $('#caaci-ph-send');
+  const phoneCodeForm = $('#caaci-ph-code-form');
+  const phoneCodeInput = $('#caaci-ph-code');
+  const smsLabel = t('Text me a sign-in code', '发送短信验证码');
+  const smsResendLabel = t('Text me another code', '重新发送短信验证码');
+  let codePhone = ''; // the E.164 number the last code went to
+  const typedPhone = () => normalizePhone(phoneInput.value);
+  // The button follows the number typed: a countdown a text to that number
+  // started (even before a reload) resumes, and its code entry comes back.
+  phoneInput.addEventListener('input', () => {
+    const phone = typedPhone();
+    if (phone !== codePhone) {
+      phoneCodeForm.hidden = true;
+      phoneCodeInput.value = '';
+    }
+    followCooldown(phoneSend, {
+      action: 'sms',
+      email: phone || '',
+      label: smsResendLabel,
+      idleLabel: smsLabel,
+    });
+    if (phone && storedCooldownEnd('sms', phone)) {
+      codePhone = phone;
+      phoneCodeForm.hidden = false;
+    }
+  });
+  $('#caaci-phone-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (phoneSend.disabled) return; // Enter pressed mid-request or mid-countdown
+    const phone = typedPhone();
+    if (!phone)
+      return notice(
+        notb,
+        t(
+          'Enter a valid mobile number. Outside the US and Canada, start with + and the country code.',
+          '请输入有效的手机号。美国/加拿大以外的号码请以 + 和国家代码开头。',
+        ),
+        false,
+      );
+    const sent = await sendSmsCode(phoneSend, notb, { phone, label: smsResendLabel });
+    // Unless the number was changed while the text was on its way.
+    if (sent && typedPhone() === phone) {
+      codePhone = phone;
+      phoneCodeForm.hidden = false;
+      phoneCodeInput.focus({ preventScroll: true });
+    }
+  });
+  phoneCodeForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const user = await verifySignInCode(
+      $('#caaci-ph-verify'),
+      notb,
+      { phone: codePhone },
+      phoneCodeInput,
+    );
+    if (!user) return;
+    // Leave the button busy — the navigation below replaces the page.
+    location.href = resetBySms
+      ? '/account/?recovery=1'
+      : await destinationAfterSignIn(user.id, next);
+  });
+
+  let rememberedMethod = null;
+  try {
+    rememberedMethod = localStorage.getItem(LOGIN_METHOD_KEY);
+  } catch {
+    /* storage blocked */
+  }
+  showMethod(resetBySms ? 'phone' : params.get('method') || rememberedMethod);
 
   $('#caaci-login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -625,13 +815,17 @@ export async function wireAuthPage() {
       return notice(suNote, t('Passwords do not match.', '两次输入的密码不一致。'), false);
     const btn = $('#caaci-su-submit');
     btn.disabled = true;
+    // A number this page can read becomes the account's mobile number (E.164,
+    // claimed by 0025's signup trigger) and works on the Mobile number tab from
+    // the first sign-in. Anything else is kept as typed, for the profile only.
+    const rawPhone = $('#caaci-su-phone').value.trim();
     const { data, error } = await supa.auth.signUp({
       email,
       password: pwd,
       options: {
         data: {
           full_name: $('#caaci-su-name').value.trim(),
-          phone: $('#caaci-su-phone').value.trim(),
+          phone: normalizePhone(rawPhone) || rawPhone,
         },
         emailRedirectTo: location.origin + (next || '/account/'),
       },
@@ -666,11 +860,13 @@ export async function wireAuthPage() {
   // that could not tell): skip the form. This runs only after every handler
   // above is attached, so a slow check never leaves the form without them. It
   // asks Supabase (getUser) instead of trusting the stored session — a revoked
-  // one must leave the form usable, not bounce to /account/ and back.
+  // one must leave the form usable, not bounce to /account/ and back. A member
+  // resetting their password by text arrives signed in from the account page
+  // and stays: the texted code is the point.
   const { data: { user } = { user: null } } = await withTimeout(supa.auth.getUser(), 3500, {
     data: { user: null },
   });
-  if (user) location.href = await destinationAfterSignIn(user.id, next);
+  if (user && !resetBySms) location.href = await destinationAfterSignIn(user.id, next);
 }
 
 // ---------- boot ----------

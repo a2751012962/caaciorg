@@ -17,17 +17,10 @@
  *   - --tblr-* variables are overridden here and nowhere else
  */
 
-/* The mirror loads Playfair Display (headings) and Saira Extra Condensed
-   (buttons) from Google Fonts on every WordPress page, so the Tabler pages
-   must load them too or the token stacks silently fall back to Georgia and
-   Helvetica. Poppins is not imported here, so /admin/ keeps rendering body
-   text in the system sans-serif that `--caaci-font-body` falls back to. The
-   public Tabler pages (login, privacy, event registration) link the React
-   site's Google Fonts in their <head> instead (Poppins, Playfair Display, Noto
-   Serif SC — the same link as web/index.html): their site header copies the
-   React header, and their body copy then renders in Poppins like the React
-   pages. */
-@import url('https://fonts.googleapis.com/css?family=Playfair+Display:400,500,700|Saira+Extra+Condensed:600&display=swap');
+/* Typefaces: every Tabler page's <head> carries <!--CAACI_FONTS-->, which
+   build.mjs replaces with the site's one Google Fonts link (Poppins —
+   GOOGLE_FONTS_URL in caaci-shared.js) and the /assets/caaci-fonts.css stacks. Nothing is @imported here, so /admin/ renders
+   the same faces as the React site, body copy included. */
 
 /* ======================================================= Tabler → tokens === */
 :root,
@@ -55,8 +48,10 @@
   --tblr-danger: var(--caaci-error);
   --tblr-danger-rgb: var(--caaci-error-rgb);
 
-  /* Type: one body stack for the whole site (Tabler ships Inter). */
+  /* Type: one body stack and one monospace for the whole site (Tabler ships
+     Inter and SFMono without a CJK fallback). */
   --tblr-font-sans-serif: var(--caaci-font-body);
+  --tblr-font-monospace: var(--caaci-font-mono);
 
   /* Shape: the mirror's 3px corners everywhere (Tabler ships 4/6/8px). */
   --tblr-border-radius: var(--caaci-radius);
@@ -72,8 +67,9 @@
   border-color: rgba(var(--caaci-brick-rgb), 0.5);
 }
 
-/* Headings: the mirror sets every h1–h3 in Playfair Display, maroon, with a
-   little tracking (UI_GUIDELINE §2). Tabler's are bold Inter in body colour. */
+/* Headings: the site's one family at heading weight, maroon, tightened the
+   way the React headings are (Tailwind tracking-tight). Tabler's are bold
+   Inter in body colour. */
 h1,
 h2,
 h3,
@@ -82,7 +78,7 @@ h3,
 .h3 {
   font-family: var(--caaci-font-display);
   color: var(--caaci-maroon);
-  letter-spacing: 1px;
+  letter-spacing: -0.025em;
 }
 
 /* Primary action: the same square, uppercase, condensed CTA as the mirror's
@@ -526,7 +522,7 @@ h3,
   padding: 16px;
   border-radius: 12px;
   background: var(--caaci-neutral-100);
-  font-family: 'Poppins', 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', Arial, sans-serif;
+  font-family: var(--caaci-font-body);
   color: var(--caaci-neutral-600);
   overflow: hidden;
   container-type: inline-size;
@@ -602,7 +598,7 @@ h3,
 .caaci-bp-brick {
   color: var(--caaci-brick);
 }
-/* The admin theme sets h3 in Playfair maroon; the public card is sans ink. */
+/* The admin theme sets h3 in maroon; the public card is ink. */
 .caaci-bp-stage .caaci-bp-name {
   margin: 12px 0 0;
   font-family: inherit;
