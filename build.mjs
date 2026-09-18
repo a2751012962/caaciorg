@@ -192,6 +192,8 @@ const SPA_ROUTES = [
   'charge',
   'merchant',
   'token-admin',
+  // The back office rebuilt in React (web/src/pages/admin/), beside the Tabler /admin/.
+  'admin-next',
   // The admin Plans tab's edit preview (web/src/pages/PlanPreviewPage.tsx).
   'plan-preview',
 ];

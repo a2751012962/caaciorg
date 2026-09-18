@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, ShieldCheck, AlertCircle } from 'lucide-react';
 import type { Lang } from '../lib/lang';
+import { TiltCard } from './bencho/TiltCard';
 import {
   downloadWalletPass,
   makeQr,
@@ -259,86 +260,92 @@ export function DigitalMemberCard({
           same design as the sample card on the membership page. The card is a
           container and every size below is a share of its width (cqw), so it
           scales as one piece instead of reflowing on a narrow phone. Tapping it
-          opens the full-screen QR, which is what a merchant scans. */}
-      <button
-        type="button"
-        onClick={() => setZoom(true)}
-        aria-label={t('Enlarge QR code', '放大二维码')}
-        className="@container w-full aspect-[85.6/53.98] rounded-2xl bg-ink text-white shadow-xl border border-white/10 overflow-hidden select-none text-left cursor-pointer hover:border-tan/40 transition-colors"
-      >
-        {/* Padding lives inside the container: a cqw length on the container itself
+          opens the full-screen QR, which is what a merchant scans.
+
+          The card gives under the pointer (TiltCard, Bencho's press: the point
+          you are over sinks, the far side rises) — a card being touched, not
+          one displayed. The tilt draws the shadow, so the button carries none. */}
+      <TiltCard className="w-full" gloss>
+        <button
+          type="button"
+          onClick={() => setZoom(true)}
+          aria-label={t('Enlarge QR code', '放大二维码')}
+          className="@container block w-full aspect-[85.6/53.98] rounded-2xl bg-ink text-white border border-white/10 overflow-hidden select-none text-left cursor-pointer hover:border-tan/40 transition-colors"
+        >
+          {/* Padding lives inside the container: a cqw length on the container itself
             would measure the nearest ancestor container, not this card. */}
-        <div className="h-full w-full p-[4.2cqw] flex flex-col">
-          <div className="flex items-center justify-between gap-[2cqw] pb-[3cqw] border-b border-white/10">
-            <div className="flex items-center gap-[2.2cqw] min-w-0">
-              <img
-                src="/images/logo.png"
-                alt="CAACI"
-                className="h-[7cqw] w-auto shrink-0 bg-white/10 rounded p-[0.4cqw] object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-              <div className="min-w-0">
-                <div className="text-[3.6cqw] font-semibold tracking-tight text-white truncate">
-                  CAACI Member Pass
-                </div>
-                <div className="text-[2.8cqw] text-neutral-400 truncate">
-                  Central Illinois • 501(c)(3)
+          <div className="h-full w-full p-[4.2cqw] flex flex-col">
+            <div className="flex items-center justify-between gap-[2cqw] pb-[3cqw] border-b border-white/10">
+              <div className="flex items-center gap-[2.2cqw] min-w-0">
+                <img
+                  src="/images/logo.png"
+                  alt="CAACI"
+                  className="h-[7cqw] w-auto shrink-0 bg-white/10 rounded p-[0.4cqw] object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                <div className="min-w-0">
+                  <div className="text-[3.6cqw] font-semibold tracking-tight text-white truncate">
+                    CAACI Member Pass
+                  </div>
+                  <div className="text-[2.8cqw] text-neutral-400 truncate">
+                    Central Illinois • 501(c)(3)
+                  </div>
                 </div>
               </div>
-            </div>
-            <span className="shrink-0 text-[2.8cqw] font-semibold px-[2.4cqw] py-[0.6cqw] rounded-full bg-white/15 text-neutral-200">
-              {shortTier}
-            </span>
-          </div>
-
-          <div className="flex-1 min-h-0 py-[3cqw] flex flex-col justify-center gap-[2.5cqw]">
-            <div className="min-w-0">
-              <div className="text-[2.8cqw] text-neutral-400">
-                {t('Cardholder Name', '持卡人姓名')}
-              </div>
-              <div
-                className="text-[5.4cqw] font-medium tracking-tight text-white truncate"
-                title={name}
-              >
-                {name}
-              </div>
-              {viaFamily && (
-                <div className="text-[2.8cqw] text-tan truncate">
-                  {t('Covered by a family plan', '由家庭会员共享')}
-                </div>
-              )}
+              <span className="shrink-0 text-[2.8cqw] font-semibold px-[2.4cqw] py-[0.6cqw] rounded-full bg-white/15 text-neutral-200">
+                {shortTier}
+              </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-[3cqw]">
-              <div className="min-w-0">
-                <div className="text-[2.8cqw] text-neutral-400">{t('Member ID', '会员编号')}</div>
-                <div className="font-mono text-[3.2cqw] text-neutral-200 truncate">{shortId}</div>
-              </div>
+            <div className="flex-1 min-h-0 py-[3cqw] flex flex-col justify-center gap-[2.5cqw]">
               <div className="min-w-0">
                 <div className="text-[2.8cqw] text-neutral-400">
-                  {t('Valid Through', '有效期至')}
+                  {t('Cardholder Name', '持卡人姓名')}
                 </div>
-                <div className="text-[3.2cqw] text-neutral-200 truncate">{validThrough}</div>
+                <div
+                  className="text-[5.4cqw] font-medium tracking-tight text-white truncate"
+                  title={name}
+                >
+                  {name}
+                </div>
+                {viaFamily && (
+                  <div className="text-[2.8cqw] text-tan truncate">
+                    {t('Covered by a family plan', '由家庭会员共享')}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-[3cqw]">
+                <div className="min-w-0">
+                  <div className="text-[2.8cqw] text-neutral-400">{t('Member ID', '会员编号')}</div>
+                  <div className="font-mono text-[3.2cqw] text-neutral-200 truncate">{shortId}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[2.8cqw] text-neutral-400">
+                    {t('Valid Through', '有效期至')}
+                  </div>
+                  <div className="text-[3.2cqw] text-neutral-200 truncate">{validThrough}</div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="pt-[3cqw] border-t border-white/10 flex items-center justify-between gap-[3cqw]">
-            <span className="text-[2.8cqw] text-neutral-400 truncate">
-              {t(
-                'Tap to enlarge · show the QR for merchant discounts',
-                '轻触放大二维码，出示给商家扫码',
-              )}
-            </span>
-            <QrCodeSvg
-              text={qrText}
-              className="w-[11cqw] h-[11cqw] shrink-0 block rounded-[0.8cqw] overflow-hidden"
-            />
+            <div className="pt-[3cqw] border-t border-white/10 flex items-center justify-between gap-[3cqw]">
+              <span className="text-[2.8cqw] text-neutral-400 truncate">
+                {t(
+                  'Tap to enlarge · show the QR for merchant discounts',
+                  '轻触放大二维码，出示给商家扫码',
+                )}
+              </span>
+              <QrCodeSvg
+                text={qrText}
+                className="w-[11cqw] h-[11cqw] shrink-0 block rounded-[0.8cqw] overflow-hidden"
+              />
+            </div>
           </div>
-        </div>
-      </button>
+        </button>
+      </TiltCard>
 
       {/* Action Buttons: Download PNG + Apple Wallet */}
       <div className="flex flex-col sm:flex-row items-center gap-3">

@@ -43,6 +43,10 @@ const MerchantPage = lazy(() =>
 const TokenAdminPage = lazy(() =>
   import('./pages/TokenAdminPage').then((m) => ({ default: m.TokenAdminPage })),
 );
+// The React back office (/admin-next/): its own chrome, so it renders outside <Site>.
+const AdminApp = lazy(() =>
+  import('./pages/admin/AdminApp').then((m) => ({ default: m.AdminApp })),
+);
 const PlanPreviewPage = lazy(() =>
   import('./pages/PlanPreviewPage').then((m) => ({ default: m.PlanPreviewPage })),
 );
@@ -296,8 +300,19 @@ function Site() {
 
 // The admin Plans tab's edit preview: a bare card, no site chrome or auth.
 const PLAN_PREVIEW_PATH = /^\/(?:zh\/)?plan-preview\/?$/i;
+const ADMIN_PATH = /^\/(?:zh\/)?admin-next\/?$/i;
 
 export default function App() {
+  if (ADMIN_PATH.test(window.location.pathname))
+    return (
+      <AuthProvider>
+        <MotionConfig reducedMotion="user">
+          <Suspense fallback={null}>
+            <AdminApp />
+          </Suspense>
+        </MotionConfig>
+      </AuthProvider>
+    );
   if (PLAN_PREVIEW_PATH.test(window.location.pathname))
     return (
       <MotionConfig reducedMotion="user">

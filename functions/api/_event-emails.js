@@ -99,13 +99,16 @@ export function centralTime(iso, lang) {
 
 // ------------------------------------------------------------------ layout ----
 
+// The rule under the logo is an <hr>, not an empty <div>: the message editor
+// (Jodit) fills an empty block with <br>, which put a blank line under the rule
+// in every sent email. A void element has nothing to fill.
 function frame(s, inner) {
   return `<div style="max-width:600px;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;line-height:1.6;color:#333333;">
   <a href="${s.SITE_URL}/" style="text-decoration:none;">
     <img src="${s.LOGO_URL}" width="200" alt="CAACI 华人协会" style="display:block;width:200px;height:auto;border:0;">
   </a>
 
-  <div style="border-top:3px solid ${BRICK};margin:16px 0 24px;"></div>
+  <hr style="border:0;border-top:3px solid ${BRICK};margin:16px 0 24px;">
 
 ${inner}
 
