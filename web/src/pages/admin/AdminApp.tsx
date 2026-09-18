@@ -168,7 +168,7 @@ export function AdminApp() {
 
   if (!auth.ready || !auth.user)
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-white font-sans">
         {header}
         <Spinner label={t('Checking access…', '正在验证权限…')} />
       </div>
@@ -176,7 +176,7 @@ export function AdminApp() {
 
   if (!isAdmin)
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-white font-sans">
         {header}
         <div className="max-w-md mx-auto px-4 py-16">
           <Notice tone="error">
@@ -231,7 +231,7 @@ export function AdminApp() {
   );
 
   return (
-    <div className="min-h-screen bg-white text-neutral-800">
+    <div className="min-h-screen bg-white font-sans text-neutral-800">
       {header}
       <div className="lg:hidden sticky top-16 z-30 bg-white/95 backdrop-blur border-b border-neutral-200/60">
         {nav(false)}
