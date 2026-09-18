@@ -371,7 +371,7 @@ test('login page: a correct code signs in with verifyOtp(type sms) and lands whe
   for (const [isAdmin, search, landing] of [
     [false, '', '/account/'],
     [false, '?next=/membership/?tier=family', '/membership/?tier=family'],
-    [true, '', '/admin/'],
+    [true, '', '/admin-next/'],
   ]) {
     const stub = supaStub({ isAdmin });
     await phoneTab(stub, { search });

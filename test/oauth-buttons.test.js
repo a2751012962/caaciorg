@@ -102,9 +102,9 @@ test('login page: the Microsoft button carries the email/profile scopes', async 
 });
 
 // Returning to /account/ skipped destinationAfterSignIn, so an admin who signed
-// in with Microsoft never reached /admin/. Coming back to the login page runs its
-// already-signed-in check (covered in caaci-member-dom.test.js), which routes
-// admins to /admin/ and everyone else to `next` or /account/.
+// in with Microsoft never reached the back office. Coming back to the login page
+// runs its already-signed-in check (covered in caaci-member-dom.test.js), which
+// routes admins to /admin-next/ and everyone else to `next` or /account/.
 test('login page: OAuth returns to the login page and keeps next', async () => {
   mountDom(LOGIN_HTML);
   location.search = `?next=${encodeURIComponent('/membership/?tier=family')}`;

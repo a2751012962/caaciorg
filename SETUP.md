@@ -709,9 +709,16 @@ active (families an admin made by hand, with no founder, keep using the
   4. For founder emails, set the `RESEND_API_KEY` and `NOTIFY_FROM` secrets in
      Cloudflare Pages.
 
-## Admin / back-office panel (`/admin/`)
+## Admin / back-office panel (`/admin-next/`, formerly `/admin/`)
 
-A staff panel lives at **`/admin/`**. Its UI is built on **Tabler** (`@tabler/core`
+**The way in is `/admin-next/`**, the same back office rebuilt in React
+(`web/src/pages/admin/`): signing in as an admin lands there, and the token wallet and
+token back office link there. The Tabler `/admin/` below is still built and still works
+if you type the address — it is the fallback, not the entrance, and it is the panel the
+rest of this section describes tab by tab. Both talk to the same `/api/admin/*`
+Functions, so either one may be used and they cannot disagree.
+
+Its UI is built on **Tabler** (`@tabler/core`
 1.4.0, MIT — an open-source Bootstrap-5 admin/dashboard kit designed for exactly this
 kind of subscription back office), self-hosted at `/assets/tabler.min.css` +
 `/assets/tabler.min.js` from `src/vendor/` — the same no-CDN policy as supabase.js,

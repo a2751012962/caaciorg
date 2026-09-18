@@ -444,12 +444,13 @@ function nextPath() {
   }
 }
 
-// Admins land in the back-office; everyone else where they came from, or on
-// their account page.
+// Admins land in the back-office — the React console at /admin-next/, which is
+// now the one way in (the Tabler /admin/ is still built, but nothing points at
+// it). Everyone else goes where they came from, or to their account page.
 async function destinationAfterSignIn(uid, next) {
   if (uid) {
     const { data: me } = await supa.from('members').select('is_admin').eq('id', uid).maybeSingle();
-    if (me?.is_admin) return '/admin/';
+    if (me?.is_admin) return '/admin-next/';
   }
   return next || '/account/';
 }
