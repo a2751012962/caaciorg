@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { clearCooldowns } from './shared';
 
 // One row of public.members, readable by its owner (members_self_read RLS).
 // The browser cannot write it (migration 0014): changes go through /api/*.
@@ -78,6 +79,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       member,
       refreshMember: () => loadMember(session?.user.id),
       signOut: async () => {
+        // The resend countdowns are keyed per recipient and nothing else sweeps
+        // them, so on a shared machine they would outlive the session.
+        clearCooldowns();
         await supabase.auth.signOut();
         setSession(null);
         setMember(null);

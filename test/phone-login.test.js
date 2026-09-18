@@ -273,6 +273,25 @@ test('login page: a valid number asks for a code without creating an account, th
   assert.equal(send.textContent, 'Text me another code');
 });
 
+// The countdown has to survive a reload, so it is kept in localStorage — where
+// it outlives the visit. On a shared machine the key itself must not hand the
+// next person the member's mobile number.
+test('login page: the SMS countdown is stored without the number in the key', async (t) => {
+  mockClock(t);
+  await phoneTab(supaStub());
+  typeInto('#caaci-ph-number', '(217) 555-0123');
+  submit('#caaci-phone-form');
+  await tick();
+
+  const keys = Object.keys(localStorage);
+  const cooldowns = keys.filter((k) => k.startsWith('caaci-cooldown:'));
+  assert.equal(cooldowns.length, 1, `stored: ${keys.join(', ')}`);
+  for (const key of keys) {
+    assert.doesNotMatch(key, /2175550123|\+1/, key);
+    assert.doesNotMatch(String(localStorage.getItem(key)), /2175550123/, key);
+  }
+});
+
 test('login page: a number that cannot be a phone is refused before anything is sent', async (t) => {
   mockClock(t);
   const stub = supaStub();
