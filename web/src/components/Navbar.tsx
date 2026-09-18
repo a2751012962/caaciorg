@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Globe, User, LogOut } from 'lucide-react';
+import { Globe, User, LogOut, ArrowUpRight } from 'lucide-react';
 import { MorphIcon } from 'morphicons/react';
 import { ChevronDown, ChevronUp, Menu, X } from 'lucide'; // icon data for morphing, not components
 import type { CAACIContent } from '../data/content';
 import { addSmoothScrollListener } from '../utils/smoothScroll';
+import { marketplaceUrl } from '../lib/marketplace';
 
 export interface NavUser {
   name: string;
@@ -36,6 +37,7 @@ export function Navbar({
   onLogin,
   onLogout,
 }: NavbarProps) {
+  const resourcesButtonRef = useRef<HTMLButtonElement>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [aboutDropdownOpen, setAboutDropdownOpen] = useState(false);
   const [resourcesDropdownOpen, setResourcesDropdownOpen] = useState(false);
@@ -259,9 +261,22 @@ export function Navbar({
               className="relative group"
               onMouseEnter={() => setResourcesDropdownOpen(true)}
               onMouseLeave={() => setResourcesDropdownOpen(false)}
+              onFocusCapture={() => setResourcesDropdownOpen(true)}
+              onBlurCapture={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget))
+                  setResourcesDropdownOpen(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  resourcesButtonRef.current?.focus();
+                  setResourcesDropdownOpen(false);
+                }
+              }}
             >
               <button
                 type="button"
+                ref={resourcesButtonRef}
                 onClick={() => handleNavClick('resources')}
                 className={`flex items-center gap-1 px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                   currentPage === 'resources' || currentPage === 'community-calendar'
@@ -290,6 +305,15 @@ export function Navbar({
                   >
                     {content.nav.communityCalendar}
                   </button>
+                  <a
+                    href={marketplaceUrl('navigation')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-brick hover:bg-neutral-50 transition-colors"
+                  >
+                    {content.nav.marketplace}
+                    <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+                  </a>
                 </div>
               )}
             </div>
@@ -501,6 +525,16 @@ export function Navbar({
           >
             {content.nav.businessServices}
           </button>
+
+          <a
+            href={marketplaceUrl('navigation')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-h-11 items-center gap-2 py-2 text-sm font-semibold uppercase tracking-wider text-brick"
+          >
+            {content.nav.marketplace}
+            <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+          </a>
 
           {isLoggedIn && user ? (
             <div className="pt-3 border-t border-neutral-200 space-y-1">
