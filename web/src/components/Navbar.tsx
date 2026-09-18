@@ -309,10 +309,10 @@ export function Navbar({
                     href={marketplaceUrl('navigation')}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-brick hover:bg-neutral-50 transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors"
                   >
                     {content.nav.marketplace}
-                    <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+                    <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
                   </a>
                 </div>
               )}
@@ -530,10 +530,10 @@ export function Navbar({
             href={marketplaceUrl('navigation')}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex min-h-11 items-center gap-2 py-2 text-sm font-semibold uppercase tracking-wider text-brick"
+            className="flex min-h-11 w-full items-center gap-1.5 py-2 text-sm font-semibold uppercase text-neutral-700"
           >
             {content.nav.marketplace}
-            <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+            <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
           </a>
 
           {isLoggedIn && user ? (

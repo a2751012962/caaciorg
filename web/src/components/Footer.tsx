@@ -49,15 +49,6 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
               {content.footer.quickLinks}
             </h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <a
-                href={marketplaceUrl('footer')}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-8 items-center gap-1 text-tan hover:text-white transition-colors"
-              >
-                {content.nav.marketplace}
-                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
-              </a>
               <button
                 type="button"
                 onClick={() => handleNav('home')}
@@ -128,6 +119,16 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
               >
                 {content.nav.volunteer}
               </button>
+              {/* A partner site: last in the list, styled like the site's own links. */}
+              <a
+                href={marketplaceUrl('footer')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-neutral-400 hover:text-white transition-colors"
+              >
+                {content.nav.marketplace}
+                <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+              </a>
             </div>
           </div>
 
