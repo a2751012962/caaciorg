@@ -4,7 +4,6 @@ import { ExternalLink, Compass, Building, GraduationCap, Globe } from 'lucide-re
 import type { CAACIContent } from '../data/content';
 import { resourcesDataEN, resourcesDataZH } from '../data/pagesContent';
 import { Reveal } from '../components/Reveal';
-import { MarketplaceSection } from '../components/MarketplaceSection';
 
 interface ResourcesPageProps {
   content: CAACIContent;
@@ -41,8 +40,6 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
           </Reveal>
         </div>
       </section>
-
-      <MarketplaceSection lang={lang} placement="resources" />
 
       {/* Resource Grid */}
       <section className="py-16 md:py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

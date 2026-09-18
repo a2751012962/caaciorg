@@ -8,7 +8,6 @@ export interface CAACIContent {
     membership: string;
     account: string;
     resources: string;
-    marketplace: string;
     communityCalendar: string;
     businessServices: string;
     login: string;
@@ -79,7 +78,6 @@ export const contentEN: CAACIContent = {
     membership: 'Membership',
     account: 'Account',
     resources: 'Resources',
-    marketplace: 'Illini Market',
     communityCalendar: 'Community Calendar',
     businessServices: 'Business Services',
     login: 'Log In',
@@ -174,7 +172,6 @@ export const contentZH: CAACIContent = {
     membership: '会员专区',
     account: '个人账户',
     resources: '社区资源',
-    marketplace: 'Illini 集市',
     communityCalendar: '社区日历',
     businessServices: '商业服务',
     login: '登录',
