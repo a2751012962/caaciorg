@@ -195,6 +195,20 @@ test('login page: the Mobile number tab swaps the panels, is remembered, and ?me
   assert.equal(q('#caaci-li-panel-email').hidden, false);
 });
 
+// The panels were looked up with `panels[wanted]`, which also reaches
+// Object.prototype: ?method=toString was truthy, matched neither panel, and
+// rendered a sign-in page with both forms hidden — then stored that word, so
+// every later visit from the same browser repeated it.
+test('login page: a method from Object.prototype falls back to email and is not remembered', async () => {
+  for (const word of ['toString', '__proto__', 'valueOf', 'constructor', 'hasOwnProperty']) {
+    await phoneTab(supaStub(), { search: `?method=${word}`, click: false });
+    assert.equal(q('#caaci-li-panel-email').hidden, false, word);
+    assert.equal(q('#caaci-li-panel-phone').hidden, true, word);
+    assert.equal(q('#caaci-li-tab-email').getAttribute('aria-selected'), 'true', word);
+    assert.equal(localStorage.getItem('caaci-login-method'), 'email', word);
+  }
+});
+
 test('login page: switching tabs clears the other way in’s message and offer', async (t) => {
   mockClock(t);
   const stub = supaStub();

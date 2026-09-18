@@ -578,7 +578,11 @@ export async function wireAuthPage() {
   const panels = { email: $('#caaci-li-panel-email'), phone: $('#caaci-li-panel-phone') };
   const phoneInput = $('#caaci-ph-number');
   const showMethod = (wanted, { focus = false } = {}) => {
-    const method = panels[wanted] ? wanted : 'email';
+    // Own keys only: `panels[wanted]` also finds Object.prototype, so
+    // ?method=toString (or __proto__, valueOf, constructor…) was truthy, matched
+    // neither panel below, and left the page with both sign-in forms hidden —
+    // and then stored that word, so every later visit repeated it.
+    const method = Object.prototype.hasOwnProperty.call(panels, wanted) ? wanted : 'email';
     for (const tab of methodTabs) {
       const on = tab.dataset.method === method;
       tab.classList.toggle('active', on);
