@@ -4,17 +4,39 @@
 // members row. If the member has no live subscription yet, it falls back to a
 // normal Checkout Session and returns { url } — so the client handles both the
 // same way.
-import { json, bad, sb, stripe, tierPrice, isFreeTier, activateFreeTier } from './_lib.js';
+import {
+  json,
+  bad,
+  sb,
+  stripe,
+  tierPrice,
+  isFreeTier,
+  activateFreeTier,
+  requireUser,
+} from './_lib.js';
 import { grantMembershipTokens } from './_tokens.js';
 
 export async function onRequestPost({ request, env }) {
+  // Whose plan changes is decided by the caller's own session, never by the
+  // body: this endpoint re-prices a live subscription with create_prorations,
+  // which bills the saved card there and then. Reading member_id from the
+  // request would let anyone who knows a member's id (the membership QR code
+  // carries it) charge that member — or empty their membership.
+  const gate = await requireUser(request, env);
+  if (gate.error) return gate.error;
+  const memberId = gate.user.id;
+
   let body;
   try {
     body = await request.json();
   } catch {
     return bad('invalid JSON');
   }
-  if (!body.member_id || !body.tier_id) return bad('member_id and tier_id are required.');
+  // The client still sends its own id; a mismatch means the request is not the
+  // one this session is entitled to make.
+  if (body.member_id && body.member_id !== memberId)
+    return bad('You can only change your own membership.', 403);
+  if (!body.tier_id) return bad('tier_id is required.');
 
   const origin = new URL(request.url).origin;
   const S = stripe(env);
@@ -24,7 +46,7 @@ export async function onRequestPost({ request, env }) {
     const tier = await DB.selectOne('membership_tiers', { id: body.tier_id });
     if (!tier) return bad('Unknown membership tier.');
     if (tier.invite_only) return bad('This membership is by invitation only.');
-    const member = await DB.selectOne('members', { id: body.member_id });
+    const member = await DB.selectOne('members', { id: memberId });
     if (!member) return bad('Member not found.');
     if (member.tier_id === tier.id) return bad('You are already on this plan.');
 

@@ -77,6 +77,20 @@ export function mockFetch(handler) {
   return stub;
 }
 
+// A signed-in caller: the headers to hand fakeRequest so requireUser in
+// functions/api/_lib.js sees a bearer token. Pair with authRoute below, which
+// answers the Supabase Auth lookup that validates it.
+export const asUser = (id = 'u1') => ({ authorization: `Bearer session-${id}` });
+
+// Answers GET {SUPABASE_URL}/auth/v1/user as `id`, or null for any other URL so
+// a test's own router keeps handling the rest:
+//   const r = (url, options) => authRoute(url, 'u1') ?? myRoutes(url, options);
+// Pass id = null to play an invalid/expired session (requireUser -> 401).
+export function authRoute(url, id = 'u1') {
+  if (!url.includes('/auth/v1/user')) return null;
+  return id ? { body: { id } } : { status: 401, body: { msg: 'invalid token' } };
+}
+
 // A representative environment for the API handlers.
 export function fakeEnv(overrides = {}) {
   return {

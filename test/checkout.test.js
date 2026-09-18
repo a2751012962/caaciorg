@@ -1,11 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestPost } from '../functions/api/checkout.js';
-import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
+import { fakeRequest, mockFetch, fakeEnv, asUser, authRoute } from './helpers.js';
 
 // Route a request: Stripe -> a session; Supabase selectOne/insert -> canned rows.
-function route(tier, discount) {
+// `signedInAs` is the member the bearer token resolves to (null = signed out);
+// donations never reach that check, memberships always do.
+function route(tier, discount, signedInAs = 'u1') {
   return (url) => {
+    const auth = authRoute(url, signedInAs);
+    if (auth) return auth;
     if (url.includes('api.stripe.com/v1/coupons')) return { body: { id: 'co_1' } };
     if (url.includes('api.stripe.com')) return { body: { id: 'cs_1', url: 'https://pay/cs_1' } };
     if (url.includes('membership_tiers')) return { body: tier ? [tier] : [] };
@@ -70,7 +74,7 @@ test('checkout: unknown membership tier -> 400', async () => {
   const fetch = mockFetch(route(null));
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { tier_id: 'ghost' } }),
+      request: fakeRequest({ body: { tier_id: 'ghost' }, headers: asUser('u1') }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 400);
@@ -84,7 +88,10 @@ test('checkout: membership applies the 3.5% card surcharge to unit_amount', asyn
   const fetch = mockFetch(route({ id: 'individual', name: 'Individual', price_cents: 10000 }));
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { tier_id: 'individual', email: 'm@x.com', member_id: 'u1' } }),
+      request: fakeRequest({
+        body: { tier_id: 'individual', email: 'm@x.com', member_id: 'u1' },
+        headers: asUser('u1'),
+      }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 200);
@@ -106,7 +113,10 @@ test('checkout: an invitation-only tier cannot be bought', async () => {
   );
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { tier_id: 'honorary', member_id: 'u1' } }),
+      request: fakeRequest({
+        body: { tier_id: 'honorary', member_id: 'u1' },
+        headers: asUser('u1'),
+      }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 400);
@@ -126,7 +136,10 @@ test('checkout: the free tier is activated directly — no Stripe session, no ex
   const fetch = mockFetch(route(FREE));
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { tier_id: 'free', member_id: 'u1', email: 'm@x.com' } }),
+      request: fakeRequest({
+        body: { tier_id: 'free', member_id: 'u1', email: 'm@x.com' },
+        headers: asUser('u1'),
+      }),
       env: fakeEnv(),
     });
     const data = await r.json();
@@ -154,6 +167,8 @@ test('checkout: the free tier is activated directly — no Stripe session, no ex
 
 test('checkout: the free tier is refused while a paid subscription is live', async () => {
   const fetch = mockFetch((url, options = {}) => {
+    const auth = authRoute(url, 'u1');
+    if (auth) return auth;
     if (url.includes('membership_tiers')) return { body: [FREE] };
     if (url.includes('/rest/v1/members') && options.method !== 'PATCH')
       return {
@@ -163,7 +178,7 @@ test('checkout: the free tier is refused while a paid subscription is live', asy
   });
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { tier_id: 'free', member_id: 'u1' } }),
+      request: fakeRequest({ body: { tier_id: 'free', member_id: 'u1' }, headers: asUser('u1') }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 409);
@@ -178,22 +193,61 @@ test('checkout: the free tier is refused while a paid subscription is live', asy
   }
 });
 
-// The webhook activates memberships by metadata.member_id — a session created
-// without one would be paid yet never activate anyone.
-test('checkout: membership without a member_id is refused', async () => {
-  const fetch = mockFetch(route({ id: 'individual', name: 'Individual', price_cents: 10000 }));
+// The webhook activates memberships by metadata.member_id, and the free tier is
+// written straight onto the members row — so the account being bought for is the
+// signed-in one, not whatever the body claims.
+test('checkout: membership without a session is refused', async () => {
+  const fetch = mockFetch(
+    route({ id: 'individual', name: 'Individual', price_cents: 10000 }, null, null),
+  );
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { tier_id: 'individual', email: 'm@x.com' } }),
+      request: fakeRequest({ body: { tier_id: 'individual', email: 'm@x.com', member_id: 'u1' } }),
       env: fakeEnv(),
     });
-    assert.equal(r.status, 400);
-    assert.match((await r.json()).error, /log in or create an account/);
+    assert.equal(r.status, 401);
     assert.equal(
       fetch.calls.filter((c) => c.url.includes('api.stripe.com')).length,
       0,
       'no Stripe session created',
     );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test("checkout: the free tier cannot be activated on someone else's account", async () => {
+  const fetch = mockFetch(route(FREE, null, 'attacker'));
+  try {
+    const r = await onRequestPost({
+      request: fakeRequest({
+        body: { tier_id: 'free', member_id: 'victim' },
+        headers: asUser('attacker'),
+      }),
+      env: fakeEnv(),
+    });
+    assert.equal(r.status, 403);
+    assert.match((await r.json()).error, /your own account/);
+    assert.equal(
+      fetch.calls.some((c) => c.options.method === 'PATCH'),
+      false,
+      "the victim's membership is untouched",
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+// A donation still needs no account — that path never reaches the gate.
+test('checkout: a signed-out donation still works', async () => {
+  const fetch = mockFetch(route(null, null, null));
+  try {
+    const r = await onRequestPost({
+      request: fakeRequest({ body: { type: 'donation', amount_cents: 2500 } }),
+      env: fakeEnv(),
+    });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { url: 'https://pay/cs_1' });
   } finally {
     fetch.restore();
   }
@@ -215,6 +269,7 @@ test('checkout: a valid discount code mints a once-only coupon and tags the sess
           member_id: 'u1',
           discount_code: 'spring20',
         },
+        headers: asUser('u1'),
       }),
       env: fakeEnv(),
     });
@@ -245,6 +300,7 @@ test('checkout: an expired discount code aborts before any Stripe call', async (
     const r = await onRequestPost({
       request: fakeRequest({
         body: { tier_id: 'individual', member_id: 'u1', discount_code: 'OLD' },
+        headers: asUser('u1'),
       }),
       env: fakeEnv(),
     });

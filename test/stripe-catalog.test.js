@@ -11,7 +11,7 @@ import {
 import { tierPrice, tierLookupKey, stripe } from '../functions/api/_lib.js';
 import { onRequestPost as checkout } from '../functions/api/checkout.js';
 import { onRequestPost as changePlan } from '../functions/api/change-plan.js';
-import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
+import { fakeRequest, mockFetch, fakeEnv, asUser, authRoute } from './helpers.js';
 
 const tier = { id: 'individual', name: 'Individual Membership', price_cents: 3000 };
 
@@ -294,6 +294,8 @@ test('tierPrice: a failing lookup does not break checkout', async () => {
 
 test('checkout: membership session uses the catalogue Price when present', async () => {
   const fetch = mockFetch((url) => {
+    const auth = authRoute(url, 'u1');
+    if (auth) return auth;
     if (url.includes('lookup_keys')) return { body: { data: [{ id: 'price_cat' }] } };
     if (url.includes('checkout/sessions')) return { body: { id: 'cs_1', url: 'https://pay/cs_1' } };
     if (url.includes('membership_tiers')) return { body: [tier] };
@@ -301,7 +303,10 @@ test('checkout: membership session uses the catalogue Price when present', async
   });
   try {
     const r = await checkout({
-      request: fakeRequest({ body: { tier_id: 'individual', member_id: 'u1' } }),
+      request: fakeRequest({
+        body: { tier_id: 'individual', member_id: 'u1' },
+        headers: asUser('u1'),
+      }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 200);
@@ -316,6 +321,8 @@ test('checkout: membership session uses the catalogue Price when present', async
 
 test('change-plan: swaps the subscription item onto the catalogue Price without minting one', async () => {
   const fetch = mockFetch((url, options = {}) => {
+    const auth = authRoute(url, 'u1');
+    if (auth) return auth;
     if (url.includes('lookup_keys')) return { body: { data: [{ id: 'price_cat' }] } };
     if (url.includes('/rest/v1/membership_tiers')) return { body: [tier] };
     if (url.includes('/rest/v1/members'))
@@ -329,7 +336,10 @@ test('change-plan: swaps the subscription item onto the catalogue Price without 
   });
   try {
     const r = await changePlan({
-      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'individual' } }),
+      request: fakeRequest({
+        body: { member_id: 'u1', tier_id: 'individual' },
+        headers: asUser('u1'),
+      }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 200, await r.text());

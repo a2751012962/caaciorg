@@ -1,13 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestPost } from '../functions/api/change-plan.js';
-import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
+import { fakeRequest, mockFetch, fakeEnv, asUser, authRoute } from './helpers.js';
 
 // Route Supabase selects/updates and the Stripe calls the endpoint makes.
 // Stripe subscription retrieve (GET, no method) vs update (POST) share a URL,
-// so they're told apart by options.method.
-function route({ tier, member } = {}) {
+// so they're told apart by options.method. `signedInAs` is the member the
+// bearer token resolves to — the endpoint acts on that id, not on the body's.
+function route({ tier, member, signedInAs = 'u1' } = {}) {
   return (url, options = {}) => {
+    const auth = authRoute(url, signedInAs);
+    if (auth) return auth;
     const m = options.method;
     if (url.includes('/rest/v1/membership_tiers')) return { body: tier ? [tier] : [] };
     if (url.includes('/rest/v1/members')) {
@@ -26,15 +29,69 @@ function route({ tier, member } = {}) {
   };
 }
 
-test('change-plan: missing member_id/tier_id -> 400', async () => {
+test('change-plan: missing tier_id -> 400', async () => {
   const fetch = mockFetch(route());
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { tier_id: 'individual' } }),
+      request: fakeRequest({ body: { member_id: 'u1' }, headers: asUser('u1') }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 400);
     assert.match((await r.json()).error, /required/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+// Re-pricing a live subscription charges the saved card there and then, so the
+// session — not the body — says whose plan this is.
+test('change-plan: without a session -> 401, nothing read or charged', async () => {
+  const fetch = mockFetch(
+    route({
+      tier: { id: 'individual', price_cents: 3000 },
+      member: { id: 'u1', tier_id: 'family', stripe_subscription_id: 'sub_1' },
+      signedInAs: null,
+    }),
+  );
+  try {
+    const r = await onRequestPost({
+      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'individual' } }),
+      env: fakeEnv(),
+    });
+    assert.equal(r.status, 401);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('api.stripe.com') || c.url.includes('/rest/v1/')),
+      false,
+      'no Stripe call and no database read',
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test("change-plan: a signed-in member cannot re-price someone else's subscription", async () => {
+  const fetch = mockFetch(
+    route({
+      tier: { id: 'individual', price_cents: 3000 },
+      member: { id: 'victim', tier_id: 'family', stripe_subscription_id: 'sub_1' },
+      signedInAs: 'attacker',
+    }),
+  );
+  try {
+    const r = await onRequestPost({
+      request: fakeRequest({
+        body: { member_id: 'victim', tier_id: 'individual' },
+        headers: asUser('attacker'),
+      }),
+      env: fakeEnv(),
+    });
+    assert.equal(r.status, 403);
+    assert.match((await r.json()).error, /your own membership/);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('api.stripe.com')),
+      false,
+      'the victim is never charged',
+    );
   } finally {
     fetch.restore();
   }
@@ -46,7 +103,7 @@ test('change-plan: switching to the plan you already have -> 400', async () => {
   );
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'family' } }),
+      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'family' }, headers: asUser('u1') }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 400);
@@ -65,7 +122,10 @@ test('change-plan: an invitation-only tier cannot be switched to', async () => {
   );
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'honorary' } }),
+      request: fakeRequest({
+        body: { member_id: 'u1', tier_id: 'honorary' },
+        headers: asUser('u1'),
+      }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 400);
@@ -90,7 +150,7 @@ test('change-plan: a live paid subscription cannot self-downgrade to free', asyn
   );
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'free' } }),
+      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'free' }, headers: asUser('u1') }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 409);
@@ -120,7 +180,7 @@ test('change-plan: an expired paid member moves to free without Stripe', async (
   );
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'free' } }),
+      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'free' }, headers: asUser('u1') }),
       env: fakeEnv(),
     });
     const data = await r.json();
@@ -151,7 +211,10 @@ test('change-plan: a member with no live subscription falls back to a Checkout S
   );
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'individual' } }),
+      request: fakeRequest({
+        body: { member_id: 'u1', tier_id: 'individual' },
+        headers: asUser('u1'),
+      }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 200);
@@ -171,7 +234,10 @@ test('change-plan: an active subscription is swapped in place with proration', a
   );
   try {
     const r = await onRequestPost({
-      request: fakeRequest({ body: { member_id: 'u1', tier_id: 'individual' } }),
+      request: fakeRequest({
+        body: { member_id: 'u1', tier_id: 'individual' },
+        headers: asUser('u1'),
+      }),
       env: fakeEnv(),
     });
     assert.equal(r.status, 200);
