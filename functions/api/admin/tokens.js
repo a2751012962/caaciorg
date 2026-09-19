@@ -267,8 +267,12 @@ export async function onRequestPost({ request, env }) {
     } else if (b.action === 'cash') {
       const cents = Number(b.cash_cents);
       if (!Number.isInteger(cents) || cents <= 0) return bad('Enter the cash received.');
-      const settings = await DB.selectOne('token_settings', { id: true }, 'tokens_per_dollar');
-      const tokens = (cents * (settings?.tokens_per_dollar || 10)) / 100;
+      // token_quote is the one place the rate lives, promotion included, so the
+      // desk cannot send a number token_admin_credit will turn down. It re-quotes
+      // under the member lock, and a mismatch comes back with `expected`.
+      const quote = await DB.rpc('token_quote', { p_member: b.member_id, p_cents: cents });
+      if (!quote || quote.error) return bad(quote?.error || 'Could not price that amount.');
+      const tokens = quote.total;
       if (!Number.isInteger(tokens)) return bad('That amount does not convert to whole tokens.');
       result = await DB.rpc('token_admin_credit', {
         p_member: b.member_id,

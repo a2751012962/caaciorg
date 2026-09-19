@@ -1,8 +1,9 @@
-// GET /api/tokens/me — the signed-in member's wallet: balance, what expires
-// next, recent history, the packs on sale, the family members tokens can be
-// sent to, and which token roles the account holds (for showing the merchant
-// and admin entrances). Answers { enabled: false } while the switch is off, so
-// the account page can ask without knowing.
+// GET /api/tokens/me — the signed-in member's wallet: balance, recent history,
+// the packs on sale (priced through token_quote, so a running promotion shows),
+// the family members tokens can be sent to, and which token roles the account
+// holds (for showing the merchant and admin entrances). Answers
+// { enabled: false } while the switch is off, so the account page can ask
+// without knowing. Nothing expires since 0027.
 import { json, bad, sb, requireUser, CARD_SURCHARGE } from '../_lib.js';
 import { tokensEnabled, callerRoles } from '../_tokens.js';
 
@@ -14,20 +15,10 @@ export async function onRequestGet({ request, env }) {
   const id = gate.user.id;
 
   try {
-    const [settings, roles, balance, lots, history] = await Promise.all([
+    const [settings, roles, balance, history] = await Promise.all([
       DB.selectOne('token_settings', { id: true }),
       callerRoles(DB, id),
       DB.rpc('token_balance', { p_member: id }),
-      DB.select('token_lots', {
-        columns: 'remaining,expires_at',
-        filters: [
-          `member_id=eq.${id}`,
-          'remaining=gt.0',
-          `expires_at=gt.${new Date().toISOString()}`,
-        ],
-        order: 'expires_at.asc',
-        limit: 50,
-      }),
       DB.select('token_tx', {
         columns: 'id,created_at,kind,amount,state,items,note,merchants(name,name_zh)',
         filters: [`member_id=eq.${id}`],
@@ -36,15 +27,8 @@ export async function onRequestGet({ request, env }) {
       }),
     ]);
 
-    // Tokens that share the soonest expiry date, as one "N expire on …" line.
-    let expiring = null;
-    if (lots.rows.length) {
-      const at = lots.rows[0].expires_at;
-      const amount = lots.rows
-        .filter((l) => l.expires_at === at)
-        .reduce((sum, l) => sum + l.remaining, 0);
-      expiring = { amount, at };
-    }
+    // Nothing expires since 0027; the key stays so older pages keep working.
+    const expiring = null;
 
     let family = [];
     if (roles.member?.household_id) {
@@ -57,17 +41,32 @@ export async function onRequestGet({ request, env }) {
     }
 
     const rate = settings?.tokens_per_dollar || 10;
+    // Price each pack through token_quote rather than here, so the wallet can
+    // never show a different number from the one the ledger will credit.
+    const packCents = settings?.packs_cents || [];
+    const quotes = await Promise.all(
+      packCents.map((cents) => DB.rpc('token_quote', { p_member: id, p_cents: cents })),
+    );
+    const bonusPct = quotes.find((q) => q?.bonus_active)?.bonus_pct || 0;
     return json({
       enabled: true,
       balance: Number(balance) || 0,
       expiring,
       rate,
+      bonus_pct: bonusPct,
+      bonus_until: bonusPct ? quotes.find((q) => q?.bonus_active)?.bonus_to || null : null,
       can_buy: roles.member?.status === 'active',
-      packs: (settings?.packs_cents || []).map((cents) => ({
-        cents,
-        tokens: (cents * rate) / 100,
-        charge_cents: Math.round(cents * (1 + CARD_SURCHARGE)),
-      })),
+      packs: packCents.map((cents, i) => {
+        const base = (cents * rate) / 100;
+        const tokens = Number.isInteger(quotes[i]?.total) ? quotes[i].total : base;
+        return {
+          cents,
+          tokens,
+          base,
+          bonus: tokens - base,
+          charge_cents: Math.round(cents * (1 + CARD_SURCHARGE)),
+        };
+      }),
       history: history.rows.map((t) => ({
         id: t.id,
         at: t.created_at,
