@@ -29,7 +29,13 @@ export async function onRequestPost({ request, env }) {
       return bad('Join CAACI (the free plan counts) before buying tokens.', 403);
     if (!(settings?.packs_cents || []).includes(pack)) return bad('Pick one of the token packs.');
 
-    const tokens = (pack * settings.tokens_per_dollar) / 100;
+    // What this pack buys right now, promotion included. The webhook credits the
+    // base from pack_cents and token_purchase_credit adds the bonus itself, so
+    // this number is what the buyer is shown, never what is trusted to credit.
+    const quote = await DB.rpc('token_quote', { p_member: user.id, p_cents: pack });
+    const base = (pack * settings.tokens_per_dollar) / 100;
+    const tokens = Number.isInteger(quote?.total) ? quote.total : base;
+    const bonus = tokens - base;
     const origin = new URL(request.url).origin;
     const session = await stripe(env).call('checkout/sessions', {
       mode: 'payment',
@@ -44,14 +50,20 @@ export async function onRequestPost({ request, env }) {
           price_data: {
             currency: 'usd',
             unit_amount: Math.round(pack * (1 + CARD_SURCHARGE)),
-            product_data: { name: `CAACI Tokens × ${tokens} · 华协币` },
+            product_data: {
+              name:
+                bonus > 0
+                  ? `CAACI Tokens × ${tokens} (${base} + ${bonus} bonus) · 华协币`
+                  : `CAACI Tokens × ${tokens} · 华协币`,
+            },
           },
         },
       ],
       metadata: {
         kind: 'tokens',
         member_id: user.id,
-        tokens: String(tokens),
+        tokens: String(base), // the paid-for tokens; the ledger adds any bonus
+        quoted_total: String(tokens),
         pack_cents: String(pack),
       },
     });
