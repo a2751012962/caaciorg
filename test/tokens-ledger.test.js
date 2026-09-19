@@ -15,6 +15,7 @@ const MIGRATIONS = [
   new URL('../supabase/migrations/0024_tokens.sql', import.meta.url),
   new URL('../supabase/migrations/0027_tokens_never_expire.sql', import.meta.url),
   new URL('../supabase/migrations/0028_token_purchase_bonus.sql', import.meta.url),
+  new URL('../supabase/migrations/0029_admin_cash_cap.sql', import.meta.url),
 ];
 
 // Open the bonus window around now() so the rate rules can be driven directly.
@@ -102,7 +103,8 @@ beforeEach(async () => {
     update public.token_settings set grants = '{"student":150,"individual":450,"family":900}'::jsonb,
            max_charge = 500, admin_mint_cap = 500, admin_daily_cap = 2000, cash_min_cents = 500,
            void_hours = 24, settle_min_cents = 2000, suspend_after = 3,
-           bonus_pct = 0, bonus_from = null, bonus_to = null, bonus_cap_cents = 10000;
+           bonus_pct = 0, bonus_from = null, bonus_to = null, bonus_cap_cents = 10000,
+           admin_cash_cap_cents = 20000;
   `);
 });
 
@@ -432,6 +434,42 @@ test('an admin is capped per action and per day; root is not; cash must match th
   assert.deepEqual(row, { kind: 'cash', cash_cents: 1000 });
   const lot = await one('select expires_at from public.token_lots where tx_id = $1', [cash.tx_id]);
   assert.equal(lot.expires_at, null, 'cash-bought tokens never expire');
+});
+
+test('cash has its own $200 ceiling, measured on the money and not moved by a promotion (0029)', async () => {
+  const admin = await member({ admin: true });
+  const root = await member({ admin: true, root: true });
+  const m = await member({ tier: 'free', expires: null });
+
+  // $200 is 2000 tokens -- four times the 500-token mint cap, which used to
+  // stop the desk at $50.
+  assert.equal((await call('token_admin_credit', m, 'cash', 2000, 20000, admin, null)).ok, true);
+  assert.equal(await balance(m), 2000);
+
+  const over = await call('token_admin_credit', m, 'cash', 2010, 20100, admin, null);
+  assert.equal(over.error, 'over_cash_cap');
+  assert.equal(over.cap_cents, 20000);
+  assert.equal((await call('token_admin_credit', m, 'cash', 2010, 20100, root, null)).ok, true);
+
+  // The ceiling is on the cash, so the launch-day bonus cannot raise or lower
+  // it: $200 still goes through, and $200.01 still does not. A fresh member,
+  // because the bonus cap counts spending already done inside the window and
+  // the buys above would eat it.
+  await openBonus();
+  const fresh = await member({ tier: 'free', expires: null });
+  const bonused = await call('token_admin_credit', fresh, 'cash', 2500, 20000, admin, null);
+  assert.equal(bonused.ok, true, '$200 buys 2000 + 500 bonus on the first $100');
+  assert.equal(bonused.bonus, 500);
+  assert.equal(
+    (await call('token_admin_credit', fresh, 'cash', 2010, 20100, admin, null)).error,
+    'over_cash_cap',
+  );
+
+  // Minting is unchanged: still 500 tokens per action.
+  assert.equal(
+    (await call('token_admin_credit', m, 'mint', 501, null, admin, 'x')).error,
+    'over_admin_cap',
+  );
 });
 
 test('an admin can take tokens back, with a reason, never below zero', async () => {
