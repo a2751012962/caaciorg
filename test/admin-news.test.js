@@ -33,6 +33,63 @@ const pastTheGate = (fetch) =>
       (c.url.includes('/rest/v1/members') && !c.url.includes('is_admin')),
   );
 
+// The renewal lists. Most of the roster paid once and has no subscription, so
+// nobody in Stripe will ever prompt them — these two audiences are how they get
+// asked. Anyone Stripe does renew is deliberately left out of 'expiring'.
+test('news: the renewal audiences ask the database for the right people', async () => {
+  const fetch = mockFetch(route);
+  try {
+    const recipients = () =>
+      fetch.calls.find((c) => c.url.includes('/rest/v1/members') && !c.url.includes('is_admin'))
+        ?.url;
+
+    let r = await post({
+      subject: 'Renew',
+      body_html: '<p>hi</p>',
+      audience: 'expiring',
+      confirm: true,
+    });
+    assert.equal(r.status, 200);
+    const soon = recipients();
+    assert.match(soon, /and=\(status\.eq\.active,expires_at\.gte\./);
+    assert.match(soon, /expires_at\.lte\./);
+    assert.match(soon, /stripe_subscription_id\.is\.null\)/);
+
+    fetch.calls.length = 0;
+    r = await post({
+      subject: 'Come back',
+      body_html: '<p>hi</p>',
+      audience: 'lapsed',
+      confirm: true,
+    });
+    assert.equal(r.status, 200);
+    // Both kinds of expired: the stored ones and the 'active' rows past the date.
+    assert.match(
+      recipients(),
+      /and=\(or\(status\.eq\.expired,and\(status\.eq\.active,expires_at\.lte\./,
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('news: an audience nobody defined is refused', async () => {
+  const fetch = mockFetch(route);
+  try {
+    const r = await post({
+      subject: 'Hi',
+      body_html: '<p>hi</p>',
+      audience: 'everyone-ever',
+      confirm: true,
+    });
+    assert.equal(r.status, 400);
+    assert.deepEqual(await r.json(), { error: 'Invalid audience.' });
+    assert.deepEqual(pastTheGate(fetch), []);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('news: a message still holding a template placeholder is refused before anything is read or sent', async () => {
   const fetch = mockFetch(route);
   try {

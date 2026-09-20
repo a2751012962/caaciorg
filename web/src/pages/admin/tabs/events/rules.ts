@@ -119,7 +119,7 @@ export interface Volunteer {
   created_at: string;
   updated_at?: string;
   event: { slug: string | null; title: string; title_zh: string | null; starts_at: string } | null;
-  account: { id: string; status: string; tier_id: string | null } | null;
+  account: { id: string; status: string; tier_id: string | null; expires_at: string | null } | null;
 }
 
 // ------------------------------------------------------------------ events

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import type { Lang } from '../lib/lang';
 import type { ApiResult } from '../lib/api';
-import { statusLabel } from '../lib/shared';
+import { effectiveStatus, statusLabel } from '../lib/shared';
 import {
   EMAIL_COOLDOWN_S,
   dropParams,
@@ -376,6 +376,10 @@ export function FamilySection({
     </select>
   );
 
+  // As of today: a family plan past its expiry is still stored 'active' when
+  // the founder paid once (effectiveStatus in src/caaci-shared.js).
+  const planStatus = effectiveStatus(plan.status, plan.expires_at);
+
   const planSummary = (extra?: { label: string; value: string }) => (
     <div className="space-y-3">
       <div className="text-sm font-bold text-neutral-900 break-words">
@@ -386,17 +390,17 @@ export function FamilySection({
           <span className="text-neutral-400 block text-[10px]">{t('Family plan', '家庭会员')}</span>
           <span
             className={`inline-block mt-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold ${
-              plan.status && Object.hasOwn(PLAN_BADGE, plan.status)
-                ? PLAN_BADGE[plan.status]
+              planStatus && Object.hasOwn(PLAN_BADGE, planStatus)
+                ? PLAN_BADGE[planStatus]
                 : 'bg-neutral-100 text-neutral-600 border-neutral-200'
             }`}
           >
-            {statusLabel(plan.status, lang) || '—'}
+            {statusLabel(planStatus, lang) || '—'}
           </span>
         </div>
         <div>
           <span className="text-neutral-400 block text-[10px]">
-            {plan.status === 'active' ? t('Valid through', '有效期至') : t('Expires', '到期日期')}
+            {planStatus === 'active' ? t('Valid through', '有效期至') : t('Expires', '到期日期')}
           </span>
           <span className="font-semibold text-neutral-800 block mt-1">
             {fmtDate(plan.expires_at, lang)}
