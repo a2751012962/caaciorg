@@ -152,7 +152,8 @@ export async function onRequestGet({ request, env }) {
     // Counted as of today (memberStatusFilter), so "Active" here means the same
     // thing it means on a member's row and at the QR check.
     const status_counts = {};
-    for (const s of STATUSES) status_counts[s] = await count('members', [memberStatusFilter(s, nowIso)]);
+    for (const s of STATUSES)
+      status_counts[s] = await count('members', [memberStatusFilter(s, nowIso)]);
     const members_total = STATUSES.reduce((sum, s) => sum + status_counts[s], 0);
     const new_this_month = await count('members', [`created_at=gte.${monthStart}`]);
 

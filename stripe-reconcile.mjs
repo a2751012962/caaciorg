@@ -30,7 +30,10 @@ const DRIFT_TOLERANCE_DAYS = 2;
 
 const day = (unix) => (unix ? new Date(unix * 1000).toISOString().slice(0, 10) : '—');
 const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '—');
-const norm = (s) => String(s || '').trim().toLowerCase();
+const norm = (s) =>
+  String(s || '')
+    .trim()
+    .toLowerCase();
 
 export function maskEmail(email) {
   const s = String(email || '');
@@ -73,8 +76,7 @@ export async function allMembers(url, serviceKey, fetchImpl = fetch) {
 
 const periodEndOf = (sub) => sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end;
 const customerIdOf = (sub) => (typeof sub.customer === 'string' ? sub.customer : sub.customer?.id);
-const customerEmailOf = (sub) =>
-  typeof sub.customer === 'object' ? norm(sub.customer.email) : '';
+const customerEmailOf = (sub) => (typeof sub.customer === 'object' ? norm(sub.customer.email) : '');
 
 /**
  * Compare one roster against one set of Stripe subscriptions.

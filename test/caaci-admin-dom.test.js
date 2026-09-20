@@ -2486,7 +2486,13 @@ test('admin families: family-plan members without a family are listed with no fa
 // calling a membership that ran out months ago valid.
 test('admin families: a member stored Active whose year has run out is listed as Expired', async () => {
   const lapsed = [
-    { id: 'f9', full_name: 'Lin', email: 'lin@x.com', status: 'active', expires_at: '2020-01-01T00:00:00Z' },
+    {
+      id: 'f9',
+      full_name: 'Lin',
+      email: 'lin@x.com',
+      status: 'active',
+      expires_at: '2020-01-01T00:00:00Z',
+    },
   ];
   const fetch = mockFetch((u) =>
     u.includes('/api/admin/households')

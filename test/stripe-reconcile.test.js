@@ -116,9 +116,13 @@ test('reconcile: dates more than two days apart are drift, a few hours are not',
 });
 
 test('reconcile: a subscription with no members row at all is unknown_sub', () => {
-  const { findings } = reconcile([], [sub('sub_9', 'active', 'cus_9', inDays(10), 'who@example.com')], {
-    now: NOW,
-  });
+  const { findings } = reconcile(
+    [],
+    [sub('sub_9', 'active', 'cus_9', inDays(10), 'who@example.com')],
+    {
+      now: NOW,
+    },
+  );
   assert.equal(findings[0].kind, 'unknown_sub');
   assert.equal(findings[0].email, 'who@example.com');
 });
@@ -135,10 +139,14 @@ test('reconcile: no_renewal counts everyone, lists only those inside the window'
     stripe_customer_id: 'cus_x',
     stripe_subscription_id: null,
   });
-  const { findings, counts } = reconcile([m('soon@x.com', inDays(20)), m('later@x.com', inDays(200))], [], {
-    now: NOW,
-    soonDays: 30,
-  });
+  const { findings, counts } = reconcile(
+    [m('soon@x.com', inDays(20)), m('later@x.com', inDays(200))],
+    [],
+    {
+      now: NOW,
+      soonDays: 30,
+    },
+  );
   assert.equal(counts.no_renewal, 2);
   assert.equal(findings.length, 1);
   assert.equal(findings[0].kind, 'no_renewal');
