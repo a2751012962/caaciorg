@@ -43,7 +43,9 @@ function accountIndex(members) {
   }
   return (row) => {
     const m = (row.member_id && byId.get(row.member_id)) || byEmail.get(row.email) || null;
-    return m ? { id: m.id, status: m.status, tier_id: m.tier_id } : null;
+    // expires_at comes too, so the panel can read the status as of today
+    // (effectiveStatus) instead of trusting the stored column.
+    return m ? { id: m.id, status: m.status, tier_id: m.tier_id, expires_at: m.expires_at } : null;
   };
 }
 
@@ -59,7 +61,7 @@ export async function onRequestGet({ request, env }) {
     const DB = sb(env);
     // Oldest first, so when two rows share an address the earliest account wins.
     const membersQuery = DB.select('members', {
-      columns: 'id,email,created_at,status,tier_id',
+      columns: 'id,email,created_at,status,tier_id,expires_at',
       order: 'created_at.asc',
       limit: MAX_MEMBERS,
     });

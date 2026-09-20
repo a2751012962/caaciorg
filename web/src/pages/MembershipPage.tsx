@@ -19,7 +19,7 @@ import type { CAACIContent } from '../data/content';
 import { membershipPageDataEN, membershipPageDataZH } from '../data/pagesContent';
 import { api } from '../lib/api';
 import { loginUrl, useAuth } from '../lib/auth';
-import { statusLabel, usd } from '../lib/shared';
+import { effectiveStatus, statusLabel, usd } from '../lib/shared';
 import {
   checkoutMode,
   currentTierId,
@@ -49,6 +49,9 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
   const data = lang === 'en' ? membershipPageDataEN : membershipPageDataZH;
   const t = (en: string, zh: string) => (lang === 'en' ? en : zh);
   const { ready, user, member, refreshMember } = useAuth();
+  // What the membership is worth today — a stored 'active' outlives its expiry
+  // for anyone without a Stripe subscription (effectiveStatus).
+  const myStatus = effectiveStatus(member?.status ?? null, member?.expires_at ?? null);
   const tiers = useTiers();
   const plans = useMemo(() => purchasable(tiers), [tiers]);
   const hasInviteTier = tiers.some((x) => x.invite_only);
@@ -308,7 +311,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
   const expiresLabel = (() => {
     if (!selected) return '';
     if (free) return t('NEVER', '永不过期');
-    if (member?.status === 'active' && member.tier_id === selected.id && member.expires_at)
+    if (myStatus === 'active' && member?.tier_id === selected.id && member.expires_at)
       return new Date(member.expires_at)
         .toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {
           year: 'numeric',
@@ -400,7 +403,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 lang={lang}
                 index={idx}
                 selected={selected?.id === tier.id}
-                isMyPlan={member?.status === 'active' && member.tier_id === tier.id}
+                isMyPlan={myStatus === 'active' && member?.tier_id === tier.id}
                 onSelect={() => {
                   selectTier(tier.id);
                   scrollToForm();
@@ -620,7 +623,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                   {t('Signed in as', '当前登录')}{' '}
                   <span className="font-semibold text-ink">{user.email}</span>
                   {myTier && member?.status
-                    ? ` — ${tierName(myTier, lang)} · ${statusLabel(member.status, lang)}`
+                    ? ` — ${tierName(myTier, lang)} · ${statusLabel(effectiveStatus(member.status, member.expires_at), lang)}`
                     : ''}
                 </p>
               )}

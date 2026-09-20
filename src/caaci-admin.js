@@ -7,7 +7,7 @@
 // window.supabase.createClient. Serving it from our own origin drops the runtime
 // dependency on esm.sh — blocked/slow on some networks (e.g. China), which
 // otherwise leaves this panel stuck on "Checking access…".
-import { LANG_KEY, preferredLang, withFee } from './caaci-shared.js';
+import { LANG_KEY, effectiveStatus, preferredLang, withFee } from './caaci-shared.js';
 
 const cfg = window.CAACI_CONFIG || {};
 const sb = window.supabase;
@@ -849,12 +849,14 @@ function renderRows(rows) {
   tb.innerHTML = '';
   for (const m of rows) {
     const tr = document.createElement('tr');
-    const statusTxt = STATUS_LABEL[m.status]?.() || m.status || '—';
+    // As of today, not as stored — see effectiveStatus in caaci-shared.js.
+    const state = effectiveStatus(m.status, m.expires_at);
+    const statusTxt = STATUS_LABEL[state]?.() || state || '—';
     tr.innerHTML = `
       <td>${esc(m.full_name) || '—'}</td>
       <td>${esc(m.email)}</td>
       <td>${esc(tierName[m.tier_id] || m.tier_id || '—')}</td>
-      <td>${badgeHtml(m.status, statusTxt)}</td>
+      <td>${badgeHtml(state, statusTxt)}</td>
       <td>${fmtDate(m.expires_at)}</td>
       <td><button type="button" class="btn btn-sm">${t('Edit', '编辑')}</button></td>`;
     tr.querySelector('button').addEventListener('click', () => toggleEditor(tr, m));
@@ -2107,10 +2109,11 @@ function renderFamilyPlanMembers(list) {
 }
 
 function planMemberRow(m) {
+  const state = effectiveStatus(m.status, m.expires_at);
   return `<tr>
     <td>${esc(m.full_name || '—')}</td>
     <td>${esc(m.email || '—')}</td>
-    <td>${badgeHtml(m.status, STATUS_LABEL[m.status]?.() || m.status || '—')}</td>
+    <td>${badgeHtml(state, STATUS_LABEL[state]?.() || state || '—')}</td>
     <td>${esc(fmtDate(m.expires_at))}</td>
     <td><button type="button" class="btn btn-sm" data-member="${esc(m.id)}" data-act="create-family">${t('Create family', '建家庭')}</button></td></tr>`;
 }
@@ -2205,7 +2208,8 @@ function familyCard(h, invitesAvailable = true) {
   const card = document.createElement('section');
   card.className = 'card mb-3';
   const tierTxt = esc(tierName[h.tier_id] || h.tier_id || t('— no tier —', '— 无类型 —'));
-  const statusTxt = STATUS_LABEL[h.status]?.() || h.status;
+  const hState = effectiveStatus(h.status, h.expires_at);
+  const statusTxt = STATUS_LABEL[hState]?.() || hState;
   const expTxt = h.expires_at ? ` · ${t('expires', '到期')} ${fmtDate(h.expires_at)}` : '';
   const accounts = h.accounts || [];
   const people = h.people || [];
@@ -2226,10 +2230,10 @@ function familyCard(h, invitesAvailable = true) {
   const seatsTxt = `${t('Seats', '名额')}: ${esc(h.seats_used ?? '—')} / ${esc(h.seats_limit ?? '—')}`;
   const acctList = accounts.length
     ? `<ul class="list-unstyled mb-0" data-accounts>${accounts
-        .map(
-          (a) =>
-            `<li>${esc(a.full_name || '—')} — ${esc(a.email || '')}${founderBadge(a)} ${badgeHtml(a.status, STATUS_LABEL[a.status]?.() || a.status || '—')}</li>`,
-        )
+        .map((a) => {
+          const s = effectiveStatus(a.status, a.expires_at);
+          return `<li>${esc(a.full_name || '—')} — ${esc(a.email || '')}${founderBadge(a)} ${badgeHtml(s, STATUS_LABEL[s]?.() || s || '—')}</li>`;
+        })
         .join('')}</ul>`
     : `<p class="text-secondary mb-0">${t('None linked. Edit a member and choose this family.', '暂无关联账户。编辑会员并选择该家庭即可关联。')}</p>`;
   const peopleBlock = people.length
@@ -3468,8 +3472,11 @@ function emptyVolunteersLabel() {
 
 function renderVolunteers() {
   const rows = shownVolunteers();
-  const account = (a) =>
-    a ? badgeHtml(a.status, STATUS_LABEL[a.status]?.() || a.status) : '<span>—</span>';
+  const account = (a) => {
+    if (!a) return '<span>—</span>';
+    const s = effectiveStatus(a.status, a.expires_at);
+    return badgeHtml(s, STATUS_LABEL[s]?.() || s);
+  };
   // Everything a volunteer typed, and every admin-written title, goes through esc().
   const html = rows.map(
     (r) => `<tr data-id="${esc(r.id)}">

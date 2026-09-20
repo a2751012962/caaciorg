@@ -2396,13 +2396,16 @@ test('admin families: a founder outside the family, hostile actors, unknown even
 });
 
 // ---------- families: family-plan members without a family ----------
+// f1's expiry has to stay in the future for the row to read Active: every
+// status in the panel is now read as of today (effectiveStatus), so a date in
+// the past would print Expired however the column is stored.
 const PLAN_MEMBERS = [
   {
     id: 'f1',
     full_name: `Zheng ${HOSTILE}`,
     email: 'zg@x.com',
     status: 'active',
-    expires_at: '2026-03-01T00:00:00Z',
+    expires_at: '2099-03-01T00:00:00Z',
   },
   { id: 'f2', full_name: null, email: `yun${HOSTILE}@x.com`, status: 'expired', expires_at: null },
 ];
@@ -2436,7 +2439,7 @@ test('admin families: family-plan members without a family are listed with no fa
     assert.equal(rows[0].cells[0].textContent, `Zheng ${HOSTILE}`);
     assert.equal(rows[0].cells[1].textContent, 'zg@x.com');
     assert.equal(rows[0].cells[2].textContent, 'Active');
-    assert.equal(rows[0].cells[3].textContent, day('2026-03-01T00:00:00Z'));
+    assert.equal(rows[0].cells[3].textContent, day('2099-03-01T00:00:00Z'));
     assert.equal(rows[1].cells[0].textContent, '—');
     assert.equal(rows[1].cells[1].textContent, `yun${HOSTILE}@x.com`);
     assert.equal(rows[1].cells[2].textContent, 'Expired');
@@ -2474,6 +2477,28 @@ test('admin families: family-plan members without a family are listed with no fa
     await tick();
   } finally {
     window.confirm = realConfirm;
+    fetch.restore();
+  }
+});
+
+// The bug this rule was written for: a one-time member has no Stripe
+// subscription, so nothing ever moves their row off 'active' and the panel kept
+// calling a membership that ran out months ago valid.
+test('admin families: a member stored Active whose year has run out is listed as Expired', async () => {
+  const lapsed = [
+    { id: 'f9', full_name: 'Lin', email: 'lin@x.com', status: 'active', expires_at: '2020-01-01T00:00:00Z' },
+  ];
+  const fetch = mockFetch((u) =>
+    u.includes('/api/admin/households')
+      ? { body: { rows: [], invites_available: true, family_plan_members: lapsed } }
+      : { body: { ok: true } },
+  );
+  try {
+    await openFamilies();
+    const row = planMembersEl().querySelector('tbody tr');
+    assert.equal(row.cells[2].textContent, 'Expired');
+    assert.equal(row.cells[3].textContent, day('2020-01-01T00:00:00Z'));
+  } finally {
     fetch.restore();
   }
 });

@@ -6,7 +6,7 @@
 // sign-ups, and the business-listing review queue. Read-only; every number is
 // counted here from the same tables the other admin tabs page through.
 // Every request is gated by requireAdmin.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+import { json, bad, sb, requireAdmin, memberStatusFilter } from '../_lib.js';
 
 const STATUSES = ['active', 'pending', 'past_due', 'expired', 'cancelled'];
 export const EXPIRING_DAYS = 30;
@@ -149,8 +149,10 @@ export async function onRequestGet({ request, env }) {
 
   try {
     // ---- members ----
+    // Counted as of today (memberStatusFilter), so "Active" here means the same
+    // thing it means on a member's row and at the QR check.
     const status_counts = {};
-    for (const s of STATUSES) status_counts[s] = await count('members', [`status=eq.${s}`]);
+    for (const s of STATUSES) status_counts[s] = await count('members', [memberStatusFilter(s, nowIso)]);
     const members_total = STATUSES.reduce((sum, s) => sum + status_counts[s], 0);
     const new_this_month = await count('members', [`created_at=gte.${monthStart}`]);
 
@@ -162,7 +164,7 @@ export async function onRequestGet({ request, env }) {
     const by_tier = [];
     for (const tier of tiers) {
       const active = await count('members', [
-        'status=eq.active',
+        memberStatusFilter('active', nowIso),
         `tier_id=eq.${encodeURIComponent(tier.id)}`,
       ]);
       by_tier.push({ id: tier.id, name: tier.name, active });

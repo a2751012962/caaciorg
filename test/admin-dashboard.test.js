@@ -124,6 +124,12 @@ function route() {
       const tier = decodeURIComponent(u.match(/tier_id=eq\.([^&]+)/)[1]);
       return { body: [{ id: 'x' }], headers: range(TIER_ACTIVE[tier] ?? 0) };
     }
+    // Active and expired are counted as of today (memberStatusFilter), so they
+    // arrive as a logic tree rather than a plain status=eq.
+    if (u.includes('/rest/v1/members') && u.includes('and=(status.eq.active,'))
+      return { body: [{ id: 'x' }], headers: range(STATUS_TOTALS.active) };
+    if (u.includes('/rest/v1/members') && u.includes('and=(or(status.eq.expired,'))
+      return { body: [{ id: 'x' }], headers: range(STATUS_TOTALS.expired) };
     if (u.includes('/rest/v1/members') && u.includes('status=eq.')) {
       const status = u.match(/status=eq\.([^&]+)/)[1];
       return { body: [{ id: 'x' }], headers: range(STATUS_TOTALS[status] ?? 0) };
@@ -192,6 +198,10 @@ test('admin dashboard: counts members, revenue, events, volunteers and listings'
 
     // Members: one head-count per status, summed; new this month; per-tier actives.
     assert.deepEqual(d.members.status_counts, STATUS_TOTALS);
+    // "Active" is active today: a row whose expiry has passed is counted as
+    // expired, not as a member — nothing moves it there on its own.
+    const activeCount = fetch.calls.find((c) => c.url.includes('and=(status.eq.active,')).url;
+    assert.match(activeCount, /or\(expires_at\.is\.null,expires_at\.gt\./);
     assert.equal(d.members.total, 60);
     assert.equal(d.members.new_this_month, 6);
     assert.deepEqual(d.members.by_tier, [

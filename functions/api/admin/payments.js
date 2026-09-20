@@ -2,7 +2,7 @@
 // The membership-tracking view: recent payments (who, when, how much, first
 // year vs renewal, discount used) plus fleet stats — members per status and
 // revenue collected this calendar year. Rows are written by the Stripe webhook.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+import { json, bad, sb, requireAdmin, memberStatusFilter } from '../_lib.js';
 
 const MAX_LIMIT = 100;
 const STATUSES = ['active', 'pending', 'past_due', 'expired', 'cancelled'];
@@ -30,12 +30,13 @@ export async function onRequestGet({ request, env }) {
       count: 'exact',
     });
 
-    // Members per status (five cheap head-counts).
+    // Members per status (five cheap head-counts), counted as of today so the
+    // tiles agree with the Members list (memberStatusFilter).
     const status_counts = {};
     for (const s of STATUSES) {
       const r = await DB.select('members', {
         columns: 'id',
-        filters: [`status=eq.${s}`],
+        filters: [memberStatusFilter(s)],
         limit: 1,
         count: 'exact',
       });
