@@ -395,8 +395,8 @@ language their browser asks for (the first Chinese or English entry in
 - **The choice** is stored in `localStorage` under `caaci-lang`. It is set by the
   member-page toggle, a `?lang=zh|en` link, and a click on any link from one
   language copy of a mirrored page to the other (TranslatePress's floating
-  switcher). The admin panel keeps its own `caaci-admin-lang` and falls back to
-  `caaci-lang`, then the browser.
+  switcher). The back office reads and writes the same `caaci-lang`, so an admin's
+  language follows them between the site and `/admin/`.
 - **Mirrored pages** exist twice (`/about/`, `/zh/about/`). `build.mjs` puts an
   inline script (`mirrorLangScript` in `src/caaci-shared.js`) at the top of each
   `<head>` with the other copy's URL, so the switch happens before anything
@@ -410,7 +410,7 @@ language their browser asks for (the first Chinese or English entry in
 
 The three member-facing flows replace the mirrored WordPress pages **at the same
 URLs** — every inbound link and Stripe return URL keeps working. `/login-3/` is a
-standalone **Tabler** page (same open-source UI kit as `/admin/`, self-hosted,
+standalone **Tabler** page (an open-source Bootstrap-5 UI kit, self-hosted,
 bilingual EN/中文 with a toggle); `/membership/` and `/account/` are pages of the
 React site (`web/`), served in English and under `/zh/`:
 
@@ -763,21 +763,18 @@ active (families an admin made by hand, with no founder, keep using the
   4. For founder emails, set the `RESEND_API_KEY` and `NOTIFY_FROM` secrets in
      Cloudflare Pages.
 
-## Admin / back-office panel (`/admin-next/`, formerly `/admin/`)
+## Admin / back-office panel (`/admin/`)
 
-**The way in is `/admin-next/`**, the same back office rebuilt in React
-(`web/src/pages/admin/`): signing in as an admin lands there, and the token wallet and
-token back office link there. The Tabler `/admin/` below is still built and still works
-if you type the address — it is the fallback, not the entrance, and it is the panel the
-rest of this section describes tab by tab. Both talk to the same `/api/admin/*`
-Functions, so either one may be used and they cannot disagree.
+**The way in is `/admin/`**, the back office in React (`web/src/pages/admin/`):
+signing in as an admin lands there, and the token wallet and token back office link
+there. It is part of the React site (`web/`), so its bundles are the site's own; the
+only asset it loads separately is the Jodit editor for Compose News. `/admin-next/`,
+the address it was built at while the old panel still held `/admin/`, is a redirect
+stub into it.
 
-Its UI is built on **Tabler** (`@tabler/core`
-1.4.0, MIT — an open-source Bootstrap-5 admin/dashboard kit designed for exactly this
-kind of subscription back office), self-hosted at `/assets/tabler.min.css` +
-`/assets/tabler.min.js` from `src/vendor/` — the same no-CDN policy as supabase.js,
-qrcode.js, and FilePond. (The Inter webfont is not bundled, so the panel renders in
-system fonts.) It is gated two ways:
+The hand-authored **Tabler** panel this replaced tab for tab is retired to
+[`archive/admin-tabler/`](archive/admin-tabler/README.md): not built, not served,
+kept for reference. It is gated two ways:
 
 - **Client:** the page shows nothing until a logged-in admin session is detected.
 - **Server (authoritative):** every `/api/admin/*` Function calls `requireAdmin`, which
@@ -785,7 +782,7 @@ system fonts.) It is gated two ways:
   service-role key (RLS is bypassed by the server, so this check is essential).
 
 To grant access, set `is_admin` on a member (see the admin-bootstrap step below), then
-visit `/admin/` while logged in. The panel provides:
+visit `/admin/` while logged in. The panel provides, tab by tab:
 
 - **Members & Subscriptions** — search/filter/paginate members; **add** a member (creates a
   login account so they can sign in — set a password or leave it blank for a sign-in link),
@@ -831,12 +828,11 @@ visit `/admin/` while logged in. The panel provides:
   the business-services form arrive as **Pending**; **Approve** makes a listing official
   (publicly visible via the `biz_read` RLS policy), and staff can also create, edit, and
   delete listings directly. A stat tile shows how many are awaiting review.
-- **Media** — upload images (JPEG/PNG/WebP/GIF, up to 5 MB) to the site's own
-  **Supabase Storage** bucket (`media`, public-read) and copy their URLs into events and
-  directory listings. The uploader UI is the open-source **FilePond** library (MIT,
-  self-hosted like every other asset — no CDN). Writes go only through
-  `/api/admin/media` with the service-role key; the bucket re-enforces the size/type
-  limits server-side.
+- **Pictures** — there is no separate media tab: the event and directory forms carry an
+  image field that uploads the file (JPEG/PNG/WebP/GIF, up to 5 MB) to the site's own
+  **Supabase Storage** bucket (`media`, public-read) and fills the URL in. Writes go only
+  through `/api/admin/media` with the service-role key; the bucket re-enforces the
+  size/type limits server-side.
 - **Refunds** — issue a refund against any ledger row without leaving the panel.
   Pick a payment, refund the full amount or a partial amount, and the money is
   returned through Stripe (`/api/admin/refunds`) and written back to the row. A

@@ -7,7 +7,7 @@
  * brand. Membership, login and account UI lives on the Tabler pages and is
  * styled by caaci-theme.css, not here.
  *
- * The Tabler pages (/admin/ and member-src) load this file for the tokens only;
+ * The Tabler pages (member-src) load this file for the tokens only;
  * their look comes from caaci-theme.css, which maps --tblr-* onto --caaci-*.
  *
  * Tokens below are lifted from the live site's compiled CSS — see UI_GUIDELINE.md
@@ -405,22 +405,6 @@
 }
 .caaci-trust svg {
   flex: none;
-}
-
-/* FilePond, in CAACI colors */
-.filepond--panel-root {
-  background: var(--caaci-fill);
-  border: 1px dashed var(--caaci-line);
-  border-radius: var(--caaci-radius);
-}
-.filepond--label-action {
-  color: var(--caaci-red);
-  text-decoration-color: var(--caaci-red);
-}
-.filepond--drop-label {
-  color: var(--caaci-body);
-  font-family: var(--caaci-font-body);
-  font-size: var(--caaci-fs-sm);
 }
 
 /* ==========================================================================

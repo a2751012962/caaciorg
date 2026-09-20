@@ -342,7 +342,7 @@ export function TokenWallet({ lang, className = '' }: { lang: Lang; className?: 
             </a>
           )}
           {roles.admin && (
-            <a className={SECONDARY} href="/admin-next/">
+            <a className={SECONDARY} href="/admin/">
               <LayoutDashboard className="w-4 h-4" aria-hidden />
               {t('Admin', '管理后台')}
             </a>

@@ -1,4 +1,4 @@
-// caaci-member.js — the standalone member-facing pages (Tabler UI, like /admin/):
+// caaci-member.js — the standalone member-facing pages (Tabler UI):
 //   /login-3/     sign in · create account · forgot password  (data-page="login")
 // /membership/, /account/ and event registration are served by the React site (web/), not this module.
 // These pages replace the old mirror-enhancement flow (caaci-app.js) on their
@@ -451,13 +451,13 @@ function nextPath() {
   }
 }
 
-// Admins land in the back-office — the React console at /admin-next/, which is
-// now the one way in (the Tabler /admin/ is still built, but nothing points at
-// it). Everyone else goes where they came from, or to their account page.
+// Admins land in the back office — the React console at /admin/ (the Tabler
+// panel that used to be served there is retired: archive/admin-tabler/).
+// Everyone else goes where they came from, or to their account page.
 async function destinationAfterSignIn(uid, next) {
   if (uid) {
     const { data: me } = await supa.from('members').select('is_admin').eq('id', uid).maybeSingle();
-    if (me?.is_admin) return '/admin-next/';
+    if (me?.is_admin) return '/admin/';
   }
   return next || '/account/';
 }

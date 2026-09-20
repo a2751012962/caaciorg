@@ -11,10 +11,10 @@ always part of the site.
 
 **Two layers, one set of tokens.**
 
-| Layer          | Pages                               | Built with                       | Styled by                                                                                  |
-| -------------- | ----------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------ |
-| Mirror overlay | every mirrored WordPress page       | `caaci-app.js` injects markup    | `.caaci-*` component classes in [`src/caaci-ui.css`](src/caaci-ui.css)                     |
-| Tabler pages   | `/admin/`, `/login-3/`, `/privacy/` | **Tabler** (`@tabler/core`, MIT) | Tabler/Bootstrap classes, skinned by [`src/caaci-theme.css`](src/caaci-theme.css) — see §5 |
+| Layer          | Pages                         | Built with                       | Styled by                                                                                  |
+| -------------- | ----------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------ |
+| Mirror overlay | every mirrored WordPress page | `caaci-app.js` injects markup    | `.caaci-*` component classes in [`src/caaci-ui.css`](src/caaci-ui.css)                     |
+| Tabler pages   | `/login-3/`, `/privacy/`      | **Tabler** (`@tabler/core`, MIT) | Tabler/Bootstrap classes, skinned by [`src/caaci-theme.css`](src/caaci-theme.css) — see §5 |
 
 Both layers read the same `--caaci-*` tokens. The Tabler pages use Tabler classes
 only, never `.caaci-*` visual classes (element `id`s and `data-*` hooks keep the
@@ -82,7 +82,7 @@ Serif SC headings dropped, one web font instead of three).
 Poppins comes from one Google Fonts request, `GOOGLE_FONTS_URL` in
 `src/caaci-shared.js`. Every page's `<head>` carries `<!--CAACI_FONTS-->`, which
 `build.mjs` (Tabler pages) and `web/vite.config.ts` (React) replace with that
-link, so `/admin/`, `/login-3/` and the public site render the same face, body copy
+link, so `/login-3/`, `/privacy/` and the public site render the same face, body copy
 included. Emails and the standalone `/api/verify` and dispute pages cannot load
 web fonts and use `SYSTEM_FONT_STACK` (`functions/api/_fonts.js`: Arial with the
 same CJK faces). Headings keep `--caaci-maroon`, tightened `-0.025em` like the
@@ -158,8 +158,8 @@ Three element rules finish the match with the React site: `h1`–`h3` are set in
 `--caaci-radius-0` — the same as the overlay's `.caaci-btn`; and
 `--tblr-font-monospace` is `--caaci-font-mono`. The theme imports no fonts: each
 Tabler page's `<head>` has the `<!--CAACI_FONTS-->` marker that `build.mjs` fills
-with the site's Google Fonts link and `/assets/caaci-fonts.css` (§2), so `/admin/`,
-login and privacy render the React site's face, body copy included.
+with the site's Google Fonts link and `/assets/caaci-fonts.css` (§2), so login and
+privacy render the React site's face, body copy included.
 
 The public pages' site header (`member-src/_nav.html`, `.caaci-sitenav-site`) is a
 copy of the React header (`web/src/components/Navbar.tsx`), value for value from its
@@ -199,7 +199,7 @@ A page that needs something new gets a section here, written in tokens — not a
    not as a different app. Match radius (3px), the warm palette, and the single
    family above.
 6. **Tabler pages carry no CSS of their own.** No `<style>` blocks, no `style=""`
-   attributes, no hex literals in `admin-src/` or `member-src/`. Shared chrome goes
+   attributes, no hex literals in `member-src/`. Shared chrome goes
    in `caaci-theme.css`; `--tblr-*` is overridden there and nowhere else.
 7. **No dead classes.** A `.caaci-*` class in either stylesheet must be referenced
    by a page or a client module; delete the rule when the last use goes.
