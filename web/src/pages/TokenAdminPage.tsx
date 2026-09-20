@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Download, LayoutDashboard, Search } from 'lucide-react';
+import { Download, LayoutDashboard, Printer, Search } from 'lucide-react';
 import qrcode from 'qrcode-generator';
 import { FluidTabs } from '../components/FluidTabs';
 import {
@@ -17,6 +17,7 @@ import {
 } from '../components/tokens/ui';
 import { api } from '../lib/api';
 import type { Lang } from '../lib/lang';
+import { openPaySheet, PRINT_CELL } from '../lib/payPrint.js';
 import {
   day,
   kindLabel,
@@ -267,11 +268,15 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
   const [openId, setOpenId] = useState('');
   const [name, setName] = useState('');
   const [nameZh, setNameZh] = useState('');
+  // tokens per dollar, so a printed sticker can show the money as well
+  const [rate, setRate] = useState(10);
 
   const load = useCallback(async () => {
     const res = await tokens.admin.merchants();
-    if (res.ok) setRows(res.data.rows);
-    else say('error', refusalText(res, lang));
+    if (res.ok) {
+      setRows(res.data.rows);
+      setRate(res.data.rate || 10);
+    } else say('error', refusalText(res, lang));
     // `say` is a fresh closure each render; the list only depends on the language
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang]);
@@ -330,7 +335,7 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
                 )}
               </span>
             </button>
-            {openId === m.id && <MerchantDetail lang={lang} m={m} act={act} />}
+            {openId === m.id && <MerchantDetail lang={lang} m={m} rate={rate} act={act} />}
           </div>
         ))}
       </div>
@@ -379,10 +384,12 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
 function MerchantDetail({
   lang,
   m,
+  rate,
   act,
 }: {
   lang: Lang;
   m: AdminMerchant;
+  rate: number;
   act: (body: Record<string, unknown>, ok: string) => Promise<void>;
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
@@ -496,7 +503,7 @@ function MerchantDetail({
                   </button>
                 </div>
               </div>
-              {qrFor === i.id && <PayCode lang={lang} m={m} item={i} act={act} />}
+              {qrFor === i.id && <PayCode lang={lang} m={m} item={i} rate={rate} act={act} />}
             </li>
           ))}
         </ul>
@@ -1262,14 +1269,17 @@ function PayCode({
   lang,
   m,
   item,
+  rate,
   act,
 }: {
   lang: Lang;
   m: AdminMerchant;
   item: MenuItem;
+  rate: number;
   act: (body: Record<string, unknown>, ok: string) => Promise<void>;
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
+  const [blocked, setBlocked] = useState(false);
   const url = item.pay_code ? `${window.location.origin}/pay/?c=${item.pay_code}` : '';
   const png = useMemo(() => {
     if (!url) return '';
@@ -1281,6 +1291,30 @@ function PayCode({
 
   const issue = (ok: string) =>
     void act({ action: 'issue_code', merchant_id: m.id, id: item.id }, ok);
+
+  // Redrawn at the sheet's own cell size: the 8px cells on screen would print
+  // at about 90dpi, which a phone camera reads badly on a curved cup.
+  const print = (size: 'small' | 'large') => {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    const cell = PRINT_CELL[size];
+    setBlocked(
+      !openPaySheet(
+        {
+          name: item.name,
+          name_zh: item.name_zh,
+          tokens: item.tokens,
+          code: item.pay_code || '',
+          url,
+          rate,
+        },
+        size,
+        lang,
+        qr.createDataURL(cell, cell * 2),
+      ),
+    );
+  };
 
   if (!item.pay_code)
     return (
@@ -1332,7 +1366,23 @@ function PayCode({
             {t('reprint the sheet whenever you change the price above.', '上方改价后请重新打印。')}
           </p>
         )}
+        {blocked && (
+          <Notice tone="warn">
+            {t(
+              'Your browser blocked the print window. Allow pop-ups for this site and try again.',
+              '浏览器拦截了打印窗口，请允许本站弹出窗口后重试。',
+            )}
+          </Notice>
+        )}
         <div className="flex flex-wrap gap-2">
+          <button type="button" className={SECONDARY} onClick={() => print('small')}>
+            <Printer className="w-4 h-4" aria-hidden />
+            {t('Print 12 stickers', '打印贴纸（12 枚一页）')}
+          </button>
+          <button type="button" className={SECONDARY} onClick={() => print('large')}>
+            <Printer className="w-4 h-4" aria-hidden />
+            {t('Print 4 signs', '打印立牌（4 枚一页）')}
+          </button>
           {png && (
             <a
               className={SECONDARY}
@@ -1341,7 +1391,7 @@ function PayCode({
               aria-label={t('Download the QR image', '下载二维码图片')}
             >
               <Download className="w-4 h-4" aria-hidden />
-              {t('Download image', '下载图片')}
+              {t('Image only', '仅下载图片')}
             </a>
           )}
           <button

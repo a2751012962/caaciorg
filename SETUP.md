@@ -652,7 +652,11 @@ system (cheque / Zelle); the system records what is owed.
   (`receipt_sent_at` / `receipt_error`) and failures show on the back-office overview.
 - **Scan-to-pay (the QR on the product).** The other direction, for a stall with no phone
   to spare: `/token-admin/` → Merchants → Menu → "Make a QR" gives that menu item a code
-  and the sheet to print (`https://caaciorg.com/pay/?c=<code>`). A member scans the cup,
+  (`https://caaciorg.com/pay/?c=<code>`) and prints it — **12 stickers to a US Letter page**
+  for cups, or **4 larger ones** for a sign on the table, each carrying the item's name in
+  both languages, the price in tokens and in dollars, and the line that says to scan it.
+  ("Image only" still downloads the bare QR for a poster someone lays out by hand.)
+  A member scans the cup,
   sees **which shop and what for**, taps once, and the tokens move. The price is never in
   the URL — `token_charge_code` reads it from `merchant_items` as it charges — so an
   edited address cannot buy anything cheaper, and **changing an item's price changes what
