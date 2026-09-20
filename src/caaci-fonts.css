@@ -6,7 +6,7 @@
  * these two variables:
  *   - the React site (web/src/index.css @imports this file and maps the
  *     variables onto Tailwind's --font-sans / --font-mono),
- *   - the Tabler pages (/admin/, /login-3/, /privacy/) and the mirrored
+ *   - the Tabler pages (/login-3/, /privacy/) and the mirrored
  *     WordPress pages, which link /assets/caaci-fonts.css before caaci-ui.css
  *     (caaci-ui.css's --caaci-font-body/display/button are aliases of these).
  * The Google Fonts request that loads Poppins is GOOGLE_FONTS_URL in

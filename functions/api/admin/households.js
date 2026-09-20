@@ -18,7 +18,9 @@ const STATUSES = ['pending', 'active', 'expired', 'cancelled'];
 // (<table>_<column>_fkey). members_household_id_fkey exists since 0004, so this
 // query works whether or not 0017 has been applied.
 const COLUMNS =
-  '*,accounts:members!members_household_id_fkey(id,full_name,email,status,tier_id),people:household_members(*)';
+  // expires_at rides along so each account's status can be read as of today
+  // (effectiveStatus), the same way the Members tab reads it.
+  '*,accounts:members!members_household_id_fkey(id,full_name,email,status,tier_id,expires_at),people:household_members(*)';
 
 // Founder, invitations and activity only exist after 0017. They are fetched
 // separately, and a failure there leaves the families list intact.

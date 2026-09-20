@@ -358,10 +358,28 @@ export function stripe(env) {
 // { member, tier_id, expires_at }, or null when there is no valid plan.
 const MEMBERSHIP_COLS = 'id,full_name,email,tier_id,status,expires_at,household_id';
 const liveUntil = (row) => !row.expires_at || new Date(row.expires_at) > new Date();
+
+// The same rule as a PostgREST filter, so an admin head-count or a filtered
+// list agrees with what the panel prints for each row (effectiveStatus in
+// src/caaci-shared.js says why a stored 'active' can be stale). 'active' means
+// active AND not past its expiry; 'expired' picks up both the stored ones and
+// the lapsed 'active' rows. Every other status is stored truth.
+// Verified against PostgREST: quoting the timestamp keeps its ':' and '.' out
+// of the logic-tree grammar.
+// One row's version of the same question: is this membership good today?
+export const memberIsActive = (row) => !!row && row.status === 'active' && liveUntil(row);
+export function memberStatusFilter(status, nowIso = new Date().toISOString()) {
+  const now = `"${encodeURIComponent(nowIso)}"`;
+  if (status === 'active')
+    return `and=(status.eq.active,or(expires_at.is.null,expires_at.gt.${now}))`;
+  if (status === 'expired')
+    return `and=(or(status.eq.expired,and(status.eq.active,expires_at.lte.${now})))`;
+  return `status=eq.${status}`;
+}
 export async function effectiveMembership(DB, memberId) {
   const m = await DB.selectOne('members', { id: memberId }, MEMBERSHIP_COLS);
   if (!m) return null;
-  if (m.tier_id && m.status === 'active' && liveUntil(m))
+  if (m.tier_id && memberIsActive(m))
     return { member: m, tier_id: m.tier_id, expires_at: m.expires_at };
   if (!m.household_id) return null;
   // Before 0017 is applied a family lookup can fail (a PostgREST error on a

@@ -156,7 +156,7 @@ test('login page: password sign-in redirects, admins go to /admin/', async () =>
   document.querySelector('#caaci-li-pwd').value = 'password123';
   document.querySelector('#caaci-login-form').dispatchEvent(new Event('submit'));
   await tick();
-  assert.equal(location.href, '/admin-next/');
+  assert.equal(location.href, '/admin/');
 });
 
 test('login page: signup blocks duplicates and short passwords', async () => {
@@ -211,7 +211,7 @@ test('login page: a visitor who is already signed in is sent on instead of shown
   setup('login');
   member.__setSupa(supaStub({ user, isAdmin: true }));
   await member.wireAuthPage();
-  assert.equal(location.href, '/admin-next/');
+  assert.equal(location.href, '/admin/');
 
   // A stored session Supabase rejects must leave the form usable, not bounce.
   setup('login');
@@ -259,7 +259,7 @@ test('login page: an off-site ?next= never leaves the site, by form sign-in or a
   setup('login', { search: `?next=${encodeURIComponent('/\t/evil.example')}` });
   member.__setSupa(supaStub({ user, isAdmin: true }));
   await member.wireAuthPage();
-  assert.equal(location.href, '/admin-next/');
+  assert.equal(location.href, '/admin/');
 });
 
 // ---------- email sending: reset links, confirmations, cooldowns ----------

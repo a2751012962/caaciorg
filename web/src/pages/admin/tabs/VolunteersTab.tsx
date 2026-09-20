@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
+import { effectiveStatus } from '../../../lib/shared';
 import {
   DataTable,
   InlineConfirm,
@@ -140,14 +141,11 @@ export default function VolunteersTab() {
     {
       key: 'account',
       label: t('Account', '账户'),
-      render: (r) =>
-        r.account ? (
-          <Status tone={memberStatusTone(r.account.status)}>
-            {memberStatusLabel(t, r.account.status)}
-          </Status>
-        ) : (
-          '—'
-        ),
+      render: (r) => {
+        if (!r.account) return '—';
+        const s = effectiveStatus(r.account.status, r.account.expires_at);
+        return <Status tone={memberStatusTone(s)}>{memberStatusLabel(t, s)}</Status>;
+      },
     },
   ];
 

@@ -36,7 +36,11 @@ test('build: the React site is written at every route it serves, in English and 
     // tokens: a scanned member card lands on /charge/?m=…
     'charge/',
     'merchant/',
+    // scan-to-pay: the address printed on a product's QR
+    'pay/',
     'token-admin/',
+    // the back office: this app renders the console at /admin/ (App.tsx)
+    'admin/',
     'plan-preview/',
   ];
   const home = await dist('index.html');
@@ -76,6 +80,13 @@ test('build: the login page stays Tabler; old pages point into the React site', 
     await dist('login/index.html'),
     /location\.replace\("\/login-3\/" \+ location\.search/,
   );
+  // The back office answers at /admin/ (the React app, asserted above), and the
+  // address it was built at while the Tabler panel still held /admin/ is a stub
+  // into it, so an admin's bookmark still opens the console.
+  assert.match(await dist('admin-next/index.html'), /location\.replace\("\/admin\/"/);
+  assert.match(await dist('zh/admin-next/index.html'), /location\.replace\("\/zh\/admin\/"/);
+  // Nothing of the retired Tabler panel is served any more.
+  assert.equal((await dist('admin/index.html')).includes('caaci-admin.js'), false);
   // Stripe's donation cancel_url, and the volunteer page: their dialog on the home page.
   assert.match(await dist('donate/index.html'), /location\.replace\("\/\?modal=donate"\)/);
   assert.match(

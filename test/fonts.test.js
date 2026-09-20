@@ -2,8 +2,9 @@
 // in src/caaci-fonts.css, and the Google Fonts request once, GOOGLE_FONTS_URL in
 // src/caaci-shared.js. Every other file reaches them through the --caaci-font-*
 // variables, the Tailwind font-* utilities or the <!--CAACI_FONTS--> marker, so
-// a page cannot drift onto fonts of its own again (as /admin/ had: Saira Extra
-// Condensed buttons, a system-sans body because Poppins was never loaded).
+// a page cannot drift onto fonts of its own again (as the old Tabler back office
+// had: Saira Extra Condensed buttons, a system-sans body because Poppins was
+// never loaded).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
@@ -40,7 +41,6 @@ const sources = [
   ...(await walk(join(ROOT, 'src'))),
   ...(await walk(join(ROOT, 'web', 'src'))),
   ...(await walk(join(ROOT, 'member-src'))),
-  ...(await walk(join(ROOT, 'admin-src'))),
   ...(await walk(join(ROOT, 'functions'))),
   join(ROOT, 'web', 'index.html'),
   join(ROOT, 'web', 'vite.config.ts'),
@@ -95,12 +95,7 @@ test('the Google Fonts request is one constant and every page head takes it from
     if (/fonts\.googleapis|fonts\.gstatic/.test(await readAbs(f))) hits.push(p);
   }
   assert.deepEqual(hits, [], 'link Google Fonts through <!--CAACI_FONTS--> (googleFontLinks)');
-  for (const p of [
-    'web/index.html',
-    'member-src/login.html',
-    'member-src/privacy.html',
-    'admin-src/index.html',
-  ])
+  for (const p of ['web/index.html', 'member-src/login.html', 'member-src/privacy.html'])
     assert.match(await read(p), /<!--CAACI_FONTS-->/, `${p}: missing <!--CAACI_FONTS-->`);
   assert.ok(GOOGLE_FONTS_URL.includes('family=Poppins:'), 'Poppins not requested');
   assert.equal(GOOGLE_FONTS_URL.match(/family=/g).length, 1, 'one family only');

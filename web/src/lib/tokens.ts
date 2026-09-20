@@ -69,6 +69,9 @@ export interface MenuItem {
   tokens: number;
   sort_order?: number;
   active?: boolean;
+  /** the code in this item's printed QR (0030); null = no sticker issued */
+  pay_code?: string | null;
+  pay_code_at?: string | null;
 }
 
 export interface ScanMerchant extends MerchantRef {
@@ -107,6 +110,37 @@ export interface MerchantTx {
   related_tx: string | null;
   settled: boolean;
   can_void: boolean;
+  /** paid by the customer scanning the item's own QR, with nobody at a till */
+  self_serve: boolean;
+  /** the four characters their screen shows, for the counter to check */
+  confirm: string;
+  /** when the stall handed it over (0031); null = still waiting */
+  collected_at: string | null;
+  /** who ticked it off, so a second claim on one payment names someone */
+  collected_by: string;
+  can_collect: boolean;
+}
+
+/** What a printed pay code (0030) stands for: /api/tokens/pay?c=<code>. */
+export interface PayCode {
+  code: string;
+  merchant: { name: string; name_zh: string | null };
+  item: { name: string; name_zh: string | null; tokens: number };
+  /** false when the shop is suspended, over the cap, or not cleared for scan-to-pay */
+  open: boolean;
+  suspended: boolean;
+  rate: number;
+  signed_in: boolean;
+  balance: number | null;
+}
+
+export interface PayDone {
+  ok: true;
+  tx_id: string;
+  confirm: string;
+  amount: number;
+  balance: number;
+  duplicate: boolean;
 }
 
 export interface Settlement {
@@ -149,6 +183,9 @@ export interface TokenSettings {
   dispute_days: number;
   settle_min_cents: number;
   suspend_after: number;
+  /** 0030; older databases answer without these until the migration is applied */
+  pay_repeat_seconds?: number;
+  pay_allow_partners?: boolean;
 }
 
 export interface Overview {
@@ -236,6 +273,19 @@ export const tokens = {
       '/api/tokens/charge',
       body,
     ),
+  // Scan-to-pay: the code is read anonymously (the visitor is holding the
+  // sticker), and paid once they have signed in.
+  payCode: (code: string) => get<PayCode>(`/api/tokens/pay?c=${encodeURIComponent(code)}`),
+  pay: (body: { code: string; idem_key: string; allow_repeat?: boolean }) =>
+    post<PayDone>('/api/tokens/pay', body),
+
+  /** Tick a scan-to-pay charge as handed over, or undo a mis-tap. */
+  collect: (tx_id: string, collected: boolean) =>
+    post<{ ok: true; collected_at: string | null; collected_by: string | null }>(
+      '/api/tokens/collect',
+      { tx_id, collected },
+    ),
+
   void: (tx_id: string, reason: string) =>
     post<{ ok: true; amount: number; balance: number | null }>('/api/tokens/void', {
       tx_id,
