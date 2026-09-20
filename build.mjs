@@ -215,6 +215,8 @@ const SPA_ROUTES = [
   // merchant, /merchant/ is a shop's own console, /token-admin/ the back office.
   'charge',
   'merchant',
+  // /pay/?c=<code> is the QR printed on a product (0030).
+  'pay',
   'token-admin',
   // The back office rebuilt in React (web/src/pages/admin/), beside the Tabler /admin/.
   'admin-next',

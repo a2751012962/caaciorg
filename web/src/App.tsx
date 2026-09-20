@@ -40,6 +40,8 @@ const ChargePage = lazy(() =>
 const MerchantPage = lazy(() =>
   import('./pages/MerchantPage').then((m) => ({ default: m.MerchantPage })),
 );
+// /pay/?c=<code>: where the QR printed on a product lands its buyer.
+const PayPage = lazy(() => import('./pages/PayPage').then((m) => ({ default: m.PayPage })));
 const TokenAdminPage = lazy(() =>
   import('./pages/TokenAdminPage').then((m) => ({ default: m.TokenAdminPage })),
 );
@@ -66,6 +68,7 @@ export type PageId =
   | 'event-register'
   | 'charge'
   | 'merchant'
+  | 'pay'
   | 'token-admin'
   // Cloudflare Pages serves dist/404.html (this app) at any address that
   // matches nothing; the page keeps that address and says so.
@@ -84,6 +87,7 @@ const PAGE_BY_SEGMENT: Record<string, PageId> = {
   'event-register': 'event-register',
   charge: 'charge',
   merchant: 'merchant',
+  pay: 'pay',
   'token-admin': 'token-admin',
 };
 
@@ -253,6 +257,10 @@ function Site() {
         return <ChargePage key={route} {...pageProps} />;
       case 'merchant':
         return <MerchantPage key={route} {...pageProps} />;
+      case 'pay':
+        // Keyed on the address: scanning a second sticker without leaving the
+        // page must start a new payment, not reuse the last one's state.
+        return <PayPage key={route} {...pageProps} />;
       case 'token-admin':
         return <TokenAdminPage {...pageProps} />;
       case 'not-found':
