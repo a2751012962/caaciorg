@@ -166,7 +166,11 @@ const SETTING_INTS = [
   'dispute_days',
   'settle_min_cents',
   'suspend_after',
+  'pay_repeat_seconds',
 ];
+// Settings a zero is meaningful for: no statement minimum, and no second
+// confirmation on a repeated scan-to-pay.
+const ZERO_OK = new Set(['settle_min_cents', 'pay_repeat_seconds']);
 
 export async function onRequestPost({ request, env }) {
   if (!tokensEnabled(env)) return tokensOff();
@@ -185,9 +189,14 @@ export async function onRequestPost({ request, env }) {
     for (const k of SETTING_INTS) {
       if (b[k] === undefined) continue;
       const n = Number(b[k]);
-      if (!Number.isInteger(n) || n < (k === 'settle_min_cents' ? 0 : 1))
-        return bad(`Invalid ${k}.`);
+      if (!Number.isInteger(n) || n < (ZERO_OK.has(k) ? 0 : 1)) return bad(`Invalid ${k}.`);
       patch[k] = n;
+    }
+    // Whether shops CAACI does not run may take scan-to-pay. This is the
+    // compliance decision behind 0027/0030, so it is root's and explicit.
+    if (b.pay_allow_partners !== undefined) {
+      if (typeof b.pay_allow_partners !== 'boolean') return bad('Invalid pay_allow_partners.');
+      patch.pay_allow_partners = b.pay_allow_partners;
     }
     if (b.grants !== undefined) {
       if (!b.grants || typeof b.grants !== 'object' || Array.isArray(b.grants))

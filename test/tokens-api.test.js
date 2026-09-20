@@ -9,6 +9,10 @@ import { maskName, tokensEnabled } from '../functions/api/_tokens.js';
 import { onRequestGet as me } from '../functions/api/tokens/me.js';
 import { onRequestGet as scan } from '../functions/api/tokens/scan.js';
 import { onRequestPost as charge } from '../functions/api/tokens/charge.js';
+import {
+  onRequestGet as payGet,
+  onRequestPost as payPost,
+} from '../functions/api/tokens/pay.js';
 import { onRequestPost as buy } from '../functions/api/tokens/buy.js';
 import { onRequestGet as disputeGet } from '../functions/api/tokens/dispute.js';
 import {
@@ -73,6 +77,8 @@ test('the switch: off by default, and every token endpoint is dark while it is o
         env,
       }),
       charge({ request: fakeRequest({ body: {}, headers: auth }), env }),
+      payGet({ request: fakeRequest({ url: 'https://x/api/tokens/pay?c=ABCD2345' }), env }),
+      payPost({ request: fakeRequest({ body: { code: 'ABCD2345' }, headers: auth }), env }),
       buy({ request: fakeRequest({ body: {}, headers: auth }), env }),
       adminTokens({ request: fakeRequest({ body: {}, headers: auth }), env }),
       roles({ request: fakeRequest({ body: {}, headers: auth }), env }),
@@ -195,6 +201,173 @@ test('charge: the price is the menu’s, not the request’s, and a receipt goes
       JSON.parse(stamp.options.body).receipt_sent_at,
       'the receipt outcome is stamped on the row',
     );
+  } finally {
+    fetch.restore();
+  }
+});
+
+// ---- scan-to-pay: the QR printed on the product (0030) ----
+
+const CODE = 'K7M2PQ34';
+const stall = (over = {}) => ({
+  merchant_items: [
+    {
+      id: ITEM,
+      merchant_id: SHOP,
+      name: 'Orange juice',
+      name_zh: '橙汁',
+      tokens: 30,
+      active: true,
+      pay_code: CODE,
+    },
+  ],
+  merchants: [
+    { id: SHOP, name: 'CAACI Events', name_zh: '华协活动', kind: 'internal', status: 'active' },
+  ],
+  token_settings: [{ tokens_per_dollar: 10, max_charge: 500, pay_allow_partners: false }],
+  ...over,
+});
+
+test('pay: a printed code says which shop and what for before anyone signs in', async () => {
+  const fetch = mockFetch(backend(stall()));
+  try {
+    const r = await payGet({
+      request: fakeRequest({ url: `https://x/api/tokens/pay?c=${CODE}` }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(r.status, 200);
+    const data = await r.json();
+    assert.equal(data.item.tokens, 30);
+    assert.equal(data.merchant.name, 'CAACI Events');
+    assert.equal(data.open, true);
+    assert.equal(data.signed_in, false);
+    assert.equal(data.balance, null, 'a signed-out visitor has no balance to show');
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('/auth/v1/user')),
+      false,
+      'no session was offered, so none is validated',
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('pay: a code that is not in the printed alphabet never reaches the database', async () => {
+  const fetch = mockFetch(backend(stall()));
+  try {
+    for (const c of ['hello!', 'ABC', 'I0OU1234', `${CODE}'--`]) {
+      const r = await payGet({
+        request: fakeRequest({ url: `https://x/api/tokens/pay?c=${encodeURIComponent(c)}` }),
+        env: fakeEnv(ON),
+      });
+      assert.equal(r.status, 404, c);
+    }
+    assert.equal(fetch.calls.length, 0);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('pay: a partner shop cannot take scan-to-pay until root turns it on', async () => {
+  const fetch = mockFetch(
+    backend(
+      stall({
+        merchants: [
+          { id: SHOP, name: 'Kung Fu Tea', name_zh: '功夫茶', kind: 'partner', status: 'active' },
+        ],
+      }),
+    ),
+  );
+  try {
+    const r = await payGet({
+      request: fakeRequest({ url: `https://x/api/tokens/pay?c=${CODE}` }),
+      env: fakeEnv(ON),
+    });
+    assert.equal((await r.json()).open, false);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('pay: the amount is the item’s, the payer is the session, and a receipt goes out', async () => {
+  const fetch = mockFetch(
+    backend(
+      stall({
+        token_charge_code: { ok: true, tx_id: TX, amount: 30, merchant_id: SHOP, balance: 120 },
+        token_tx: [
+          { id: TX, amount: -30, created_at: '2026-09-27T20:00:00Z', dispute_key: TX, items: [] },
+        ],
+        members: [{ id: USER, email: 'wei@example.com', full_name: 'Wei Zhang' }],
+      }),
+    ),
+  );
+  try {
+    const r = await payPost({
+      request: fakeRequest({
+        headers: auth,
+        // a forged amount has nowhere to go: the endpoint sends the code alone
+        body: { code: CODE.toLowerCase(), idem_key: 'abc', amount: 1, tokens: 1 },
+      }),
+      env: fakeEnv({ ...ON, RESEND_API_KEY: 're_1', NOTIFY_FROM: 'CAACI <no-reply@caaciorg.com>' }),
+    });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), {
+      ok: true,
+      tx_id: TX,
+      confirm: '5555',
+      amount: 30,
+      balance: 120,
+      duplicate: false,
+    });
+
+    const rpc = fetch.calls.find((c) => c.url.includes('rpc/token_charge_code'));
+    const args = JSON.parse(rpc.options.body);
+    assert.deepEqual(Object.keys(args).sort(), [
+      'p_allow_repeat',
+      'p_code',
+      'p_idem',
+      'p_member',
+    ]);
+    assert.equal(args.p_code, CODE, 'the code is read back in the printed case');
+    assert.equal(args.p_member, USER, 'the payer is the session, not the body');
+    assert.equal(args.p_allow_repeat, false);
+
+    const mail = fetch.calls.find((c) => c.url.includes('api.resend.com'));
+    assert.match(JSON.parse(mail.options.body).html, /api\/tokens\/dispute\?tx=/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('pay: signed out takes nothing; a repeat comes back in both languages', async () => {
+  let fetch = mockFetch(backend(stall()));
+  try {
+    const r = await payPost({
+      request: fakeRequest({ body: { code: CODE, idem_key: 'abc' } }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(r.status, 401);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('token_charge_code')),
+      false,
+    );
+  } finally {
+    fetch.restore();
+  }
+
+  fetch = mockFetch(
+    backend(stall({ token_charge_code: { error: 'repeat_too_soon', seconds: 120 } })),
+  );
+  try {
+    const r = await payPost({
+      request: fakeRequest({ headers: auth, body: { code: CODE, idem_key: 'abc' } }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(r.status, 409);
+    const data = await r.json();
+    assert.equal(data.code, 'repeat_too_soon');
+    assert.match(data.error, /2 minute/);
+    assert.match(data.error_zh, /2 分钟/);
   } finally {
     fetch.restore();
   }

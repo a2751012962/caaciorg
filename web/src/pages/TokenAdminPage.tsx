@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { LayoutDashboard, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Download, LayoutDashboard, Search } from 'lucide-react';
+import qrcode from 'qrcode-generator';
 import { FluidTabs } from '../components/FluidTabs';
 import {
   DANGER,
@@ -26,6 +27,7 @@ import {
   usd,
   when,
   type AdminMerchant,
+  type MenuItem,
   type LedgerTx,
   type Overview,
   type TokenSettings,
@@ -388,6 +390,8 @@ function MerchantDetail({
   const [item, setItem] = useState({ name: '', name_zh: '', tokens: '', group_label: '' });
   const [payout, setPayout] = useState(m.payout_note ?? '');
   const [refs, setRefs] = useState<Record<string, string>>({});
+  // the menu item whose printed QR is open, '' = none
+  const [qrFor, setQrFor] = useState('');
 
   return (
     <div className="mt-3 mb-3 space-y-6">
@@ -463,21 +467,36 @@ function MerchantDetail({
         <p className={LABEL}>{t('Menu', '菜单')}</p>
         <ul className="divide-y divide-neutral-200/80">
           {m.items.map((i) => (
-            <li key={i.id} className="py-2 flex items-center justify-between gap-3 text-xs">
-              <span className="min-w-0 truncate">
-                {i.group_label && <span className="text-neutral-500">[{i.group_label}] </span>}
-                <span className="font-semibold text-neutral-900">{i.name}</span>
-                {i.name_zh ? ` · ${i.name_zh}` : ''} — {i.tokens} {t('tokens', '币')}
-              </span>
-              <button
-                type="button"
-                className="min-h-[44px] text-rose-700 font-semibold cursor-pointer"
-                onClick={() =>
-                  void act({ action: 'delete_item', id: i.id }, t('Deleted.', '已删除。'))
-                }
-              >
-                {t('Delete', '删除')}
-              </button>
+            <li key={i.id} className="py-2 text-xs">
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate">
+                  {i.group_label && <span className="text-neutral-500">[{i.group_label}] </span>}
+                  <span className="font-semibold text-neutral-900">{i.name}</span>
+                  {i.name_zh ? ` · ${i.name_zh}` : ''} — {i.tokens} {t('tokens', '币')}
+                  {i.pay_code && (
+                    <span className="ml-2 text-neutral-500 tabular-nums">QR {i.pay_code}</span>
+                  )}
+                </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    type="button"
+                    className="min-h-[44px] font-semibold text-brick cursor-pointer"
+                    onClick={() => setQrFor(qrFor === i.id ? '' : i.id)}
+                  >
+                    {i.pay_code ? t('QR code', '二维码') : t('Make a QR', '生成二维码')}
+                  </button>
+                  <button
+                    type="button"
+                    className="min-h-[44px] text-rose-700 font-semibold cursor-pointer"
+                    onClick={() =>
+                      void act({ action: 'delete_item', id: i.id }, t('Deleted.', '已删除。'))
+                    }
+                  >
+                    {t('Delete', '删除')}
+                  </button>
+                </div>
+              </div>
+              {qrFor === i.id && <PayCode lang={lang} m={m} item={i} act={act} />}
             </li>
           ))}
         </ul>
@@ -1046,7 +1065,9 @@ function SettingsTab({
     void_hours: String(settings.void_hours),
     settle_min_cents: String(settings.settle_min_cents),
     suspend_after: String(settings.suspend_after),
+    pay_repeat_seconds: String(settings.pay_repeat_seconds ?? 120),
   });
+  const [payPartners, setPayPartners] = useState(settings.pay_allow_partners === true);
   const [admins, setAdmins] = useState<
     { id: string; full_name: string | null; email: string | null; is_root: boolean }[]
   >([]);
@@ -1081,6 +1102,7 @@ function SettingsTab({
         .map((s) => Math.round(Number(s.trim()) * 100))
         .filter((c) => c > 0),
       ...Object.fromEntries(Object.entries(n).map(([k, v]) => [k, Number(v)])),
+      pay_allow_partners: payPartners,
     });
     if (!res.ok) return say('error', refusalText(res, lang));
     say('success', t('Settings saved.', '设置已保存。'));
@@ -1152,7 +1174,25 @@ function SettingsTab({
           {field('void_hours', t('Hours a shop can void', '商家可撤销时限（小时）'))}
           {field('settle_min_cents', t('Smallest statement (cents)', '最低结算额（美分）'))}
           {field('suspend_after', t('Upheld disputes before suspension', '成立申诉几笔后暂停'))}
+          {field(
+            'pay_repeat_seconds',
+            t('Scan-to-pay: ask again within (seconds)', '扫码付款：多少秒内重复需再确认'),
+          )}
         </div>
+        <label className="flex items-start gap-3 text-xs text-neutral-700 leading-relaxed">
+          <input
+            type="checkbox"
+            className="mt-0.5 w-4 h-4 accent-brick cursor-pointer"
+            checked={payPartners}
+            onChange={(e) => setPayPartners(e.target.checked)}
+          />
+          <span>
+            {t(
+              'Let partner shops take scan-to-pay. Off, only CAACI’s own stalls can — which is what the tokens’ compliance position rests on. Turn this on only after that review.',
+              '允许合作商家收扫码付款。关闭时只有华协自营摊位可以——华协币的合规依据正建立在这一点上。请在重新评估后再开启。',
+            )}
+          </span>
+        </label>
         <button type="submit" className={PRIMARY}>
           {t('Save settings', '保存设置')}
         </button>
@@ -1208,6 +1248,124 @@ function SettingsTab({
             '管理员可在上述上限内直接发币。root 只能在 Supabase SQL 编辑器中设置。',
           )}
         </p>
+      </div>
+    </div>
+  );
+}
+
+// The printed sticker for one menu item (0030). The code is the sticker: a new
+// one kills every sheet already printed, which is the answer to a QR that was
+// swapped, copied or photographed. The price is NOT in the code — it is read
+// from this item when someone pays — so editing the price below changes what
+// every sticker already on a cup charges, and the sheets have to be reprinted.
+function PayCode({
+  lang,
+  m,
+  item,
+  act,
+}: {
+  lang: Lang;
+  m: AdminMerchant;
+  item: MenuItem;
+  act: (body: Record<string, unknown>, ok: string) => Promise<void>;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const url = item.pay_code ? `${window.location.origin}/pay/?c=${item.pay_code}` : '';
+  const png = useMemo(() => {
+    if (!url) return '';
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    return qr.createDataURL(8, 16);
+  }, [url]);
+
+  const issue = (ok: string) =>
+    void act({ action: 'issue_code', merchant_id: m.id, id: item.id }, ok);
+
+  if (!item.pay_code)
+    return (
+      <div className="mt-2 mb-1 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80 space-y-2">
+        <p className="text-neutral-600 leading-relaxed">
+          {t(
+            `A QR on the product that charges ${item.tokens} tokens when a member scans it. Nobody needs a till.`,
+            `给这件商品生成一张二维码，会员扫码即可支付 ${item.tokens} 币，摊位不需要任何设备。`,
+          )}
+        </p>
+        <button
+          type="button"
+          className={SECONDARY}
+          onClick={() => issue(t('QR code created.', '二维码已生成。'))}
+        >
+          {t('Make a QR code', '生成二维码')}
+        </button>
+        {m.kind !== 'internal' && (
+          <p className="text-[11px] text-amber-800">
+            {t(
+              'Partner shops can only take scan-to-pay once root turns it on in Settings.',
+              '合作商家需由 root 在设置中开启后才能收扫码付款。',
+            )}
+          </p>
+        )}
+      </div>
+    );
+
+  return (
+    <div className="mt-2 mb-1 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80 flex flex-col sm:flex-row gap-4">
+      {png && (
+        <img
+          src={png}
+          alt={t(`Pay QR code for ${item.name}`, `${item.name} 付款二维码`)}
+          className="w-36 h-36 rounded-xl border border-neutral-200 bg-white shrink-0"
+        />
+      )}
+      <div className="min-w-0 space-y-2">
+        <p className="font-bold text-ink break-words">
+          {item.name}
+          {item.name_zh ? ` · ${item.name_zh}` : ''} — {item.tokens} {t('tokens', '币')}
+        </p>
+        <p className="text-neutral-600">
+          <code className="break-all text-ink">{url}</code>
+        </p>
+        {item.pay_code_at && (
+          <p className="text-[11px] text-neutral-500">
+            {t('Issued', '生成于')} {day(item.pay_code_at, lang)} ·{' '}
+            {t('reprint the sheet whenever you change the price above.', '上方改价后请重新打印。')}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {png && (
+            <a
+              className={SECONDARY}
+              download={`caaci-pay-${item.pay_code}.gif`}
+              href={png}
+              aria-label={t('Download the QR image', '下载二维码图片')}
+            >
+              <Download className="w-4 h-4" aria-hidden />
+              {t('Download image', '下载图片')}
+            </a>
+          )}
+          <button
+            type="button"
+            className={SECONDARY}
+            onClick={() =>
+              issue(t('New code. Reprint the stickers.', '已换新码，请重新打印贴纸。'))
+            }
+          >
+            {t('New code', '换新码')}
+          </button>
+          <button
+            type="button"
+            className={DANGER}
+            onClick={() =>
+              void act(
+                { action: 'clear_code', merchant_id: m.id, id: item.id },
+                t('Scan-to-pay is off for this item.', '该商品扫码付款已停用。'),
+              )
+            }
+          >
+            {t('Stop scan-to-pay', '停用扫码付款')}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -4,7 +4,7 @@
 // read it. Customers appear by family name only — no email, no phone, and
 // nothing about what they spent anywhere else.
 import { json, bad } from '../_lib.js';
-import { tokenGate, callerRoles, maskName, UUID_RE } from '../_tokens.js';
+import { tokenGate, callerRoles, confirmCode, maskName, UUID_RE } from '../_tokens.js';
 
 const PAGE = 50;
 
@@ -35,7 +35,7 @@ export async function onRequestGet({ request, env }) {
     const [tx, open, settlements, settings] = await Promise.all([
       DB.select('token_tx', {
         columns:
-          'id,created_at,kind,amount,state,items,note,reason,member_id,actor_id,related_tx,settlement_id',
+          'id,created_at,kind,amount,state,items,note,reason,member_id,actor_id,related_tx,settlement_id,self_serve',
         filters: [`merchant_id=eq.${merchantId}`],
         order: 'created_at.desc',
         limit: PAGE,
@@ -88,8 +88,14 @@ export async function onRequestGet({ request, env }) {
         items: t.items || [],
         note: t.note || t.reason || '',
         customer: t.member_id ? maskName(names.get(t.member_id)) : '—',
-        // staff see each other's full names; they work together
-        by: t.actor_id ? names.get(t.actor_id) || '' : '',
+        // staff see each other's full names; they work together. On a
+        // self-serve charge the actor IS the customer, and staff get the same
+        // masked name they already have, not the full one.
+        by: t.actor_id && !t.self_serve ? names.get(t.actor_id) || '' : '',
+        // What the customer's screen shows, for the counter to check against
+        // (0030). Nobody can be served on a screenshot alone.
+        self_serve: t.self_serve === true,
+        confirm: t.kind === 'charge' && t.self_serve ? confirmCode(t.id) : '',
         related_tx: t.related_tx,
         settled: !!t.settlement_id,
         can_void:

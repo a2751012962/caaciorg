@@ -16,6 +16,7 @@ const MIGRATIONS = [
   new URL('../supabase/migrations/0027_tokens_never_expire.sql', import.meta.url),
   new URL('../supabase/migrations/0028_token_purchase_bonus.sql', import.meta.url),
   new URL('../supabase/migrations/0029_admin_cash_cap.sql', import.meta.url),
+  new URL('../supabase/migrations/0030_token_pay_codes.sql', import.meta.url),
 ];
 
 // Open the bonus window around now() so the rate rules can be driven directly.
@@ -104,7 +105,8 @@ beforeEach(async () => {
            max_charge = 500, admin_mint_cap = 500, admin_daily_cap = 2000, cash_min_cents = 500,
            void_hours = 24, settle_min_cents = 2000, suspend_after = 3,
            bonus_pct = 0, bonus_from = null, bonus_to = null, bonus_cap_cents = 10000,
-           admin_cash_cap_cents = 20000;
+           admin_cash_cap_cents = 20000,
+           pay_repeat_seconds = 120, pay_allow_partners = false;
   `);
 });
 
@@ -309,6 +311,138 @@ test('a charge draws the oldest tokens first and a void puts them back', async (
     (await one('select state from public.token_tx where id = $1', [c.tx_id])).state,
     'voided',
   );
+});
+
+// -------------------------------------------------- scan-to-pay (0030) ----
+const CODE = 'K7M2PQ34';
+async function payItem(shop, { tokens = 30, code = CODE, active = true } = {}) {
+  const { id } = await one(
+    `insert into public.merchant_items (merchant_id, name, name_zh, tokens, active, pay_code, pay_code_at)
+     values ($1, 'Orange juice', '橙汁', $2, $3, $4, now()) returning id`,
+    [shop, tokens, active, code],
+  );
+  return id;
+}
+
+test('scan-to-pay: the price is the item’s, the payer is the actor, and it is marked self-serve', async () => {
+  const shop = await merchant({ kind: 'internal' });
+  const item = await payItem(shop);
+  const m = await member({ tier: 'student' });
+  await call('token_membership_grant', m, null); // 150
+
+  const r = await call('token_charge_code', m, CODE, 'idem-pay-1');
+  assert.equal(r.ok, true);
+  assert.equal(r.amount, 30);
+  assert.equal(r.balance, 120);
+  assert.equal(await balance(m), 120);
+
+  const tx = await one(
+    `select kind, amount, member_id, actor_id, merchant_id, self_serve, pay_item_id, items
+       from public.token_tx where id = $1`,
+    [r.tx_id],
+  );
+  assert.equal(tx.kind, 'charge');
+  assert.equal(tx.amount, -30);
+  assert.equal(tx.actor_id, m, 'the member pressed the button themselves');
+  assert.equal(tx.merchant_id, shop);
+  assert.equal(tx.self_serve, true);
+  assert.equal(tx.pay_item_id, item);
+  assert.deepEqual(tx.items, [{ name: 'Orange juice', name_zh: '橙汁', tokens: 30, qty: 1 }]);
+
+  // The same request again takes nothing more.
+  const retry = await call('token_charge_code', m, CODE, 'idem-pay-1');
+  assert.equal(retry.duplicate, true);
+  assert.equal(await balance(m), 120);
+
+  // A lower-case code off a hand-typed address still finds the sticker.
+  assert.equal((await call('token_charge_code', m, CODE.toLowerCase(), 'idem-pay-2', true)).ok, true);
+  assert.equal(await balance(m), 90);
+});
+
+test('scan-to-pay: the same item twice in a row asks first, and only then charges', async () => {
+  const shop = await merchant({ kind: 'internal' });
+  await payItem(shop);
+  const m = await member({ tier: 'family' });
+  await call('token_membership_grant', m, null);
+
+  assert.equal((await call('token_charge_code', m, CODE, 'idem-a')).ok, true);
+
+  const again = await call('token_charge_code', m, CODE, 'idem-b');
+  assert.equal(again.error, 'repeat_too_soon', 'a double tap does not buy a second juice');
+  assert.equal(again.seconds, 120);
+  assert.equal(await balance(m), 870);
+
+  const meant = await call('token_charge_code', m, CODE, 'idem-b', true);
+  assert.equal(meant.ok, true, 'saying yes buys the second one');
+  assert.equal(await balance(m), 840);
+
+  // The window is what the setting says, and 0 turns the question off.
+  await db.query('update public.token_settings set pay_repeat_seconds = 0');
+  assert.equal((await call('token_charge_code', m, CODE, 'idem-c')).ok, true);
+  assert.equal(await balance(m), 810);
+});
+
+test('scan-to-pay: a partner shop is refused until root allows partners', async () => {
+  const shop = await merchant({ kind: 'partner' });
+  await payItem(shop);
+  const m = await member({ tier: 'individual' });
+  await call('token_membership_grant', m, null);
+
+  assert.equal(
+    (await call('token_charge_code', m, CODE, 'idem-p1')).error,
+    'self_serve_not_allowed',
+  );
+  assert.equal(await balance(m), 450);
+
+  await db.query('update public.token_settings set pay_allow_partners = true');
+  assert.equal((await call('token_charge_code', m, CODE, 'idem-p2')).ok, true);
+  assert.equal(await balance(m), 420);
+});
+
+test('scan-to-pay: a dead sticker, a suspended shop, the cap and an empty balance all refuse', async () => {
+  const shop = await merchant({ kind: 'internal' });
+  const item = await payItem(shop);
+  const m = await member({ tier: 'student' });
+  await call('token_membership_grant', m, null); // 150
+
+  assert.equal((await call('token_charge_code', m, 'NOSUCH99', 'i1')).error, 'code_not_found');
+
+  // Rotating the code is what kills every sheet already printed.
+  await db.query(`update public.merchant_items set pay_code = 'W9X8Y7Z6' where id = $1`, [item]);
+  assert.equal((await call('token_charge_code', m, CODE, 'i2')).error, 'code_not_found');
+  await db.query(`update public.merchant_items set pay_code = $2 where id = $1`, [item, CODE]);
+
+  await db.query('update public.merchant_items set active = false where id = $1', [item]);
+  assert.equal((await call('token_charge_code', m, CODE, 'i3')).error, 'code_not_found');
+  await db.query('update public.merchant_items set active = true where id = $1', [item]);
+
+  await db.query(`update public.merchants set status = 'suspended' where id = $1`, [shop]);
+  assert.equal((await call('token_charge_code', m, CODE, 'i4')).error, 'merchant_suspended');
+  await db.query(`update public.merchants set status = 'active' where id = $1`, [shop]);
+
+  await db.query('update public.merchant_items set tokens = 900 where id = $1', [item]);
+  const over = await call('token_charge_code', m, CODE, 'i5');
+  assert.equal(over.error, 'over_max_charge');
+  assert.equal(over.max, 500);
+
+  await db.query('update public.merchant_items set tokens = 400 where id = $1', [item]);
+  const poor = await call('token_charge_code', m, CODE, 'i6');
+  assert.equal(poor.error, 'insufficient_balance');
+  assert.equal(poor.balance, 150);
+  assert.equal(await balance(m), 150, 'nothing moved through any of that');
+});
+
+test('scan-to-pay: a self-serve charge can still be voided by the shop', async () => {
+  const clerk = await member();
+  const shop = await merchant({ kind: 'internal', staff: [clerk] });
+  await payItem(shop);
+  const m = await member({ tier: 'student' });
+  await call('token_membership_grant', m, null);
+
+  const paid = await call('token_charge_code', m, CODE, 'idem-void');
+  const v = await call('token_void', paid.tx_id, clerk, 'handed back the juice');
+  assert.equal(v.ok, true);
+  assert.equal(await balance(m), 150);
 });
 
 test('a charge is refused without enough tokens, over the cap, by a stranger, or against oneself', async () => {

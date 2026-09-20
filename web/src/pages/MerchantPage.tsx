@@ -64,6 +64,17 @@ export function MerchantPage({ lang }: { lang: Lang }) {
     void load();
   }, [load]);
 
+  // A scan-to-pay charge lands with nobody pressing anything here, and the
+  // counter is checking this list against a customer's screen — so the newest
+  // page keeps itself current while the console is actually on screen.
+  useEffect(() => {
+    if (offset !== 0) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [offset, load]);
+
   const voidTx = async (row: MerchantTx) => {
     const ok = window.confirm(
       t(
@@ -234,6 +245,13 @@ export function MerchantPage({ lang }: { lang: Lang }) {
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-neutral-900">
                         {row.customer}
+                        {row.confirm && (
+                          // What the customer's own screen shows. Check it —
+                          // a screenshot of an old payment looks the same.
+                          <span className="ml-2 font-mono tracking-widest text-brick">
+                            {row.confirm}
+                          </span>
+                        )}
                         <span className="ml-2 text-xs font-normal text-neutral-500">
                           {when(row.at, lang)}
                         </span>
@@ -247,7 +265,7 @@ export function MerchantPage({ lang }: { lang: Lang }) {
                           : ''}
                       </p>
                       <p className="text-[11px] text-neutral-500">
-                        {row.by}
+                        {row.self_serve ? t('Scanned the QR', '顾客扫码支付') : row.by}
                         {row.settled ? ` · ${t('on a statement', '已出账')}` : ''}
                       </p>
                     </div>
@@ -305,8 +323,8 @@ export function MerchantPage({ lang }: { lang: Lang }) {
           </div>
           <p className="text-[11px] text-neutral-500 leading-relaxed">
             {t(
-              'Amounts on the right are tokens your shop received (+) or gave back (−). To take tokens, scan the customer’s member card with your phone camera.',
-              '右侧数字为本店收到（+）或退回（−）的币数。扣币请用手机相机扫描顾客的会员卡。',
+              'Amounts on the right are tokens your shop received (+) or gave back (−). To take tokens, scan the customer’s member card with your phone camera. A customer who scanned a QR on the product shows a four-character code — find it in this list before you hand anything over; this list, not their screen, is the proof.',
+              '右侧数字为本店收到（+）或退回（−）的币数。扣币请用手机相机扫描顾客的会员卡。顾客扫商品二维码付款后会看到一个四位确认码——出货前请在此列表中找到它；凭证是这份列表，不是顾客的手机屏幕。',
             )}
           </p>
         </>
