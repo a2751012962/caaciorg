@@ -650,6 +650,22 @@ system (cheque / Zelle); the system records what is owed.
   **email receipt with its "this wasn't me" link is the only way a member notices a
   charge made without them**: its outcome is stamped on the ledger row
   (`receipt_sent_at` / `receipt_error`) and failures show on the back-office overview.
+- **Scan-to-pay (the QR on the product).** The other direction, for a stall with no phone
+  to spare: `/token-admin/` → Merchants → Menu → "Make a QR" gives that menu item a code
+  and the sheet to print (`https://caaciorg.com/pay/?c=<code>`). A member scans the cup,
+  sees **which shop and what for**, taps once, and the tokens move. The price is never in
+  the URL — `token_charge_code` reads it from `merchant_items` as it charges — so an
+  edited address cannot buy anything cheaper, and **changing an item's price changes what
+  every sticker already printed for it charges** (reprint them). "New code" kills every
+  sheet printed from the old one: that is the answer to a sticker someone swapped,
+  photographed or copied. A second charge for the same item by the same member within
+  `pay_repeat_seconds` (120) asks again before it goes through.
+  **The counter still has to check**: the payer's screen shows a four-character
+  confirmation code, and `/merchant/` lists it beside the charge (marked "Scanned the
+  QR", refreshing itself every 15s). A screenshot of an older payment looks identical —
+  the list is the proof, not the phone. Only CAACI's own (`internal`) merchants may take
+  scan-to-pay until root ticks **pay_allow_partners** in Settings; that switch, not a code
+  change, is where the decision to let outside shops take stored value gets made.
 - **Merchants** void their own charge within 24 hours and can never add tokens. **Admins**
   mint at most 500 tokens per action and 2000 free tokens per day (root is exempt), take
   cash (its own ledger kind, with the amount, so the cash box reconciles per admin per
@@ -668,6 +684,12 @@ system (cheque / Zelle); the system records what is owed.
   server-only and every function is `service_role`-only. `test/tokens-ledger.test.js`
   runs the file in PGlite and drives the ledger functions; confirm the live project
   afterwards against `pg_policies` and `has_function_privilege`.
+- **Migration:** `0030_token_pay_codes.sql` adds scan-to-pay: `merchant_items.pay_code`,
+  `token_tx.self_serve` / `pay_item_id`, the `pay_*` settings and `token_charge_code`.
+  Paste it **before** deploying this code — `/token-admin/` saves `pay_repeat_seconds` and
+  `pay_allow_partners` with the rest of the settings, and a database without those columns
+  refuses the whole save. It only adds, so the previously deployed code keeps working once
+  it is applied.
 - **Launch checklist:** apply 0024 → set root by SQL → set `TOKENS_ENABLED=1` on the
   **preview** environment only and try a grant, a cash top-up, a charge, an undo and a
   dispute there (preview uses the live database: use a test member and void what you

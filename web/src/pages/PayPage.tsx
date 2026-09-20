@@ -154,7 +154,10 @@ export function PayPage({ lang }: { lang: Lang }) {
       {!info.open ? (
         <Notice tone="warn">
           {info.suspended
-            ? t('This shop is on hold. Please pay at the counter.', '该商家已被暂停，请到柜台付款。')
+            ? t(
+                'This shop is on hold. Please pay at the counter.',
+                '该商家已被暂停，请到柜台付款。',
+              )
             : t(
                 'This shop does not take scan-to-pay yet. Please pay at the counter.',
                 '该商家暂不支持扫码付款，请到柜台付款。',

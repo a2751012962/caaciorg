@@ -355,7 +355,10 @@ test('scan-to-pay: the price is the item’s, the payer is the actor, and it is 
   assert.equal(await balance(m), 120);
 
   // A lower-case code off a hand-typed address still finds the sticker.
-  assert.equal((await call('token_charge_code', m, CODE.toLowerCase(), 'idem-pay-2', true)).ok, true);
+  assert.equal(
+    (await call('token_charge_code', m, CODE.toLowerCase(), 'idem-pay-2', true)).ok,
+    true,
+  );
   assert.equal(await balance(m), 90);
 });
 

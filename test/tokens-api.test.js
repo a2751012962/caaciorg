@@ -9,10 +9,7 @@ import { maskName, tokensEnabled } from '../functions/api/_tokens.js';
 import { onRequestGet as me } from '../functions/api/tokens/me.js';
 import { onRequestGet as scan } from '../functions/api/tokens/scan.js';
 import { onRequestPost as charge } from '../functions/api/tokens/charge.js';
-import {
-  onRequestGet as payGet,
-  onRequestPost as payPost,
-} from '../functions/api/tokens/pay.js';
+import { onRequestGet as payGet, onRequestPost as payPost } from '../functions/api/tokens/pay.js';
 import { onRequestPost as buy } from '../functions/api/tokens/buy.js';
 import { onRequestGet as disputeGet } from '../functions/api/tokens/dispute.js';
 import {
@@ -322,12 +319,7 @@ test('pay: the amount is the item’s, the payer is the session, and a receipt g
 
     const rpc = fetch.calls.find((c) => c.url.includes('rpc/token_charge_code'));
     const args = JSON.parse(rpc.options.body);
-    assert.deepEqual(Object.keys(args).sort(), [
-      'p_allow_repeat',
-      'p_code',
-      'p_idem',
-      'p_member',
-    ]);
+    assert.deepEqual(Object.keys(args).sort(), ['p_allow_repeat', 'p_code', 'p_idem', 'p_member']);
     assert.equal(args.p_code, CODE, 'the code is read back in the printed case');
     assert.equal(args.p_member, USER, 'the payer is the session, not the body');
     assert.equal(args.p_allow_repeat, false);

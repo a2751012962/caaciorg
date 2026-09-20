@@ -21,7 +21,10 @@ import {
 // What a printed code may contain: the alphabet issued in admin/merchants.js,
 // minus the pairs a person misreads (I/1, O/0). Anything else is not a code.
 const CODE_RE = /^[2-9A-HJ-NP-TV-Z]{6,16}$/;
-const clean = (raw) => String(raw || '').trim().toUpperCase();
+const clean = (raw) =>
+  String(raw || '')
+    .trim()
+    .toUpperCase();
 
 export async function onRequestGet({ request, env }) {
   const gate = await tokenGateOptional(request, env);
