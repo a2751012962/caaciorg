@@ -9,7 +9,18 @@ import globals from 'globals';
 // web/ is TypeScript + React and is checked by `npm run typecheck` instead.
 export default defineConfig([
   // Vendored third-party bundle (Supabase UMD) — not our code; don't lint it.
-  { ignores: ['dist/', 'mirror/', 'node_modules/', 'src/supabase.js', 'src/vendor/', 'web/'] },
+  // archive/ is retired code, kept for reference and frozen as it was retired.
+  {
+    ignores: [
+      'archive/',
+      'dist/',
+      'mirror/',
+      'node_modules/',
+      'src/supabase.js',
+      'src/vendor/',
+      'web/',
+    ],
+  },
   js.configs.recommended,
   {
     files: ['src/**/*.js'],

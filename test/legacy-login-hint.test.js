@@ -331,7 +331,7 @@ test('login page: a correct code signs in with verifyOtp and lands where a passw
   mockClock(t);
   for (const [isAdmin, landing] of [
     [false, '/account/'],
-    [true, '/admin-next/'],
+    [true, '/admin/'],
   ]) {
     const stub = supaStub({ isAdmin });
     await failedLogin(stub);

@@ -1,5 +1,7 @@
-// /admin-next/ — the back office in React, replacing the Tabler /admin/ tab by
-// tab. Same Pages Functions (/api/admin/*), which check the caller again on
+// /admin/ — the back office in React. It replaced the Tabler panel that used to
+// live at this address tab for tab (archive/admin-tabler/), and was built at
+// /admin-next/, which is now a stub into here. Same Pages Functions
+// (/api/admin/*), which check the caller again on
 // every request; this page only gates the UI. Rendered without the public
 // site's navbar and footer (App.tsx), with its own header and tab rail.
 import { lazy, Suspense, useCallback, useEffect, useState, type ComponentType } from 'react';
@@ -123,7 +125,7 @@ export function AdminApp() {
   };
   const signOut = async () => {
     await auth.signOut();
-    window.location.assign(loginUrl('/admin-next/'));
+    window.location.assign(loginUrl('/admin/'));
   };
 
   const header = (

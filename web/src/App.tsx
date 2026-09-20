@@ -45,7 +45,7 @@ const PayPage = lazy(() => import('./pages/PayPage').then((m) => ({ default: m.P
 const TokenAdminPage = lazy(() =>
   import('./pages/TokenAdminPage').then((m) => ({ default: m.TokenAdminPage })),
 );
-// The React back office (/admin-next/): its own chrome, so it renders outside <Site>.
+// The back office (/admin/): its own chrome, so it renders outside <Site>.
 const AdminApp = lazy(() =>
   import('./pages/admin/AdminApp').then((m) => ({ default: m.AdminApp })),
 );
@@ -308,7 +308,7 @@ function Site() {
 
 // The admin Plans tab's edit preview: a bare card, no site chrome or auth.
 const PLAN_PREVIEW_PATH = /^\/(?:zh\/)?plan-preview\/?$/i;
-const ADMIN_PATH = /^\/(?:zh\/)?admin-next\/?$/i;
+const ADMIN_PATH = /^\/(?:zh\/)?admin\/?$/i;
 
 export default function App() {
   if (ADMIN_PATH.test(window.location.pathname))

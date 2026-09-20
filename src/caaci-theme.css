@@ -1,5 +1,5 @@
 /* caaci-theme.css — the CAACI skin for the Tabler pages
- * (/admin/, /login-3/, /membership/, /account/, /privacy/).
+ * (/login-3/, /privacy/).
  *
  * Those pages are built on Tabler (Bootstrap 5). Tabler paints every button,
  * link, tab, badge, focus ring and corner from its own --tblr-* custom
@@ -19,8 +19,8 @@
 
 /* Typefaces: every Tabler page's <head> carries <!--CAACI_FONTS-->, which
    build.mjs replaces with the site's one Google Fonts link (Poppins —
-   GOOGLE_FONTS_URL in caaci-shared.js) and the /assets/caaci-fonts.css stacks. Nothing is @imported here, so /admin/ renders
-   the same faces as the React site, body copy included. */
+   GOOGLE_FONTS_URL in caaci-shared.js) and the /assets/caaci-fonts.css stacks. Nothing is @imported here, so /login-3/
+   renders the same faces as the React site, body copy included. */
 
 /* ======================================================= Tabler → tokens === */
 :root,
@@ -101,51 +101,6 @@ h3,
   .container-xl {
     width: 80%;
   }
-}
-
-/* ============================================== Site navigation (/admin/) === */
-/* The admin header, measured on the old mirror's Divi header: 69px white bar,
-   no shadow at rest, 40px logo, menu right-aligned to the container edge,
-   14px/600 links in black, the current page in the red scheme colour. The
-   public pages' header also carries .caaci-sitenav but has its own section
-   below ("Site header"); :where() keeps these rules off it without raising
-   their specificity, so the admin cascade is exactly what it was. */
-.caaci-sitenav:where(:not(.caaci-sitenav-site)) {
-  background: var(--caaci-surface);
-  box-shadow: none; /* Tabler draws an inset hairline; the mirror has none */
-  min-height: 69px;
-}
-.caaci-sitenav:where(:not(.caaci-sitenav-site)) .navbar-brand {
-  padding: 0;
-}
-.caaci-sitenav:where(:not(.caaci-sitenav-site)) .navbar-brand img {
-  height: 40px;
-  width: auto;
-}
-.caaci-sitenav:where(:not(.caaci-sitenav-site)) .navbar-nav {
-  margin-left: auto;
-}
-.caaci-sitenav:where(:not(.caaci-sitenav-site)) .nav-link {
-  font-family: var(--caaci-font-body);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--caaci-ink);
-  padding: 8px 11px;
-  transition: opacity 0.4s ease-in-out;
-}
-/* Language toggle and Sign out are plain menu items, not buttons. */
-.caaci-sitenav:where(:not(.caaci-sitenav-site)) button.nav-link {
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-.caaci-sitenav:where(:not(.caaci-sitenav-site)) .nav-link:hover {
-  color: var(--caaci-ink);
-  opacity: 0.7;
-}
-.caaci-sitenav:where(:not(.caaci-sitenav-site)) .nav-link.active {
-  color: var(--caaci-red);
-  box-shadow: none;
 }
 
 /* ================================================ Site header (public pages) === */
@@ -508,237 +463,13 @@ h3,
   margin-bottom: 1rem;
 }
 
-/* ====================================== Business listing preview (/admin/) === */
-/* The listing form's live preview. A hand copy of the two merchant layouts in
-   web/src/pages/BusinessServicesPage.tsx (Tailwind there, so the values below
-   are those utilities in px); change them together. */
-@media (min-width: 1200px) {
-  .caaci-biz-preview {
-    position: sticky;
-    top: 16px;
-  }
-}
-.caaci-bp-stage {
-  padding: 16px;
-  border-radius: 12px;
-  background: var(--caaci-neutral-100);
-  font-family: var(--caaci-font-body);
-  color: var(--caaci-neutral-600);
-  overflow: hidden;
-  container-type: inline-size;
-}
-.caaci-bp-card,
-.caaci-bp-row {
-  display: flex;
-  flex-direction: column;
-  background: var(--caaci-surface);
-  border: 1px solid var(--caaci-neutral-200);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
-}
-.caaci-bp-card {
-  justify-content: space-between;
-  max-width: 320px;
-  margin-inline: auto;
-  padding: 20px;
-  border-radius: 16px;
-}
-.caaci-bp-row {
-  gap: 24px;
-  padding: 24px;
-  border-radius: 16px;
-}
-.caaci-bp-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.caaci-bp-row .caaci-bp-chips {
-  gap: 8px;
-}
-.caaci-bp-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  background: var(--caaci-neutral-100);
-  color: var(--caaci-neutral-600);
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 15px;
-}
-.caaci-bp-row .caaci-bp-chip {
-  padding-inline: 10px;
-  font-size: 11px;
-  line-height: 16px;
-}
-.caaci-bp-verified {
-  background: var(--caaci-neutral-900);
-  color: var(--caaci-surface);
-}
-.caaci-bp-tag {
-  background: transparent;
-  border: 1px solid var(--caaci-neutral-200);
-}
-.caaci-bp-icon {
-  width: 14px;
-  height: 14px;
-  flex: none;
-  color: var(--caaci-neutral-400);
-}
-.caaci-bp-chip .caaci-bp-icon,
-.caaci-bp-btn .caaci-bp-icon {
-  width: 12px;
-  height: 12px;
-}
-.caaci-bp-gold {
-  color: var(--caaci-gold);
-}
-.caaci-bp-brick {
-  color: var(--caaci-brick);
-}
-/* The admin theme sets h3 in maroon; the public card is ink. */
-.caaci-bp-stage .caaci-bp-name {
-  margin: 12px 0 0;
-  font-family: inherit;
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1.5;
-  letter-spacing: -0.025em;
-  text-transform: none;
-  color: var(--caaci-site-ink);
-  overflow-wrap: anywhere;
-}
-.caaci-bp-row .caaci-bp-name {
-  margin-top: 8px;
-  font-size: 20px;
-  line-height: 1.4;
-}
-.caaci-bp-desc {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.625;
-  color: var(--caaci-neutral-600);
-  white-space: pre-line;
-}
-.caaci-bp-row .caaci-bp-desc {
-  margin-top: 8px;
-  font-size: 14px;
-}
-.caaci-bp-card .caaci-bp-name,
-.caaci-bp-card .caaci-bp-desc {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.caaci-bp-card .caaci-bp-name {
-  -webkit-line-clamp: 1;
-}
-.caaci-bp-card .caaci-bp-desc {
-  -webkit-line-clamp: 3;
-}
-.caaci-bp-empty {
-  color: var(--caaci-neutral-400);
-  font-weight: 400;
-}
-.caaci-bp-facts {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--caaci-neutral-100);
-  font-size: 11px;
-  color: var(--caaci-neutral-500);
-}
-.caaci-bp-row .caaci-bp-facts {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin-top: 8px;
-  padding-top: 4px;
-  border-top: 0;
-  font-size: 12px;
-}
-.caaci-bp-fact {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 6px;
-}
-.caaci-bp-row .caaci-bp-fact {
-  gap: 4px;
-}
-.caaci-bp-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--caaci-neutral-100);
-}
-.caaci-bp-row .caaci-bp-actions {
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
-}
-.caaci-bp-stage .caaci-bp-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px solid var(--caaci-neutral-200);
-  border-radius: 9999px;
-  background: var(--caaci-surface);
-  color: var(--caaci-neutral-800);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16px;
-  text-decoration: none;
-}
-.caaci-bp-card .caaci-bp-btn {
-  flex: 1;
-  gap: 4px;
-  padding-inline: 0;
-}
-.caaci-bp-stage .caaci-bp-btn-dark {
-  border-color: var(--caaci-neutral-100);
-  background: var(--caaci-neutral-100);
-}
-.caaci-bp-card .caaci-bp-btn-dark {
-  border-color: var(--caaci-neutral-900);
-  background: var(--caaci-neutral-900);
-  color: var(--caaci-surface);
-}
-/* The public row puts the buttons beside the text; the preview column beside
-   the form is too narrow for that, so there they sit underneath. */
-@container (min-width: 640px) {
-  .caaci-bp-row {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
-
 /* ================================================== Phone widths (< 768px) === */
-/* Touch targets on phones. Measured at 375px: the admin header's links were
-   36-40px tall, the event form's radio and checkbox rows 20px tall with 12px
-   dead gaps between them, and the login page's "Forgot password?" / "Create an
-   account" links 16px tall. Apple and Google ask for 44-48px. (The public
-   pages' site header sizes its own targets, in "Site header" above.) */
+/* Touch targets on phones. Measured at 375px: the form's radio and checkbox
+   rows were 20px tall with 12px dead gaps between them, and the login page's
+   "Forgot password?" / "Create an account" links 16px tall. Apple and Google
+   ask for 44-48px. (The public pages' site header sizes its own targets, in
+   "Site header" above.) */
 @media (max-width: 767.98px) {
-  /* .navbar-nav is in the selector to outrank Tabler's
-     `.navbar .navbar-nav .nav-link { min-height: 2.5rem }`. */
-  .caaci-sitenav:where(:not(.caaci-sitenav-site)) .navbar-nav .nav-link,
-  .caaci-sitenav:where(:not(.caaci-sitenav-site)) .nav-link {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-  }
-
   /* The whole row answers a tap: a 44px row, no margin between rows, and a
      label that fills it. Flex ignores the input's float, so the input would
      take up flow width and pull the label left against it; its right margin

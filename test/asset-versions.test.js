@@ -174,8 +174,7 @@ test('build: every /assets/ URL in the built site carries the hash of the file i
   assert.ok(pages[mirrored].includes(`<link rel="stylesheet" href="${v('caaci-ui.css')}">`));
   assert.ok(pages[mirrored].includes(`<script type="module" src="${v('caaci-app.js')}">`));
   assert.ok(pages[`zh/${mirrored}`].includes(`src="${v('caaci-app.js')}"`));
-  assert.ok(pages['admin/index.html'].includes(`src="${v('caaci-admin.js')}"`));
-  assert.ok(pages['admin/index.html'].includes(`href="${v('tabler.min.css')}"`));
+  assert.ok(pages['login-3/index.html'].includes(`href="${v('tabler.min.css')}"`));
   assert.ok(pages['login-3/index.html'].includes(`src="${v('caaci-member.js')}"`));
   assert.ok(pages['login-3/index.html'].includes(`src="${v('caaci-config.js')}"`));
   // The React site (web/) loads the same runtime config; its own bundles are hashed by Vite.
@@ -198,7 +197,7 @@ test('build: every /assets/ URL in the built site carries the hash of the file i
       imports++;
     }
   }
-  for (const entry of ['caaci-app.js', 'caaci-member.js', 'caaci-admin.js'])
+  for (const entry of ['caaci-app.js', 'caaci-member.js'])
     assert.ok(
       (await readFile(join(assets, entry), 'utf8')).includes(
         `'./caaci-shared.js?v=${hashOf.get('caaci-shared.js')}'`,
@@ -211,7 +210,7 @@ test('build: every /assets/ URL in the built site carries the hash of the file i
   for (const [name, src] of [
     ['supabase.js', 'src/supabase.js'],
     ['tabler.min.js', 'src/vendor/tabler.min.js'],
-    ['filepond.js', 'src/vendor/filepond.js'],
+    ['jodit.min.js', 'src/vendor/jodit.min.js'],
   ])
     assert.equal(hashOf.get(name), contentHash(await readFile(join(ROOT, src))), name);
 });
