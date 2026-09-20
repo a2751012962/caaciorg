@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Pencil, Plus, Search as SearchIcon, UserPlus, X } from 'lucide-react';
 import { listExit, listItem, mountIn, riseFromSm, shown } from '../../../lib/motion';
+import { effectiveStatus } from '../../../lib/shared';
 import {
   DIVIDED,
   DataTable,
@@ -35,6 +36,7 @@ import {
   TierOptions,
   relationshipLabel,
   useAsk,
+  type Account,
   type FamilyEvent,
   type Household,
   type HouseholdsAnswer,
@@ -45,6 +47,13 @@ import {
 
 const HOUSEHOLDS = '/api/admin/households';
 const PEOPLE = '/api/admin/household-members';
+
+/** A linked account's membership status, as of today (effectiveStatus). */
+function AccountStatus({ a }: { a: Account }) {
+  const { t } = useAdmin();
+  const s = effectiveStatus(a.status, a.expires_at);
+  return <Status tone={memberStatusTone(s)}>{memberStatusLabel(t, s)}</Status>;
+}
 
 // Families: one card per household (login accounts + seats, name-only family
 // members, pending invitations and activity), a form to add or edit a family
@@ -216,11 +225,10 @@ function PlanMembers({
               {
                 key: 'status',
                 label: t('Status', '状态'),
-                render: (m) => (
-                  <Status tone={memberStatusTone(m.status)}>
-                    {memberStatusLabel(t, m.status)}
-                  </Status>
-                ),
+                render: (m) => {
+                  const s = effectiveStatus(m.status, m.expires_at);
+                  return <Status tone={memberStatusTone(s)}>{memberStatusLabel(t, s)}</Status>;
+                },
               },
               {
                 key: 'expires',
@@ -289,6 +297,8 @@ function FamilyCard({
   const f = h.founder;
   // A founder an admin moved out of the family is still named, marked as outside.
   const founderOutside = f && !accounts.some((a) => a.id === f.id);
+  // Read as of today, like every other membership status (effectiveStatus).
+  const hStatus = effectiveStatus(h.status, h.expires_at);
 
   const deleteFamily = async () => {
     const res = await api(HOUSEHOLDS, { method: 'DELETE', body: { id: h.id } });
@@ -314,7 +324,7 @@ function FamilyCard({
           <p className="mt-1 text-xs text-neutral-500 flex flex-wrap items-center gap-x-2 gap-y-1">
             <span>{h.tier_id ? tierName(h.tier_id) : t('— no tier —', '— 无类型 —')}</span>
             <span aria-hidden>·</span>
-            <Status tone={memberStatusTone(h.status)}>{memberStatusLabel(t, h.status)}</Status>
+            <Status tone={memberStatusTone(hStatus)}>{memberStatusLabel(t, hStatus)}</Status>
             {h.expires_at && (
               <>
                 <span aria-hidden>·</span>
@@ -402,9 +412,7 @@ function FamilyCard({
                       {t('Founder', '创始人')}
                     </span>
                   )}
-                  <Status tone={memberStatusTone(a.status)}>
-                    {memberStatusLabel(t, a.status)}
-                  </Status>
+                  <AccountStatus a={a} />
                 </button>
               </li>
             ))}

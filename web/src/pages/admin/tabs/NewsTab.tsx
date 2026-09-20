@@ -254,6 +254,12 @@ export default function NewsTab() {
           <select className={SELECT} value={audience} onChange={(e) => setAudience(e.target.value)}>
             <option value="active">{t('Active members only', '仅有效会员')}</option>
             <option value="all">{t('All members', '全部会员')}</option>
+            {/* The two renewal lists. Anyone on a Stripe subscription is left
+                out of "expiring": they renew by themselves. */}
+            <option value="expiring">
+              {t('Expiring within 30 days (no auto-renewal)', '30 天内到期（不会自动续费）')}
+            </option>
+            <option value="lapsed">{t('Membership already over', '会籍已过期')}</option>
           </select>
         </Field>
 
@@ -348,7 +354,11 @@ export default function NewsTab() {
             confirmLabel={
               audience === 'all'
                 ? t('Email all members', '发给全部会员')
-                : t('Email active members', '发给有效会员')
+                : audience === 'expiring'
+                  ? t('Email members about to expire', '发给即将到期的会员')
+                  : audience === 'lapsed'
+                    ? t('Email lapsed members', '发给已过期的会员')
+                    : t('Email active members', '发给有效会员')
             }
             doneLabel={t('Sending…', '即将发送…')}
             undoLabel={t('Undo', '撤销')}

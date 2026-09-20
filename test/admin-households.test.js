@@ -147,7 +147,8 @@ test('admin households: every members embed names its foreign key, and invitatio
     const main = urls.find((u) => u.includes('accounts:'));
     assert.match(
       main,
-      /accounts:members!members_household_id_fkey\(id,full_name,email,status,tier_id\)/,
+      // expires_at rides along so each account's status reads as of today.
+      /accounts:members!members_household_id_fkey\(id,full_name,email,status,tier_id,expires_at\)/,
     );
     assert.match(main, /people:household_members\(\*\)/);
     // The accounts query must load before 0017 too: nothing from 0017 in it.

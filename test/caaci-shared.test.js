@@ -10,6 +10,7 @@ import {
   mergeTiers,
   isFreeTier,
   statusLabel,
+  effectiveStatus,
   TIERS_FALLBACK,
   COOLDOWN_PREFIX,
   cooldownKey,
@@ -130,6 +131,29 @@ test('statusLabel: one language at a time, raw status when unknown', () => {
   assert.equal(statusLabel('active', 'zh'), '有效');
   assert.equal(statusLabel('weird', 'zh'), 'weird');
   assert.equal(statusLabel(undefined, 'zh'), undefined);
+});
+
+// The defect this rule exists for: a member imported from MemberPress with a
+// one-time payment has no Stripe subscription, so no webhook event ever moves
+// their row off 'active' — it read Active for a week after the year ran out.
+test('effectiveStatus: an active row past its expiry reads as expired', () => {
+  const now = Date.parse('2026-09-20T20:00:00Z');
+  assert.equal(effectiveStatus('active', '2026-09-14T00:26:08Z', now), 'expired');
+  assert.equal(effectiveStatus('active', '2027-09-14T00:26:08Z', now), 'active');
+  // The boundary belongs to the past: at the expiry instant the year is over.
+  assert.equal(effectiveStatus('active', '2026-09-20T20:00:00Z', now), 'expired');
+});
+
+test('effectiveStatus: leaves everything it cannot improve alone', () => {
+  const now = Date.parse('2026-09-20T20:00:00Z');
+  // No expiry (the free tier) never lapses.
+  assert.equal(effectiveStatus('active', null, now), 'active');
+  // Other statuses are stored truth — they already read as "not good".
+  for (const s of ['pending', 'past_due', 'expired', 'cancelled'])
+    assert.equal(effectiveStatus(s, '2020-01-01T00:00:00Z', now), s);
+  // An unparseable date must not silently expire a paid-up member.
+  assert.equal(effectiveStatus('active', 'not a date', now), 'active');
+  assert.equal(effectiveStatus(null, '2020-01-01T00:00:00Z', now), null);
 });
 
 test('usd / withFee format prices and apply the 3.5% card surcharge', () => {

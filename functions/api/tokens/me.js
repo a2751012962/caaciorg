@@ -4,7 +4,7 @@
 // holds (for showing the merchant and admin entrances). Answers
 // { enabled: false } while the switch is off, so the account page can ask
 // without knowing. Nothing expires since 0027.
-import { json, bad, sb, requireUser, CARD_SURCHARGE } from '../_lib.js';
+import { json, bad, sb, requireUser, CARD_SURCHARGE, memberIsActive } from '../_lib.js';
 import { tokensEnabled, callerRoles } from '../_tokens.js';
 
 export async function onRequestGet({ request, env }) {
@@ -55,7 +55,8 @@ export async function onRequestGet({ request, env }) {
       rate,
       bonus_pct: bonusPct,
       bonus_until: bonusPct ? quotes.find((q) => q?.bonus_active)?.bonus_to || null : null,
-      can_buy: roles.member?.status === 'active',
+      // Active today, expiry included: a stored 'active' can be a year stale.
+      can_buy: memberIsActive(roles.member),
       packs: packCents.map((cents, i) => {
         const base = (cents * rate) / 100;
         const tokens = Number.isInteger(quotes[i]?.total) ? quotes[i].total : base;

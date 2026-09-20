@@ -17,10 +17,15 @@
 // NEWS_TEST_ONLY=1 (a secret on the Preview environment, which shares the live
 // member list and real Resend sending) refuses every real send with 403; test
 // sends still work.
-import { json, bad, sb, requireAdmin, sendEmailBatch } from '../_lib.js';
+import { json, bad, sb, requireAdmin, sendEmailBatch, memberStatusFilter } from '../_lib.js';
 import { PLACEHOLDER } from '../_event-emails.js';
 
-const AUDIENCES = ['all', 'active']; // plus 'tier:<id>'
+const AUDIENCES = ['all', 'active', 'expiring', 'lapsed']; // plus 'tier:<id>'
+// "Expiring" is the renewal-reminder list: the membership runs out within this
+// many days AND no Stripe subscription will renew it, so the member has to act.
+// Someone on a subscription is left out — Stripe renews them, and a "renew now"
+// email would be wrong.
+const RENEWAL_WINDOW_DAYS = 30;
 const THROTTLE_MS = 60_000; // min gap between sends
 const BATCH = 100; // Resend batch max per call
 const MAX_BODY = 200_000; // ~200 KB HTML ceiling
@@ -28,6 +33,15 @@ const TEST_EXTRA_MAX = 10; // extra test recipients besides the sender
 const TEST_PREFIX = '【测试 TEST】';
 
 const testOnly = (env) => env.NEWS_TEST_ONLY === '1' || env.NEWS_TEST_ONLY === 'true';
+
+// Still a member today, running out inside the window, with nothing behind it
+// to renew. Quoted timestamps, like memberStatusFilter; verified against
+// PostgREST (test/admin-news.test.js pins the shape).
+export function expiringFilter(now = new Date(), days = RENEWAL_WINDOW_DAYS) {
+  const from = `"${encodeURIComponent(now.toISOString())}"`;
+  const to = `"${encodeURIComponent(new Date(now.getTime() + days * 86_400_000).toISOString())}"`;
+  return `and=(status.eq.active,expires_at.gte.${from},expires_at.lte.${to},stripe_subscription_id.is.null)`;
+}
 
 export async function onRequestGet({ request, env }) {
   const gate = await requireAdmin(request, env);
@@ -102,7 +116,13 @@ export async function onRequestPost({ request, env }) {
 
   // --- Fetch recipients server-side ---
   const filters = [];
-  if (audience === 'active') filters.push('status=eq.active');
+  // "Active members" means active today: a lapsed row still reads 'active' in
+  // the table (memberStatusFilter), and they should not get the members' news.
+  if (audience === 'active') filters.push(memberStatusFilter('active'));
+  // Whose membership is already over — stored expired, or reading 'active' with
+  // the date behind them because nothing in Stripe was ever going to say so.
+  else if (audience === 'lapsed') filters.push(memberStatusFilter('expired'));
+  else if (audience === 'expiring') filters.push(expiringFilter());
   else if (isTier) filters.push(`tier_id=eq.${encodeURIComponent(audience.slice(5))}`);
   // 'all' => no status filter, but never email someone with no address.
   filters.push('email=not.is.null');

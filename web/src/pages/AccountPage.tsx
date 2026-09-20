@@ -38,7 +38,7 @@ import { CancelRsvp } from './account/CancelRsvp';
 import { FEATURES } from '../lib/features';
 import { loginUrl, useAuth } from '../lib/auth';
 import { api } from '../lib/api';
-import { isFreeTier, statusLabel, usd, withFee } from '../lib/shared';
+import { effectiveStatus, isFreeTier, statusLabel, usd, withFee } from '../lib/shared';
 import {
   dropParams,
   eventDay,
@@ -203,12 +203,17 @@ export function AccountPage({
   // Own tier when it is active; otherwise an active family plan the member is in
   // (founder or member) — the same rule the card and /api/verify use; otherwise
   // the member's own (inactive) tier, if any.
+  // Status as of today, not as stored (effectiveStatus): past the expiry date a
+  // members row still reads 'active' for anyone without a Stripe subscription,
+  // and /api/verify already refuses that card — the page must not promise
+  // otherwise.
   const ownTier = member?.tier_id ? (tiers.find((x) => x.id === member.tier_id) ?? null) : null;
-  const ownActive = !!ownTier && member?.status === 'active';
+  const ownStatus = effectiveStatus(member?.status ?? null, member?.expires_at ?? null);
+  const ownActive = !!ownTier && ownStatus === 'active';
   const familyPlanActive =
     !!family &&
     (family.role === 'founder' || family.role === 'member') &&
-    family.plan?.status === 'active';
+    effectiveStatus(family.plan?.status ?? null, family.plan?.expires_at ?? null) === 'active';
   const viaFamily = !ownActive && familyPlanActive;
   const familyTier = viaFamily
     ? (tiers.find((x) => x.id === family?.plan?.tier_id) ??
@@ -217,7 +222,7 @@ export function AccountPage({
     : null;
   const cardActive = ownActive || familyPlanActive;
   const shownTier = viaFamily ? familyTier : ownTier;
-  const shownStatus = ownActive || viaFamily ? 'active' : (member?.status ?? null);
+  const shownStatus = ownActive || viaFamily ? 'active' : ownStatus;
   const shownExpires = viaFamily
     ? (family?.plan?.expires_at ?? null)
     : (member?.expires_at ?? null);
