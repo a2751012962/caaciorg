@@ -1,8 +1,10 @@
 // Pins the "one source of truth" rules from UI_GUIDELINE.md so the pages cannot
 // drift apart again the way they had: four member pages each carried a private
-// <style> block with the same nav/hero CSS and hard-coded brand hexes, the
-// admin panel ran on Tabler's default blue, and caaci-ui.css kept 40 component
-// classes nothing referenced. Every check here reads the real files.
+// <style> block with the same nav/hero CSS and hard-coded brand hexes, and
+// caaci-ui.css kept 40 component classes nothing referenced. Every check here
+// reads the real files. The Tabler pages are now /login-3/ and /privacy/; the
+// back office moved to React (web/src/pages/admin/, checked by
+// test/web-design-tokens.test.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
@@ -18,7 +20,7 @@ const uncommented = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 const memberPages = (await readdir(new URL('member-src/', ROOT))).filter((f) =>
   f.endsWith('.html'),
 );
-const pages = ['admin-src/index.html', ...memberPages.map((f) => `member-src/${f}`)];
+const pages = memberPages.map((f) => `member-src/${f}`);
 const html = Object.fromEntries(await Promise.all(pages.map(async (p) => [p, await read(p)])));
 
 const uiCss = await read('src/caaci-ui.css');
@@ -71,9 +73,7 @@ test('every .caaci-* class in the stylesheets is referenced by markup or a clien
     for (const m of css.matchAll(/\.(caaci-[\w-]+)/g)) defined.add(m[1]);
 
   const modules = await Promise.all(
-    ['caaci-app.js', 'caaci-member.js', 'caaci-admin.js', 'caaci-shared.js'].map((f) =>
-      read(`src/${f}`),
-    ),
+    ['caaci-app.js', 'caaci-member.js', 'caaci-shared.js'].map((f) => read(`src/${f}`)),
   );
   // An id="caaci-…" or a #caaci-… selector is not a class reference; strip
   // those so a class that survives only because an element shares its name as

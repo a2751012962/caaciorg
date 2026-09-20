@@ -68,7 +68,7 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
   const eyebrow = t('CAACI Tokens', '华协币');
   const title = t('Token back office', '代币后台');
   const toAdmin = (
-    <a className={SECONDARY} href="/admin-next/">
+    <a className={SECONDARY} href="/admin/">
       <LayoutDashboard className="w-4 h-4" aria-hidden />
       {t('Admin', '管理后台')}
     </a>

@@ -1,3 +1,5 @@
+# Retired code, frozen as it was on the day it stopped being served.
+archive/
 dist/
 mirror/
 node_modules/

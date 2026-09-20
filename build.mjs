@@ -111,42 +111,23 @@ await copyFile(join(ROOT, 'src', 'caaci-theme.css'), join(DIST, 'assets', 'caaci
 // Supabase client unloaded and made login/account/checkout silently do nothing.
 await copyFile(join(ROOT, 'src', 'supabase.js'), join(DIST, 'assets', 'supabase.js'));
 
-// Admin back-office page (hand-authored; mirror/ stays pristine). Like the member
-// pages it loads every asset itself and carries the literal "caaci-app.js" in a
-// comment, which opts it out of the mirror-enhancement injection below.
-await cp(join(ROOT, 'admin-src'), join(DIST, 'admin'), { recursive: true });
-await writeFile(
-  join(DIST, 'admin', 'index.html'),
-  withFonts(await readFile(join(ROOT, 'admin-src', 'index.html'), 'utf8'), 'admin-src/index.html'),
-);
-await copyFile(join(ROOT, 'src', 'caaci-admin.js'), join(DIST, 'assets', 'caaci-admin.js'));
-// Self-hosted QR generator (MIT, kazuhikoarase/qrcode-generator) — used by the
-// admin Discounts tab to render shareable /membership/?code=… QR codes.
-await copyFile(join(ROOT, 'src', 'vendor', 'qrcode.js'), join(DIST, 'assets', 'qrcode.js'));
-// Self-hosted FilePond uploader (MIT, pqina/filepond) — the admin Media tab's
-// drag-and-drop upload UI (core + type/size validation + image preview).
-for (const f of [
-  'filepond.js',
-  'filepond.css',
-  'filepond-plugin-file-validate-type.js',
-  'filepond-plugin-file-validate-size.js',
-  'filepond-plugin-image-preview.js',
-  'filepond-plugin-image-preview.css',
-]) {
-  await copyFile(join(ROOT, 'src', 'vendor', f), join(DIST, 'assets', f));
-}
+// The back office is the React console (web/src/pages/admin/), written at
+// /admin/ with the rest of the React site below. The hand-authored Tabler panel
+// that used to be built here was retired to archive/admin-tabler/ — it is no
+// longer served, and its FilePond and qrcode bundles went with it.
 // Self-hosted Tabler UI kit (MIT, tabler/tabler) — the design system for the
-// admin panel AND the standalone member pages. CSS + JS served from our origin.
+// standalone member pages (/login-3/, /privacy/). CSS + JS served from our origin.
 for (const f of ['tabler.min.css', 'tabler.min.js']) {
   await copyFile(join(ROOT, 'src', 'vendor', f), join(DIST, 'assets', f));
 }
 // Self-hosted Jodit editor 4.15.1 (MIT, xdan/jodit; es2021 build with its
-// language files) — the admin Compose News message editor.
+// language files) — the back office's Compose News message editor, loaded from
+// /assets/ by web/src/pages/admin/tabs/news/jodit.ts.
 for (const f of ['jodit.min.js', 'jodit.min.css', 'jodit.LICENSE.txt']) {
   await copyFile(join(ROOT, 'src', 'vendor', f), join(DIST, 'assets', f));
 }
 
-// Standalone member pages (Tabler, like /admin/) — replace the mirrored
+// Standalone member pages (Tabler) — replace the mirrored
 // WordPress pages at the SAME routes, so every inbound link and Stripe
 // return URL (/account/, /membership/) keeps working. Each page contains the
 // literal token "caaci-app.js" in a comment, which opts it out of the
@@ -218,8 +199,10 @@ const SPA_ROUTES = [
   // /pay/?c=<code> is the QR printed on a product (0030).
   'pay',
   'token-admin',
-  // The back office rebuilt in React (web/src/pages/admin/), beside the Tabler /admin/.
-  'admin-next',
+  // The back office (web/src/pages/admin/). It took over /admin/ from the Tabler
+  // panel it replaced tab for tab; /admin-next/, the address it was built at,
+  // becomes a stub into it further down.
+  'admin',
   // The admin Plans tab's edit preview (web/src/pages/PlanPreviewPage.tsx).
   'plan-preview',
 ];
@@ -259,7 +242,7 @@ console.log(`React site written at ${SPA_ROUTES.length * 2} routes.`);
 // The mirror layer needs no Supabase client: it wires the contact form, the
 // donation checkout and accessibility fixes, all of which talk to /api/*
 // directly. supabase.js is loaded only by the Tabler pages that authenticate
-// (admin + member-src). It does need caaci-config.js, and before caaci-app.js:
+// (member-src). It does need caaci-config.js, and before caaci-app.js:
 // the contact forms on the mirrored business-directory pages post to
 // /api/contact, which requires a Turnstile token, and caaci-turnstile.js reads
 // the sitekey from window.CAACI_CONFIG — without it the widget never mounts and
@@ -310,7 +293,7 @@ for (const f of distFiles) {
   let html = await readFile(f, 'utf8');
   if (html.includes('caaci-app.js')) continue;
   // Inject before the LAST </body>: a page may carry a literal "</body>" inside an
-  // HTML comment (the admin page does), and String.replace would target that first
+  // HTML comment, and String.replace would target that first
   // match — burying the scripts inside the comment so they never run. lastIndexOf
   // finds the real closing tag.
   const close = html.lastIndexOf('</body>');
@@ -434,8 +417,19 @@ for (const base of ['', 'zh/']) {
 }
 console.log(`Legacy page stubs into the React site: ${legacy}.`);
 
-// The login page is a single bilingual document (data-en/data-zh + toggle,
-// like /admin/), so its /zh/ mirror copy becomes a redirect stub into it with
+// /admin-next/ is where the React back office was built while the Tabler /admin/
+// was still the live panel. The console now IS /admin/, so the old address
+// becomes a stub into it — an admin who bookmarked it lands in the same place.
+// Neither route is in the mirror, so create the directory.
+for (const base of ['', 'zh/']) {
+  const dir = join(DIST, base + 'admin-next');
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'index.html'), redirectStub(base + 'admin'));
+}
+console.log('Old back-office address /admin-next/ stubbed into /admin/.');
+
+// The login page is a single bilingual document (data-en/data-zh + toggle),
+// so its /zh/ mirror copy becomes a redirect stub into it with
 // ?lang=zh (paramStub, above). The old per-tier /register/ pages open that
 // tier on the React membership page (?tier=), in their own language. Existing
 // query strings survive.
