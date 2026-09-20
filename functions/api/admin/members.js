@@ -4,7 +4,7 @@
 //   PUT    — create a member (also creates a login account so they can sign in).
 //   DELETE — remove a member and their login account.
 // Every request is gated by requireAdmin (validates session + is_admin).
-import { json, bad, sb, requireAdmin, authAdmin } from '../_lib.js';
+import { json, bad, sb, requireAdmin, authAdmin, memberStatusFilter } from '../_lib.js';
 import { requireActionCode } from './_action-code.js';
 import { tokensEnabled } from '../_tokens.js';
 
@@ -37,7 +37,9 @@ export async function onRequestGet({ request, env }) {
   const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0);
 
   const filters = [];
-  if (status && STATUSES.includes(status)) filters.push(`status=eq.${status}`);
+  // 'active' / 'expired' are read as of today, not as stored — otherwise the
+  // Expired filter would hide the very rows the list prints as expired.
+  if (status && STATUSES.includes(status)) filters.push(memberStatusFilter(status));
   if (tier) filters.push(`tier_id=eq.${encodeURIComponent(tier)}`);
   if (q) {
     const cleaned = q.replace(/[(),*]/g, ' ').trim(); // strip PostgREST meta chars

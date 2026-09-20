@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Home, KeyRound, Mail, Pencil, Plus, Search as SearchIcon, X } from 'lucide-react';
 import { listExit, mountIn, riseFromSm, shown } from '../../../lib/motion';
+import { effectiveStatus } from '../../../lib/shared';
 import {
   DataTable,
   EYEBROW,
@@ -261,9 +262,13 @@ export default function MembersTab() {
               key: 'status',
               label: t('Status', '状态'),
               className: 'whitespace-nowrap',
-              render: (m) => (
-                <Status tone={memberStatusTone(m.status)}>{memberStatusLabel(t, m.status)}</Status>
-              ),
+              // As of today, not as stored (effectiveStatus): a one-time member
+              // has no subscription, so nothing ever moves their row off
+              // 'active' once the year runs out.
+              render: (m) => {
+                const s = effectiveStatus(m.status, m.expires_at);
+                return <Status tone={memberStatusTone(s)}>{memberStatusLabel(t, s)}</Status>;
+              },
             },
             {
               key: 'expires',
@@ -329,7 +334,7 @@ function Editor({
   onSaved: () => void;
   onDelete: () => void;
 }) {
-  const { t, api, guarded, myId, tierName, go } = useAdmin();
+  const { t, api, guarded, lang, myId, tierName, go } = useAdmin();
   const { ask, panel } = useAsk({ ruled: false });
   const [status, setStatus] = useState(m.status || 'active');
   const [tierId, setTierId] = useState(m.tier_id || '');
@@ -339,6 +344,10 @@ function Editor({
   const loaded = households !== null;
   const who = m.full_name || m.email || '';
   const statusLabel = (s: string | null) => memberStatusLabel(t, s);
+  // The row is stored 'active' but its year has run out, and the admin has not
+  // picked another status yet. Say so where the stored value is on screen —
+  // the list prints Expired, and this select does not.
+  const stale = status === 'active' && effectiveStatus(m.status, m.expires_at) === 'expired';
 
   const save = () => {
     const body: Record<string, string> = {
@@ -395,7 +404,17 @@ function Editor({
     <div className="border-l-2 border-brick/40 pl-4 sm:pl-5">
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Field label={t('Status', '状态')}>
+          <Field
+            label={t('Status', '状态')}
+            hint={
+              stale
+                ? t(
+                    `Still stored as Active, but the membership ran out on ${fmtDate(lang, m.expires_at)}. A one-time member has no Stripe subscription, so nothing reports the lapse — set Expired here to record it.`,
+                    `数据库里仍是「有效」，但会籍已于 ${fmtDate(lang, m.expires_at)} 到期。一次性付款的会员在 Stripe 没有订阅，不会有任何事件来更新它 —— 在这里改成「已过期」即可记录。`,
+                  )
+                : undefined
+            }
+          >
             <select className={SELECT} value={status} onChange={(e) => setStatus(e.target.value)}>
               <StatusOptions />
             </select>

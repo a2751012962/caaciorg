@@ -166,7 +166,11 @@ const SETTING_INTS = [
   'dispute_days',
   'settle_min_cents',
   'suspend_after',
+  'pay_repeat_seconds',
 ];
+// Settings a zero is meaningful for: no statement minimum, and no second
+// confirmation on a repeated scan-to-pay.
+const ZERO_OK = new Set(['settle_min_cents', 'pay_repeat_seconds']);
 
 export async function onRequestPost({ request, env }) {
   if (!tokensEnabled(env)) return tokensOff();
@@ -185,9 +189,14 @@ export async function onRequestPost({ request, env }) {
     for (const k of SETTING_INTS) {
       if (b[k] === undefined) continue;
       const n = Number(b[k]);
-      if (!Number.isInteger(n) || n < (k === 'settle_min_cents' ? 0 : 1))
-        return bad(`Invalid ${k}.`);
+      if (!Number.isInteger(n) || n < (ZERO_OK.has(k) ? 0 : 1)) return bad(`Invalid ${k}.`);
       patch[k] = n;
+    }
+    // Whether shops CAACI does not run may take scan-to-pay. This is the
+    // compliance decision behind 0027/0030, so it is root's and explicit.
+    if (b.pay_allow_partners !== undefined) {
+      if (typeof b.pay_allow_partners !== 'boolean') return bad('Invalid pay_allow_partners.');
+      patch.pay_allow_partners = b.pay_allow_partners;
     }
     if (b.grants !== undefined) {
       if (!b.grants || typeof b.grants !== 'object' || Array.isArray(b.grants))
@@ -267,8 +276,12 @@ export async function onRequestPost({ request, env }) {
     } else if (b.action === 'cash') {
       const cents = Number(b.cash_cents);
       if (!Number.isInteger(cents) || cents <= 0) return bad('Enter the cash received.');
-      const settings = await DB.selectOne('token_settings', { id: true }, 'tokens_per_dollar');
-      const tokens = (cents * (settings?.tokens_per_dollar || 10)) / 100;
+      // token_quote is the one place the rate lives, promotion included, so the
+      // desk cannot send a number token_admin_credit will turn down. It re-quotes
+      // under the member lock, and a mismatch comes back with `expected`.
+      const quote = await DB.rpc('token_quote', { p_member: b.member_id, p_cents: cents });
+      if (!quote || quote.error) return bad(quote?.error || 'Could not price that amount.');
+      const tokens = quote.total;
       if (!Number.isInteger(tokens)) return bad('That amount does not convert to whole tokens.');
       result = await DB.rpc('token_admin_credit', {
         p_member: b.member_id,

@@ -1,7 +1,7 @@
-// Runs supabase/migrations/0024_tokens.sql in a real Postgres (PGlite, in
+// Runs the token migrations (0024, then 0027) in a real Postgres (PGlite, in
 // process) and drives the ledger functions the way the API does. The token
 // ledger is money CAACI owes, so its rules are pinned against a database, not
-// only against the migration's text: balances, expiry order, the caps, voids,
+// only against the migration's text: balances, lot order, the caps, voids,
 // disputes, statements and the root guard.
 //
 // Only what 0024 needs from earlier migrations is stubbed here (auth.users,
@@ -11,7 +11,23 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 
-const MIGRATION = new URL('../supabase/migrations/0024_tokens.sql', import.meta.url);
+const MIGRATIONS = [
+  new URL('../supabase/migrations/0024_tokens.sql', import.meta.url),
+  new URL('../supabase/migrations/0027_tokens_never_expire.sql', import.meta.url),
+  new URL('../supabase/migrations/0028_token_purchase_bonus.sql', import.meta.url),
+  new URL('../supabase/migrations/0029_admin_cash_cap.sql', import.meta.url),
+  new URL('../supabase/migrations/0030_token_pay_codes.sql', import.meta.url),
+  new URL('../supabase/migrations/0031_token_collected.sql', import.meta.url),
+];
+
+// Open the bonus window around now() so the rate rules can be driven directly.
+const openBonus = (pct = 50, capCents = 10000) =>
+  db.query(
+    `update public.token_settings
+        set bonus_pct = $1, bonus_cap_cents = $2,
+            bonus_from = now() - interval '1 hour', bonus_to = now() + interval '1 hour'`,
+    [pct, capCents],
+  );
 
 let db;
 const q = async (sql, params = []) => (await db.query(sql, params)).rows;
@@ -75,9 +91,9 @@ before(async () => {
     grant usage on schema public to anon, authenticated, service_role;
     grant all on all tables in schema public to service_role;
   `);
-  await db.exec(await readFile(MIGRATION, 'utf8'));
-  // pasting it twice must be safe
-  await db.exec(await readFile(MIGRATION, 'utf8'));
+  for (const m of MIGRATIONS) await db.exec(await readFile(m, 'utf8'));
+  // pasting them twice must be safe
+  for (const m of MIGRATIONS) await db.exec(await readFile(m, 'utf8'));
   await db.exec('grant all on all tables in schema public to service_role;');
 });
 
@@ -88,7 +104,10 @@ beforeEach(async () => {
     delete from auth.users;
     update public.token_settings set grants = '{"student":150,"individual":450,"family":900}'::jsonb,
            max_charge = 500, admin_mint_cap = 500, admin_daily_cap = 2000, cash_min_cents = 500,
-           void_hours = 24, settle_min_cents = 2000, suspend_after = 3;
+           void_hours = 24, settle_min_cents = 2000, suspend_after = 3,
+           bonus_pct = 0, bonus_from = null, bonus_to = null, bonus_cap_cents = 10000,
+           admin_cash_cap_cents = 20000,
+           pay_repeat_seconds = 120, pay_allow_partners = false;
   `);
 });
 
@@ -145,17 +164,29 @@ test('an upgrade tops up to the new plan; a renewal starts a new year; a nudged 
   assert.equal(renewed.granted, 900, 'a renewal is a new membership year');
 });
 
-test('granted tokens expire with the membership; bought tokens do not', async () => {
+test('no token expires, and the DB refuses to give one an expiry (0027)', async () => {
   const m = await member({ tier: 'individual', expires: '10 days' });
   await call('token_membership_grant', m, null);
   await call('token_purchase_credit', m, 200, 2000, 'cs_test_1');
   assert.equal(await balance(m), 650);
 
-  // the membership year ends
-  await db.query(
-    `update public.token_lots set expires_at = now() - interval '1 minute' where source = 'grant'`,
+  const lots = await q(`select source, expires_at from public.token_lots where member_id = $1`, [
+    m,
+  ]);
+  assert.equal(lots.length, 2);
+  for (const l of lots) assert.equal(l.expires_at, null, `${l.source} must never expire`);
+
+  // The membership year ending no longer touches the tokens.
+  await db.query(`update public.members set expires_at = now() - interval '1 day' where id = $1`, [
+    m,
+  ]);
+  assert.equal(await balance(m), 650, 'a lapsed membership does not burn the balance');
+
+  // token_lots_never_expires makes the escheat exemption structural, not a habit.
+  await assert.rejects(
+    () => db.query(`update public.token_lots set expires_at = now() + interval '1 day'`),
+    /token_lots_never_expires/,
   );
-  assert.equal(await balance(m), 200, 'only the bought tokens are left');
 });
 
 test('a purchase is credited once per Stripe session', async () => {
@@ -167,14 +198,92 @@ test('a purchase is credited once per Stripe session', async () => {
   assert.equal(await balance(m), 100);
 });
 
+// ----------------------------------------------------------------- bonus ----
+test('outside the bonus window a dollar buys the plain rate (0028)', async () => {
+  const m = await member({ tier: 'free', expires: null });
+  const { q } = await one('select public.token_quote($1, 1000) as q', [m]);
+  assert.equal(q.bonus_active, false);
+  assert.deepEqual([q.base, q.bonus, q.total], [100, 0, 100]);
+
+  await call('token_purchase_credit', m, 100, 1000, 'cs_plain');
+  assert.equal(await balance(m), 100);
+  const tx = await one('select amount, bonus_tokens from public.token_tx where member_id = $1', [
+    m,
+  ]);
+  assert.deepEqual(tx, { amount: 100, bonus_tokens: 0 });
+});
+
+test('inside the window a purchase gets 50% more, booked apart from what was paid for', async () => {
+  const m = await member({ tier: 'free', expires: null });
+  await openBonus();
+  const r = await call('token_purchase_credit', m, 100, 1000, 'cs_bonus');
+  assert.equal(r.bonus, 50);
+  assert.equal(await balance(m), 150, '$10 buys 150 during the promotion');
+  const tx = await one(
+    'select amount, bonus_tokens, cash_cents from public.token_tx where member_id = $1',
+    [m],
+  );
+  assert.deepEqual(tx, { amount: 150, bonus_tokens: 50, cash_cents: 1000 });
+});
+
+test('the cash desk gives the bonus too, and refuses tokens that do not match the money', async () => {
+  const root = await member({ root: true });
+  const m = await member({ tier: 'free', expires: null });
+  await openBonus();
+
+  const wrong = await call('token_admin_credit', m, 'cash', 100, 1000, root, null);
+  assert.equal(wrong.error, 'cash_amount_mismatch');
+  assert.equal(wrong.expected, 150, 'the desk has to hand over the bonus');
+
+  const ok = await call('token_admin_credit', m, 'cash', 150, 1000, root, null);
+  assert.equal(ok.bonus, 50);
+  assert.equal(await balance(m), 150);
+});
+
+test('the bonus stops at the cap, and splitting the spend does not get around it', async () => {
+  const root = await member({ root: true });
+  const m = await member({ tier: 'free', expires: null });
+  await openBonus(50, 10000); // the first $100 each member spends
+
+  await call('token_purchase_credit', m, 600, 6000, 'cs_cap_1');
+  assert.equal(await balance(m), 900, '$60 -> 600 paid + 300 bonus');
+
+  const second = await call('token_purchase_credit', m, 600, 6000, 'cs_cap_2');
+  assert.equal(second.bonus, 200, 'only the $40 still inside the cap earns 50%');
+  assert.equal(await balance(m), 1700);
+
+  const third = await call('token_admin_credit', m, 'cash', 100, 1000, root, null);
+  assert.equal(third.bonus, 0, 'past the cap it is the plain rate again');
+  assert.equal(await balance(m), 1800);
+});
+
+test('a bonus token is still only worth ten cents to a merchant', async () => {
+  const clerk = await member();
+  const shop = await merchant({ staff: [clerk] });
+  const admin = await member({ admin: true });
+  const m = await member({ tier: 'free', expires: null });
+  await openBonus();
+
+  await call('token_purchase_credit', m, 100, 1000, 'cs_settle'); // $10 -> 150
+  assert.equal(await balance(m), 150);
+  await call('token_charge', m, shop, clerk, 150, null, 'dinner', 'idem-bonus');
+
+  // CAACI took $10 and owes the shop $15: the promotion comes out of margin,
+  // it does not devalue the token at settlement.
+  const s = await call('token_settlement_close', shop, new Date().toISOString(), admin);
+  assert.equal(s.tokens, 150);
+  assert.equal(s.amount_cents, 1500, '150 tokens settle at the plain rate, not the bonus one');
+});
+
 // --------------------------------------------------------------- charges ----
-test('a charge draws the earliest-expiring tokens first and a void puts them back', async () => {
+test('a charge draws the oldest tokens first and a void puts them back', async () => {
   const clerk = await member();
   const shop = await merchant({ staff: [clerk] });
   const m = await member({ tier: 'student', expires: '30 days' });
-  await call('token_purchase_credit', m, 100, 1000, 'cs_fifo'); // never expires
-  await call('token_membership_grant', m, null); // 150, expires in 30 days
+  await call('token_purchase_credit', m, 100, 1000, 'cs_fifo'); // bought first
+  await call('token_membership_grant', m, null); // 150, granted second
 
+  // Since 0027 nothing expires, so "earliest-expiring" is plain FIFO by age.
   const c = await call('token_charge', m, shop, clerk, 180, null, 'two teas', 'idem-1');
   assert.equal(c.ok, true);
   assert.equal(c.balance, 70);
@@ -183,8 +292,8 @@ test('a charge draws the earliest-expiring tokens first and a void puts them bac
     [m],
   );
   assert.deepEqual(lots, [
-    { source: 'grant', remaining: 0 },
-    { source: 'purchase', remaining: 70 },
+    { source: 'grant', remaining: 70 },
+    { source: 'purchase', remaining: 0 },
   ]);
 
   const v = await call('token_void', c.tx_id, clerk, 'wrong customer');
@@ -203,6 +312,217 @@ test('a charge draws the earliest-expiring tokens first and a void puts them bac
     (await one('select state from public.token_tx where id = $1', [c.tx_id])).state,
     'voided',
   );
+});
+
+// -------------------------------------------------- scan-to-pay (0030) ----
+const CODE = 'K7M2PQ34';
+async function payItem(shop, { tokens = 30, code = CODE, active = true } = {}) {
+  const { id } = await one(
+    `insert into public.merchant_items (merchant_id, name, name_zh, tokens, active, pay_code, pay_code_at)
+     values ($1, 'Orange juice', '橙汁', $2, $3, $4, now()) returning id`,
+    [shop, tokens, active, code],
+  );
+  return id;
+}
+
+test('scan-to-pay: the price is the item’s, the payer is the actor, and it is marked self-serve', async () => {
+  const shop = await merchant({ kind: 'internal' });
+  const item = await payItem(shop);
+  const m = await member({ tier: 'student' });
+  await call('token_membership_grant', m, null); // 150
+
+  const r = await call('token_charge_code', m, CODE, 'idem-pay-1');
+  assert.equal(r.ok, true);
+  assert.equal(r.amount, 30);
+  assert.equal(r.balance, 120);
+  assert.equal(await balance(m), 120);
+
+  const tx = await one(
+    `select kind, amount, member_id, actor_id, merchant_id, self_serve, pay_item_id, items
+       from public.token_tx where id = $1`,
+    [r.tx_id],
+  );
+  assert.equal(tx.kind, 'charge');
+  assert.equal(tx.amount, -30);
+  assert.equal(tx.actor_id, m, 'the member pressed the button themselves');
+  assert.equal(tx.merchant_id, shop);
+  assert.equal(tx.self_serve, true);
+  assert.equal(tx.pay_item_id, item);
+  assert.deepEqual(tx.items, [{ name: 'Orange juice', name_zh: '橙汁', tokens: 30, qty: 1 }]);
+
+  // The same request again takes nothing more.
+  const retry = await call('token_charge_code', m, CODE, 'idem-pay-1');
+  assert.equal(retry.duplicate, true);
+  assert.equal(await balance(m), 120);
+
+  // A lower-case code off a hand-typed address still finds the sticker.
+  assert.equal(
+    (await call('token_charge_code', m, CODE.toLowerCase(), 'idem-pay-2', true)).ok,
+    true,
+  );
+  assert.equal(await balance(m), 90);
+});
+
+test('scan-to-pay: the same item twice in a row asks first, and only then charges', async () => {
+  const shop = await merchant({ kind: 'internal' });
+  await payItem(shop);
+  const m = await member({ tier: 'family' });
+  await call('token_membership_grant', m, null);
+
+  assert.equal((await call('token_charge_code', m, CODE, 'idem-a')).ok, true);
+
+  const again = await call('token_charge_code', m, CODE, 'idem-b');
+  assert.equal(again.error, 'repeat_too_soon', 'a double tap does not buy a second juice');
+  assert.equal(again.seconds, 120);
+  assert.equal(await balance(m), 870);
+
+  const meant = await call('token_charge_code', m, CODE, 'idem-b', true);
+  assert.equal(meant.ok, true, 'saying yes buys the second one');
+  assert.equal(await balance(m), 840);
+
+  // The window is what the setting says, and 0 turns the question off.
+  await db.query('update public.token_settings set pay_repeat_seconds = 0');
+  assert.equal((await call('token_charge_code', m, CODE, 'idem-c')).ok, true);
+  assert.equal(await balance(m), 810);
+});
+
+test('scan-to-pay: a partner shop is refused until root allows partners', async () => {
+  const shop = await merchant({ kind: 'partner' });
+  await payItem(shop);
+  const m = await member({ tier: 'individual' });
+  await call('token_membership_grant', m, null);
+
+  assert.equal(
+    (await call('token_charge_code', m, CODE, 'idem-p1')).error,
+    'self_serve_not_allowed',
+  );
+  assert.equal(await balance(m), 450);
+
+  await db.query('update public.token_settings set pay_allow_partners = true');
+  assert.equal((await call('token_charge_code', m, CODE, 'idem-p2')).ok, true);
+  assert.equal(await balance(m), 420);
+});
+
+test('scan-to-pay: a dead sticker, a suspended shop, the cap and an empty balance all refuse', async () => {
+  const shop = await merchant({ kind: 'internal' });
+  const item = await payItem(shop);
+  const m = await member({ tier: 'student' });
+  await call('token_membership_grant', m, null); // 150
+
+  assert.equal((await call('token_charge_code', m, 'NOSUCH99', 'i1')).error, 'code_not_found');
+
+  // Rotating the code is what kills every sheet already printed.
+  await db.query(`update public.merchant_items set pay_code = 'W9X8Y7Z6' where id = $1`, [item]);
+  assert.equal((await call('token_charge_code', m, CODE, 'i2')).error, 'code_not_found');
+  await db.query(`update public.merchant_items set pay_code = $2 where id = $1`, [item, CODE]);
+
+  await db.query('update public.merchant_items set active = false where id = $1', [item]);
+  assert.equal((await call('token_charge_code', m, CODE, 'i3')).error, 'code_not_found');
+  await db.query('update public.merchant_items set active = true where id = $1', [item]);
+
+  await db.query(`update public.merchants set status = 'suspended' where id = $1`, [shop]);
+  assert.equal((await call('token_charge_code', m, CODE, 'i4')).error, 'merchant_suspended');
+  await db.query(`update public.merchants set status = 'active' where id = $1`, [shop]);
+
+  await db.query('update public.merchant_items set tokens = 900 where id = $1', [item]);
+  const over = await call('token_charge_code', m, CODE, 'i5');
+  assert.equal(over.error, 'over_max_charge');
+  assert.equal(over.max, 500);
+
+  await db.query('update public.merchant_items set tokens = 400 where id = $1', [item]);
+  const poor = await call('token_charge_code', m, CODE, 'i6');
+  assert.equal(poor.error, 'insufficient_balance');
+  assert.equal(poor.balance, 150);
+  assert.equal(await balance(m), 150, 'nothing moved through any of that');
+});
+
+test('handed over: the first tick wins and the second one is told who took it', async () => {
+  const clerk = await member();
+  const other = await member();
+  const shop = await merchant({ kind: 'internal', staff: [clerk, other] });
+  await payItem(shop);
+  const m = await member({ tier: 'student' });
+  await call('token_membership_grant', m, null);
+  const paid = await call('token_charge_code', m, CODE, 'idem-collect');
+
+  const first = await call('token_collect', paid.tx_id, clerk, true);
+  assert.equal(first.ok, true);
+  assert.ok(first.collected_at, 'stamped');
+  assert.match(first.collected_by, /^Member /, 'who ticked it, by name');
+
+  // The second volunteer, on the same payment: refused, and told who and when.
+  const second = await call('token_collect', paid.tx_id, other, true);
+  assert.equal(second.error, 'already_collected');
+  assert.equal(second.by, first.collected_by);
+  assert.ok(second.at, 'and when');
+
+  // A mis-tap can be undone, and then it is waiting again.
+  assert.equal((await call('token_collect', paid.tx_id, other, false)).ok, true);
+  assert.equal(
+    (
+      await one('select collected_at, collected_by from public.token_tx where id = $1', [
+        paid.tx_id,
+      ])
+    ).collected_at,
+    null,
+  );
+  assert.equal((await call('token_collect', paid.tx_id, other, false)).error, 'not_collected');
+  assert.equal((await call('token_collect', paid.tx_id, other, true)).ok, true);
+});
+
+test('handed over: only this shop, only a scanned charge, only while it stands', async () => {
+  const clerk = await member();
+  const stranger = await member();
+  const admin = await member({ admin: true });
+  const shop = await merchant({ kind: 'internal', staff: [clerk] });
+  await payItem(shop);
+  const m = await member({ tier: 'family' });
+  await call('token_membership_grant', m, null);
+
+  const paid = await call('token_charge_code', m, CODE, 'idem-c1');
+  assert.equal((await call('token_collect', paid.tx_id, stranger, true)).error, 'not_staff');
+  assert.equal((await call('token_collect', paid.tx_id, admin, true)).ok, true, 'an admin may');
+
+  // A charge a clerk made at the till was handed over as it was made.
+  const overTheCounter = await call(
+    'token_charge',
+    m,
+    shop,
+    clerk,
+    40,
+    null,
+    'at the till',
+    'i-c2',
+  );
+  assert.equal(
+    (await call('token_collect', overTheCounter.tx_id, clerk, true)).error,
+    'not_self_serve',
+  );
+
+  // Nothing is handed over for a charge that no longer stands.
+  const second = await call('token_charge_code', m, CODE, 'idem-c3', true);
+  await call('token_void', second.tx_id, clerk, 'wrong item');
+  const dead = await call('token_collect', second.tx_id, clerk, true);
+  assert.equal(dead.error, 'charge_not_ok');
+  assert.equal(dead.state, 'voided');
+
+  assert.equal(
+    (await call('token_collect', '00000000-0000-4000-8000-999999999999', clerk, true)).error,
+    'charge_not_found',
+  );
+});
+
+test('scan-to-pay: a self-serve charge can still be voided by the shop', async () => {
+  const clerk = await member();
+  const shop = await merchant({ kind: 'internal', staff: [clerk] });
+  await payItem(shop);
+  const m = await member({ tier: 'student' });
+  await call('token_membership_grant', m, null);
+
+  const paid = await call('token_charge_code', m, CODE, 'idem-void');
+  const v = await call('token_void', paid.tx_id, clerk, 'handed back the juice');
+  assert.equal(v.ok, true);
+  assert.equal(await balance(m), 150);
 });
 
 test('a charge is refused without enough tokens, over the cap, by a stranger, or against oneself', async () => {
@@ -328,6 +648,42 @@ test('an admin is capped per action and per day; root is not; cash must match th
   assert.deepEqual(row, { kind: 'cash', cash_cents: 1000 });
   const lot = await one('select expires_at from public.token_lots where tx_id = $1', [cash.tx_id]);
   assert.equal(lot.expires_at, null, 'cash-bought tokens never expire');
+});
+
+test('cash has its own $200 ceiling, measured on the money and not moved by a promotion (0029)', async () => {
+  const admin = await member({ admin: true });
+  const root = await member({ admin: true, root: true });
+  const m = await member({ tier: 'free', expires: null });
+
+  // $200 is 2000 tokens -- four times the 500-token mint cap, which used to
+  // stop the desk at $50.
+  assert.equal((await call('token_admin_credit', m, 'cash', 2000, 20000, admin, null)).ok, true);
+  assert.equal(await balance(m), 2000);
+
+  const over = await call('token_admin_credit', m, 'cash', 2010, 20100, admin, null);
+  assert.equal(over.error, 'over_cash_cap');
+  assert.equal(over.cap_cents, 20000);
+  assert.equal((await call('token_admin_credit', m, 'cash', 2010, 20100, root, null)).ok, true);
+
+  // The ceiling is on the cash, so the launch-day bonus cannot raise or lower
+  // it: $200 still goes through, and $200.01 still does not. A fresh member,
+  // because the bonus cap counts spending already done inside the window and
+  // the buys above would eat it.
+  await openBonus();
+  const fresh = await member({ tier: 'free', expires: null });
+  const bonused = await call('token_admin_credit', fresh, 'cash', 2500, 20000, admin, null);
+  assert.equal(bonused.ok, true, '$200 buys 2000 + 500 bonus on the first $100');
+  assert.equal(bonused.bonus, 500);
+  assert.equal(
+    (await call('token_admin_credit', fresh, 'cash', 2010, 20100, admin, null)).error,
+    'over_cash_cap',
+  );
+
+  // Minting is unchanged: still 500 tokens per action.
+  assert.equal(
+    (await call('token_admin_credit', m, 'mint', 501, null, admin, 'x')).error,
+    'over_admin_cap',
+  );
 });
 
 test('an admin can take tokens back, with a reason, never below zero', async () => {
@@ -458,7 +814,7 @@ test('a statement stamps what it covers; small months roll over; late reversals 
 });
 
 // -------------------------------------------------------------- transfer ----
-test('tokens move inside one family and keep their expiry', async () => {
+test('tokens move inside one family and stay non-expiring', async () => {
   const household = uuid();
   const founder = await member({ tier: 'family', household });
   const kid = await member({ household });
@@ -471,9 +827,11 @@ test('tokens move inside one family and keep their expiry', async () => {
   assert.equal(t.ok, true);
   assert.equal(await balance(founder), 600);
   assert.equal(await balance(kid), 300);
+  // Both sides are null since 0027, and `null = null` is null -- not true.
   const same = await one(
     `select (select expires_at from public.token_lots where member_id = $1 limit 1)
-          = (select expires_at from public.token_lots where member_id = $2 limit 1) as same`,
+          is not distinct from
+            (select expires_at from public.token_lots where member_id = $2 limit 1) as same`,
     [founder, kid],
   );
   assert.equal(same.same, true);

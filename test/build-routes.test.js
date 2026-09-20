@@ -36,6 +36,8 @@ test('build: the React site is written at every route it serves, in English and 
     // tokens: a scanned member card lands on /charge/?m=…
     'charge/',
     'merchant/',
+    // scan-to-pay: the address printed on a product's QR
+    'pay/',
     'token-admin/',
     'plan-preview/',
   ];

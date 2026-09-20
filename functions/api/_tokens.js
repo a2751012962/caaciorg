@@ -62,6 +62,28 @@ export async function tokenGate(request, env) {
   return { user: gate.user, DB: sb(env) };
 }
 
+// Gate for a page a signed-out visitor may still read: the switch must be on,
+// and a session is validated only if the request carries one. Returns
+// { user: null, DB } for a visitor who has not signed in yet — which is how
+// someone who scanned a printed code gets to see what it is before logging in.
+export async function tokenGateOptional(request, env) {
+  if (!tokensEnabled(env)) return { error: tokensOff() };
+  if (!(request.headers.get('authorization') || '').startsWith('Bearer '))
+    return { user: null, DB: sb(env) };
+  const gate = await requireUser(request, env);
+  if (gate.error) return gate;
+  return { user: gate.user, DB: sb(env) };
+}
+
+// The four characters a customer reads out at the counter, and the merchant
+// console shows beside the charge. Short on purpose: it is checked against a
+// list of the last few minutes, not searched for among every charge ever made.
+export const confirmCode = (txId) =>
+  String(txId || '')
+    .replace(/-/g, '')
+    .slice(0, 4)
+    .toUpperCase();
+
 // Root gate (after the switch): validates the session, then reads is_root with
 // the service role — never from the JWT.
 export async function requireRoot(request, env) {
@@ -94,6 +116,31 @@ const MESSAGES = {
     '你的账号不在该商家的店员名单中。',
   ],
   not_admin: () => ['Admin access required.', '需要管理员权限。'],
+  code_not_found: () => [
+    'This QR code is not in use. Please pay at the counter.',
+    '这个二维码已失效，请到柜台付款。',
+  ],
+  self_serve_not_allowed: () => [
+    'This shop does not take scan-to-pay yet. Please pay at the counter.',
+    '该商家暂不支持扫码付款，请到柜台付款。',
+  ],
+  already_collected: (d) => [
+    `Already handed over${d.at ? ` at ${central(d.at)}` : ''}${d.by ? ` by ${d.by}` : ''}. Check with them before serving it again.`,
+    `这笔已出货${d.at ? `（${central(d.at)}）` : ''}${d.by ? `，操作人：${d.by}` : ''}。再出货前请先核实。`,
+  ],
+  not_collected: () => ['That charge is not ticked off.', '这笔还没标记出货。'],
+  not_self_serve: () => [
+    'Only a charge the customer made by scanning a QR is ticked off here.',
+    '只有顾客扫码自助支付的扣币才需要标记出货。',
+  ],
+  charge_not_ok: (d) => [
+    `This charge is ${d.state === 'disputed' ? 'under dispute' : 'no longer valid'} — do not hand anything over.`,
+    `这笔扣币${d.state === 'disputed' ? '正在申诉中' : '已失效'}，请不要出货。`,
+  ],
+  repeat_too_soon: (d) => [
+    `You paid for this less than ${Math.round(d.seconds / 60) || 1} minute(s) ago.`,
+    `你在 ${Math.round(d.seconds / 60) || 1} 分钟内刚为这件商品付过款。`,
+  ],
   member_not_found: () => ['Member not found.', '找不到该会员。'],
   membership_not_active: () => [
     'This member has no active paid membership to grant tokens for.',

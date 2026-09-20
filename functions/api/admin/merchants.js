@@ -2,7 +2,8 @@
 //   GET  — every merchant with its staff, menu, what CAACI owes it now, and its
 //          statements.
 //   POST { action } — save_merchant | set_status | add_staff | remove_staff |
-//          save_item | delete_item | close_statement | mark_paid
+//          save_item | delete_item | issue_code | clear_code |
+//          close_statement | mark_paid
 // Merchants and their staff are created here and nowhere else: an account that
 // can take tokens is one CAACI has vetted. Staff are added by the email of an
 // account that already exists — the person signs up on the site first.
@@ -10,6 +11,25 @@ import { json, bad, sb, requireAdmin } from '../_lib.js';
 import { tokensEnabled, tokensOff, ledgerError, UUID_RE } from '../_tokens.js';
 
 const text = (v, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+// A printed pay code (0030). No I, O or U, and no 0 or 1, so nothing on a
+// sticker can be read back wrong; 31^8 ≈ 8.5e11, drawn from the CSPRNG, so a
+// code cannot be guessed at from another one. Bytes at or above 248 are thrown
+// away rather than folded, which would make the first few letters likelier.
+const ALPHABET = '23456789ABCDEFGHJKLMNPQRSTVWXYZ';
+const CODE_LENGTH = 8;
+function newPayCode() {
+  let code = '';
+  while (code.length < CODE_LENGTH) {
+    const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
+    for (const byte of bytes) {
+      if (byte >= 248) continue;
+      code += ALPHABET[byte % ALPHABET.length];
+      if (code.length === CODE_LENGTH) break;
+    }
+  }
+  return code;
+}
 
 export async function onRequestGet({ request, env }) {
   if (!tokensEnabled(env)) return tokensOff();
@@ -180,6 +200,41 @@ export async function onRequestPost({ request, env }) {
     if (b.action === 'delete_item') {
       if (!UUID_RE.test(b.id || '')) return bad('Unknown item.');
       await DB.del('merchant_items', { id: b.id }); // past charges keep their own copy of the line
+      return json({ ok: true });
+    }
+
+    // Give an item the code printed in its QR sticker (0030), or give it a new
+    // one. Re-issuing is how a sticker that was swapped, copied or photographed
+    // is killed: every sheet printed from the old code stops working at once.
+    if (b.action === 'issue_code') {
+      if (!UUID_RE.test(b.id || '')) return bad('Unknown item.');
+      const item = await DB.selectOne('merchant_items', { id: b.id }, 'id,merchant_id');
+      if (!item || item.merchant_id !== b.merchant_id) return bad('Unknown item.', 404);
+      // Unique index, not a read-then-write: two admins pressing at once each
+      // get their own code instead of one silently overwriting the other.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const pay_code = newPayCode();
+        try {
+          await DB.update(
+            'merchant_items',
+            { id: b.id },
+            { pay_code, pay_code_at: new Date().toISOString() },
+          );
+          return json({ ok: true, pay_code });
+        } catch (err) {
+          if (!/duplicate key|23505/i.test(err.message)) throw err;
+        }
+      }
+      return bad('Could not make a unique code. Try again.', 503);
+    }
+
+    if (b.action === 'clear_code') {
+      if (!UUID_RE.test(b.id || '')) return bad('Unknown item.');
+      await DB.update(
+        'merchant_items',
+        { id: b.id, merchant_id: b.merchant_id },
+        { pay_code: null, pay_code_at: null },
+      );
       return json({ ok: true });
     }
 

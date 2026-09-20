@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { Check, RotateCcw } from 'lucide-react';
 import {
   INPUT,
   LABEL,
@@ -64,6 +64,39 @@ export function MerchantPage({ lang }: { lang: Lang }) {
     void load();
   }, [load]);
 
+  // A scan-to-pay charge lands with nobody pressing anything here, and the
+  // counter is checking this list against a customer's screen — so the newest
+  // page keeps itself current while the console is actually on screen.
+  useEffect(() => {
+    if (offset !== 0) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, 15_000);
+    return () => clearInterval(id);
+  }, [offset, load]);
+
+  // Tick a scan-to-pay charge off the list once the juice is in their hand.
+  // The server refuses a second tick and says who took the first one, so two
+  // volunteers serving the same payment find out at the counter.
+  const collect = async (row: MerchantTx, collected: boolean) => {
+    setBusyTx(row.id);
+    setError('');
+    setNotice('');
+    const res = await tokens.collect(row.id, collected);
+    setBusyTx('');
+    if (!res.ok) {
+      setError(refusalText(res, lang));
+      void load(); // whatever really happened is in the list
+      return;
+    }
+    setNotice(
+      collected
+        ? t(`${row.confirm} handed over.`, `${row.confirm} 已标记出货。`)
+        : t(`${row.confirm} is waiting again.`, `${row.confirm} 已改回待出货。`),
+    );
+    void load();
+  };
+
   const voidTx = async (row: MerchantTx) => {
     const ok = window.confirm(
       t(
@@ -82,6 +115,8 @@ export function MerchantPage({ lang }: { lang: Lang }) {
 
   const eyebrow = t('CAACI Tokens', '华协币');
   const title = t('Merchant console', '商家中台');
+  // Paid by QR and not handed over yet, on this page of the list.
+  const waiting = (data?.rows ?? []).filter((r) => r.can_collect && !r.collected_at).length;
 
   if (!signedIn || shops === null)
     return (
@@ -222,6 +257,12 @@ export function MerchantPage({ lang }: { lang: Lang }) {
             <div className="flex items-center justify-between gap-3 mb-3">
               <span className="text-xs font-semibold text-brick">{t('Charges', '扣币记录')}</span>
               <span className="text-[11px] text-neutral-500">
+                {/* What the counter is actually waiting on, before the total. */}
+                {waiting > 0 && (
+                  <span className="font-semibold text-brick">
+                    {t(`${waiting} to hand over · `, `${waiting} 笔待出货 · `)}
+                  </span>
+                )}
                 {data.total} {t('in total', '条')}
               </span>
             </div>
@@ -230,54 +271,96 @@ export function MerchantPage({ lang }: { lang: Lang }) {
             ) : (
               <ul className="divide-y divide-neutral-200/80">
                 {data.rows.map((row) => (
-                  <li key={row.id} className="py-3 flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-neutral-900">
-                        {row.customer}
-                        <span className="ml-2 text-xs font-normal text-neutral-500">
-                          {when(row.at, lang)}
-                        </span>
-                      </p>
-                      <p className="text-xs text-neutral-600 truncate">
-                        {row.kind === 'charge'
-                          ? lineText(row.items, lang) || row.note
-                          : kindLabel(row.kind, lang)}
-                        {row.kind === 'charge' && row.note && lineText(row.items, lang)
-                          ? ` · ${row.note}`
-                          : ''}
-                      </p>
-                      <p className="text-[11px] text-neutral-500">
-                        {row.by}
-                        {row.settled ? ` · ${t('on a statement', '已出账')}` : ''}
-                      </p>
+                  <li key={row.id} className={`py-3 ${row.collected_at ? 'opacity-60' : ''}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-neutral-900">
+                          {row.customer}
+                          {row.confirm && (
+                            // What the customer's own screen shows. Check it —
+                            // a screenshot of an old payment looks the same.
+                            <span className="ml-2 font-mono tracking-widest text-brick">
+                              {row.confirm}
+                            </span>
+                          )}
+                          <span className="ml-2 text-xs font-normal text-neutral-500">
+                            {when(row.at, lang)}
+                          </span>
+                        </p>
+                        <p className="text-xs text-neutral-600 truncate">
+                          {row.kind === 'charge'
+                            ? lineText(row.items, lang) || row.note
+                            : kindLabel(row.kind, lang)}
+                          {row.kind === 'charge' && row.note && lineText(row.items, lang)
+                            ? ` · ${row.note}`
+                            : ''}
+                        </p>
+                        <p className="text-[11px] text-neutral-500">
+                          {row.self_serve ? t('Scanned the QR', '顾客扫码支付') : row.by}
+                          {row.settled ? ` · ${t('on a statement', '已出账')}` : ''}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0 space-y-1">
+                        <p
+                          className={`text-sm font-bold tabular-nums ${row.amount < 0 ? 'text-neutral-900' : 'text-rose-700'}`}
+                        >
+                          {row.amount < 0 ? `+${-row.amount}` : `−${row.amount}`}
+                        </p>
+                        {row.state === 'voided' && (
+                          <Status tone="muted">{t('Voided', '已撤销')}</Status>
+                        )}
+                        {row.state === 'reversed' && (
+                          <Status tone="bad">{t('Reversed', '已冲回')}</Status>
+                        )}
+                        {row.state === 'disputed' && (
+                          <Status tone="warn">{t('Disputed', '争议中')}</Status>
+                        )}
+                        {row.can_void && (
+                          <button
+                            type="button"
+                            disabled={busyTx === row.id}
+                            onClick={() => void voidTx(row)}
+                            className="min-h-[44px] inline-flex items-center gap-1 text-xs font-semibold text-neutral-700 hover:text-brick cursor-pointer"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" aria-hidden />
+                            {t('Void', '撤销')}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right shrink-0 space-y-1">
-                      <p
-                        className={`text-sm font-bold tabular-nums ${row.amount < 0 ? 'text-neutral-900' : 'text-rose-700'}`}
-                      >
-                        {row.amount < 0 ? `+${-row.amount}` : `−${row.amount}`}
-                      </p>
-                      {row.state === 'voided' && (
-                        <Status tone="muted">{t('Voided', '已撤销')}</Status>
-                      )}
-                      {row.state === 'reversed' && (
-                        <Status tone="bad">{t('Reversed', '已冲回')}</Status>
-                      )}
-                      {row.state === 'disputed' && (
-                        <Status tone="warn">{t('Disputed', '争议中')}</Status>
-                      )}
-                      {row.can_void && (
+                    {/* Scan-to-pay only: nothing was handed over at a till, so
+                        the stall ticks it off here — and the server refuses a
+                        second tick, which is how two volunteers serving one
+                        payment find out before the juice is gone. */}
+                    {row.can_collect &&
+                      (row.collected_at ? (
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                          <Status tone="good">
+                            {t('Handed over', '已出货')} {when(row.collected_at, lang)}
+                            {row.collected_by ? ` · ${row.collected_by}` : ''}
+                          </Status>
+                          <button
+                            type="button"
+                            disabled={busyTx === row.id}
+                            onClick={() => void collect(row, false)}
+                            className="min-h-[44px] text-xs font-semibold text-neutral-500 hover:text-brick cursor-pointer"
+                          >
+                            {t('Undo', '撤销出货')}
+                          </button>
+                        </div>
+                      ) : (
                         <button
                           type="button"
                           disabled={busyTx === row.id}
-                          onClick={() => void voidTx(row)}
-                          className="min-h-[44px] inline-flex items-center gap-1 text-xs font-semibold text-neutral-700 hover:text-brick cursor-pointer"
+                          onClick={() => void collect(row, true)}
+                          className="mt-2 w-full min-h-[44px] rounded-xl bg-brick/10 text-brick text-xs font-semibold inline-flex items-center justify-center gap-2 hover:bg-brick/20 cursor-pointer disabled:opacity-60"
                         >
-                          <RotateCcw className="w-3.5 h-3.5" aria-hidden />
-                          {t('Void', '撤销')}
+                          <Check className="w-4 h-4" aria-hidden />
+                          {busyTx === row.id
+                            ? t('Ticking…', '处理中…')
+                            : t(`Hand over ${row.confirm}`, `出货 ${row.confirm}`)}
                         </button>
-                      )}
-                    </div>
+                      ))}
                   </li>
                 ))}
               </ul>
@@ -305,8 +388,8 @@ export function MerchantPage({ lang }: { lang: Lang }) {
           </div>
           <p className="text-[11px] text-neutral-500 leading-relaxed">
             {t(
-              'Amounts on the right are tokens your shop received (+) or gave back (−). To take tokens, scan the customer’s member card with your phone camera.',
-              '右侧数字为本店收到（+）或退回（−）的币数。扣币请用手机相机扫描顾客的会员卡。',
+              'Amounts on the right are tokens your shop received (+) or gave back (−). To take tokens, scan the customer’s member card with your phone camera. A customer who scanned a QR on the product shows a four-character code — find it in this list before you hand anything over; this list, not their screen, is the proof.',
+              '右侧数字为本店收到（+）或退回（−）的币数。扣币请用手机相机扫描顾客的会员卡。顾客扫商品二维码付款后会看到一个四位确认码——出货前请在此列表中找到它；凭证是这份列表，不是顾客的手机屏幕。',
             )}
           </p>
         </>

@@ -112,6 +112,24 @@ export const STATUS_LABEL = {
 export const statusLabel = (status, lang) =>
   STATUS_LABEL[status]?.[lang === 'zh' ? 1 : 0] || status;
 
+// `members.status` is stored, not computed: the Stripe webhook writes it when a
+// SUBSCRIPTION event arrives, and nothing else ever moves it. A member who paid
+// once — or whose subscription has already ended, which is most of the imported
+// roster — has no subscription in Stripe, so no event will ever come and the row
+// reads 'active' for ever, however long ago expires_at went by.
+//
+// So every reader derives the status it shows, by the same rule the QR check
+// already uses (liveUntil in functions/api/_lib.js): past the expiry date, an
+// 'active' row is expired. Only 'active' is derived — the other statuses
+// already read as "not good", so there is no false reassurance to correct — and
+// a row with no expiry (the free tier) never lapses. The stored value is left
+// alone; the member editor shows it and can write the correction.
+export const effectiveStatus = (status, expiresAt, now = Date.now()) => {
+  if (status !== 'active' || !expiresAt) return status;
+  const until = Date.parse(expiresAt);
+  return Number.isNaN(until) || until > now ? status : 'expired';
+};
+
 // ---------- Site language (EN / 中文) ----------
 // The one Google Fonts request for the whole site: Poppins, the single family
 // for body, UI, buttons and headings (src/caaci-fonts.css). build.mjs writes

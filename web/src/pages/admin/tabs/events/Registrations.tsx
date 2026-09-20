@@ -230,7 +230,10 @@ export function Registrations({ ev, onClose }: { ev: AdminEvent; onClose: () => 
                         <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">
                           {chicagoTime(r.created_at)}
                         </td>
-                        <td className="px-3 py-2.5 break-all">{r.email}</td>
+                        {/* One line: every question column has a 140px minimum, so a
+                            breakable email is the only column left that can absorb a
+                            narrow table — it collapsed to one character per row. */}
+                        <td className="px-3 py-2.5 whitespace-nowrap">{r.email}</td>
                         {questions.map((q) => (
                           <td key={q.id} className="px-3 py-2.5 text-neutral-700">
                             {answerText(q, r.answers?.[q.id], lang) || '—'}

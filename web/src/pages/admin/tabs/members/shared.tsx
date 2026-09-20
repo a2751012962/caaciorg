@@ -27,6 +27,8 @@ export interface Account {
   email: string | null;
   status: string | null;
   tier_id: string | null;
+  /** So the status can be read as of today (effectiveStatus), not as stored. */
+  expires_at: string | null;
 }
 export interface Person {
   id: string;
