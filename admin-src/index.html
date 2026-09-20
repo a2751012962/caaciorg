@@ -1119,6 +1119,22 @@
                       <option value="all" data-en="All members" data-zh="全部会员">
                         All members
                       </option>
+                      <!-- The renewal lists. "Expiring" leaves out anyone on a
+                           Stripe subscription: they renew by themselves. -->
+                      <option
+                        value="expiring"
+                        data-en="Expiring within 30 days (no auto-renewal)"
+                        data-zh="30 天内到期（不会自动续费）"
+                      >
+                        Expiring within 30 days (no auto-renewal)
+                      </option>
+                      <option
+                        value="lapsed"
+                        data-en="Membership already over"
+                        data-zh="会籍已过期"
+                      >
+                        Membership already over
+                      </option>
                     </select>
                   </div>
                   <!-- A template fills the subject and message below; both stay editable. -->
