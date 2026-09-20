@@ -124,6 +124,19 @@ const MESSAGES = {
     'This shop does not take scan-to-pay yet. Please pay at the counter.',
     '该商家暂不支持扫码付款，请到柜台付款。',
   ],
+  already_collected: (d) => [
+    `Already handed over${d.at ? ` at ${central(d.at)}` : ''}${d.by ? ` by ${d.by}` : ''}. Check with them before serving it again.`,
+    `这笔已出货${d.at ? `（${central(d.at)}）` : ''}${d.by ? `，操作人：${d.by}` : ''}。再出货前请先核实。`,
+  ],
+  not_collected: () => ['That charge is not ticked off.', '这笔还没标记出货。'],
+  not_self_serve: () => [
+    'Only a charge the customer made by scanning a QR is ticked off here.',
+    '只有顾客扫码自助支付的扣币才需要标记出货。',
+  ],
+  charge_not_ok: (d) => [
+    `This charge is ${d.state === 'disputed' ? 'under dispute' : 'no longer valid'} — do not hand anything over.`,
+    `这笔扣币${d.state === 'disputed' ? '正在申诉中' : '已失效'}，请不要出货。`,
+  ],
   repeat_too_soon: (d) => [
     `You paid for this less than ${Math.round(d.seconds / 60) || 1} minute(s) ago.`,
     `你在 ${Math.round(d.seconds / 60) || 1} 分钟内刚为这件商品付过款。`,

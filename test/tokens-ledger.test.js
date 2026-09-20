@@ -17,6 +17,7 @@ const MIGRATIONS = [
   new URL('../supabase/migrations/0028_token_purchase_bonus.sql', import.meta.url),
   new URL('../supabase/migrations/0029_admin_cash_cap.sql', import.meta.url),
   new URL('../supabase/migrations/0030_token_pay_codes.sql', import.meta.url),
+  new URL('../supabase/migrations/0031_token_collected.sql', import.meta.url),
 ];
 
 // Open the bonus window around now() so the rate rules can be driven directly.
@@ -433,6 +434,82 @@ test('scan-to-pay: a dead sticker, a suspended shop, the cap and an empty balanc
   assert.equal(poor.error, 'insufficient_balance');
   assert.equal(poor.balance, 150);
   assert.equal(await balance(m), 150, 'nothing moved through any of that');
+});
+
+test('handed over: the first tick wins and the second one is told who took it', async () => {
+  const clerk = await member();
+  const other = await member();
+  const shop = await merchant({ kind: 'internal', staff: [clerk, other] });
+  await payItem(shop);
+  const m = await member({ tier: 'student' });
+  await call('token_membership_grant', m, null);
+  const paid = await call('token_charge_code', m, CODE, 'idem-collect');
+
+  const first = await call('token_collect', paid.tx_id, clerk, true);
+  assert.equal(first.ok, true);
+  assert.ok(first.collected_at, 'stamped');
+  assert.match(first.collected_by, /^Member /, 'who ticked it, by name');
+
+  // The second volunteer, on the same payment: refused, and told who and when.
+  const second = await call('token_collect', paid.tx_id, other, true);
+  assert.equal(second.error, 'already_collected');
+  assert.equal(second.by, first.collected_by);
+  assert.ok(second.at, 'and when');
+
+  // A mis-tap can be undone, and then it is waiting again.
+  assert.equal((await call('token_collect', paid.tx_id, other, false)).ok, true);
+  assert.equal(
+    (
+      await one('select collected_at, collected_by from public.token_tx where id = $1', [
+        paid.tx_id,
+      ])
+    ).collected_at,
+    null,
+  );
+  assert.equal((await call('token_collect', paid.tx_id, other, false)).error, 'not_collected');
+  assert.equal((await call('token_collect', paid.tx_id, other, true)).ok, true);
+});
+
+test('handed over: only this shop, only a scanned charge, only while it stands', async () => {
+  const clerk = await member();
+  const stranger = await member();
+  const admin = await member({ admin: true });
+  const shop = await merchant({ kind: 'internal', staff: [clerk] });
+  await payItem(shop);
+  const m = await member({ tier: 'family' });
+  await call('token_membership_grant', m, null);
+
+  const paid = await call('token_charge_code', m, CODE, 'idem-c1');
+  assert.equal((await call('token_collect', paid.tx_id, stranger, true)).error, 'not_staff');
+  assert.equal((await call('token_collect', paid.tx_id, admin, true)).ok, true, 'an admin may');
+
+  // A charge a clerk made at the till was handed over as it was made.
+  const overTheCounter = await call(
+    'token_charge',
+    m,
+    shop,
+    clerk,
+    40,
+    null,
+    'at the till',
+    'i-c2',
+  );
+  assert.equal(
+    (await call('token_collect', overTheCounter.tx_id, clerk, true)).error,
+    'not_self_serve',
+  );
+
+  // Nothing is handed over for a charge that no longer stands.
+  const second = await call('token_charge_code', m, CODE, 'idem-c3', true);
+  await call('token_void', second.tx_id, clerk, 'wrong item');
+  const dead = await call('token_collect', second.tx_id, clerk, true);
+  assert.equal(dead.error, 'charge_not_ok');
+  assert.equal(dead.state, 'voided');
+
+  assert.equal(
+    (await call('token_collect', '00000000-0000-4000-8000-999999999999', clerk, true)).error,
+    'charge_not_found',
+  );
 });
 
 test('scan-to-pay: a self-serve charge can still be voided by the shop', async () => {

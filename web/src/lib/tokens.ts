@@ -114,6 +114,11 @@ export interface MerchantTx {
   self_serve: boolean;
   /** the four characters their screen shows, for the counter to check */
   confirm: string;
+  /** when the stall handed it over (0031); null = still waiting */
+  collected_at: string | null;
+  /** who ticked it off, so a second claim on one payment names someone */
+  collected_by: string;
+  can_collect: boolean;
 }
 
 /** What a printed pay code (0030) stands for: /api/tokens/pay?c=<code>. */
@@ -273,6 +278,13 @@ export const tokens = {
   payCode: (code: string) => get<PayCode>(`/api/tokens/pay?c=${encodeURIComponent(code)}`),
   pay: (body: { code: string; idem_key: string; allow_repeat?: boolean }) =>
     post<PayDone>('/api/tokens/pay', body),
+
+  /** Tick a scan-to-pay charge as handed over, or undo a mis-tap. */
+  collect: (tx_id: string, collected: boolean) =>
+    post<{ ok: true; collected_at: string | null; collected_by: string | null }>(
+      '/api/tokens/collect',
+      { tx_id, collected },
+    ),
 
   void: (tx_id: string, reason: string) =>
     post<{ ok: true; amount: number; balance: number | null }>('/api/tokens/void', {

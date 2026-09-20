@@ -667,7 +667,11 @@ system (cheque / Zelle); the system records what is owed.
   **The counter still has to check**: the payer's screen shows a four-character
   confirmation code, and `/merchant/` lists it beside the charge (marked "Scanned the
   QR", refreshing itself every 15s). A screenshot of an older payment looks identical —
-  the list is the proof, not the phone. Only CAACI's own (`internal`) merchants may take
+  the list is the proof, not the phone. Then **tap "Hand over"** to tick that row off:
+  the stamp can only be taken once, so a second person claiming the same payment (a
+  glanced-at code, or the same customer coming back) is told who took it and when,
+  instead of quietly getting a second juice. A mis-tap can be undone by the same people.
+  The header counts what is still waiting. Only CAACI's own (`internal`) merchants may take
   scan-to-pay until root ticks **pay_allow_partners** in Settings; that switch, not a code
   change, is where the decision to let outside shops take stored value gets made.
 - **Merchants** void their own charge within 24 hours and can never add tokens. **Admins**
@@ -694,6 +698,10 @@ system (cheque / Zelle); the system records what is owed.
   `pay_allow_partners` with the rest of the settings, and a database without those columns
   refuses the whole save. It only adds, so the previously deployed code keeps working once
   it is applied.
+- **Migration:** `0031_token_collected.sql` adds the "handed over" tick:
+  `token_tx.collected_at` / `collected_by` and `token_collect()`. Paste it **before**
+  deploying this code — `/merchant/` reads those two columns, and a database without them
+  fails the whole console. It only adds.
 - **Launch checklist:** apply 0024 → set root by SQL → set `TOKENS_ENABLED=1` on the
   **preview** environment only and try a grant, a cash top-up, a charge, an undo and a
   dispute there (preview uses the live database: use a test member and void what you

@@ -10,6 +10,7 @@ import { onRequestGet as me } from '../functions/api/tokens/me.js';
 import { onRequestGet as scan } from '../functions/api/tokens/scan.js';
 import { onRequestPost as charge } from '../functions/api/tokens/charge.js';
 import { onRequestGet as payGet, onRequestPost as payPost } from '../functions/api/tokens/pay.js';
+import { onRequestPost as collect } from '../functions/api/tokens/collect.js';
 import { onRequestPost as buy } from '../functions/api/tokens/buy.js';
 import { onRequestGet as disputeGet } from '../functions/api/tokens/dispute.js';
 import {
@@ -76,6 +77,7 @@ test('the switch: off by default, and every token endpoint is dark while it is o
       charge({ request: fakeRequest({ body: {}, headers: auth }), env }),
       payGet({ request: fakeRequest({ url: 'https://x/api/tokens/pay?c=ABCD2345' }), env }),
       payPost({ request: fakeRequest({ body: { code: 'ABCD2345' }, headers: auth }), env }),
+      collect({ request: fakeRequest({ body: { tx_id: TX }, headers: auth }), env }),
       buy({ request: fakeRequest({ body: {}, headers: auth }), env }),
       adminTokens({ request: fakeRequest({ body: {}, headers: auth }), env }),
       roles({ request: fakeRequest({ body: {}, headers: auth }), env }),
@@ -360,6 +362,93 @@ test('pay: signed out takes nothing; a repeat comes back in both languages', asy
     assert.equal(data.code, 'repeat_too_soon');
     assert.match(data.error, /2 minute/);
     assert.match(data.error_zh, /2 分钟/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('handed over: the tick carries the session as the actor, and a second one is refused', async () => {
+  let fetch = mockFetch(
+    backend(
+      stall({
+        token_collect: {
+          ok: true,
+          collected_at: '2026-09-27T20:05:00Z',
+          collected_by: 'Volunteer Li',
+        },
+      }),
+    ),
+  );
+  try {
+    const r = await collect({
+      request: fakeRequest({ headers: auth, body: { tx_id: TX, collected: true } }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).collected_by, 'Volunteer Li');
+    const args = JSON.parse(
+      fetch.calls.find((c) => c.url.includes('rpc/token_collect')).options.body,
+    );
+    assert.equal(args.p_tx, TX);
+    assert.equal(args.p_actor, USER, 'who ticked it is the session, not the body');
+    assert.equal(args.p_collected, true);
+  } finally {
+    fetch.restore();
+  }
+
+  // Only an explicit false is an undo; anything else means handed over.
+  fetch = mockFetch(backend(stall({ token_collect: { ok: true, collected_at: null } })));
+  try {
+    await collect({
+      request: fakeRequest({ headers: auth, body: { tx_id: TX, collected: false } }),
+      env: fakeEnv(ON),
+    });
+    const args = JSON.parse(
+      fetch.calls.find((c) => c.url.includes('rpc/token_collect')).options.body,
+    );
+    assert.equal(args.p_collected, false);
+  } finally {
+    fetch.restore();
+  }
+
+  fetch = mockFetch(
+    backend(
+      stall({
+        token_collect: {
+          error: 'already_collected',
+          at: '2026-09-27T20:05:00Z',
+          by: 'Volunteer Li',
+        },
+      }),
+    ),
+  );
+  try {
+    const r = await collect({
+      request: fakeRequest({ headers: auth, body: { tx_id: TX, collected: true } }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(r.status, 409);
+    const data = await r.json();
+    assert.equal(data.code, 'already_collected');
+    assert.match(data.error, /Volunteer Li/);
+    assert.match(data.error_zh, /已出货/);
+    assert.match(data.error_zh, /Volunteer Li/);
+  } finally {
+    fetch.restore();
+  }
+
+  // A malformed id never reaches the database.
+  fetch = mockFetch(backend(stall()));
+  try {
+    const r = await collect({
+      request: fakeRequest({ headers: auth, body: { tx_id: 'nope' } }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(r.status, 400);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('token_collect')),
+      false,
+    );
   } finally {
     fetch.restore();
   }

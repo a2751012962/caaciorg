@@ -35,7 +35,7 @@ export async function onRequestGet({ request, env }) {
     const [tx, open, settlements, settings] = await Promise.all([
       DB.select('token_tx', {
         columns:
-          'id,created_at,kind,amount,state,items,note,reason,member_id,actor_id,related_tx,settlement_id,self_serve',
+          'id,created_at,kind,amount,state,items,note,reason,member_id,actor_id,related_tx,settlement_id,self_serve,collected_at,collected_by',
         filters: [`merchant_id=eq.${merchantId}`],
         order: 'created_at.desc',
         limit: PAGE,
@@ -56,7 +56,9 @@ export async function onRequestGet({ request, env }) {
     ]);
 
     // token_tx points at auth.users, so names come from a second lookup.
-    const ids = [...new Set(tx.rows.flatMap((t) => [t.member_id, t.actor_id]).filter(Boolean))];
+    const ids = [
+      ...new Set(tx.rows.flatMap((t) => [t.member_id, t.actor_id, t.collected_by]).filter(Boolean)),
+    ];
     const names = new Map();
     if (ids.length) {
       const { rows } = await DB.select('members', {
@@ -96,6 +98,11 @@ export async function onRequestGet({ request, env }) {
         // (0030). Nobody can be served on a screenshot alone.
         self_serve: t.self_serve === true,
         confirm: t.kind === 'charge' && t.self_serve ? confirmCode(t.id) : '',
+        // Handed over yet (0031)? The name is who ticked it, so a second claim
+        // on the same payment has someone to ask.
+        collected_at: t.collected_at || null,
+        collected_by: t.collected_by ? names.get(t.collected_by) || '' : '',
+        can_collect: t.kind === 'charge' && t.self_serve === true && t.state === 'ok',
         related_tx: t.related_tx,
         settled: !!t.settlement_id,
         can_void:
