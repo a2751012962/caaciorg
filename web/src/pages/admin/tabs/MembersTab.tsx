@@ -5,6 +5,7 @@ import { listExit, mountIn, riseFromSm, shown } from '../../../lib/motion';
 import { effectiveStatus } from '../../../lib/shared';
 import {
   DataTable,
+  EYEBROW,
   Field,
   INPUT,
   InlineConfirm,
@@ -134,6 +135,13 @@ export default function MembersTab() {
     <div className="space-y-5">
       <TabHeader
         title={t('Members & Subscriptions', '会员与订阅')}
+        description={
+          list.data
+            ? total === 0
+              ? t('No members match the filters.', '没有符合筛选条件的会员。')
+              : t(total === 1 ? '1 member' : `${total} members`, `共 ${total} 位会员`)
+            : undefined
+        }
         actions={
           <button type="button" className={PRIMARY} onClick={() => setAdding((a) => !a)}>
             {adding ? (
@@ -168,8 +176,11 @@ export default function MembersTab() {
         )}
       </AnimatePresence>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
-        <label className="relative block sm:col-span-2 lg:col-span-1">
+      {/* Search on its own line, the three narrowers side by side under it: at
+          any width they share one row, so none of them is ever left standing
+          alone on a line of its own. */}
+      <div className="space-y-3">
+        <label className="relative block">
           <span className="sr-only">{t('Search name or email', '搜索姓名或邮箱')}</span>
           <SearchIcon
             className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none"
@@ -183,40 +194,42 @@ export default function MembersTab() {
             onChange={(e) => setQInput(e.target.value)}
           />
         </label>
-        <select
-          className={SELECT}
-          value={status}
-          onChange={(e) => filter(setStatus)(e.target.value)}
-          aria-label={t('Status', '状态')}
-        >
-          <option value="">{t('All statuses', '全部状态')}</option>
-          <StatusOptions />
-        </select>
-        <select
-          className={SELECT}
-          value={tier}
-          onChange={(e) => filter(setTier)(e.target.value)}
-          aria-label={t('Tier', '类型')}
-        >
-          <option value="">{t('All tiers', '全部类型')}</option>
-          {tiers.map((x) => (
-            <option key={x.id} value={x.id}>
-              {x.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className={SELECT}
-          value={sort}
-          onChange={(e) => filter(setSort)(e.target.value)}
-          aria-label={t('Sort', '排序')}
-        >
-          {SORTS.map(([v, en, zh]) => (
-            <option key={v} value={v}>
-              {t(en, zh)}
-            </option>
-          ))}
-        </select>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <select
+            className={SELECT}
+            value={status}
+            onChange={(e) => filter(setStatus)(e.target.value)}
+            aria-label={t('Status', '状态')}
+          >
+            <option value="">{t('All statuses', '全部状态')}</option>
+            <StatusOptions />
+          </select>
+          <select
+            className={SELECT}
+            value={tier}
+            onChange={(e) => filter(setTier)(e.target.value)}
+            aria-label={t('Tier', '类型')}
+          >
+            <option value="">{t('All tiers', '全部类型')}</option>
+            {tiers.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className={SELECT}
+            value={sort}
+            onChange={(e) => filter(setSort)(e.target.value)}
+            aria-label={t('Sort', '排序')}
+          >
+            {SORTS.map(([v, en, zh]) => (
+              <option key={v} value={v}>
+                {t(en, zh)}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <Loaded
@@ -229,20 +242,26 @@ export default function MembersTab() {
           rows={rows}
           rowKey={(m) => m.id}
           columns={[
+            // Name and email are one column, stacked: five columns across the
+            // console's ~700px leave an address so little room that it breaks
+            // mid-domain ("…@exam / ple.com"). One wide column fits both.
             {
-              key: 'name',
-              label: t('Name', '姓名'),
-              render: (m) => <span className="font-semibold text-ink">{m.full_name || '—'}</span>,
-            },
-            {
-              key: 'email',
-              label: t('Email', '邮箱'),
-              render: (m) => <span className="break-all">{m.email}</span>,
+              key: 'member',
+              label: t('Member', '会员'),
+              render: (m) => (
+                <div className="min-w-0">
+                  <div className="font-semibold text-ink">{m.full_name || '—'}</div>
+                  <div className="text-xs text-neutral-500 break-all">{m.email}</div>
+                </div>
+              ),
             },
             { key: 'tier', label: t('Tier', '类型'), render: (m) => <TierLabel id={m.tier_id} /> },
+            // Status and date are short and must stay on one line: the member
+            // column takes what is left rather than breaking "已过期" in two.
             {
               key: 'status',
               label: t('Status', '状态'),
+              className: 'whitespace-nowrap',
               // As of today, not as stored (effectiveStatus): a one-time member
               // has no subscription, so nothing ever moves their row off
               // 'active' once the year runs out.
@@ -254,6 +273,7 @@ export default function MembersTab() {
             {
               key: 'expires',
               label: t('Expires', '到期'),
+              className: 'whitespace-nowrap',
               render: (m) => <FmtDate d={m.expires_at} />,
             },
           ]}
@@ -282,12 +302,9 @@ export default function MembersTab() {
             ) : null
           }
         />
+        {/* The count of everything that matches is in the header; the pager
+            only appears once there is more than one page of it. */}
         <Pager offset={offset} limit={LIMIT} total={total} onPage={setOffset} />
-        {total > 0 && total <= LIMIT && (
-          <p className="mt-3 text-xs text-neutral-500">
-            {t(`1–${total} of ${total}`, `1–${total} / 共 ${total}`)}
-          </p>
-        )}
       </Loaded>
     </div>
   );
@@ -318,7 +335,7 @@ function Editor({
   onDelete: () => void;
 }) {
   const { t, api, guarded, lang, myId, tierName, go } = useAdmin();
-  const { ask, panel } = useAsk();
+  const { ask, panel } = useAsk({ ruled: false });
   const [status, setStatus] = useState(m.status || 'active');
   const [tierId, setTierId] = useState(m.tier_id || '');
   const [expires, setExpires] = useState(dateInput(m.expires_at));
@@ -379,74 +396,93 @@ function Editor({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Field
-          label={t('Status', '状态')}
-          hint={
-            stale
-              ? t(
-                  `Still stored as Active, but the membership ran out on ${fmtDate(lang, m.expires_at)}. A one-time member has no Stripe subscription, so nothing reports the lapse — set Expired here to record it.`,
-                  `数据库里仍是「有效」，但会籍已于 ${fmtDate(lang, m.expires_at)} 到期。一次性付款的会员在 Stripe 没有订阅，不会有任何事件来更新它 —— 在这里改成「已过期」即可记录。`,
-                )
-              : undefined
-          }
-        >
-          <select className={SELECT} value={status} onChange={(e) => setStatus(e.target.value)}>
-            <StatusOptions />
-          </select>
-        </Field>
-        <Field label={t('Tier', '类型')}>
-          <select className={SELECT} value={tierId} onChange={(e) => setTierId(e.target.value)}>
-            <TierOptions />
-          </select>
-        </Field>
-        <Field label={t('Expires', '到期')}>
-          <input
-            type="date"
-            className={INPUT}
-            value={expires}
-            onChange={(e) => setExpires(e.target.value)}
-          />
-        </Field>
-        <Field
-          label={t('Family', '家庭')}
-          hint={
-            loaded
-              ? undefined
-              : t(
-                  "Families couldn't be loaded, so family is unchanged",
-                  '家庭列表加载失败，家庭不会被修改',
-                )
-          }
-        >
-          <select
-            className={SELECT}
-            value={loaded ? householdId : ''}
-            disabled={!loaded}
-            onChange={(e) => setHouseholdId(e.target.value)}
+    // A rule down the left ties the panel to the row it belongs to, and the
+    // editor falls into three groups: what the membership is, how the member
+    // signs in, and — on its own, at the end — the one irreversible action.
+    // Four across only above xl: below it the console's column is ~700px, and
+    // four controls there are narrower than the words inside them.
+    <div className="border-l-2 border-brick/40 pl-4 sm:pl-5">
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Field
+            label={t('Status', '状态')}
+            hint={
+              stale
+                ? t(
+                    `Still stored as Active, but the membership ran out on ${fmtDate(lang, m.expires_at)}. A one-time member has no Stripe subscription, so nothing reports the lapse — set Expired here to record it.`,
+                    `数据库里仍是「有效」，但会籍已于 ${fmtDate(lang, m.expires_at)} 到期。一次性付款的会员在 Stripe 没有订阅，不会有任何事件来更新它 —— 在这里改成「已过期」即可记录。`,
+                  )
+                : undefined
+            }
           >
-            <HouseholdOptions households={households ?? []} />
-          </select>
-        </Field>
+            <select className={SELECT} value={status} onChange={(e) => setStatus(e.target.value)}>
+              <StatusOptions />
+            </select>
+          </Field>
+          <Field label={t('Tier', '类型')}>
+            <select className={SELECT} value={tierId} onChange={(e) => setTierId(e.target.value)}>
+              <TierOptions />
+            </select>
+          </Field>
+          <Field label={t('Expires', '到期')}>
+            <input
+              type="date"
+              className={INPUT}
+              value={expires}
+              onChange={(e) => setExpires(e.target.value)}
+            />
+          </Field>
+          <Field
+            label={t('Family', '家庭')}
+            hint={
+              loaded
+                ? undefined
+                : t(
+                    "Families couldn't be loaded, so family is unchanged",
+                    '家庭列表加载失败，家庭不会被修改',
+                  )
+            }
+          >
+            <select
+              className={SELECT}
+              value={loaded ? householdId : ''}
+              disabled={!loaded}
+              onChange={(e) => setHouseholdId(e.target.value)}
+            >
+              <HouseholdOptions households={households ?? []} />
+            </select>
+          </Field>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={PRIMARY} disabled={saving} onClick={save}>
+            {t('Save', '保存')}
+          </button>
+          {m.household_id && (
+            <button
+              type="button"
+              className={SECONDARY}
+              onClick={() => go('families', { household: m.household_id as string })}
+            >
+              <Home className="w-4 h-4" aria-hidden />
+              {t('Open family', '查看家庭')}
+            </button>
+          )}
+        </div>
+
+        {panel}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className={PRIMARY} disabled={saving} onClick={save}>
-          {t('Save', '保存')}
-        </button>
-        {m.household_id && (
-          <button
-            type="button"
-            className={SECONDARY}
-            onClick={() => go('families', { household: m.household_id as string })}
-          >
-            <Home className="w-4 h-4" aria-hidden />
-            {t('Open family', '查看家庭')}
-          </button>
-        )}
+      <div className="mt-5 pt-5 border-t border-neutral-200/80 space-y-3">
+        <span className={EYEBROW}>{t('Sign-in & password', '登录与密码')}</span>
+        <SignIn m={m} setMsg={setMsg} isSelf={m.id === myId} />
+      </div>
+
+      {/* Last, alone, and behind its own confirm: the only thing here that
+          cannot be taken back. */}
+      <div className="mt-5 pt-5 border-t border-neutral-200/80 space-y-2">
         <InlineConfirm
-          label={t('Delete', '删除')}
+          label={t('Delete member', '删除会员')}
           keepLabel={t('Keep', '保留')}
           confirmLabel={t('Delete + login', '删除及登录账户')}
           doneLabel={t('Deleting…', '即将删除…')}
@@ -454,40 +490,43 @@ function Editor({
           disabled={m.id === myId}
           onCommit={onDelete}
         />
-        <span className="text-[11px] text-neutral-500">
+        <p className="text-[11px] text-neutral-500">
           {m.id === myId
             ? t('You cannot delete your own account.', '不能删除自己的账户。')
             : t('Deleting also removes their login account.', '删除会员将同时删除其登录账户。')}
-        </span>
+        </p>
       </div>
 
-      {panel}
-
-      <AuthEmails m={m} setMsg={setMsg} ask={ask} />
-
-      {m.id === myId ? (
-        <p className="text-xs text-neutral-500">
-          {t(
-            'To change your own password, use the My account tab.',
-            '修改自己的密码请到“我的账号”标签页。',
-          )}
-        </p>
-      ) : (
-        <SetPassword m={m} setMsg={setMsg} ask={ask} />
+      {msg && (
+        <div className="mt-4">
+          <Notice tone={msg.tone}>{msg.text}</Notice>
+        </div>
       )}
-
-      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
     </div>
   );
 }
 
-type Ask = ReturnType<typeof useAsk>['ask'];
-
-// Password reset / invitation emails, each with a 60 s countdown after a send
-// (or after the server says one went out very recently).
-function AuthEmails({ m, setMsg, ask }: { m: MemberRow; setMsg: (x: Msg) => void; ask: Ask }) {
+// Everything you can do about a member's login, as one row of quiet buttons:
+// two emails — each with a 60 s countdown after a send (or after the server says
+// one went out very recently) — and, behind the third, the password box. The box
+// stays folded away until it is asked for, so the editor keeps a single filled
+// button: Save. It asks for itself, so the question appears under the button
+// that raised it. The server refuses a password for an administrator (your own
+// account included) and emails the member that it was changed.
+function SignIn({
+  m,
+  setMsg,
+  isSelf,
+}: {
+  m: MemberRow;
+  setMsg: (x: Msg) => void;
+  isSelf: boolean;
+}) {
   const { t, api } = useAdmin();
+  const { ask, panel } = useAsk({ ruled: false });
   const [busy, setBusy] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState('');
   const cooling = (a: string) => (cooldownUntil.get(`${m.id}:${a}`) ?? 0) > Date.now();
   const now = useTick(cooling('reset') || cooling('invite'));
   const who = m.full_name || m.email || '';
@@ -546,42 +585,7 @@ function AuthEmails({ m, setMsg, ask }: { m: MemberRow; setMsg: (x: Msg) => void
     });
   };
 
-  return (
-    <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-neutral-200/80">
-      {(Object.keys(kinds) as (keyof typeof kinds)[]).map((a) => {
-        const left = Math.ceil(((cooldownUntil.get(`${m.id}:${a}`) ?? 0) - now) / 1000);
-        return (
-          <button
-            key={a}
-            type="button"
-            className={ROW_BTN}
-            disabled={busy === a || left > 0}
-            onClick={() => ask(kinds[a].ask, t('Send', '发送'), () => send(a))}
-          >
-            <Mail className="w-3.5 h-3.5" aria-hidden />
-            {left > 0 ? `${kinds[a].label} (${left}s)` : kinds[a].label}
-          </button>
-        );
-      })}
-      <span className="text-[11px] text-neutral-500 basis-full sm:basis-auto">
-        {t(
-          "Members who haven't set up a login yet get an invitation; members who already have one get a link to set their password.",
-          '尚未启用登录账户的会员会收到邀请；已有账户的会员会收到设置密码的链接。',
-        )}
-      </span>
-    </div>
-  );
-}
-
-// Takes effect at once. The server refuses administrators (your own account
-// included) and emails the member that it was changed.
-function SetPassword({ m, setMsg, ask }: { m: MemberRow; setMsg: (x: Msg) => void; ask: Ask }) {
-  const { t, api } = useAdmin();
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
-  const who = m.full_name || m.email || '';
-
-  const submit = () => {
+  const setNewPassword = () => {
     if (password.length < 8)
       return setMsg({
         tone: 'error',
@@ -594,14 +598,15 @@ function SetPassword({ m, setMsg, ask }: { m: MemberRow; setMsg: (x: Msg) => voi
       ),
       t('Set password', '设置密码'),
       async () => {
-        setBusy(true);
+        setBusy('password');
         const res = await api('/api/admin/member-password', {
           method: 'POST',
           body: { member_id: m.id, password },
         });
-        setBusy(false);
+        setBusy(null);
         if (res.ok) {
           setPassword('');
+          setShowPassword(false);
           setMsg({
             tone: 'success',
             text: t(
@@ -620,27 +625,87 @@ function SetPassword({ m, setMsg, ask }: { m: MemberRow; setMsg: (x: Msg) => voi
   };
 
   return (
-    <div className="flex flex-wrap items-end gap-2">
-      <Field
-        className="w-full sm:w-80"
-        label={t(
-          'Or set a new password directly (at least 8 characters)',
-          '或直接设置新密码（至少 8 位）',
+    <div className="space-y-2">
+      {/* -ml-3 cancels the quiet button's own padding, so its text lines up
+          with the heading above it. */}
+      <div className="flex flex-wrap items-center gap-1 -ml-3">
+        {(Object.keys(kinds) as (keyof typeof kinds)[]).map((a) => {
+          const left = Math.ceil(((cooldownUntil.get(`${m.id}:${a}`) ?? 0) - now) / 1000);
+          return (
+            <button
+              key={a}
+              type="button"
+              className={ROW_BTN}
+              disabled={busy === a || left > 0}
+              onClick={() => ask(kinds[a].ask, t('Send', '发送'), () => send(a))}
+            >
+              <Mail className="w-3.5 h-3.5" aria-hidden />
+              {left > 0 ? `${kinds[a].label} (${left}s)` : kinds[a].label}
+            </button>
+          );
+        })}
+        {!isSelf && (
+          <button
+            type="button"
+            className={ROW_BTN}
+            aria-expanded={showPassword}
+            onClick={() => setShowPassword((v) => !v)}
+          >
+            <KeyRound className="w-3.5 h-3.5" aria-hidden />
+            {t('Set a password', '直接设置密码')}
+          </button>
         )}
-      >
-        <input
-          type="password"
-          className={INPUT}
-          minLength={8}
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </Field>
-      <button type="button" className={SECONDARY} disabled={busy} onClick={submit}>
-        <KeyRound className="w-4 h-4" aria-hidden />
-        {t('Set password', '设置密码')}
-      </button>
+      </div>
+      {/* The sentence sits under the buttons, not beside them: on a narrow
+          column it is two lines of explanation, not a fourth button. */}
+      <p className="text-[11px] text-neutral-500 leading-relaxed">
+        {isSelf
+          ? t(
+              'To change your own password, use the My account tab.',
+              '修改自己的密码请到“我的账号”标签页。',
+            )
+          : t(
+              "Members who haven't set up a login yet get an invitation; members who already have one get a link to set their password. A password you set here works immediately.",
+              '尚未启用登录账户的会员会收到邀请；已有账户的会员会收到设置密码的链接。在此设置的密码立即生效。',
+            )}
+      </p>
+      <AnimatePresence initial={false}>
+        {showPassword && !isSelf && (
+          <motion.div
+            key="password"
+            initial={riseFromSm}
+            animate={shown}
+            exit={listExit}
+            transition={mountIn}
+            className="flex flex-wrap items-end gap-2"
+          >
+            <Field
+              className="w-full sm:w-80"
+              label={t('New password (min 8 characters)', '新密码（至少 8 位）')}
+            >
+              <input
+                type="password"
+                className={INPUT}
+                minLength={8}
+                autoComplete="new-password"
+                autoFocus
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && setNewPassword()}
+              />
+            </Field>
+            <button
+              type="button"
+              className={SECONDARY}
+              disabled={busy === 'password'}
+              onClick={setNewPassword}
+            >
+              {t('Set password', '设置密码')}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {panel}
     </div>
   );
 }
@@ -695,7 +760,10 @@ function AddMember({
   };
 
   return (
-    <form onSubmit={submit} className="space-y-5" noValidate>
+    // Named and ruled off at the bottom: ten fields appearing above the list
+    // otherwise read as part of it.
+    <form onSubmit={submit} className="space-y-5 pb-6 border-b border-neutral-200/80" noValidate>
+      <span className={EYEBROW}>{t('New member', '新会员')}</span>
       <div className="grid gap-5 md:grid-cols-2">
         <Field label={t('Full name', '姓名')}>
           <input className={INPUT} value={f.full_name} onChange={set('full_name')} autoFocus />
