@@ -68,7 +68,9 @@ test('the merchant list says which merchants could still be deleted', async () =
 });
 
 test('a merchant that has taken tokens is never deleted, in either language', async () => {
-  const fetch = mockFetch(backend({ ...admin, token_tx: [{ id: TX }] }));
+  const fetch = mockFetch(
+    backend({ ...admin, merchants: [{ id: SHOP, kind: 'partner' }], token_tx: [{ id: TX }] }),
+  );
   try {
     const r = await merchantsPost(post({ action: 'delete_merchant', merchant_id: SHOP }));
     assert.equal(r.status, 409);
@@ -86,8 +88,44 @@ test('a merchant that has taken tokens is never deleted, in either language', as
   }
 });
 
+test('CAACI’s own merchant is never deleted, even with nothing charged at it', async () => {
+  const fetch = mockFetch(
+    // no charges and no statements: only its kind stands in the way
+    backend({ ...admin, merchants: [{ id: SHOP, kind: 'internal' }] }),
+  );
+  try {
+    const r = await merchantsPost(post({ action: 'delete_merchant', merchant_id: SHOP }));
+    assert.equal(r.status, 409);
+    const body = await r.json();
+    assert.equal(body.code, 'internal_not_deleted');
+    assert.match(body.error, /never deleted/i);
+    assert.match(body.error_zh, /不提供删除/);
+    assert.equal(
+      fetch.calls.some((c) => c.options.method === 'DELETE'),
+      false,
+      'nothing is deleted for CAACI’s own stall',
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('deleting a merchant that does not exist is a 404, not a silent success', async () => {
+  const fetch = mockFetch(backend({ ...admin, merchants: [] }));
+  try {
+    const r = await merchantsPost(post({ action: 'delete_merchant', merchant_id: SHOP }));
+    assert.equal(r.status, 404);
+    assert.equal(
+      fetch.calls.some((c) => c.options.method === 'DELETE'),
+      false,
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('a merchant created by mistake is deleted with its menu and staff', async () => {
-  const fetch = mockFetch(backend(admin));
+  const fetch = mockFetch(backend({ ...admin, merchants: [{ id: SHOP, kind: 'partner' }] }));
   try {
     const r = await merchantsPost(post({ action: 'delete_merchant', merchant_id: SHOP }));
     assert.equal(r.status, 200);
