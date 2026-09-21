@@ -29,10 +29,19 @@ secret.
 | `auth-config.yml` | push to `main`, daily            | the Supabase sign-in settings that live outside this repo                 |
 | `audit.yml`       | weekly, or by hand               | advisories in the dependencies that reach a browser                       |
 
-Node 20 is what Cloudflare Pages builds with; Node 24 is what this project is
-developed on. The gap between them has already turned `main` red once —
-`navigator` is a global from Node 21 onward, so the code passed locally and
-failed in CI. Both now run.
+Node 20 is the floor this project supports; Node 24 is what it is developed on.
+The gap between them has already turned `main` red once — `navigator` is a
+global from Node 21 onward, so the code passed locally and failed in CI. Both
+now run. (The repo pins no Node version outside the workflows — no `.nvmrc`, no
+`engines`, no `NODE_VERSION` — so the version Cloudflare Pages builds with lives
+in the Pages dashboard and cannot be read from this repo. Check there before
+dropping 20.)
+
+Dependabot opens its PRs against `preview`, because the `base` job would refuse
+a `dependabot/*` branch aimed at `main`. jsdom's **major** updates are ignored:
+jsdom 30 dies on Node 20 with `webidl.util.markAsUncloneable is not a function`,
+and grouped updates mean it would take eslint, prettier and wrangler down with
+it (PRs #39 and #92).
 
 `audit.yml` is deliberately not a PR check: an advisory is published against a
 package, not against a change, and a check that goes red for reasons its author
