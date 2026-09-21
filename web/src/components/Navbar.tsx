@@ -412,7 +412,7 @@ export function Navbar({
             {/* Language Switcher pill in header */}
             <button
               onClick={onToggleLang}
-              className="ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-300 text-xs font-semibold text-neutral-700 hover:border-brick hover:text-brick transition-all bg-neutral-50 cursor-pointer shrink-0"
+              className="ml-2 min-h-[44px] flex items-center gap-1.5 px-4 rounded-full border border-neutral-300 text-xs font-semibold text-neutral-700 hover:border-brick hover:text-brick transition-all bg-neutral-50 cursor-pointer shrink-0"
               title="Switch Language / 切换语言"
             >
               <Globe className="w-3.5 h-3.5 text-brick" />
@@ -424,14 +424,14 @@ export function Navbar({
           <div className="flex items-center gap-2.5 lg:hidden">
             <button
               onClick={onToggleLang}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-neutral-300 text-xs font-semibold text-neutral-700 bg-neutral-50 cursor-pointer shrink-0"
+              className="min-h-[44px] flex items-center gap-1 px-3.5 rounded-full border border-neutral-300 text-xs font-semibold text-neutral-700 bg-neutral-50 cursor-pointer shrink-0"
             >
               <Globe className="w-3.5 h-3.5 text-brick" />
               <span>{lang === 'en' ? '中' : 'En'}</span>
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-neutral-700 hover:text-brick focus:outline-none cursor-pointer"
+              className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-neutral-700 hover:text-brick focus:outline-none cursor-pointer"
               aria-label="Toggle Navigation Menu"
             >
               <MorphIcon icon={mobileMenuOpen ? X : Menu} spring="snappy" className="w-6 h-6" />

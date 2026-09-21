@@ -83,85 +83,96 @@ async function measure({ url, react }, viewport) {
 
   const response = await gotoSettled(page, `${ORIGIN}${url}`, { react });
 
-  const measured = await page.evaluate((min) => {
-    const doc = document.documentElement;
+  const measured = await page.evaluate(
+    ({ min, ours }) => {
+      const doc = document.documentElement;
 
-    // "On screen" is more than display:none. A closed mobile drawer keeps its
-    // items in the tree with a real height, hidden by opacity, a transform, a
-    // clip or aria-hidden — measuring those reports a 16px menu item that
-    // nobody can tap because nobody can see it.
-    const hidden = (el) => {
-      if (el.closest('[hidden], [inert], [aria-hidden="true"]')) return true;
-      // Chromium's own answer to display/visibility/content-visibility/opacity.
-      if (
-        el.checkVisibility &&
-        !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
-      )
-        return true;
-      const own = el.getBoundingClientRect();
-      for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
-        const s = getComputedStyle(n);
-        if (Number(s.opacity) === 0) return true;
-        if (s.clipPath === 'inset(100%)' || s.clip === 'rect(0px, 0px, 0px, 0px)') return true;
-        const r = n.getBoundingClientRect();
-        // Slid out of view, the usual closed-drawer trick.
-        if (r.right <= 0 || r.bottom <= 0) return true;
-        // Clipped away by an ancestor: the collapsed-menu pattern is
-        // `max-height: 0; overflow: hidden`, which leaves every item a real
-        // 16px rect that no finger can ever reach.
-        const clips = s.overflow !== 'visible' || s.overflowY !== 'visible';
-        if (clips && (r.height <= 1 || r.width <= 1)) return true;
-        if (clips && (own.top >= r.bottom || own.bottom <= r.top)) return true;
-      }
-      return false;
-    };
-    // Elements wider than the viewport, named so a failure says which one.
-    const overflowing = [...document.querySelectorAll('body *')]
-      .filter((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.width === 0 || r.height === 0) return false;
-        if (hidden(el)) return false;
-        const s = getComputedStyle(el);
-        // Deliberately off-screen things (honeypots, slide-out menus) are not
-        // overflow; only what sticks out to the right of a laid-out page is.
-        if (s.position === 'fixed' || s.position === 'absolute') return false;
-        return r.right > doc.clientWidth + 1;
-      })
-      .slice(0, 5)
-      .map((el) => {
-        const r = el.getBoundingClientRect();
-        return `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/)[0] : ''} +${Math.round(r.right - doc.clientWidth)}px`;
-      });
+      // "On screen" is more than display:none. A closed mobile drawer keeps its
+      // items in the tree with a real height, hidden by opacity, a transform, a
+      // clip or aria-hidden — measuring those reports a 16px menu item that
+      // nobody can tap because nobody can see it.
+      const hidden = (el) => {
+        if (el.closest('[hidden], [inert], [aria-hidden="true"]')) return true;
+        // Chromium's own answer to display/visibility/content-visibility/opacity.
+        if (
+          el.checkVisibility &&
+          !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+        )
+          return true;
+        const own = el.getBoundingClientRect();
+        for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+          const s = getComputedStyle(n);
+          if (Number(s.opacity) === 0) return true;
+          if (s.clipPath === 'inset(100%)' || s.clip === 'rect(0px, 0px, 0px, 0px)') return true;
+          const r = n.getBoundingClientRect();
+          // Slid out of view, the usual closed-drawer trick.
+          if (r.right <= 0 || r.bottom <= 0) return true;
+          // Clipped away by an ancestor: the collapsed-menu pattern is
+          // `max-height: 0; overflow: hidden`, which leaves every item a real
+          // 16px rect that no finger can ever reach.
+          const clips = s.overflow !== 'visible' || s.overflowY !== 'visible';
+          if (clips && (r.height <= 1 || r.width <= 1)) return true;
+          if (clips && (own.top >= r.bottom || own.bottom <= r.top)) return true;
+        }
+        return false;
+      };
+      // Elements wider than the viewport, named so a failure says which one.
+      const overflowing = [...document.querySelectorAll('body *')]
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) return false;
+          if (hidden(el)) return false;
+          const s = getComputedStyle(el);
+          // Deliberately off-screen things (honeypots, slide-out menus) are not
+          // overflow; only what sticks out to the right of a laid-out page is.
+          if (s.position === 'fixed' || s.position === 'absolute') return false;
+          return r.right > doc.clientWidth + 1;
+        })
+        .slice(0, 5)
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/)[0] : ''} +${Math.round(r.right - doc.clientWidth)}px`;
+        });
 
-    // Tap targets. UI_GUIDELINE.md sets 44px; only visible, interactive,
-    // on-screen things count, and an inline link inside a paragraph is text,
-    // not a button, so it is measured by its own line box and excluded when it
-    // sits in running prose.
-    const small = [...document.querySelectorAll('a[href], button, input, select, [role="button"]')]
-      .filter((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.width === 0 || r.height === 0) return false;
-        if (hidden(el)) return false;
-        if (el.closest('p, li') && el.tagName === 'A') return false; // prose link
-        if (el.type === 'hidden') return false;
-        return r.height < min;
-      })
-      .slice(0, 5)
-      .map((el) => {
-        const r = el.getBoundingClientRect();
-        const label = (el.textContent || el.value || el.name || '').trim().slice(0, 24);
-        return `${el.tagName.toLowerCase()}[${label}] ${Math.round(r.height)}px`;
-      });
+      // Tap targets. UI_GUIDELINE.md sets 44px; only visible, interactive,
+      // on-screen things count, and an inline link inside a paragraph is text,
+      // not a button, so it is measured by its own line box and excluded when it
+      // sits in running prose.
+      const small = [
+        ...document.querySelectorAll('a[href], button, input, select, [role="button"]'),
+      ]
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) return false;
+          if (hidden(el)) return false;
+          if (el.closest('p, li') && el.tagName === 'A') return false; // prose link
+          // The same line a11y.test.js draws, for the same reason: on a mirror
+          // page only the controls this repo injects are ours to size. Divi's
+          // captured markup is fixed by UI_GUIDELINE.md — "we do not restyle
+          // it" — so reporting its button heights is reporting work nobody here
+          // is allowed to do. A React route is ours end to end.
+          if (!ours && !el.closest('[class*="caaci-"]')) return false;
+          if (el.type === 'hidden') return false;
+          return r.height < min;
+        })
+        .slice(0, 5)
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          const label = (el.textContent || el.value || el.name || '').trim().slice(0, 24);
+          return `${el.tagName.toLowerCase()}[${label}] ${Math.round(r.height)}px`;
+        });
 
-    return {
-      scrollWidth: doc.scrollWidth,
-      clientWidth: doc.clientWidth,
-      overflowing,
-      small,
-      title: document.title,
-      bodyText: (document.body.innerText || '').trim().length,
-    };
-  }, 44);
+      return {
+        scrollWidth: doc.scrollWidth,
+        clientWidth: doc.clientWidth,
+        overflowing,
+        small,
+        title: document.title,
+        bodyText: (document.body.innerText || '').trim().length,
+      };
+    },
+    { min: 44, ours: react },
+  );
 
   const finalUrl = page.url();
   await context.close();

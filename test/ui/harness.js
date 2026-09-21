@@ -14,7 +14,7 @@
 // anybody remembering to edit a list, which is the only way a list like this
 // stays true.
 import { spawn } from 'node:child_process';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -35,9 +35,13 @@ const SKIP = [/^\/wp-(admin|content|includes)\//, /^\/hello-world\//];
 export async function pages() {
   const found = [];
   async function walk(dir, url) {
-    for (const name of await readdir(dir)) {
+    // withFileTypes answers "is this a directory?" from the same readdir call
+    // that produced the name, so there is no stat-then-open window in which the
+    // path could become something else (CodeQL js/file-system-race).
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const name = entry.name;
       const p = `${dir}/${name}`;
-      if ((await stat(p)).isDirectory()) await walk(p, `${url}${name}/`);
+      if (entry.isDirectory()) await walk(p, `${url}${name}/`);
       else if (name === 'index.html') {
         if (SKIP.some((re) => re.test(url))) continue;
         const html = await readFile(p, 'utf8');
@@ -174,6 +178,20 @@ export const axeAvailable = () => existsSync(AXE_SOURCE);
 // `include` scopes the audit. On a mirror page that is the .caaci-* subtree we
 // inject; Divi's own markup is not ours to fix and the repo forbids editing it.
 export async function axeViolations(page, { include, serious = true } = {}) {
+  // A page that redirects as it settles can destroy the execution context
+  // between the script tag and the run. Following it and asking again is the
+  // same thing gotoSettled does; a second destroyed context is a real failure.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await runAxe(page, { include, serious });
+    } catch (e) {
+      if (attempt >= 1 || !/Execution context was destroyed/.test(String(e))) throw e;
+      await page.waitForLoadState('load', { timeout: 20000 }).catch(() => {});
+    }
+  }
+}
+
+async function runAxe(page, { include, serious }) {
   await page.addScriptTag({ path: AXE_SOURCE });
   return page.evaluate(
     async ({ include, serious }) => {

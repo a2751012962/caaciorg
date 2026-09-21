@@ -52,70 +52,70 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
               <button
                 type="button"
                 onClick={() => handleNav('home')}
-                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                className="text-left min-h-[44px] inline-flex items-center text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.welcome}
               </button>
               <button
                 type="button"
                 onClick={() => handleNav('about')}
-                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                className="text-left min-h-[44px] inline-flex items-center text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.aboutUs}
               </button>
               <button
                 type="button"
                 onClick={() => handleNav('events')}
-                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                className="text-left min-h-[44px] inline-flex items-center text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.events}
               </button>
               <button
                 type="button"
                 onClick={() => handleNav('membership')}
-                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                className="text-left min-h-[44px] inline-flex items-center text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.membership}
               </button>
               <button
                 type="button"
                 onClick={() => handleNav('resources')}
-                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                className="text-left min-h-[44px] inline-flex items-center text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.resources}
               </button>
               <button
                 type="button"
                 onClick={() => handleNav('community-calendar')}
-                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                className="text-left min-h-[44px] inline-flex items-center text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.communityCalendar}
               </button>
               <button
                 type="button"
                 onClick={() => handleNav('business-services')}
-                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                className="text-left min-h-[44px] inline-flex items-center text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.businessServices}
               </button>
               <button
                 type="button"
                 onClick={() => handleNav('account')}
-                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                className="text-left min-h-[44px] inline-flex items-center text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.account}
               </button>
               <button
                 type="button"
                 onClick={() => onOpenModal('donate')}
-                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer text-tan"
+                className="text-left min-h-[44px] inline-flex items-center text-neutral-400 hover:text-white transition-colors cursor-pointer text-tan"
               >
                 {content.nav.donate}
               </button>
               <button
                 type="button"
                 onClick={() => onOpenModal('volunteer')}
-                className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                className="text-left min-h-[44px] inline-flex items-center text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.volunteer}
               </button>
@@ -124,7 +124,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
                 href={marketplaceUrl('footer')}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-neutral-400 hover:text-white transition-colors"
+                className="min-h-[44px] inline-flex items-center gap-1 text-neutral-400 hover:text-white transition-colors"
               >
                 {content.nav.marketplace}
                 <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
@@ -150,7 +150,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
                 <Mail className="w-4 h-4 text-rust shrink-0" />
                 <a
                   href={`mailto:${content.contact.email}`}
-                  className="hover:text-white transition-colors"
+                  className="min-h-[44px] inline-flex items-center hover:text-white transition-colors"
                 >
                   {content.contact.email}
                 </a>
@@ -167,7 +167,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
               href="https://www.facebook.com/profile.php?id=61558646710024"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-tan hover:underline"
+              className="min-h-[44px] inline-flex items-center text-tan hover:underline"
             >
               {content.footer.facebook}
             </a>

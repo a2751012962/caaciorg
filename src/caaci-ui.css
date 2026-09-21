@@ -594,3 +594,58 @@ a.caaci-skip-link:focus {
 .caaci-tile-link:hover {
   text-decoration: underline;
 }
+
+/* ---------------------------------------------------------------------------
+ * Tap targets, on the pages the React components do not reach.
+ *
+ * UI_GUIDELINE.md asks for 44px and the browser suite checks it. The React
+ * site answers for itself in its own components. These are the controls this
+ * repo injects into the mirror and the member pages, plus the MemberPress form
+ * fields whose stylesheet is ours — all laid out before that rule existed.
+ *
+ * Nothing here changes a colour, a typeface or a position. Only height.
+ * ------------------------------------------------------------------------ */
+
+/* The language pill, the mirror's copy of the one in the React header. */
+#caaci-lang {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Email | Mobile number on the sign-in page, and the links beneath them. */
+#caaci-li-methods [data-method],
+#caaci-li-panel-email a,
+#caaci-li-panel-phone a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* MemberPress's own fields: registration, address, account. */
+input[name^='mepr'],
+input[name^='user_'],
+.mepr-form input[type='text'],
+.mepr-form input[type='email'],
+.mepr-form input[type='password'],
+.mepr-form input[type='tel'],
+.mepr-form select {
+  min-height: 44px;
+}
+
+/* ---------------------------------------------------------------------------
+ * The business directory, on a phone.
+ *
+ * Those four pages carry margin-right:-275px !important on their row modules
+ * from the desktop Divi capture. At 375px that pushes every row 331px past the
+ * screen and the whole page scrolls sideways. Scoped to the four page ids,
+ * because .et_pb_text_9 means a different module on every other page.
+ * ------------------------------------------------------------------------ */
+@media (max-width: 782px) {
+  .page-id-3324 .et_pb_module,
+  .page-id-3463 .et_pb_module,
+  .page-id-3468 .et_pb_module,
+  .page-id-3474 .et_pb_module {
+    margin-right: 0 !important;
+  }
+}

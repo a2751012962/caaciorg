@@ -356,7 +356,10 @@ export function StackedCardsSection({
               >
                 {/* 1. Giant Numeral Line Accent */}
                 <div className="panel-num-line flex items-baseline gap-4 mb-2 origin-top-left">
-                  <span className="panel-num text-5xl sm:text-6xl md:text-7xl font-black text-brick/25 tracking-tighter">
+                  <span
+                    aria-hidden="true"
+                    className="panel-num text-5xl sm:text-6xl md:text-7xl font-black text-brick/25 tracking-tighter"
+                  >
                     {item.number}
                   </span>
                   <div className="h-[2px] flex-1 max-w-[140px] bg-brick/30" />
@@ -383,7 +386,7 @@ export function StackedCardsSection({
                     <button
                       type="button"
                       onClick={() => handleActionClick(item.targetPage)}
-                      className="group inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-brick text-white hover:bg-brick-hover text-xs sm:text-sm font-medium uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-98"
+                      className="group min-h-[44px] inline-flex items-center gap-2.5 px-6 rounded-full bg-brick text-white hover:bg-brick-hover text-xs sm:text-sm font-medium uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-98"
                     >
                       <span>{isZh ? item.actionZh : item.actionEn}</span>
                       <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
