@@ -16,6 +16,12 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # playwright's install script downloads ~130MB of browsers. Only the ui job
+  # needs one, and it fetches it explicitly; the check jobs would pay for it on
+  # every run for nothing.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
 jobs:
   check:
     # Two Node versions, because the two that matter disagree. 20 is the floor
@@ -64,6 +70,38 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+
+  ui:
+    # What jsdom cannot see. The unit suite is blind to layout by construction —
+    # no viewport, no box model, no paint — and every UI regression this project
+    # has shipped lived in that blind spot: the /events/ card broken by the
+    # .tribe-common reset, tap targets under 44px, horizontal overflow, the
+    # membership page scrolling past its own form.
+    #
+    # It blocks a merge, which is only defensible because it is hermetic: the
+    # build is served locally and every outbound request is answered from a
+    # fixture, so there is no live backend to be down, no data to drift, and no
+    # screenshot to arbitrate. Every assertion is a number.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      # --with-deps pulls the shared libraries headless Chromium needs on the
+      # runner image; the browser itself is cached by setup-node's npm cache key
+      # only on the package, not the binary, so this step always runs.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build
+        run: npm run build
+      - name: UI suite
+        env:
+          CAACI_UI_TESTS: '1'
+        run: npm run test:ui
 
   base:
     # A pull request into main moves caaciorg.com. Work is reviewed on preview
