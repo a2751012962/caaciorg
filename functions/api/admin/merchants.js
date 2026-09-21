@@ -156,7 +156,17 @@ export async function onRequestPost({ request, env }) {
     // are ON DELETE RESTRICT, so Postgres would refuse anyway — this asks first
     // so the answer is a sentence instead of a foreign-key error. Its menu and
     // staff go with it (both cascade); a merchant with history is suspended.
+    //
+    // CAACI's own merchant is never deleted, even on the day it has taken
+    // nothing. It is the one every admin charges at, the only one cleared for
+    // scan-to-pay while pay_allow_partners is off, and its printed codes hang
+    // off it — deleting it would kill every sticker already on a cup to save
+    // one row. There is no case where that is what was meant, so the button is
+    // not offered and the endpoint refuses it.
     if (b.action === 'delete_merchant') {
+      const merchant = await DB.selectOne('merchants', { id: b.merchant_id }, 'id,kind');
+      if (!merchant) return bad('Merchant not found.', 404);
+      if (merchant.kind === 'internal') return ledgerError({ error: 'internal_not_deleted' });
       const [charges, statements] = await Promise.all([
         DB.select('token_tx', {
           columns: 'id',

@@ -185,6 +185,12 @@ const MESSAGES = {
   period_not_over: () => ['That statement date is in the future.', '对账截止时间不能在未来。'],
   // A merchant that has taken tokens is part of the ledger's record of where
   // the money went, so it is kept and closed, never removed.
+  // CAACI's own stall: every admin charges at it and its printed codes hang off
+  // it, so there is no version of "delete" that is what someone meant.
+  internal_not_deleted: () => [
+    'CAACI’s own merchant is where every admin charges and where the printed codes hang, so it is never deleted. Suspend it if it has to stop.',
+    '华协内部商家是所有管理员扣币的摊位，已印出的二维码也挂在它名下，因此不提供删除。需要停用请用「暂停」。',
+  ],
   merchant_has_history: () => [
     'This merchant has charges in the ledger, so it cannot be deleted — every charge has to keep the shop it was made at. Suspend it instead: it disappears from the till and can take nothing more.',
     '该商家已有流水，不能删除——每笔扣币都必须保留它所属的商家。请改用「暂停」：暂停后收银台不再显示，也无法再扣币。',

@@ -612,15 +612,20 @@ function MerchantDetail({
       <section className={SECTION}>
         <span className={EYEBROW}>{t('Suspend or delete', '暂停与删除')}</span>
         <p className={ASIDE}>
-          {m.has_history
+          {m.kind === 'internal'
             ? t(
-                'This merchant has taken tokens, so it stays: every charge in the ledger has to keep the shop it was made at. Suspending it is what closes it down — it vanishes from the till and can take nothing more.',
-                '该商家已收过币，因此不能删除：流水里的每笔扣币都必须保留它所属的商家。停用请用「暂停」——暂停后收银台不再显示，也无法再扣币。',
+                'CAACI’s own stall is never deleted: every admin charges at it and the printed codes hang off it. Suspending it is what closes it down — it vanishes from the till and can take nothing more.',
+                '华协自己的摊位不提供删除：所有管理员都在这里扣币，已印出的二维码也挂在它名下。停用请用「暂停」——暂停后收银台不再显示，也无法再扣币。',
               )
-            : t(
-                'Nothing has ever been charged here, so this one can be deleted outright — its menu and staff list go with it. Once a single charge is taken, only suspending is left.',
-                '该商家从未产生扣币，可以直接删除，菜单与店员一并删除。一旦产生第一笔扣币，就只能暂停。',
-              )}
+            : m.has_history
+              ? t(
+                  'This merchant has taken tokens, so it stays: every charge in the ledger has to keep the shop it was made at. Suspending it is what closes it down — it vanishes from the till and can take nothing more.',
+                  '该商家已收过币，因此不能删除：流水里的每笔扣币都必须保留它所属的商家。停用请用「暂停」——暂停后收银台不再显示，也无法再扣币。',
+                )
+              : t(
+                  'Nothing has ever been charged here, so this one can be deleted outright — its menu and staff list go with it. Once a single charge is taken, only suspending is left.',
+                  '该商家从未产生扣币，可以直接删除，菜单与店员一并删除。一旦产生第一笔扣币，就只能暂停。',
+                )}
         </p>
         <div className="flex flex-wrap items-center gap-4">
           {m.status === 'active' ? (
@@ -655,7 +660,7 @@ function MerchantDetail({
               {t('Re-activate', '恢复')}
             </button>
           )}
-          {!m.has_history && (
+          {!m.has_history && m.kind !== 'internal' && (
             <Confirm
               lang={lang}
               label={t('Delete this merchant', '删除该商家')}
