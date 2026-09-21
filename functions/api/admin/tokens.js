@@ -16,6 +16,7 @@ import {
   requireRoot,
   ledgerError,
   maskName,
+  confirmCode,
   UUID_RE,
 } from '../_tokens.js';
 
@@ -34,7 +35,8 @@ const KINDS = [
 ];
 const TX_COLS =
   'id,created_at,kind,amount,state,items,note,reason,cash_cents,member_id,actor_id,merchant_id,related_tx,' +
-  'grant_period,disputed_at,dispute_note,resolution,receipt_sent_at,receipt_error,merchants(name,name_zh)';
+  'grant_period,disputed_at,dispute_note,resolution,receipt_sent_at,receipt_error,self_serve,' +
+  'merchants(name,name_zh)';
 
 // full names for the member/actor ids on a page of ledger rows
 async function namesFor(DB, rows) {
@@ -54,6 +56,11 @@ const shape = (names) => (t) => ({
   ...t,
   merchant: t.merchants || null,
   merchants: undefined,
+  // The four characters the member's screen showed and the shop's console
+  // lists, so a query about one scan-to-pay charge can be matched from here
+  // without opening the merchant console. Same rule as merchant.js: a charge a
+  // clerk rang up has no code, because nobody had to check one.
+  confirm: t.kind === 'charge' && t.self_serve ? confirmCode(t.id) : '',
   member_name: names.get(t.member_id)?.full_name || '',
   member_email: names.get(t.member_id)?.email || '',
   actor_name: names.get(t.actor_id)?.full_name || '',

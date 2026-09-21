@@ -815,3 +815,72 @@ test('admin ledger: filters by merchant and kind, and ignores a malformed mercha
     fetch.restore();
   }
 });
+
+// A scan-to-pay charge is the only one with nothing behind it but the customer's
+// own screen, so its four-character code has to be readable wherever that charge
+// is listed — not only in the shop's console. The member's wallet needs it
+// because the receipt page is long closed by the time the order is called; the
+// back office needs it because that is what a question about one charge names.
+test('the confirmation code follows a scan-to-pay charge into the wallet and the ledger', async () => {
+  const SELF = '66666666-6666-4666-8666-666666666666';
+  const fetch = mockFetch(
+    backend({
+      members: [{ id: USER, full_name: 'Wei Zhang', is_admin: true, is_root: false }],
+      token_settings: [{ id: true, tokens_per_dollar: 10, packs_cents: [] }],
+      token_balance: 100,
+      token_tx: [
+        {
+          id: SELF,
+          created_at: '2026-09-27T20:00:00Z',
+          kind: 'charge',
+          amount: -30,
+          state: 'ok',
+          items: [{ name: 'Orange juice', name_zh: '橙汁', tokens: 30, qty: 1 }],
+          self_serve: true,
+          member_id: USER,
+          merchant_id: SHOP,
+        },
+        // Rung up by a clerk, who watched the tokens move: no code to check.
+        {
+          id: TX,
+          created_at: '2026-09-27T19:00:00Z',
+          kind: 'charge',
+          amount: -40,
+          state: 'ok',
+          items: [],
+          self_serve: false,
+          member_id: USER,
+          merchant_id: SHOP,
+        },
+      ],
+    }),
+  );
+  try {
+    const wallet = await me({ request: fakeRequest({ headers: auth }), env: fakeEnv(ON) });
+    assert.equal(wallet.status, 200);
+    assert.deepEqual(
+      (await wallet.json()).history.map((t) => [t.self_serve, t.confirm]),
+      [
+        [true, '6666'],
+        [false, ''],
+      ],
+    );
+
+    const ledger = await adminTokensGet({
+      request: fakeRequest({ url: 'https://x/api/admin/tokens?view=ledger', headers: auth }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(ledger.status, 200);
+    assert.deepEqual(
+      (await ledger.json()).rows.map((t) => t.confirm),
+      ['6666', ''],
+    );
+
+    // Both reads have to ASK for self_serve: dropping the column is what made
+    // the code disappear from these two screens in the first place.
+    for (const call of fetch.calls.filter((c) => c.url.includes('/rest/v1/token_tx')))
+      assert.match(decodeURIComponent(call.url), /self_serve/, call.url);
+  } finally {
+    fetch.restore();
+  }
+});
