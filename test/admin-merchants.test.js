@@ -67,8 +67,42 @@ test('the merchant list says which merchants could still be deleted', async () =
   }
 });
 
+test('the merchant list carries every account with an email, for the add-staff pick-list', async () => {
+  const fetch = mockFetch(
+    backend({
+      ...admin,
+      members: [
+        { id: USER, is_admin: true, full_name: 'Ada Admin', email: 'ada@example.com' },
+        { id: MEMBER, full_name: 'Wei Zhang', email: 'wei@example.com' },
+        // a name-only child on a family plan has no login, so nothing to pick
+        { id: SHOP, full_name: 'Kid', email: null },
+      ],
+      merchants: [{ id: SHOP, name: 'Kung Fu Tea', kind: 'partner', status: 'active' }],
+      merchant_staff: [{ merchant_id: SHOP, member_id: MEMBER, role: 'staff' }],
+      token_settings: [{ tokens_per_dollar: 10, settle_min_cents: 2000 }],
+    }),
+  );
+  try {
+    const r = await merchantsGet({ request: fakeRequest({ headers: auth }), env: fakeEnv(ON) });
+    assert.equal(r.status, 200);
+    const { rows, people } = await r.json();
+    assert.deepEqual(
+      people.map((p) => p.email),
+      ['ada@example.com', 'wei@example.com'],
+    );
+    // the same list names the staff already on a merchant
+    assert.equal(rows[0].staff[0].name, 'Wei Zhang');
+    const list = fetch.calls.find((c) => /members\?select=id,full_name,email/.test(c.url));
+    assert.match(list.url, /order=full_name\.asc\.nullslast,email\.asc/);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('a merchant that has taken tokens is never deleted, in either language', async () => {
-  const fetch = mockFetch(backend({ ...admin, token_tx: [{ id: TX }] }));
+  const fetch = mockFetch(
+    backend({ ...admin, merchants: [{ id: SHOP, kind: 'partner' }], token_tx: [{ id: TX }] }),
+  );
   try {
     const r = await merchantsPost(post({ action: 'delete_merchant', merchant_id: SHOP }));
     assert.equal(r.status, 409);
@@ -86,8 +120,44 @@ test('a merchant that has taken tokens is never deleted, in either language', as
   }
 });
 
+test('CAACI’s own merchant is never deleted, even with nothing charged at it', async () => {
+  const fetch = mockFetch(
+    // no charges and no statements: only its kind stands in the way
+    backend({ ...admin, merchants: [{ id: SHOP, kind: 'internal' }] }),
+  );
+  try {
+    const r = await merchantsPost(post({ action: 'delete_merchant', merchant_id: SHOP }));
+    assert.equal(r.status, 409);
+    const body = await r.json();
+    assert.equal(body.code, 'internal_not_deleted');
+    assert.match(body.error, /never deleted/i);
+    assert.match(body.error_zh, /不提供删除/);
+    assert.equal(
+      fetch.calls.some((c) => c.options.method === 'DELETE'),
+      false,
+      'nothing is deleted for CAACI’s own stall',
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('deleting a merchant that does not exist is a 404, not a silent success', async () => {
+  const fetch = mockFetch(backend({ ...admin, merchants: [] }));
+  try {
+    const r = await merchantsPost(post({ action: 'delete_merchant', merchant_id: SHOP }));
+    assert.equal(r.status, 404);
+    assert.equal(
+      fetch.calls.some((c) => c.options.method === 'DELETE'),
+      false,
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('a merchant created by mistake is deleted with its menu and staff', async () => {
-  const fetch = mockFetch(backend(admin));
+  const fetch = mockFetch(backend({ ...admin, merchants: [{ id: SHOP, kind: 'partner' }] }));
   try {
     const r = await merchantsPost(post({ action: 'delete_merchant', merchant_id: SHOP }));
     assert.equal(r.status, 200);
