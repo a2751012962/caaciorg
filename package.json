@@ -12,6 +12,7 @@
     "build": "npm run build -w web && node build.mjs",
     "typecheck": "npm run typecheck -w web",
     "test": "node --test",
+    "test:ui": "node --test test/ui/",
     "dev": "npm run build && wrangler pages dev dist",
     "deploy": "npm run build && wrangler pages deploy dist",
     "stripe:connect": "node stripe-connect.mjs",
@@ -29,9 +30,11 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^10.0.1",
+    "axe-core": "^4.13.0",
     "eslint": "^10.7.0",
     "globals": "^17.7.0",
     "jsdom": "^29.1.1",
+    "playwright": "^1.63.0",
     "prettier": "^3.9.5",
     "wrangler": "^4.134.0"
   },

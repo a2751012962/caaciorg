@@ -24,6 +24,7 @@ secret.
 | Workflow          | When                             | What it does                                                              |
 | ----------------- | -------------------------------- | ------------------------------------------------------------------------- |
 | `ci.yml` — check  | every PR, every push to `main`   | lint, typecheck, format, unit suite, build — on Node **20 and 24**        |
+| `ci.yml` — ui     | every PR, every push to `main`   | a real Chromium over the built site: layout, tap targets, console, axe    |
 | `ci.yml` — base   | PRs into `main` only             | refuses a PR into `main` that is not `preview`, `release/*` or `hotfix/*` |
 | `codeql.yml`      | every PR, push to `main`, weekly | data-flow analysis (injection, unescaped sinks, dead comparisons)         |
 | `auth-config.yml` | push to `main`, daily            | the Supabase sign-in settings that live outside this repo                 |
@@ -95,6 +96,41 @@ also requires every action to be pinned to a commit SHA with a version comment,
 every workflow to declare `permissions`, no `pull_request_target`, and nothing a
 stranger can type (`github.head_ref`, a PR title) to be interpolated into a
 `run:` block — pass it through `env:` and quote it.
+
+### `test/ui/` — what jsdom cannot see
+
+The unit suite is thorough about structure and blind to layout: jsdom has no
+viewport, no box model and no paint, so it cannot tell that a card sits 60px
+past the right edge of a phone or that a button is 28px tall. Every UI bug this
+project has actually shipped lived in that blind spot — the `/events/` card
+broken by the `.tribe-common` reset, tap targets under 44px, horizontal overflow
+on `/events/`, the membership page scrolling 689px past its own form.
+
+So `test/ui/` opens a real Chromium against the real `dist/` and measures. Per
+page: it renders, it logs no error, nothing sticks out sideways at 375px, every
+tap target is ≥ 44px (the rule `UI_GUIDELINE.md` already writes down), and the
+React routes hold together at 1280px too. Then axe, WCAG 2 A/AA, serious and
+critical only — **whole** on the React routes, and on a mirror page scoped to
+the `.caaci-*` subtree we inject, because Divi's markup is not ours to fix.
+
+It is **hermetic**, which is the only reason it is allowed to block a merge:
+`serve-mirror.mjs` serves the build, and every request that would leave the
+machine — `/api/**`, `*.supabase.co`, fonts — is answered from a fixture in
+`test/ui/harness.js`. No secrets, no live database, no screenshots to
+arbitrate; every assertion is a number, so a failure names the element and the
+pixel count.
+
+The page list is **read from `dist/`**, not written down — a new route is
+covered without anyone remembering to add it. A page counts as React if its
+HTML contains `<div id="root"></div>`.
+
+It is opt-in so `npm test` stays fast and offline, the same way the auth-config
+suite is:
+
+```
+npm run build
+CAACI_UI_TESTS=1 npm run test:ui
+```
 
 ### `test/test-hygiene.test.js` — a test that stopped testing
 
