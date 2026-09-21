@@ -1481,6 +1481,12 @@ function LedgerRow({ tx, lang }: { tx: LedgerTx; lang: Lang }) {
       <div className="min-w-0">
         <p className="font-semibold text-neutral-900 truncate">
           {tx.member_name || tx.member_email || '—'}
+          {/* A scan-to-pay charge, by the code the member's screen showed and
+              the shop's console lists — what a question about one charge is
+              matched on. */}
+          {tx.confirm && (
+            <span className="ml-2 font-mono tracking-widest text-brick">{tx.confirm}</span>
+          )}
           <span className="ml-2 font-normal text-neutral-500">{when(tx.created_at, lang)}</span>
         </p>
         <p className="text-neutral-600 truncate">

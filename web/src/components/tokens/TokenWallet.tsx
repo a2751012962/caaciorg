@@ -213,6 +213,17 @@ export function TokenWallet({ lang, className = '' }: { lang: Lang; className?: 
                   {when(tx.at, lang)}
                   {lineText(tx.items, lang) ? ` · ${lineText(tx.items, lang)}` : ''}
                 </p>
+                {/* Paid by scanning the QR on the product: the stall has no
+                    record of the tap other than its console, so the member
+                    needs these four characters to hand with the order. */}
+                {tx.confirm && (
+                  <p className="text-xs text-neutral-500">
+                    {t('Show this code', '出示确认码')}{' '}
+                    <span className="font-mono tracking-widest font-semibold text-brick">
+                      {tx.confirm}
+                    </span>
+                  </p>
+                )}
               </div>
               <div className="text-right shrink-0">
                 <p
