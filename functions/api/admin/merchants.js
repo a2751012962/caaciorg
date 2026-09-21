@@ -1,7 +1,7 @@
 // /api/admin/merchants  (admin only)
 //   GET  — every merchant with its staff, menu, what CAACI owes it now, and its
-//          statements; plus `people`, every account on the site, for the
-//          add-staff pick-list.
+//          statements; plus `people`, the site's admins, for the add-staff
+//          pick-list (anyone else is added by typing their email).
 //   POST { action } — save_merchant | set_status | delete_merchant | add_staff |
 //          remove_staff | save_item | delete_item | issue_code | clear_code |
 //          close_statement | mark_paid
@@ -39,7 +39,7 @@ export async function onRequestGet({ request, env }) {
   const DB = sb(env);
 
   try {
-    const [merchants, staff, items, settlements, settings] = await Promise.all([
+    const [merchants, staff, items, settlements, settings, admins] = await Promise.all([
       DB.select('merchants', { order: 'kind.asc,name.asc', limit: 200 }),
       DB.select('merchant_staff', {
         columns: 'merchant_id,member_id,role,created_at',
@@ -48,20 +48,54 @@ export async function onRequestGet({ request, env }) {
       DB.select('merchant_items', { order: 'sort_order.asc,name.asc', limit: 2000 }),
       DB.select('merchant_settlements', { order: 'period_end.desc', limit: 500 }),
       DB.selectOne('token_settings', { id: true }, 'tokens_per_dollar,settle_min_cents'),
+      // The add-staff pick-list: the site's admins (the same set the Roles
+      // page lists), not every member, so the list is short enough to pick
+      // from and never shows the whole membership on one screen. A volunteer
+      // who is not an admin is still added by typing their email.
+      DB.select('members', {
+        columns: 'id,full_name,email',
+        filters: ['or=(is_admin.eq.true,is_root.eq.true)', 'email=not.is.null'],
+        order: 'full_name.asc.nullslast,email.asc',
+        limit: 500,
+      }),
     ]);
 
-    // Every account on the site, once: it names the staff already on a
-    // merchant, and it fills the page's pick-list for adding one, so an admin
-    // can choose a volunteer instead of typing an address from memory.
-    const accounts = await DB.select('members', {
-      columns: 'id,full_name,email',
-      order: 'full_name.asc.nullslast,email.asc',
-      limit: 2000,
-    });
-    const people = new Map(accounts.rows.map((m) => [m.id, m]));
+    // Name the staff already on a merchant. Admins are known already; anyone
+    // else is looked up by id.
+    const people = new Map(admins.rows.map((m) => [m.id, m]));
+    const missing = [...new Set(staff.rows.map((s) => s.member_id))].filter(
+      (id) => !people.has(id),
+    );
+    if (missing.length) {
+      const { rows } = await DB.select('members', {
+        columns: 'id,full_name,email',
+        filters: [`id=in.(${missing.join(',')})`],
+        limit: missing.length,
+      });
+      for (const m of rows) people.set(m.id, m);
+    }
 
     const before = new Date(Date.now() + 1000).toISOString();
     const rate = settings?.tokens_per_dollar || 10;
+    // What each merchant and each menu line has sold (0033), in one call for
+    // all of them. Until that migration is applied the call fails, and the page
+    // simply shows no sales figures rather than no page.
+    const sales = new Map(); // merchant_id -> { charges, tokens, items: Map<item_id, {units, tokens}> }
+    try {
+      const rows = await DB.rpc('token_merchant_sales');
+      for (const r of Array.isArray(rows) ? rows : []) {
+        const s = sales.get(r.merchant_id) || { charges: 0, tokens: 0, items: new Map() };
+        if (r.item_id) {
+          s.items.set(r.item_id, { units: Number(r.units) || 0, tokens: Number(r.tokens) || 0 });
+        } else {
+          s.charges = Number(r.charges) || 0;
+          s.tokens = Number(r.tokens) || 0;
+        }
+        sales.set(r.merchant_id, s);
+      }
+    } catch {
+      // 0033 not applied yet: no figures, nothing else changes
+    }
     const rows = await Promise.all(
       merchants.rows.map(async (m) => {
         const [open, used] = await Promise.all([
@@ -76,11 +110,15 @@ export async function onRequestGet({ request, env }) {
           }),
         ]);
         const openTokens = Number(open) || 0;
+        const sold = sales.get(m.id);
         return {
           ...m,
           has_history: used.rows.length > 0 || settlements.rows.some((s) => s.merchant_id === m.id),
           open_tokens: openTokens,
           open_cents: m.kind === 'internal' ? 0 : Math.round((openTokens * 100) / rate),
+          // standing charges so far: how many, and the tokens they took
+          sold_charges: sold?.charges ?? 0,
+          sold_tokens: sold?.tokens ?? 0,
           staff: staff.rows
             .filter((s) => s.merchant_id === m.id)
             .map((s) => ({
@@ -89,7 +127,13 @@ export async function onRequestGet({ request, env }) {
               name: people.get(s.member_id)?.full_name || '',
               email: people.get(s.member_id)?.email || '',
             })),
-          items: items.rows.filter((i) => i.merchant_id === m.id),
+          items: items.rows
+            .filter((i) => i.merchant_id === m.id)
+            .map((i) => ({
+              ...i,
+              sold: sold?.items.get(i.id)?.units ?? 0,
+              sold_tokens: sold?.items.get(i.id)?.tokens ?? 0,
+            })),
           settlements: settlements.rows.filter((s) => s.merchant_id === m.id),
         };
       }),
@@ -98,7 +142,7 @@ export async function onRequestGet({ request, env }) {
       rows,
       rate,
       settle_min_cents: settings?.settle_min_cents ?? 2000,
-      people: accounts.rows.filter((m) => m.email),
+      people: admins.rows,
     });
   } catch (e) {
     return bad(e.message, 500);
