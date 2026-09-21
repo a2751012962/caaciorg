@@ -50,7 +50,17 @@ export async function onRequestPost(context) {
       for (const w of wanted) {
         const item = rows.find((r) => r.id === w.id);
         if (!item) return bad('A menu item is no longer available. Reload and try again.', 409);
-        lines.push({ name: item.name, name_zh: item.name_zh, tokens: item.tokens, qty: w.qty });
+        // `id` as well as the name: the name is what the member reads on the
+        // receipt, the id is what lets one item's own sales be added up later
+        // (0032). The line keeps its own copy of the price either way, so an
+        // item that is renamed or deleted does not change what this charge was.
+        lines.push({
+          id: item.id,
+          name: item.name,
+          name_zh: item.name_zh,
+          tokens: item.tokens,
+          qty: w.qty,
+        });
       }
     }
     if (custom > 0) lines.push({ name: 'Other', name_zh: '其他', tokens: custom, qty: 1 });

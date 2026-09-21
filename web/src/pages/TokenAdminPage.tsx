@@ -3,14 +3,19 @@ import { Download, LayoutDashboard, Printer, Search } from 'lucide-react';
 import qrcode from 'qrcode-generator';
 import { FluidTabs } from '../components/FluidTabs';
 import {
+  ASIDE,
   DANGER,
+  EYEBROW,
   INPUT,
   LABEL,
   Notice,
   PRIMARY,
   SECONDARY,
+  SECTION,
   Spinner,
   Status,
+  TEXT_ACTION,
+  TEXT_DANGER,
   ToolPage,
   tr,
   useSignedIn,
@@ -28,6 +33,7 @@ import {
   usd,
   when,
   type AdminMerchant,
+  type ItemReport,
   type MenuItem,
   type LedgerTx,
   type Overview,
@@ -35,10 +41,13 @@ import {
 } from '../lib/tokens';
 
 type Tab = 'overview' | 'merchants' | 'disputes' | 'ledger' | 'cash' | 'settings';
-// No cards on this page: blocks are separated by a rule and space alone.
-const SECTION = 'space-y-3 pt-6 border-t border-neutral-200/80';
 
-type Say = (tone: 'success' | 'error', text: string) => void;
+type Tone = 'success' | 'error' | 'warn';
+type Say = (tone: Tone, text: string) => void;
+
+/** What a merchant action answered, or null when it was refused. */
+type ActResult = { reprint?: boolean } | null;
+type Act = (body: Record<string, unknown>, ok: string) => Promise<ActResult>;
 
 const central = (d = new Date()) => d.toLocaleDateString('sv-SE', { timeZone: 'America/Chicago' }); // YYYY-MM-DD
 
@@ -52,7 +61,7 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
   const [tab, setTab] = useState<Tab>('overview');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [denied, setDenied] = useState('');
-  const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{ tone: Tone; text: string } | null>(null);
   const say: Say = (tone, text) => setMessage({ tone, text });
 
   const loadOverview = useCallback(async () => {
@@ -212,9 +221,7 @@ function MemberLookup({ lang }: { lang: Lang }) {
   };
   return (
     <div className={SECTION}>
-      <span className="text-xs font-semibold text-brick block">
-        {t('Find a member', '查找会员')}
-      </span>
+      <span className={EYEBROW}>{t('Find a member', '查找会员')}</span>
       <p className="text-xs text-neutral-500">
         {t(
           'For when a card cannot be scanned. Opens the same screen as a scan: grant, cash top-up, add tokens.',
@@ -284,9 +291,12 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
     void load();
   }, [load]);
 
-  const act = async (body: Record<string, unknown>, ok: string) => {
+  const act: Act = async (body, ok) => {
     const res = await tokens.admin.merchantAction(body);
-    if (!res.ok) return say('error', refusalText(res, lang));
+    if (!res.ok) {
+      say('error', refusalText(res, lang));
+      return null;
+    }
     say(
       'success',
       res.data.rolled_over
@@ -297,6 +307,7 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
         : ok,
     );
     await load();
+    return res.data;
   };
 
   if (!rows) return <Spinner label={t('Loading…', '加载中…')} />;
@@ -335,7 +346,9 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
                 )}
               </span>
             </button>
-            {openId === m.id && <MerchantDetail lang={lang} m={m} rate={rate} act={act} />}
+            {openId === m.id && (
+              <MerchantDetail lang={lang} m={m} rate={rate} act={act} say={say} />
+            )}
           </div>
         ))}
       </div>
@@ -353,9 +366,7 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
           });
         }}
       >
-        <span className="text-xs font-semibold text-brick block">
-          {t('Add a partner shop', '新增合作商家')}
-        </span>
+        <span className={EYEBROW}>{t('Add a partner shop', '新增合作商家')}</span>
         <div className="grid sm:grid-cols-2 gap-3">
           <input
             className={INPUT}
@@ -386,22 +397,21 @@ function MerchantDetail({
   m,
   rate,
   act,
+  say,
 }: {
   lang: Lang;
   m: AdminMerchant;
   rate: number;
-  act: (body: Record<string, unknown>, ok: string) => Promise<void>;
+  act: Act;
+  say: Say;
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const [email, setEmail] = useState('');
-  const [item, setItem] = useState({ name: '', name_zh: '', tokens: '', group_label: '' });
   const [payout, setPayout] = useState(m.payout_note ?? '');
   const [refs, setRefs] = useState<Record<string, string>>({});
-  // the menu item whose printed QR is open, '' = none
-  const [qrFor, setQrFor] = useState('');
 
   return (
-    <div className="mt-3 mb-3 space-y-6">
+    <div className="mt-1 mb-3 space-y-2">
       {m.status === 'suspended' && (
         <Notice tone="warn">
           {t('Suspended', '已暂停')}: {m.suspended_reason}
@@ -409,8 +419,8 @@ function MerchantDetail({
       )}
 
       {/* staff */}
-      <section className="space-y-2">
-        <p className={LABEL}>{t('Staff who can take tokens', '可扣币的店员')}</p>
+      <section className={SECTION}>
+        <span className={EYEBROW}>{t('Staff who can take tokens', '可扣币的店员')}</span>
         {m.kind === 'internal' && (
           <p className="text-xs text-neutral-500">
             {t(
@@ -428,7 +438,7 @@ function MerchantDetail({
               </span>
               <button
                 type="button"
-                className="min-h-[44px] text-rose-700 font-semibold cursor-pointer"
+                className={TEXT_DANGER}
                 onClick={() =>
                   void act(
                     { action: 'remove_staff', merchant_id: m.id, member_id: s.member_id },
@@ -469,103 +479,12 @@ function MerchantDetail({
         </p>
       </section>
 
-      {/* menu */}
-      <section className="space-y-2">
-        <p className={LABEL}>{t('Menu', '菜单')}</p>
-        <ul className="divide-y divide-neutral-200/80">
-          {m.items.map((i) => (
-            <li key={i.id} className="py-2 text-xs">
-              <div className="flex items-center justify-between gap-3">
-                <span className="min-w-0 truncate">
-                  {i.group_label && <span className="text-neutral-500">[{i.group_label}] </span>}
-                  <span className="font-semibold text-neutral-900">{i.name}</span>
-                  {i.name_zh ? ` · ${i.name_zh}` : ''} — {i.tokens} {t('tokens', '币')}
-                  {i.pay_code && (
-                    <span className="ml-2 text-neutral-500 tabular-nums">QR {i.pay_code}</span>
-                  )}
-                </span>
-                <div className="flex items-center gap-3 shrink-0">
-                  <button
-                    type="button"
-                    className="min-h-[44px] font-semibold text-brick cursor-pointer"
-                    onClick={() => setQrFor(qrFor === i.id ? '' : i.id)}
-                  >
-                    {i.pay_code ? t('QR code', '二维码') : t('Make a QR', '生成二维码')}
-                  </button>
-                  <button
-                    type="button"
-                    className="min-h-[44px] text-rose-700 font-semibold cursor-pointer"
-                    onClick={() =>
-                      void act({ action: 'delete_item', id: i.id }, t('Deleted.', '已删除。'))
-                    }
-                  >
-                    {t('Delete', '删除')}
-                  </button>
-                </div>
-              </div>
-              {qrFor === i.id && <PayCode lang={lang} m={m} item={i} rate={rate} act={act} />}
-            </li>
-          ))}
-        </ul>
-        <form
-          className="grid grid-cols-2 sm:grid-cols-5 gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void act(
-              {
-                action: 'save_item',
-                merchant_id: m.id,
-                ...item,
-                tokens: Number(item.tokens),
-                sort_order: m.items.length,
-              },
-              t('Item added.', '已添加。'),
-            ).then(() =>
-              setItem({ name: '', name_zh: '', tokens: '', group_label: item.group_label }),
-            );
-          }}
-        >
-          <input
-            className={INPUT}
-            required
-            value={item.name}
-            onChange={(e) => setItem({ ...item, name: e.target.value })}
-            placeholder={t('Item', '品名（英）')}
-            aria-label={t('Item', '品名（英）')}
-          />
-          <input
-            className={INPUT}
-            value={item.name_zh}
-            onChange={(e) => setItem({ ...item, name_zh: e.target.value })}
-            placeholder={t('Chinese name', '品名（中）')}
-            aria-label={t('Chinese name', '品名（中）')}
-          />
-          <input
-            className={INPUT}
-            required
-            inputMode="numeric"
-            value={item.tokens}
-            onChange={(e) => setItem({ ...item, tokens: e.target.value.replace(/\D/g, '') })}
-            placeholder={t('Tokens', '币数')}
-            aria-label={t('Tokens', '币数')}
-          />
-          <input
-            className={INPUT}
-            value={item.group_label}
-            onChange={(e) => setItem({ ...item, group_label: e.target.value })}
-            placeholder={t('Stall (optional)', '摊位（可选）')}
-            aria-label={t('Stall (optional)', '摊位（可选）')}
-          />
-          <button type="submit" className={SECONDARY}>
-            {t('Add item', '添加')}
-          </button>
-        </form>
-      </section>
+      <MenuSection lang={lang} m={m} rate={rate} act={act} say={say} />
 
       {/* money */}
       {m.kind === 'partner' && (
-        <section className="space-y-3">
-          <p className={LABEL}>{t('Statements', '对账与付款')}</p>
+        <section className={SECTION}>
+          <span className={EYEBROW}>{t('Statements', '对账与付款')}</span>
           <p className="text-xs text-neutral-600">
             {t(
               `Open now: ${m.open_tokens} tokens = ${usd(m.open_cents)}.`,
@@ -689,40 +608,431 @@ function MerchantDetail({
         </section>
       )}
 
-      <section>
-        {m.status === 'active' ? (
-          <button
-            type="button"
-            className={DANGER}
-            onClick={() =>
-              void act(
-                {
-                  action: 'set_status',
-                  merchant_id: m.id,
-                  status: 'suspended',
-                  reason: 'Suspended by an admin',
-                },
-                t('Suspended.', '已暂停。'),
+      {/* closing it down */}
+      <section className={SECTION}>
+        <span className={EYEBROW}>{t('Suspend or delete', '暂停与删除')}</span>
+        <p className={ASIDE}>
+          {m.has_history
+            ? t(
+                'This merchant has taken tokens, so it stays: every charge in the ledger has to keep the shop it was made at. Suspending it is what closes it down — it vanishes from the till and can take nothing more.',
+                '该商家已收过币，因此不能删除：流水里的每笔扣币都必须保留它所属的商家。停用请用「暂停」——暂停后收银台不再显示，也无法再扣币。',
               )
-            }
-          >
-            {t('Suspend this merchant', '暂停该商家')}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className={SECONDARY}
-            onClick={() =>
-              void act(
-                { action: 'set_status', merchant_id: m.id, status: 'active' },
-                t('Re-activated.', '已恢复。'),
-              )
-            }
-          >
-            {t('Re-activate', '恢复')}
-          </button>
-        )}
+            : t(
+                'Nothing has ever been charged here, so this one can be deleted outright — its menu and staff list go with it. Once a single charge is taken, only suspending is left.',
+                '该商家从未产生扣币，可以直接删除，菜单与店员一并删除。一旦产生第一笔扣币，就只能暂停。',
+              )}
+        </p>
+        <div className="flex flex-wrap items-center gap-4">
+          {m.status === 'active' ? (
+            <button
+              type="button"
+              className={DANGER}
+              onClick={() =>
+                void act(
+                  {
+                    action: 'set_status',
+                    merchant_id: m.id,
+                    status: 'suspended',
+                    reason: 'Suspended by an admin',
+                  },
+                  t('Suspended.', '已暂停。'),
+                )
+              }
+            >
+              {t('Suspend this merchant', '暂停该商家')}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={SECONDARY}
+              onClick={() =>
+                void act(
+                  { action: 'set_status', merchant_id: m.id, status: 'active' },
+                  t('Re-activated.', '已恢复。'),
+                )
+              }
+            >
+              {t('Re-activate', '恢复')}
+            </button>
+          )}
+          {!m.has_history && (
+            <Confirm
+              lang={lang}
+              label={t('Delete this merchant', '删除该商家')}
+              confirmLabel={t('Yes, delete it', '确定删除')}
+              onConfirm={() =>
+                act(
+                  { action: 'delete_merchant', merchant_id: m.id },
+                  t('Merchant deleted.', '商家已删除。'),
+                )
+              }
+            />
+          )}
+        </div>
       </section>
+    </div>
+  );
+}
+
+/** A destructive action that asks once, in place — no browser dialog. */
+function Confirm({
+  lang,
+  label,
+  confirmLabel,
+  onConfirm,
+}: {
+  lang: Lang;
+  label: string;
+  confirmLabel: string;
+  onConfirm: () => Promise<unknown>;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const [armed, setArmed] = useState(false);
+  if (!armed)
+    return (
+      <button type="button" className={TEXT_DANGER} onClick={() => setArmed(true)}>
+        {label}
+      </button>
+    );
+  return (
+    <span className="inline-flex items-center gap-4">
+      <button
+        type="button"
+        className={TEXT_DANGER}
+        onClick={() => {
+          setArmed(false);
+          void onConfirm();
+        }}
+      >
+        {confirmLabel}
+      </button>
+      <button type="button" className={TEXT_ACTION} onClick={() => setArmed(false)}>
+        {t('Cancel', '取消')}
+      </button>
+    </span>
+  );
+}
+
+// ----------------------------------------------------------------- menu ----
+// A merchant's menu. Each line opens in place onto the three things an admin
+// actually wants with it: change it, print its QR, and see what it has sold.
+function MenuSection({
+  lang,
+  m,
+  rate,
+  act,
+  say,
+}: {
+  lang: Lang;
+  m: AdminMerchant;
+  rate: number;
+  act: Act;
+  say: Say;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const [openItem, setOpenItem] = useState('');
+  const [draft, setDraft] = useState({ name: '', name_zh: '', tokens: '', group_label: '' });
+
+  return (
+    <section className={SECTION}>
+      <span className={EYEBROW}>{t('Menu', '菜单')}</span>
+      {m.items.length === 0 ? (
+        <p className="text-xs text-neutral-500">
+          {t('Nothing on the menu yet.', '菜单还是空的。')}
+        </p>
+      ) : (
+        <ul className="divide-y divide-neutral-200/80">
+          {m.items.map((i) => (
+            <li key={i.id} className="py-1 text-xs">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between gap-3 text-left min-h-[44px] cursor-pointer"
+                onClick={() => setOpenItem(openItem === i.id ? '' : i.id)}
+                aria-expanded={openItem === i.id}
+              >
+                <span className="min-w-0 truncate">
+                  {i.group_label && <span className="text-neutral-500">[{i.group_label}] </span>}
+                  <span className="font-semibold text-neutral-900">{i.name}</span>
+                  {i.name_zh ? ` · ${i.name_zh}` : ''}
+                  {i.pay_code && (
+                    <span className="ml-2 text-neutral-500 tabular-nums">QR {i.pay_code}</span>
+                  )}
+                </span>
+                <span className="flex items-center gap-3 shrink-0">
+                  {i.active === false && <Status tone="muted">{t('Hidden', '已下架')}</Status>}
+                  <span className="font-bold tabular-nums text-neutral-900">
+                    {i.tokens} {t('tokens', '币')}
+                  </span>
+                </span>
+              </button>
+              {openItem === i.id && (
+                <ItemDetail lang={lang} m={m} item={i} rate={rate} act={act} say={say} />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form
+        className="grid grid-cols-2 sm:grid-cols-5 gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void act(
+            {
+              action: 'save_item',
+              merchant_id: m.id,
+              ...draft,
+              tokens: Number(draft.tokens),
+              sort_order: m.items.length,
+            },
+            t('Item added.', '已添加。'),
+          ).then(() =>
+            setDraft({ name: '', name_zh: '', tokens: '', group_label: draft.group_label }),
+          );
+        }}
+      >
+        <input
+          className={INPUT}
+          required
+          value={draft.name}
+          onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          placeholder={t('Item', '品名（英）')}
+          aria-label={t('Item', '品名（英）')}
+        />
+        <input
+          className={INPUT}
+          value={draft.name_zh}
+          onChange={(e) => setDraft({ ...draft, name_zh: e.target.value })}
+          placeholder={t('Chinese name', '品名（中）')}
+          aria-label={t('Chinese name', '品名（中）')}
+        />
+        <input
+          className={INPUT}
+          required
+          inputMode="numeric"
+          value={draft.tokens}
+          onChange={(e) => setDraft({ ...draft, tokens: e.target.value.replace(/\D/g, '') })}
+          placeholder={t('Tokens', '币数')}
+          aria-label={t('Tokens', '币数')}
+        />
+        <input
+          className={INPUT}
+          value={draft.group_label}
+          onChange={(e) => setDraft({ ...draft, group_label: e.target.value })}
+          placeholder={t('Stall (optional)', '摊位（可选）')}
+          aria-label={t('Stall (optional)', '摊位（可选）')}
+        />
+        <button type="submit" className={SECONDARY}>
+          {t('Add item', '添加')}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+// One menu item, opened: its own fields, its printed QR, and its sales.
+function ItemDetail({
+  lang,
+  m,
+  item,
+  rate,
+  act,
+  say,
+}: {
+  lang: Lang;
+  m: AdminMerchant;
+  item: MenuItem;
+  rate: number;
+  act: Act;
+  say: Say;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const [f, setF] = useState({
+    name: item.name,
+    name_zh: item.name_zh ?? '',
+    tokens: String(item.tokens),
+    group_label: item.group_label ?? '',
+    sort_order: String(item.sort_order ?? 0),
+    active: item.active !== false,
+  });
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    const done = await act(
+      {
+        action: 'save_item',
+        merchant_id: m.id,
+        id: item.id,
+        name: f.name,
+        name_zh: f.name_zh,
+        tokens: Number(f.tokens),
+        group_label: f.group_label,
+        sort_order: Number(f.sort_order) || 0,
+        active: f.active,
+      },
+      t('Saved.', '已保存。'),
+    );
+    if (done?.reprint)
+      say(
+        'warn',
+        t(
+          'Saved. The QR carries the code, never the price — so every sticker already printed for this item now charges the new price. Reprint the sheets.',
+          '已保存。二维码里只有编码、没有价格——所以已经贴出去的每一张贴纸，现在都按新价扣币，请重新打印。',
+        ),
+      );
+  };
+
+  return (
+    <div className="mb-3 space-y-5">
+      <form className="space-y-2" onSubmit={(e) => void save(e)}>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <input
+            className={INPUT}
+            required
+            value={f.name}
+            onChange={(e) => setF({ ...f, name: e.target.value })}
+            aria-label={t('Item', '品名（英）')}
+          />
+          <input
+            className={INPUT}
+            value={f.name_zh}
+            onChange={(e) => setF({ ...f, name_zh: e.target.value })}
+            placeholder={t('Chinese name', '品名（中）')}
+            aria-label={t('Chinese name', '品名（中）')}
+          />
+          <input
+            className={INPUT}
+            required
+            inputMode="numeric"
+            value={f.tokens}
+            onChange={(e) => setF({ ...f, tokens: e.target.value.replace(/\D/g, '') })}
+            aria-label={t('Tokens', '币数')}
+          />
+          <input
+            className={INPUT}
+            value={f.group_label}
+            onChange={(e) => setF({ ...f, group_label: e.target.value })}
+            placeholder={t('Stall (optional)', '摊位（可选）')}
+            aria-label={t('Stall (optional)', '摊位（可选）')}
+          />
+          <input
+            className={INPUT}
+            inputMode="numeric"
+            value={f.sort_order}
+            onChange={(e) => setF({ ...f, sort_order: e.target.value.replace(/\D/g, '') })}
+            placeholder={t('Order', '排序')}
+            aria-label={t('Order on the menu', '菜单排序')}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <button type="submit" className={SECONDARY}>
+            {t('Save', '保存')}
+          </button>
+          <label className="inline-flex items-center gap-2 text-xs text-neutral-700 cursor-pointer">
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-brick cursor-pointer"
+              checked={f.active}
+              onChange={(e) => setF({ ...f, active: e.target.checked })}
+            />
+            {t('On the menu', '在售')}
+          </label>
+          <Confirm
+            lang={lang}
+            label={t('Delete this item', '删除该菜品')}
+            confirmLabel={t('Yes, delete it', '确定删除')}
+            onConfirm={() => act({ action: 'delete_item', id: item.id }, t('Deleted.', '已删除。'))}
+          />
+        </div>
+        {item.active === false && (
+          <p className={ASIDE}>
+            {t(
+              'Hidden: it is off the till’s menu and its QR refuses, but everything it has already sold stays in the ledger.',
+              '已下架：收银台菜单中不再显示，二维码也不再受理；此前卖出的记录仍留在流水里。',
+            )}
+          </p>
+        )}
+      </form>
+
+      <PayCode lang={lang} m={m} item={item} rate={rate} act={act} />
+      <ItemSales lang={lang} item={item} rate={rate} />
+    </div>
+  );
+}
+
+// What this one item has sold, and the charges behind that number.
+function ItemSales({ lang, item, rate }: { lang: Lang; item: MenuItem; rate: number }) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const [offset, setOffset] = useState(0);
+  const [data, setData] = useState<ItemReport | null>(null);
+
+  useEffect(() => {
+    // a slow answer for an earlier page must not overwrite the current one
+    let current = true;
+    setData(null);
+    void tokens.admin.item(item.id, offset).then((res) => {
+      if (current && res.ok) setData(res.data);
+    });
+    return () => {
+      current = false;
+    };
+  }, [item.id, offset]);
+
+  if (!data) return <Spinner label={t('Loading…', '加载中…')} />;
+  return (
+    <div className="space-y-2">
+      <p className={LABEL}>{t('Sales', '销售与流水')}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
+        <Figure label={t('Sold', '已售')} value={`${data.sold}`} />
+        <Figure
+          label={t('Tokens taken', '收币')}
+          value={`${data.tokens}`}
+          sub={rate ? usd((data.tokens * 100) / rate) : undefined}
+        />
+        <Figure
+          label={t('First sold', '首次售出')}
+          value={data.first_at ? day(data.first_at, lang) : '—'}
+        />
+        <Figure
+          label={t('Last sold', '最近售出')}
+          value={data.last_at ? day(data.last_at, lang) : '—'}
+        />
+      </div>
+      {data.undone > 0 && (
+        <p className={ASIDE}>
+          {t(
+            `${data.undone} charge(s) were voided or refunded after a dispute. They are listed below but not counted as sold.`,
+            `另有 ${data.undone} 笔已撤销或申诉退回，下方仍会列出，但不计入已售。`,
+          )}
+        </p>
+      )}
+      {data.rows.length === 0 ? (
+        <p className={ASIDE}>
+          {t(
+            'Nothing has been sold under this item yet. Charges rung up before this page existed are named in the ledger but not linked to the item, so they are not here.',
+            '这件商品还没有卖出记录。在本页上线之前柜台扣的币，流水里只记了品名、没有关联到商品，因此不会出现在这里。',
+          )}
+        </p>
+      ) : (
+        <>
+          <ul className="divide-y divide-neutral-200/80">
+            {data.rows.map((tx) => (
+              <LedgerRow key={tx.id} tx={tx} lang={lang} />
+            ))}
+          </ul>
+          <Pager lang={lang} offset={offset} total={data.total} onChange={setOffset} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div>
+      <p className="text-[11px] text-neutral-500">{label}</p>
+      <p className="text-lg font-bold text-ink tabular-nums mt-0.5">{value}</p>
+      {sub && <p className="text-[11px] text-neutral-500">{sub}</p>}
     </div>
   );
 }
@@ -919,75 +1229,96 @@ function LedgerTab({ lang }: { lang: Lang }) {
         <>
           <ul className="divide-y divide-neutral-200/80">
             {data.rows.map((tx) => (
-              <li key={tx.id} className="py-2.5 flex items-start justify-between gap-3 text-xs">
-                <div className="min-w-0">
-                  <p className="font-semibold text-neutral-900 truncate">
-                    {tx.member_name || tx.member_email || '—'}
-                    <span className="ml-2 font-normal text-neutral-500">
-                      {when(tx.created_at, lang)}
-                    </span>
-                  </p>
-                  <p className="text-neutral-600 truncate">
-                    {kindLabel(tx.kind, lang)}
-                    {tx.merchant ? ` · ${pickName(tx.merchant, lang)}` : ''}
-                    {tx.cash_cents ? ` · ${usd(tx.cash_cents)}` : ''}
-                    {lineText(tx.items, lang) ? ` · ${lineText(tx.items, lang)}` : ''}
-                    {tx.reason ? ` · ${tx.reason}` : ''}
-                    {tx.note ? ` · ${tx.note}` : ''}
-                  </p>
-                  <p className="text-[11px] text-neutral-500">
-                    {tx.actor_name
-                      ? `${t('by', '操作人')} ${tx.actor_name}`
-                      : t('automatic', '系统自动')}
-                    {tx.kind === 'charge' && tx.receipt_error
-                      ? ` · ${t('receipt failed', '回执失败')}: ${tx.receipt_error}`
-                      : ''}
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p
-                    className={`text-sm font-bold tabular-nums ${tx.amount > 0 ? 'text-emerald-700' : 'text-neutral-900'}`}
-                  >
-                    {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
-                  </p>
-                  {tx.state !== 'ok' && (
-                    <Status tone={tx.state === 'disputed' ? 'warn' : 'muted'}>
-                      {tx.state === 'disputed'
-                        ? t('Disputed', '争议中')
-                        : tx.state === 'voided'
-                          ? t('Voided', '已撤销')
-                          : t('Reversed', '已冲回')}
-                    </Status>
-                  )}
-                </div>
-              </li>
+              <LedgerRow key={tx.id} tx={tx} lang={lang} />
             ))}
           </ul>
-          <div className="flex justify-between items-center pt-2">
-            <button
-              type="button"
-              className={SECONDARY}
-              disabled={offset === 0}
-              onClick={() => setOffset(Math.max(0, offset - 50))}
-            >
-              {t('Newer', '较新')}
-            </button>
-            <span className="text-[11px] text-neutral-500">
-              {data.total
-                ? `${offset + 1}–${Math.min(offset + 50, data.total)} / ${data.total}`
-                : '0'}
-            </span>
-            <button
-              type="button"
-              className={SECONDARY}
-              disabled={offset + 50 >= data.total}
-              onClick={() => setOffset(offset + 50)}
-            >
-              {t('Older', '较早')}
-            </button>
-          </div>
+          <Pager lang={lang} offset={offset} total={data.total} onChange={setOffset} />
         </>
       )}
+    </div>
+  );
+}
+
+/** One ledger row, wherever it is shown: the whole ledger, or one item's own. */
+function LedgerRow({ tx, lang }: { tx: LedgerTx; lang: Lang }) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  return (
+    <li className="py-2.5 flex items-start justify-between gap-3 text-xs">
+      <div className="min-w-0">
+        <p className="font-semibold text-neutral-900 truncate">
+          {tx.member_name || tx.member_email || '—'}
+          <span className="ml-2 font-normal text-neutral-500">{when(tx.created_at, lang)}</span>
+        </p>
+        <p className="text-neutral-600 truncate">
+          {kindLabel(tx.kind, lang)}
+          {tx.merchant ? ` · ${pickName(tx.merchant, lang)}` : ''}
+          {tx.cash_cents ? ` · ${usd(tx.cash_cents)}` : ''}
+          {lineText(tx.items, lang) ? ` · ${lineText(tx.items, lang)}` : ''}
+          {tx.reason ? ` · ${tx.reason}` : ''}
+          {tx.note ? ` · ${tx.note}` : ''}
+        </p>
+        <p className="text-[11px] text-neutral-500">
+          {tx.actor_name ? `${t('by', '操作人')} ${tx.actor_name}` : t('automatic', '系统自动')}
+          {tx.kind === 'charge' && tx.receipt_error
+            ? ` · ${t('receipt failed', '回执失败')}: ${tx.receipt_error}`
+            : ''}
+        </p>
+      </div>
+      <div className="text-right shrink-0">
+        <p
+          className={`text-sm font-bold tabular-nums ${tx.amount > 0 ? 'text-emerald-700' : 'text-neutral-900'}`}
+        >
+          {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
+        </p>
+        {tx.state !== 'ok' && (
+          <Status tone={tx.state === 'disputed' ? 'warn' : 'muted'}>
+            {tx.state === 'disputed'
+              ? t('Disputed', '争议中')
+              : tx.state === 'voided'
+                ? t('Voided', '已撤销')
+                : t('Reversed', '已冲回')}
+          </Status>
+        )}
+      </div>
+    </li>
+  );
+}
+
+const PAGE = 50;
+
+function Pager({
+  lang,
+  offset,
+  total,
+  onChange,
+}: {
+  lang: Lang;
+  offset: number;
+  total: number;
+  onChange: (next: number) => void;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  return (
+    <div className="flex justify-between items-center pt-2">
+      <button
+        type="button"
+        className={SECONDARY}
+        disabled={offset === 0}
+        onClick={() => onChange(Math.max(0, offset - PAGE))}
+      >
+        {t('Newer', '较新')}
+      </button>
+      <span className="text-[11px] text-neutral-500">
+        {total ? `${offset + 1}–${Math.min(offset + PAGE, total)} / ${total}` : '0'}
+      </span>
+      <button
+        type="button"
+        className={SECONDARY}
+        disabled={offset + PAGE >= total}
+        onClick={() => onChange(offset + PAGE)}
+      >
+        {t('Older', '较早')}
+      </button>
     </div>
   );
 }
@@ -1145,9 +1476,7 @@ function SettingsTab({
   return (
     <div className="space-y-8">
       <form className="space-y-4" onSubmit={(e) => void save(e)}>
-        <span className="text-xs font-semibold text-brick block">
-          {t('Root only: global settings', '仅 root：全局参数')}
-        </span>
+        <span className={EYEBROW}>{t('Root only: global settings', '仅 root：全局参数')}</span>
         <div>
           <label className={LABEL} htmlFor="set-grants">
             {t('Yearly tokens per plan (JSON, by tier id)', '各等级年度赠币（JSON，按等级 id）')}
@@ -1206,9 +1535,7 @@ function SettingsTab({
       </form>
 
       <div className={SECTION}>
-        <span className="text-xs font-semibold text-brick block">
-          {t('Root only: who is an admin', '仅 root：管理员名单')}
-        </span>
+        <span className={EYEBROW}>{t('Root only: who is an admin', '仅 root：管理员名单')}</span>
         <ul className="divide-y divide-neutral-200/80">
           {admins.map((a) => (
             <li key={a.id} className="py-2 flex items-center justify-between gap-3 text-xs">
@@ -1220,7 +1547,7 @@ function SettingsTab({
               {!a.is_root && (
                 <button
                   type="button"
-                  className="min-h-[44px] text-rose-700 font-semibold cursor-pointer"
+                  className={TEXT_DANGER}
                   onClick={() => void setAdmin({ member_id: a.id }, false)}
                 >
                   {t('Remove', '取消')}
@@ -1276,7 +1603,7 @@ function PayCode({
   m: AdminMerchant;
   item: MenuItem;
   rate: number;
-  act: (body: Record<string, unknown>, ok: string) => Promise<void>;
+  act: Act;
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const [blocked, setBlocked] = useState(false);
@@ -1318,8 +1645,9 @@ function PayCode({
 
   if (!item.pay_code)
     return (
-      <div className="mt-2 mb-1 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80 space-y-2">
-        <p className="text-neutral-600 leading-relaxed">
+      <div className="space-y-2">
+        <p className={LABEL}>{t('Scan-to-pay', '扫码付款')}</p>
+        <p className={ASIDE}>
           {t(
             `A QR on the product that charges ${item.tokens} tokens when a member scans it. Nobody needs a till.`,
             `给这件商品生成一张二维码，会员扫码即可支付 ${item.tokens} 币，摊位不需要任何设备。`,
@@ -1333,7 +1661,7 @@ function PayCode({
           {t('Make a QR code', '生成二维码')}
         </button>
         {m.kind !== 'internal' && (
-          <p className="text-[11px] text-amber-800">
+          <p className="border-l-2 border-amber-300 pl-3 text-[11px] text-amber-800 leading-relaxed">
             {t(
               'Partner shops can only take scan-to-pay once root turns it on in Settings.',
               '合作商家需由 root 在设置中开启后才能收扫码付款。',
@@ -1344,7 +1672,7 @@ function PayCode({
     );
 
   return (
-    <div className="mt-2 mb-1 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80 flex flex-col sm:flex-row gap-4">
+    <div className="flex flex-col sm:flex-row gap-4 text-xs">
       {png && (
         <img
           src={png}
@@ -1353,12 +1681,11 @@ function PayCode({
         />
       )}
       <div className="min-w-0 space-y-2">
-        <p className="font-bold text-ink break-words">
-          {item.name}
-          {item.name_zh ? ` · ${item.name_zh}` : ''} — {item.tokens} {t('tokens', '币')}
+        <p className={LABEL}>
+          {t('Scan-to-pay', '扫码付款')} · {item.tokens} {t('tokens', '币')}
         </p>
         <p className="text-neutral-600">
-          <code className="break-all text-ink">{url}</code>
+          <code className="break-all text-ink font-mono">{url}</code>
         </p>
         {item.pay_code_at && (
           <p className="text-[11px] text-neutral-500">
