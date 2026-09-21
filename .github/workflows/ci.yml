@@ -18,6 +18,18 @@ permissions:
 
 jobs:
   check:
+    # Two Node versions, because the two that matter disagree. 20 is what
+    # Cloudflare Pages builds with, so it decides what can ship. 24 is what this
+    # project is developed on, and the gap between them has already cost a red
+    # main: `navigator` is a global from 21 onward, so code using it passed
+    # every local run and failed here. Testing only 20 catches that one; testing
+    # both also catches its mirror image — a change that is fine on 20 and
+    # breaks the machine it was written on.
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '24']
+    name: check (node ${{ matrix.node }})
     runs-on: ubuntu-latest
     steps:
       # Actions are pinned to a full commit SHA (supply-chain hardening); the
@@ -26,7 +38,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node }}
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
@@ -46,3 +58,29 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+
+  base:
+    # A pull request into main moves caaciorg.com. Work is reviewed on preview
+    # and reaches main as a release of everything preview already holds, so a
+    # feature branch pointed straight at main is a mistake about which button
+    # was clicked — and the cost of finding that out after the merge is a deploy
+    # of something that was never on preview. hotfix/* is the way past this when
+    # production is broken and preview is not where the fix can wait.
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      # github.head_ref is a branch name a contributor chose, so it is passed
+      # through the environment and quoted — never interpolated into the script.
+      - name: Only preview, release/* and hotfix/* may target main
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            preview | release/* | hotfix/*)
+              echo "$HEAD_REF -> main: allowed"
+              ;;
+            *)
+              echo "::error::$HEAD_REF cannot be merged into main. Open this against preview instead; main takes preview, a release/* branch, or a hotfix/*."
+              exit 1
+              ;;
+          esac
