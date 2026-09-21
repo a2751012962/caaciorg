@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useId, useMemo, useState, type FormEvent } from 'react';
-import { Download, LayoutDashboard, Printer, Search } from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import { Download, LayoutDashboard, Plus, Printer, Search } from 'lucide-react';
 import qrcode from 'qrcode-generator';
 import { FluidTabs } from '../components/FluidTabs';
+import { LiquidToggle } from '../components/bencho/LiquidToggle';
 import {
   ASIDE,
   DANGER,
@@ -337,6 +346,13 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
                     : t('Partner shop', '合作商家')}{' '}
                   · {m.staff.length} {t('staff', '店员')} · {m.items.length}{' '}
                   {t('menu items', '菜单项')}
+                  {' · '}
+                  <span className="tabular-nums">
+                    {t(
+                      `${m.sold_tokens ?? 0} tokens taken in ${m.sold_charges ?? 0} charges`,
+                      `已收 ${m.sold_tokens ?? 0} 币 · ${m.sold_charges ?? 0} 笔`,
+                    )}
+                  </span>
                 </span>
               </span>
               <span className="text-right shrink-0">
@@ -527,6 +543,7 @@ function MerchantDetail({
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const [email, setEmail] = useState('');
+  const [addingStaff, setAddingStaff] = useState(false);
   const [payout, setPayout] = useState(m.payout_note ?? '');
   const [refs, setRefs] = useState<Record<string, string>>({});
 
@@ -550,8 +567,8 @@ function MerchantDetail({
         {m.kind === 'internal' && (
           <p className="text-xs text-neutral-500">
             {t(
-              'Every CAACI admin can already charge here. Add volunteers below.',
-              '所有华协管理员自动可在此扣币。志愿者请在下方添加。',
+              'Every CAACI admin can already charge here. Volunteers sign up on the site first, then are added here.',
+              '所有华协管理员自动可在此扣币。志愿者需先在网站注册，再在这里添加。',
             )}
           </p>
         )}
@@ -577,38 +594,57 @@ function MerchantDetail({
             </li>
           ))}
         </ul>
-        <form
-          className="space-y-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void act(
-              { action: 'add_staff', merchant_id: m.id, email },
-              t('Added.', '已添加。'),
-            ).then(() => setEmail(''));
-          }}
-        >
-          <div className="flex gap-2">
-            <StaffPicker
-              lang={lang}
-              value={email}
-              onChange={setEmail}
-              candidates={candidates}
-              placeholder={t(
-                'Admin name, or the email of any CAACI account',
-                '管理员姓名，或任意华协账号的邮箱',
-              )}
+        {addingStaff ? (
+          <form
+            className="space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void act(
+                { action: 'add_staff', merchant_id: m.id, email },
+                t('Added.', '已添加。'),
+              ).then((done) => {
+                if (done) {
+                  setEmail('');
+                  setAddingStaff(false);
+                }
+              });
+            }}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <StaffPicker
+                lang={lang}
+                value={email}
+                onChange={setEmail}
+                candidates={candidates}
+                placeholder={t(
+                  'Admin name, or the email of any CAACI account',
+                  '管理员姓名，或任意华协账号的邮箱',
+                )}
             />
             <button type="submit" className={SECONDARY}>
               {t('Add', '添加')}
             </button>
-          </div>
-        </form>
-        <p className="text-[11px] text-neutral-500">
-          {t(
-            'Start typing to pick an admin. Anyone else: type the email of their account; they must sign up on the site first.',
-            '输入即可从管理员中选择。其他人请输入其账号邮箱，对方需先在网站注册。',
-          )}
-        </p>
+              <button type="button" className={TEXT_ACTION} onClick={() => setAddingStaff(false)}>
+                {t('Cancel', '取消')}
+              </button>
+            </div>
+            <p className="text-[11px] text-neutral-500">
+              {t(
+                'Start typing to pick an admin. Anyone else: type the email of their account; they must sign up on the site first.',
+                '输入即可从管理员中选择。其他人请输入其账号邮箱，对方需先在网站注册。',
+              )}
+            </p>
+          </form>
+        ) : (
+          <AddRow
+            label={
+              m.kind === 'internal'
+                ? t('Add a volunteer', '添加志愿者店员')
+                : t('Add staff', '添加店员')
+            }
+            onClick={() => setAddingStaff(true)}
+          />
+        )}
       </section>
 
       <MenuSection lang={lang} m={m} rate={rate} act={act} say={say} />
@@ -742,7 +778,7 @@ function MerchantDetail({
 
       {/* closing it down */}
       <section className={SECTION}>
-        <span className={EYEBROW}>{t('Suspend or delete', '暂停与删除')}</span>
+        <span className={EYEBROW}>{t('Status', '商家状态')}</span>
         <p className={ASIDE}>
           {m.kind === 'internal'
             ? t(
@@ -763,7 +799,7 @@ function MerchantDetail({
           {m.status === 'active' ? (
             <button
               type="button"
-              className={DANGER}
+              className={SECONDARY}
               onClick={() =>
                 void act(
                   {
@@ -811,23 +847,60 @@ function MerchantDetail({
   );
 }
 
+/** A quiet "+ …" line that opens a form in place, so a page holds one open form at a time. */
+function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center gap-2 min-h-[44px] text-xs font-semibold text-neutral-700 hover:text-brick transition-colors cursor-pointer"
+      onClick={onClick}
+    >
+      <span className="w-6 h-6 rounded-full border border-dashed border-neutral-300 inline-flex items-center justify-center">
+        <Plus className="w-3.5 h-3.5" aria-hidden />
+      </span>
+      {label}
+    </button>
+  );
+}
+
+/** A labelled field: the name sits above the control, so a filled form still reads. */
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block min-w-0">
+      <span className="block text-[11px] text-neutral-500 mb-1">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 /** A destructive action that asks once, in place — no browser dialog. */
 function Confirm({
   lang,
   label,
   confirmLabel,
   onConfirm,
+  quiet = false,
 }: {
   lang: Lang;
   label: string;
   confirmLabel: string;
   onConfirm: () => Promise<unknown>;
+  /** grey until armed: for a rare action that should not read as a warning until it is one */
+  quiet?: boolean;
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const [armed, setArmed] = useState(false);
   if (!armed)
     return (
-      <button type="button" className={TEXT_DANGER} onClick={() => setArmed(true)}>
+      <button
+        type="button"
+        className={
+          quiet
+            ? 'min-h-[44px] text-[11px] font-medium text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer'
+            : TEXT_DANGER
+        }
+        onClick={() => setArmed(true)}
+      >
         {label}
       </button>
     );
@@ -868,6 +941,7 @@ function MenuSection({
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const [openItem, setOpenItem] = useState('');
+  const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState({ name: '', name_zh: '', tokens: '', group_label: '' });
 
   return (
@@ -897,6 +971,9 @@ function MenuSection({
                 </span>
                 <span className="flex items-center gap-3 shrink-0">
                   {i.active === false && <Status tone="muted">{t('Hidden', '已下架')}</Status>}
+                  <span className="text-neutral-500 tabular-nums">
+                    {t(`${i.sold ?? 0} sold`, `已售 ${i.sold ?? 0}`)}
+                  </span>
                   <span className="font-bold tabular-nums text-neutral-900">
                     {i.tokens} {t('tokens', '币')}
                   </span>
@@ -910,59 +987,74 @@ function MenuSection({
         </ul>
       )}
 
-      <form
-        className="grid grid-cols-2 sm:grid-cols-5 gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void act(
-            {
-              action: 'save_item',
-              merchant_id: m.id,
-              ...draft,
-              tokens: Number(draft.tokens),
-              sort_order: m.items.length,
-            },
-            t('Item added.', '已添加。'),
-          ).then(() =>
-            setDraft({ name: '', name_zh: '', tokens: '', group_label: draft.group_label }),
-          );
-        }}
-      >
-        <input
-          className={INPUT}
-          required
-          value={draft.name}
-          onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-          placeholder={t('Item', '品名（英）')}
-          aria-label={t('Item', '品名（英）')}
-        />
-        <input
-          className={INPUT}
-          value={draft.name_zh}
-          onChange={(e) => setDraft({ ...draft, name_zh: e.target.value })}
-          placeholder={t('Chinese name', '品名（中）')}
-          aria-label={t('Chinese name', '品名（中）')}
-        />
-        <input
-          className={INPUT}
-          required
-          inputMode="numeric"
-          value={draft.tokens}
-          onChange={(e) => setDraft({ ...draft, tokens: e.target.value.replace(/\D/g, '') })}
-          placeholder={t('Tokens', '币数')}
-          aria-label={t('Tokens', '币数')}
-        />
-        <input
-          className={INPUT}
-          value={draft.group_label}
-          onChange={(e) => setDraft({ ...draft, group_label: e.target.value })}
-          placeholder={t('Stall (optional)', '摊位（可选）')}
-          aria-label={t('Stall (optional)', '摊位（可选）')}
-        />
-        <button type="submit" className={SECONDARY}>
-          {t('Add item', '添加')}
-        </button>
-      </form>
+      {adding ? (
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void act(
+              {
+                action: 'save_item',
+                merchant_id: m.id,
+                ...draft,
+                tokens: Number(draft.tokens),
+                sort_order: m.items.length,
+              },
+              t('Item added.', '已添加。'),
+            ).then((done) => {
+              if (done) {
+                setDraft({ name: '', name_zh: '', tokens: '', group_label: draft.group_label });
+                setAdding(false);
+              }
+            });
+          }}
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Field label={t('Item', '品名（英）')}>
+              <input
+                className={INPUT}
+                required
+                autoFocus
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              />
+            </Field>
+            <Field label={t('Chinese name', '品名（中）')}>
+              <input
+                className={INPUT}
+                value={draft.name_zh}
+                onChange={(e) => setDraft({ ...draft, name_zh: e.target.value })}
+              />
+            </Field>
+            <Field label={t('Price (tokens)', '价格（币）')}>
+              <input
+                className={INPUT}
+                required
+                inputMode="numeric"
+                value={draft.tokens}
+                onChange={(e) => setDraft({ ...draft, tokens: e.target.value.replace(/\D/g, '') })}
+              />
+            </Field>
+            <Field label={t('Stall (optional)', '摊位（可选）')}>
+              <input
+                className={INPUT}
+                value={draft.group_label}
+                onChange={(e) => setDraft({ ...draft, group_label: e.target.value })}
+              />
+            </Field>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <button type="submit" className={SECONDARY}>
+              {t('Add item', '添加')}
+            </button>
+            <button type="button" className={TEXT_ACTION} onClick={() => setAdding(false)}>
+              {t('Cancel', '取消')}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <AddRow label={t('Add an item', '添加菜品')} onClick={() => setAdding(true)} />
+      )}
     </section>
   );
 }
@@ -1020,66 +1112,61 @@ function ItemDetail({
   };
 
   return (
-    <div className="mb-3 space-y-5">
-      <form className="space-y-2" onSubmit={(e) => void save(e)}>
+    <div className="mb-3 space-y-6">
+      <form className="space-y-3" onSubmit={(e) => void save(e)}>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          <input
-            className={INPUT}
-            required
-            value={f.name}
-            onChange={(e) => setF({ ...f, name: e.target.value })}
-            aria-label={t('Item', '品名（英）')}
-          />
-          <input
-            className={INPUT}
-            value={f.name_zh}
-            onChange={(e) => setF({ ...f, name_zh: e.target.value })}
-            placeholder={t('Chinese name', '品名（中）')}
-            aria-label={t('Chinese name', '品名（中）')}
-          />
-          <input
-            className={INPUT}
-            required
-            inputMode="numeric"
-            value={f.tokens}
-            onChange={(e) => setF({ ...f, tokens: e.target.value.replace(/\D/g, '') })}
-            aria-label={t('Tokens', '币数')}
-          />
-          <input
-            className={INPUT}
-            value={f.group_label}
-            onChange={(e) => setF({ ...f, group_label: e.target.value })}
-            placeholder={t('Stall (optional)', '摊位（可选）')}
-            aria-label={t('Stall (optional)', '摊位（可选）')}
-          />
-          <input
-            className={INPUT}
-            inputMode="numeric"
-            value={f.sort_order}
-            onChange={(e) => setF({ ...f, sort_order: e.target.value.replace(/\D/g, '') })}
-            placeholder={t('Order', '排序')}
-            aria-label={t('Order on the menu', '菜单排序')}
-          />
+          <Field label={t('Item', '品名（英）')}>
+            <input
+              className={INPUT}
+              required
+              value={f.name}
+              onChange={(e) => setF({ ...f, name: e.target.value })}
+            />
+          </Field>
+          <Field label={t('Chinese name', '品名（中）')}>
+            <input
+              className={INPUT}
+              value={f.name_zh}
+              onChange={(e) => setF({ ...f, name_zh: e.target.value })}
+            />
+          </Field>
+          <Field label={t('Price (tokens)', '价格（币）')}>
+            <input
+              className={INPUT}
+              required
+              inputMode="numeric"
+              value={f.tokens}
+              onChange={(e) => setF({ ...f, tokens: e.target.value.replace(/\D/g, '') })}
+            />
+          </Field>
+          <Field label={t('Stall (optional)', '摊位（可选）')}>
+            <input
+              className={INPUT}
+              value={f.group_label}
+              onChange={(e) => setF({ ...f, group_label: e.target.value })}
+            />
+          </Field>
+          <Field label={t('Order on the menu', '菜单排序')}>
+            <input
+              className={INPUT}
+              inputMode="numeric"
+              value={f.sort_order}
+              onChange={(e) => setF({ ...f, sort_order: e.target.value.replace(/\D/g, '') })}
+            />
+          </Field>
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <button type="submit" className={SECONDARY}>
-            {t('Save', '保存')}
+            {t('Save changes', '保存修改')}
           </button>
-          <label className="inline-flex items-center gap-2 text-xs text-neutral-700 cursor-pointer">
-            <input
-              type="checkbox"
-              className="w-4 h-4 accent-brick cursor-pointer"
+          <span className="inline-flex items-center gap-2 text-xs text-neutral-700">
+            <LiquidToggle
               checked={f.active}
-              onChange={(e) => setF({ ...f, active: e.target.checked })}
+              onChange={(next) => setF({ ...f, active: next })}
+              label={t('On the menu', '在售')}
             />
             {t('On the menu', '在售')}
-          </label>
-          <Confirm
-            lang={lang}
-            label={t('Delete this item', '删除该菜品')}
-            confirmLabel={t('Yes, delete it', '确定删除')}
-            onConfirm={() => act({ action: 'delete_item', id: item.id }, t('Deleted.', '已删除。'))}
-          />
+          </span>
         </div>
         {item.active === false && (
           <p className={ASIDE}>
@@ -1093,6 +1180,16 @@ function ItemDetail({
 
       <PayCode lang={lang} m={m} item={item} rate={rate} act={act} />
       <ItemSales lang={lang} item={item} rate={rate} />
+
+      {/* the one irreversible thing, last and in words, away from the fields */}
+      <div className="flex justify-end border-t border-dashed border-neutral-200/80 pt-1">
+        <Confirm
+          lang={lang}
+          label={t('Delete this item', '删除该菜品')}
+          confirmLabel={t('Yes, delete it', '确定删除')}
+          onConfirm={() => act({ action: 'delete_item', id: item.id }, t('Deleted.', '已删除。'))}
+        />
+      </div>
     </div>
   );
 }
@@ -1753,8 +1850,7 @@ function PayCode({
     return qr.createDataURL(8, 16);
   }, [url]);
 
-  const issue = (ok: string) =>
-    void act({ action: 'issue_code', merchant_id: m.id, id: item.id }, ok);
+  const issue = (ok: string) => act({ action: 'issue_code', merchant_id: m.id, id: item.id }, ok);
 
   // Redrawn at the sheet's own cell size: the 8px cells on screen would print
   // at about 90dpi, which a phone camera reads badly on a curved cup.
@@ -1793,7 +1889,7 @@ function PayCode({
         <button
           type="button"
           className={SECONDARY}
-          onClick={() => issue(t('QR code created.', '二维码已生成。'))}
+          onClick={() => void issue(t('QR code created.', '二维码已生成。'))}
         >
           {t('Make a QR code', '生成二维码')}
         </button>
@@ -1838,47 +1934,53 @@ function PayCode({
             )}
           </Notice>
         )}
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className={SECONDARY} onClick={() => print('small')}>
+        {/* one button — the thing this block exists for — and words for the rest */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <button type="button" className={PRIMARY} onClick={() => print('small')}>
             <Printer className="w-4 h-4" aria-hidden />
-            {t('Print 12 stickers', '打印贴纸（12 枚一页）')}
+            {t('Print 12 stickers', '打印贴纸 · 12 枚一页')}
           </button>
-          <button type="button" className={SECONDARY} onClick={() => print('large')}>
-            <Printer className="w-4 h-4" aria-hidden />
-            {t('Print 4 signs', '打印立牌（4 枚一页）')}
+          <button type="button" className={TEXT_ACTION} onClick={() => print('large')}>
+            {t('Print 4 signs', '打印立牌 · 4 枚一页')}
           </button>
           {png && (
             <a
-              className={SECONDARY}
+              className={`${TEXT_ACTION} inline-flex items-center gap-1.5`}
               download={`caaci-pay-${item.pay_code}.gif`}
               href={png}
-              aria-label={t('Download the QR image', '下载二维码图片')}
             >
-              <Download className="w-4 h-4" aria-hidden />
-              {t('Image only', '仅下载图片')}
+              <Download className="w-3.5 h-3.5" aria-hidden />
+              {t('Download image', '下载图片')}
             </a>
           )}
-          <button
-            type="button"
-            className={SECONDARY}
-            onClick={() =>
+        </div>
+        {/* both of these kill every sticker already on a cup, so they are quiet and ask first */}
+        <div className="flex flex-wrap items-center gap-x-3 text-[11px] text-neutral-500">
+          <Confirm
+            lang={lang}
+            quiet
+            label={t('New code', '换新码')}
+            confirmLabel={t(
+              'Yes, new code — the old stickers stop working',
+              '确定换码，旧贴纸作废',
+            )}
+            onConfirm={() =>
               issue(t('New code. Reprint the stickers.', '已换新码，请重新打印贴纸。'))
             }
-          >
-            {t('New code', '换新码')}
-          </button>
-          <button
-            type="button"
-            className={DANGER}
-            onClick={() =>
-              void act(
+          />
+          <span aria-hidden>·</span>
+          <Confirm
+            lang={lang}
+            quiet
+            label={t('Stop scan-to-pay', '停用扫码付款')}
+            confirmLabel={t('Yes, stop it', '确定停用')}
+            onConfirm={() =>
+              act(
                 { action: 'clear_code', merchant_id: m.id, id: item.id },
                 t('Scan-to-pay is off for this item.', '该商品扫码付款已停用。'),
               )
             }
-          >
-            {t('Stop scan-to-pay', '停用扫码付款')}
-          </button>
+          />
         </div>
       </div>
     </div>

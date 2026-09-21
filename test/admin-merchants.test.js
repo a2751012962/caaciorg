@@ -73,7 +73,7 @@ test('the merchant list carries the admins, and only them, for the add-staff pic
     { id: USER, is_admin: true, full_name: 'Ada Admin', email: 'ada@example.com' },
     { id: ROOT, is_root: true, full_name: 'Root', email: 'root@example.com' },
   ];
-  const fetch = mockFetch(
+  const picker = mockFetch(
     backend({
       ...admin,
       // Supabase filters server-side; the stub answers each select by its filter
@@ -99,16 +99,66 @@ test('the merchant list carries the admins, and only them, for the add-staff pic
     );
     // the volunteer is still named, from a lookup by id
     assert.equal(rows[0].staff[0].name, 'Wei Zhang');
-    const list = fetch.calls.find((c) => /members\?select=id,full_name,email/.test(c.url));
+    const list = picker.calls.find((c) => /members\?select=id,full_name,email/.test(c.url));
     // the same set the Roles page lists: admins and root, with a login
     assert.match(list.url, /or=\(is_admin\.eq\.true,is_root\.eq\.true\)/);
     assert.match(list.url, /email=not\.is\.null/);
     assert.match(list.url, /order=full_name\.asc\.nullslast,email\.asc/);
-    const byId = fetch.calls.find((c) => /members\?select=id,full_name,email&id=in\./.test(c.url));
+    const byId = picker.calls.find((c) => /members\?select=id,full_name,email&id=in\./.test(c.url));
     assert.ok(byId, 'staff who are not admins are looked up by id');
     assert.match(byId.url, new RegExp(MEMBER));
   } finally {
+    picker.restore();
+  }
+});
+
+test('the merchant list carries what each shop and each menu line has sold', async () => {
+  const OTHER = '66666666-6666-4666-8666-666666666666';
+  const fetch = mockFetch(
+    backend({
+      ...admin,
+      merchants: [{ id: SHOP, name: 'Kung Fu Tea', kind: 'partner', status: 'active' }],
+      merchant_items: [
+        { id: ITEM, merchant_id: SHOP, name: 'Milk tea', tokens: 30 },
+        { id: OTHER, merchant_id: SHOP, name: 'Egg tart', tokens: 10 },
+      ],
+      token_settings: [{ tokens_per_dollar: 10, settle_min_cents: 2000 }],
+      // the merchant's own row has no item; one item sold, the other never did
+      token_merchant_sales: [
+        { merchant_id: SHOP, item_id: null, charges: 9, units: 0, tokens: 260 },
+        { merchant_id: SHOP, item_id: ITEM, charges: 0, units: 7, tokens: 210 },
+      ],
+    }),
+  );
+  try {
+    const r = await merchantsGet({ request: fakeRequest({ headers: auth }), env: fakeEnv(ON) });
+    const { rows } = await r.json();
+    assert.equal(rows[0].sold_charges, 9);
+    assert.equal(rows[0].sold_tokens, 260);
+    const byName = Object.fromEntries(rows[0].items.map((i) => [i.name, i]));
+    assert.equal(byName['Milk tea'].sold, 7);
+    assert.equal(byName['Milk tea'].sold_tokens, 210);
+    assert.equal(byName['Egg tart'].sold, 0);
+  } finally {
     fetch.restore();
+  }
+
+  // before 0033 is applied the call fails; the list still loads, without figures
+  const missing = mockFetch((url, options) => {
+    if (url.includes('rpc/token_merchant_sales')) return { status: 404, body: { message: 'no' } };
+    return backend({
+      ...admin,
+      merchants: [{ id: SHOP, name: 'Kung Fu Tea', kind: 'partner', status: 'active' }],
+      token_settings: [{ tokens_per_dollar: 10, settle_min_cents: 2000 }],
+    })(url, options);
+  });
+  try {
+    const r = await merchantsGet({ request: fakeRequest({ headers: auth }), env: fakeEnv(ON) });
+    assert.equal(r.status, 200);
+    const { rows } = await r.json();
+    assert.equal(rows[0].sold_tokens, 0);
+  } finally {
+    missing.restore();
   }
 });
 
