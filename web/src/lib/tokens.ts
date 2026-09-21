@@ -225,6 +225,13 @@ export interface LedgerTx {
   receipt_error: string | null;
 }
 
+/** An account on the site, as the add-staff pick-list shows it. */
+export interface Person {
+  id: string;
+  full_name: string | null;
+  email: string;
+}
+
 export interface AdminMerchant {
   id: string;
   name: string;
@@ -393,9 +400,13 @@ export const tokens = {
       }),
 
     merchants: () =>
-      get<{ rows: AdminMerchant[]; rate: number; settle_min_cents: number }>(
-        '/api/admin/merchants',
-      ),
+      get<{
+        rows: AdminMerchant[];
+        rate: number;
+        settle_min_cents: number;
+        /** every account on the site, for picking staff without typing an email */
+        people: Person[];
+      }>('/api/admin/merchants'),
     merchantAction: (body: Record<string, unknown>) =>
       post<{
         ok: true;
