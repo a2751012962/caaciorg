@@ -225,7 +225,7 @@ export interface LedgerTx {
   receipt_error: string | null;
 }
 
-/** An account on the site, as the add-staff pick-list shows it. */
+/** An admin's account, as the add-staff pick-list shows it. */
 export interface Person {
   id: string;
   full_name: string | null;
@@ -404,7 +404,7 @@ export const tokens = {
         rows: AdminMerchant[];
         rate: number;
         settle_min_cents: number;
-        /** every account on the site, for picking staff without typing an email */
+        /** the site's admins, for picking staff without typing an email */
         people: Person[];
       }>('/api/admin/merchants'),
     merchantAction: (body: Record<string, unknown>) =>
