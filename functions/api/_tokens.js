@@ -183,6 +183,12 @@ const MESSAGES = {
     '华协内部商家不需要结算。',
   ],
   period_not_over: () => ['That statement date is in the future.', '对账截止时间不能在未来。'],
+  // A merchant that has taken tokens is part of the ledger's record of where
+  // the money went, so it is kept and closed, never removed.
+  merchant_has_history: () => [
+    'This merchant has charges in the ledger, so it cannot be deleted — every charge has to keep the shop it was made at. Suspend it instead: it disappears from the till and can take nothing more.',
+    '该商家已有流水，不能删除——每笔扣币都必须保留它所属的商家。请改用「暂停」：暂停后收银台不再显示，也无法再扣币。',
+  ],
 };
 
 // A ledger function's { error } as an HTTP response carrying both languages.

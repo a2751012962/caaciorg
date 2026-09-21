@@ -1,8 +1,8 @@
 // /api/admin/merchants  (admin only)
 //   GET  — every merchant with its staff, menu, what CAACI owes it now, and its
 //          statements.
-//   POST { action } — save_merchant | set_status | add_staff | remove_staff |
-//          save_item | delete_item | issue_code | clear_code |
+//   POST { action } — save_merchant | set_status | delete_merchant | add_staff |
+//          remove_staff | save_item | delete_item | issue_code | clear_code |
 //          close_statement | mark_paid
 // Merchants and their staff are created here and nowhere else: an account that
 // can take tokens is one CAACI has vetted. Staff are added by the email of an
@@ -64,12 +64,23 @@ export async function onRequestGet({ request, env }) {
     const rate = settings?.tokens_per_dollar || 10;
     const rows = await Promise.all(
       merchants.rows.map(async (m) => {
-        const open =
-          Number(await DB.rpc('token_merchant_open', { p_merchant: m.id, p_before: before })) || 0;
+        const [open, used] = await Promise.all([
+          DB.rpc('token_merchant_open', { p_merchant: m.id, p_before: before }),
+          // One row is enough: a merchant with any charge at all can never be
+          // deleted (the ledger's foreign key is ON DELETE RESTRICT), so the
+          // page offers Suspend instead of a button that would only refuse.
+          DB.select('token_tx', {
+            columns: 'id',
+            filters: [`merchant_id=eq.${m.id}`],
+            limit: 1,
+          }),
+        ]);
+        const openTokens = Number(open) || 0;
         return {
           ...m,
-          open_tokens: open,
-          open_cents: m.kind === 'internal' ? 0 : Math.round((open * 100) / rate),
+          has_history: used.rows.length > 0 || settlements.rows.some((s) => s.merchant_id === m.id),
+          open_tokens: openTokens,
+          open_cents: m.kind === 'internal' ? 0 : Math.round((openTokens * 100) / rate),
           staff: staff.rows
             .filter((s) => s.merchant_id === m.id)
             .map((s) => ({
@@ -140,6 +151,32 @@ export async function onRequestPost({ request, env }) {
       return json({ ok: true });
     }
 
+    // Remove a merchant that was created by mistake. Only ever one that has
+    // taken nothing: token_tx.merchant_id and merchant_settlements.merchant_id
+    // are ON DELETE RESTRICT, so Postgres would refuse anyway — this asks first
+    // so the answer is a sentence instead of a foreign-key error. Its menu and
+    // staff go with it (both cascade); a merchant with history is suspended.
+    if (b.action === 'delete_merchant') {
+      const [charges, statements] = await Promise.all([
+        DB.select('token_tx', {
+          columns: 'id',
+          filters: [`merchant_id=eq.${b.merchant_id}`],
+          limit: 1,
+        }),
+        DB.select('merchant_settlements', {
+          columns: 'id',
+          filters: [`merchant_id=eq.${b.merchant_id}`],
+          limit: 1,
+        }),
+      ]);
+      if (charges.rows.length || statements.rows.length)
+        return ledgerError({ error: 'merchant_has_history' });
+      await DB.del('merchant_items', { merchant_id: b.merchant_id });
+      await DB.del('merchant_staff', { merchant_id: b.merchant_id });
+      await DB.del('merchants', { id: b.merchant_id });
+      return json({ ok: true });
+    }
+
     if (b.action === 'add_staff') {
       const email = text(b.email, 200).toLowerCase();
       // No PostgREST pattern characters: the address is matched whole, any case.
@@ -190,8 +227,16 @@ export async function onRequestPost({ request, env }) {
       if (!row.name) return bad('The item needs a name.');
       if (b.id) {
         if (!UUID_RE.test(b.id)) return bad('Unknown item.');
+        const before = await DB.selectOne(
+          'merchant_items',
+          { id: b.id, merchant_id: b.merchant_id },
+          'id,tokens,pay_code',
+        );
+        if (!before) return bad('Unknown item.', 404);
         await DB.update('merchant_items', { id: b.id, merchant_id: b.merchant_id }, row);
-        return json({ ok: true });
+        // The sticker carries the code, never the price, so a price change takes
+        // effect on every cup already out there the moment it is saved.
+        return json({ ok: true, reprint: !!before.pay_code && before.tokens !== tokens });
       }
       const [created] = await DB.insert('merchant_items', row);
       return json({ ok: true, item: created });

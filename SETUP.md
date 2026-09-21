@@ -702,6 +702,13 @@ system (cheque / Zelle); the system records what is owed.
   `token_tx.collected_at` / `collected_by` and `token_collect()`. Paste it **before**
   deploying this code — `/merchant/` reads those two columns, and a database without them
   fails the whole console. It only adds.
+- **Migration:** `0032_token_item_report.sql` adds `token_item_report()`, which is what one
+  menu item's own page in `/token-admin/` reads: how much of it was sold, and which charges
+  those were. Paste it **before** deploying this code — without the function the item panel
+  answers 500. It only adds, and it reads nothing a charge does not already record. From
+  this code on, a clerk's charge also stores the menu item's `id` on each line of
+  `token_tx.items`; charges taken before it are named but not linked, so they count toward
+  the merchant and not the item.
 - **Launch checklist:** apply 0024 → set root by SQL → set `TOKENS_ENABLED=1` on the
   **preview** environment only and try a grant, a cash top-up, a charge, an undo and a
   dispute there (preview uses the live database: use a test member and void what you

@@ -2,6 +2,8 @@
 //   GET ?view=overview            — settings + the treasurer's totals
 //       ?view=member&id=<uuid>    — one member's balance and history
 //       ?view=ledger[&kind=&merchant_id=&offset=] — the whole ledger, newest first
+//       ?view=item&id=<uuid>[&offset=] — one menu item: what it sold, and the
+//                                   charges behind that
 //       ?view=disputes            — charges a member reported as not theirs
 //       ?view=cash&date=YYYY-MM-DD — cash taken per admin that day (Central time)
 //   POST { action }               — grant | mint | cash | debit | resolve | settings
@@ -138,6 +140,45 @@ export async function onRequestGet({ request, env }) {
       });
       const names = await namesFor(DB, tx.rows);
       return json({ total: tx.total, offset, rows: tx.rows.map(shape(names)) });
+    }
+
+    // One menu item on its own: what it is, what it has sold, and the charges
+    // behind that. token_item_report (0032) adds up both shapes of charge and
+    // hands back the ids; the rows themselves are read and shaped here exactly
+    // as the ledger's are, so a charge looks the same wherever it is shown.
+    if (view === 'item') {
+      const id = url.searchParams.get('id') || '';
+      if (!UUID_RE.test(id)) return bad('Item id is required.');
+      const item = await DB.selectOne('merchant_items', { id });
+      if (!item) return bad('Item not found.', 404);
+      const [merchant, report] = await Promise.all([
+        DB.selectOne('merchants', { id: item.merchant_id }, 'id,name,name_zh,kind,status'),
+        DB.rpc('token_item_report', { p_item: id, p_limit: PAGE, p_offset: offset }),
+      ]);
+      const ids = Array.isArray(report?.ids) ? report.ids : [];
+      let rows = [];
+      if (ids.length) {
+        const tx = await DB.select('token_tx', {
+          columns: TX_COLS,
+          filters: [`id=in.(${ids.join(',')})`],
+          order: 'created_at.desc',
+          limit: ids.length,
+        });
+        const names = await namesFor(DB, tx.rows);
+        rows = tx.rows.map(shape(names));
+      }
+      return json({
+        item,
+        merchant,
+        sold: Number(report?.sold) || 0,
+        tokens: Number(report?.tokens) || 0,
+        undone: Number(report?.undone) || 0,
+        first_at: report?.first_at || null,
+        last_at: report?.last_at || null,
+        total: Number(report?.total) || 0,
+        offset,
+        rows,
+      });
     }
 
     if (view === 'cash') {

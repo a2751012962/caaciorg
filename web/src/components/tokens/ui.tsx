@@ -18,6 +18,15 @@ export const INPUT =
 export const LABEL = 'block text-xs font-bold text-neutral-500 mb-2';
 export const CARD = 'bg-surface-2 p-5 sm:p-7 rounded-2xl border border-neutral-200/80 shadow-xs';
 export const EYEBROW = 'text-xs font-semibold text-brick block mb-2';
+/** A block of a page: a rule and space, never a box (DESIGN_SYSTEM §5.3). */
+export const SECTION = 'space-y-3 pt-6 border-t border-neutral-200/80';
+/** An action inside a list row — words, not a button (§5.1 文字链接). */
+export const TEXT_ACTION =
+  'min-h-[44px] text-xs font-semibold text-neutral-700 hover:text-brick transition-colors cursor-pointer';
+export const TEXT_DANGER =
+  'min-h-[44px] text-xs font-semibold text-rose-700 hover:text-rose-800 transition-colors cursor-pointer';
+/** An aside or a quote: a rule down the left, no grey box (§5.3). */
+export const ASIDE = 'border-l-2 border-neutral-300 pl-3 text-xs text-neutral-600 leading-relaxed';
 
 const DOT =
   "inline-flex items-center gap-1.5 text-xs font-medium before:content-[''] before:w-1.5 before:h-1.5 before:rounded-full before:bg-current";

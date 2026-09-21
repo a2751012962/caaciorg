@@ -18,6 +18,7 @@ const MIGRATIONS = [
   new URL('../supabase/migrations/0029_admin_cash_cap.sql', import.meta.url),
   new URL('../supabase/migrations/0030_token_pay_codes.sql', import.meta.url),
   new URL('../supabase/migrations/0031_token_collected.sql', import.meta.url),
+  new URL('../supabase/migrations/0032_token_item_report.sql', import.meta.url),
 ];
 
 // Open the bonus window around now() so the rate rules can be driven directly.
@@ -763,6 +764,81 @@ test('a dispute needs the secret from the receipt; upheld ones reverse and suspe
   assert.equal(
     (await call('token_charge', m, shop, clerk, 10, null, null, null)).error,
     'merchant_suspended',
+  );
+});
+
+// --------------------------------------------------- one item (0032) ----
+test('one item’s report adds up both shapes of charge, and counts only the ones that stand', async () => {
+  const shop = await merchant({ kind: 'internal' });
+  const item = await payItem(shop);
+  const other = await one(
+    `insert into public.merchant_items (merchant_id, name, tokens) values ($1, 'Bao', 20) returning id`,
+    [shop],
+  );
+  const admin = await member({ admin: true });
+  const m = await member({ tier: 'family' });
+  await call('token_membership_grant', m, null); // 900
+
+  // one self-serve tap (30), and one clerk's charge with this item ×2 next to
+  // something else — the line carries the item's id, which is what links it
+  const pay = await call('token_charge_code', m, CODE, 'idem-item-1');
+  assert.equal(pay.ok, true);
+  const till = await call(
+    'token_charge',
+    m,
+    shop,
+    admin,
+    80,
+    JSON.stringify([
+      { id: item, name: 'Orange juice', tokens: 30, qty: 2 },
+      { id: other.id, name: 'Bao', tokens: 20, qty: 1 },
+    ]),
+    null,
+    'idem-item-2',
+  );
+  assert.equal(till.ok, true);
+
+  let r = await call('token_item_report', item, 50, 0);
+  assert.equal(r.sold, 3, 'one scanned cup plus two rung up at the till');
+  assert.equal(r.tokens, 90, 'the other line on the same charge is not this item’s');
+  assert.equal(r.undone, 0);
+  assert.equal(r.total, 2, 'two transactions touched it');
+  assert.equal(r.ids.length, 2);
+  assert.ok(r.first_at && r.last_at);
+
+  // the other item on that same charge is counted on its own
+  const bao = await call('token_item_report', other.id, 50, 0);
+  assert.equal(bao.sold, 1);
+  assert.equal(bao.tokens, 20);
+
+  // a voided charge is still listed, but it was not a sale
+  assert.equal((await call('token_void', till.tx_id, admin, 'rang up twice')).ok, true);
+  r = await call('token_item_report', item, 50, 0);
+  assert.equal(r.sold, 1);
+  assert.equal(r.tokens, 30);
+  assert.equal(r.undone, 1);
+  assert.equal(r.total, 2, 'the void’s own row is not a charge for this item');
+
+  // paging hands back ids only, newest first
+  const page = await call('token_item_report', item, 1, 0);
+  assert.equal(page.ids.length, 1);
+  assert.equal(page.total, 2);
+  assert.deepEqual(
+    (await call('token_item_report', item, 1, 1)).ids.length,
+    1,
+    'the second page is the older one',
+  );
+
+  // an item nothing was ever sold under answers with zeroes, not null
+  const empty = await call('token_item_report', uuid(), 50, 0);
+  assert.deepEqual(
+    { sold: empty.sold, tokens: empty.tokens, total: empty.total, ids: empty.ids },
+    {
+      sold: 0,
+      tokens: 0,
+      total: 0,
+      ids: [],
+    },
   );
 });
 
