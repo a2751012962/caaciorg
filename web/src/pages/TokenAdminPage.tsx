@@ -620,10 +620,10 @@ function MerchantDetail({
                   'Admin name, or the email of any CAACI account',
                   '管理员姓名，或任意华协账号的邮箱',
                 )}
-            />
-            <button type="submit" className={SECONDARY}>
-              {t('Add', '添加')}
-            </button>
+              />
+              <button type="submit" className={SECONDARY}>
+                {t('Add', '添加')}
+              </button>
               <button type="button" className={TEXT_ACTION} onClick={() => setAddingStaff(false)}>
                 {t('Cancel', '取消')}
               </button>
