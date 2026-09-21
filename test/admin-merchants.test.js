@@ -67,17 +67,24 @@ test('the merchant list says which merchants could still be deleted', async () =
   }
 });
 
-test('the merchant list carries every account with an email, for the add-staff pick-list', async () => {
+test('the merchant list carries the admins, and only them, for the add-staff pick-list', async () => {
+  const ROOT = '66666666-6666-4666-8666-666666666666';
+  const admins = [
+    { id: USER, is_admin: true, full_name: 'Ada Admin', email: 'ada@example.com' },
+    { id: ROOT, is_root: true, full_name: 'Root', email: 'root@example.com' },
+  ];
   const fetch = mockFetch(
     backend({
       ...admin,
-      members: [
-        { id: USER, is_admin: true, full_name: 'Ada Admin', email: 'ada@example.com' },
-        { id: MEMBER, full_name: 'Wei Zhang', email: 'wei@example.com' },
-        // a name-only child on a family plan has no login, so nothing to pick
-        { id: SHOP, full_name: 'Kid', email: null },
-      ],
+      // Supabase filters server-side; the stub answers each select by its filter
+      members: (url) => {
+        if (url.includes('is_admin.eq.true')) return admins;
+        if (url.includes('id=in.'))
+          return [{ id: MEMBER, full_name: 'Wei Zhang', email: 'wei@example.com' }];
+        return admin.members;
+      },
       merchants: [{ id: SHOP, name: 'Kung Fu Tea', kind: 'partner', status: 'active' }],
+      // a volunteer, not an admin, is already on the shop
       merchant_staff: [{ merchant_id: SHOP, member_id: MEMBER, role: 'staff' }],
       token_settings: [{ tokens_per_dollar: 10, settle_min_cents: 2000 }],
     }),
@@ -88,12 +95,18 @@ test('the merchant list carries every account with an email, for the add-staff p
     const { rows, people } = await r.json();
     assert.deepEqual(
       people.map((p) => p.email),
-      ['ada@example.com', 'wei@example.com'],
+      ['ada@example.com', 'root@example.com'],
     );
-    // the same list names the staff already on a merchant
+    // the volunteer is still named, from a lookup by id
     assert.equal(rows[0].staff[0].name, 'Wei Zhang');
     const list = fetch.calls.find((c) => /members\?select=id,full_name,email/.test(c.url));
+    // the same set the Roles page lists: admins and root, with a login
+    assert.match(list.url, /or=\(is_admin\.eq\.true,is_root\.eq\.true\)/);
+    assert.match(list.url, /email=not\.is\.null/);
     assert.match(list.url, /order=full_name\.asc\.nullslast,email\.asc/);
+    const byId = fetch.calls.find((c) => /members\?select=id,full_name,email&id=in\./.test(c.url));
+    assert.ok(byId, 'staff who are not admins are looked up by id');
+    assert.match(byId.url, new RegExp(MEMBER));
   } finally {
     fetch.restore();
   }

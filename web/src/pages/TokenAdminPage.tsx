@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type FormEvent } from 'react';
 import { Download, LayoutDashboard, Printer, Search } from 'lucide-react';
 import qrcode from 'qrcode-generator';
 import { FluidTabs } from '../components/FluidTabs';
@@ -278,7 +278,7 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
   const [nameZh, setNameZh] = useState('');
   // tokens per dollar, so a printed sticker can show the money as well
   const [rate, setRate] = useState(10);
-  // every account on the site, so staff can be picked from a list
+  // the site's admins, so staff can be picked from a list
   const [people, setPeople] = useState<Person[]>([]);
 
   const load = useCallback(async () => {
@@ -396,6 +396,120 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
   );
 }
 
+/**
+ * The email box of the add-staff form, with a type-ahead list of admins. As the
+ * admin types, the admins whose name or email contains the text drop down;
+ * choosing one (click, or arrows + Enter) puts their email in the box. The box
+ * is still a plain email field, so anyone else is added by typing their address.
+ */
+function StaffPicker({
+  lang,
+  value,
+  onChange,
+  candidates,
+  placeholder,
+}: {
+  lang: Lang;
+  value: string;
+  onChange: (email: string) => void;
+  candidates: Person[];
+  placeholder: string;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const listId = useId();
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+
+  const q = value.trim().toLowerCase();
+  const matches = q
+    ? candidates.filter(
+        (p) => p.email.toLowerCase().includes(q) || (p.full_name ?? '').toLowerCase().includes(q),
+      )
+    : candidates;
+  // once the box holds a listed email exactly, the pick is made: nothing to offer
+  const picked = candidates.some((p) => p.email.toLowerCase() === q);
+  const shown = open && !picked && matches.length > 0;
+  const current = Math.min(active, matches.length - 1);
+
+  const pick = (p: Person) => {
+    onChange(p.email);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative flex-1 min-w-0">
+      <input
+        className={INPUT}
+        type="email"
+        required
+        role="combobox"
+        aria-expanded={shown}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={shown ? `${listId}-${current}` : undefined}
+        autoComplete="off"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+          setActive(0);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setOpen(true);
+            setActive(shown ? (current + 1) % matches.length : 0);
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setOpen(true);
+            setActive(shown ? (current - 1 + matches.length) % matches.length : 0);
+          } else if (e.key === 'Enter' && shown) {
+            // Enter picks the highlighted admin; the form is sent by a second Enter
+            e.preventDefault();
+            pick(matches[current]);
+          } else if (e.key === 'Escape' && shown) {
+            e.preventDefault();
+            setOpen(false);
+          }
+        }}
+        placeholder={placeholder}
+        aria-label={placeholder}
+      />
+      {shown && (
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label={t('Admins', '管理员')}
+          className="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-y-auto rounded-2xl bg-white border border-neutral-200/80 shadow-lg divide-y divide-neutral-200/80"
+        >
+          {matches.map((p, i) => (
+            <li
+              key={p.id}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={i === current}
+              className={`px-3.5 py-2.5 text-xs cursor-pointer ${
+                i === current ? 'bg-neutral-100' : 'hover:bg-neutral-50'
+              }`}
+              // mousedown would blur the input and close the list before the click lands
+              onMouseDown={(e) => e.preventDefault()}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => pick(p)}
+            >
+              {p.full_name && (
+                <span className="font-semibold text-neutral-900">{p.full_name} · </span>
+              )}
+              <span className="text-neutral-600">{p.email}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function MerchantDetail({
   lang,
   m,
@@ -416,12 +530,11 @@ function MerchantDetail({
   const [payout, setPayout] = useState(m.payout_note ?? '');
   const [refs, setRefs] = useState<Record<string, string>>({});
 
-  // The pick-list offers everyone not already on this merchant. Choosing one
+  // The pick-list offers the admins not already on this merchant. Choosing one
   // fills the email box, so the same request goes out either way; the list is
   // a shortcut, not a second path.
   const onStaff = new Set(m.staff.map((s) => s.member_id));
   const candidates = people.filter((p) => !onStaff.has(p.id));
-  const picked = candidates.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
 
   return (
     <div className="mt-1 mb-3 space-y-2">
@@ -474,35 +587,16 @@ function MerchantDetail({
             ).then(() => setEmail(''));
           }}
         >
-          {candidates.length > 0 && (
-            <select
-              className={INPUT}
-              value={picked?.id ?? ''}
-              onChange={(e) => {
-                const p = candidates.find((c) => c.id === e.target.value);
-                setEmail(p?.email ?? '');
-              }}
-              aria-label={t('Pick a registered account', '从已注册账号中选择')}
-            >
-              <option value="">
-                {t('Pick a registered account (optional)', '从已注册账号中选择（可选）')}
-              </option>
-              {candidates.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name ? `${p.full_name} · ${p.email}` : p.email}
-                </option>
-              ))}
-            </select>
-          )}
           <div className="flex gap-2">
-            <input
-              className={INPUT}
-              type="email"
-              required
+            <StaffPicker
+              lang={lang}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={t('Email of their CAACI account', '对方华协账号的邮箱')}
-              aria-label={t('Email of their CAACI account', '对方华协账号的邮箱')}
+              onChange={setEmail}
+              candidates={candidates}
+              placeholder={t(
+                'Admin name, or the email of any CAACI account',
+                '管理员姓名，或任意华协账号的邮箱',
+              )}
             />
             <button type="submit" className={SECONDARY}>
               {t('Add', '添加')}
@@ -510,7 +604,10 @@ function MerchantDetail({
           </div>
         </form>
         <p className="text-[11px] text-neutral-500">
-          {t('They must sign up on the site first.', '对方需先在网站注册账号。')}
+          {t(
+            'Start typing to pick an admin. Anyone else: type the email of their account; they must sign up on the site first.',
+            '输入即可从管理员中选择。其他人请输入其账号邮箱，对方需先在网站注册。',
+          )}
         </p>
       </section>
 
