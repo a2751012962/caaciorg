@@ -27,6 +27,8 @@ stripe-connect.mjs      one-shot Stripe wiring (webhook + billing portal) for ac
 stripe-audit.mjs        read-only inventory of a Stripe mode (what the cutover must not break)
 wrangler.toml           Cloudflare Pages config (output dir = dist)
 .env.example            all required environment variables
+CI.md                   what CI refuses (auth gates, RLS, secrets) and how to
+                        add an exception
 ```
 
 ## What carries over vs. not
