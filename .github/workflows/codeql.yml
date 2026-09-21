@@ -1,0 +1,57 @@
+name: CodeQL
+
+# The unit suite checks what this project decided to check. CodeQL checks the
+# things nobody thought to: a value that reaches an HTML sink without being
+# escaped, a redirect built from a query parameter, a comparison that can never
+# be true. It reads the code as data flow rather than as text, which is the one
+# kind of review that does not get tired — and on a public repository it is free.
+#
+# It runs on pull requests (so a finding arrives with the change that caused it)
+# and weekly (so a query added to CodeQL after the merge still finds it).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Monday 04:17 UTC — off the hour, where the queue is shorter.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Writing the findings back to the Security tab is the whole output.
+      security-events: write
+      # The analysis reads the workflow run it belongs to.
+      actions: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          languages: javascript-typescript
+          # Beyond the default query pack, without the maintainability queries
+          # that would flood the first run on a codebase this size.
+          queries: security-extended
+          config: |
+            paths-ignore:
+              # A byte-for-byte capture of the old WordPress site. It is served
+              # as it was and must not be edited, so a finding in it is noise.
+              - mirror
+              # Retired code, kept for reference only.
+              - archive
+              # Build output, and third-party bundles we do not lint either.
+              - dist
+              - src/supabase.js
+              - src/vendor
+      - uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          category: '/language:javascript-typescript'
