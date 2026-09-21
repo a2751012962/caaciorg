@@ -1,15 +1,39 @@
 version: 2
+
+# Dependabot opens its pull requests against `preview`, not the default branch.
+# `main` is caaciorg.com: a merge there deploys, and ci.yml's `base` job refuses
+# any pull request into main that does not come from preview, release/* or
+# hotfix/* — a dependabot/* branch is none of those, so left on the default
+# branch every single update PR would be red on a job it can never satisfy.
+# Updates now land on preview, get looked at there, and reach production in the
+# next release like everything else.
 updates:
   # Keep npm dev dependencies (eslint, prettier, wrangler) current.
   - package-ecosystem: 'npm'
     directory: '/'
+    target-branch: 'preview'
     schedule:
       interval: 'weekly'
     groups:
       dev-dependencies:
         dependency-type: 'development'
+    ignore:
+      # jsdom 30 does not run on Node 20. Every DOM test file dies with
+      #   TypeError: webidl.util.markAsUncloneable is not a function
+      # — six of them in PR #92 (29.1.1 → 30.1.0), eleven in PR #39 before it.
+      # ci.yml tests on Node 20 and 24, so one red job is enough to block the
+      # whole grouped update, and grouped means jsdom takes eslint, prettier and
+      # wrangler down with it. Majors are ignored so the rest can still flow;
+      # minors and patches are not.
+      #
+      # Lift this when CI stops testing on Node 20. Whether jsdom 30 passes on
+      # Node 24 has not been checked — the matrix only reached main after PR #99,
+      # so no jsdom-30 run has ever been made against Node 24.
+      - dependency-name: 'jsdom'
+        update-types: ['version-update:semver-major']
   # Keep the SHA-pinned GitHub Actions current.
   - package-ecosystem: 'github-actions'
     directory: '/'
+    target-branch: 'preview'
     schedule:
       interval: 'weekly'
