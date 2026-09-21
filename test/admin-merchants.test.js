@@ -67,6 +67,56 @@ test('the merchant list says which merchants could still be deleted', async () =
   }
 });
 
+test('the merchant list carries what each shop and each menu line has sold', async () => {
+  const OTHER = '66666666-6666-4666-8666-666666666666';
+  const fetch = mockFetch(
+    backend({
+      ...admin,
+      merchants: [{ id: SHOP, name: 'Kung Fu Tea', kind: 'partner', status: 'active' }],
+      merchant_items: [
+        { id: ITEM, merchant_id: SHOP, name: 'Milk tea', tokens: 30 },
+        { id: OTHER, merchant_id: SHOP, name: 'Egg tart', tokens: 10 },
+      ],
+      token_settings: [{ tokens_per_dollar: 10, settle_min_cents: 2000 }],
+      // the merchant's own row has no item; one item sold, the other never did
+      token_merchant_sales: [
+        { merchant_id: SHOP, item_id: null, charges: 9, units: 0, tokens: 260 },
+        { merchant_id: SHOP, item_id: ITEM, charges: 0, units: 7, tokens: 210 },
+      ],
+    }),
+  );
+  try {
+    const r = await merchantsGet({ request: fakeRequest({ headers: auth }), env: fakeEnv(ON) });
+    const { rows } = await r.json();
+    assert.equal(rows[0].sold_charges, 9);
+    assert.equal(rows[0].sold_tokens, 260);
+    const byName = Object.fromEntries(rows[0].items.map((i) => [i.name, i]));
+    assert.equal(byName['Milk tea'].sold, 7);
+    assert.equal(byName['Milk tea'].sold_tokens, 210);
+    assert.equal(byName['Egg tart'].sold, 0);
+  } finally {
+    fetch.restore();
+  }
+
+  // before 0033 is applied the call fails; the list still loads, without figures
+  const missing = mockFetch((url, options) => {
+    if (url.includes('rpc/token_merchant_sales')) return { status: 404, body: { message: 'no' } };
+    return backend({
+      ...admin,
+      merchants: [{ id: SHOP, name: 'Kung Fu Tea', kind: 'partner', status: 'active' }],
+      token_settings: [{ tokens_per_dollar: 10, settle_min_cents: 2000 }],
+    })(url, options);
+  });
+  try {
+    const r = await merchantsGet({ request: fakeRequest({ headers: auth }), env: fakeEnv(ON) });
+    assert.equal(r.status, 200);
+    const { rows } = await r.json();
+    assert.equal(rows[0].sold_tokens, 0);
+  } finally {
+    missing.restore();
+  }
+});
+
 test('a merchant that has taken tokens is never deleted, in either language', async () => {
   const fetch = mockFetch(backend({ ...admin, token_tx: [{ id: TX }] }));
   try {

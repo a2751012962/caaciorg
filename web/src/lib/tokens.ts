@@ -74,6 +74,9 @@ export interface MenuItem {
   /** the code in this item's printed QR (0030); null = no sticker issued */
   pay_code?: string | null;
   pay_code_at?: string | null;
+  /** units sold under standing charges (0033); only on the admin's list */
+  sold?: number;
+  sold_tokens?: number;
 }
 
 export interface ScanMerchant extends MerchantRef {
@@ -239,6 +242,9 @@ export interface AdminMerchant {
   open_cents: number;
   /** it has taken tokens or been settled, so it can only be suspended, never deleted */
   has_history: boolean;
+  /** standing charges so far (0033): how many, and the tokens they took */
+  sold_charges: number;
+  sold_tokens: number;
   staff: { member_id: string; role: 'owner' | 'staff'; name: string; email: string }[];
   items: MenuItem[];
   settlements: Settlement[];
