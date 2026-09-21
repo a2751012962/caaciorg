@@ -19,6 +19,8 @@ export type TxKind =
 export type TxState = 'ok' | 'voided' | 'disputed' | 'reversed';
 
 export interface TxLine {
+  /** the menu item this line was rung up from; absent on charges taken before 0032 */
+  id?: string;
   name: string;
   name_zh: string | null;
   tokens: number;
@@ -235,9 +237,27 @@ export interface AdminMerchant {
   payout_note: string | null;
   open_tokens: number;
   open_cents: number;
+  /** it has taken tokens or been settled, so it can only be suspended, never deleted */
+  has_history: boolean;
   staff: { member_id: string; role: 'owner' | 'staff'; name: string; email: string }[];
   items: MenuItem[];
   settlements: Settlement[];
+}
+
+/** One menu item on its own: what it sold, and the charges behind that. */
+export interface ItemReport {
+  item: MenuItem;
+  merchant: MerchantRef & { kind: 'internal' | 'partner'; status: 'active' | 'suspended' };
+  /** units sold, counting only charges that still stand */
+  sold: number;
+  tokens: number;
+  /** charges that were voided or refunded after a dispute */
+  undone: number;
+  first_at: string | null;
+  last_at: string | null;
+  total: number;
+  offset: number;
+  rows: LedgerTx[];
 }
 
 /** A refusal from the ledger carries both languages; anything else only English. */
@@ -320,6 +340,8 @@ export const tokens = {
       if (params.offset) qs.set('offset', String(params.offset));
       return get<{ total: number; offset: number; rows: LedgerTx[] }>(`/api/admin/tokens?${qs}`);
     },
+    item: (id: string, offset = 0) =>
+      get<ItemReport>(`/api/admin/tokens?view=item&id=${id}&offset=${offset}`),
     disputes: () => get<{ total: number; rows: LedgerTx[] }>('/api/admin/tokens?view=disputes'),
     cash: (date: string) =>
       get<{
@@ -375,10 +397,14 @@ export const tokens = {
         '/api/admin/merchants',
       ),
     merchantAction: (body: Record<string, unknown>) =>
-      post<{ ok: true; rolled_over?: boolean; amount_cents?: number; tokens?: number }>(
-        '/api/admin/merchants',
-        body,
-      ),
+      post<{
+        ok: true;
+        rolled_over?: boolean;
+        amount_cents?: number;
+        tokens?: number;
+        /** the price changed under a sticker that is already printed */
+        reprint?: boolean;
+      }>('/api/admin/merchants', body),
 
     admins: () =>
       get<{
