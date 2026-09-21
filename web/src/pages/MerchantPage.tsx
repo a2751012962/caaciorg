@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, RotateCcw } from 'lucide-react';
 import {
   INPUT,
@@ -31,11 +31,17 @@ const PAGE = 50;
 // /merchant/ — a shop's own console: what CAACI owes it, its statements, and
 // every charge with a Void button while the window is open. Customers show by
 // family name only; the server sends nothing more (tokens/merchant.js).
+//
+// ?m=<merchant id> opens that shop straight away, which is how the token back
+// office links here. An admin is not on a partner shop's staff list, so the
+// shop can be one the list below never offers; the server decides who may read
+// it either way, and a refusal arrives as a plain refusal.
 export function MerchantPage({ lang }: { lang: Lang }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const signedIn = useSignedIn();
+  const asked = useMemo(() => new URLSearchParams(window.location.search).get('m') || '', []);
   const [shops, setShops] = useState<MerchantRef[] | null>(null);
-  const [shopId, setShopId] = useState('');
+  const [shopId, setShopId] = useState(asked);
   const [data, setData] = useState<MerchantConsole | null>(null);
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState('');
@@ -129,7 +135,7 @@ export function MerchantPage({ lang }: { lang: Lang }) {
       </ToolPage>
     );
 
-  if (shops.length === 0)
+  if (shops.length === 0 && !shopId)
     return (
       <ToolPage eyebrow={eyebrow} title={title} wide>
         <Notice tone="warn">
@@ -142,9 +148,12 @@ export function MerchantPage({ lang }: { lang: Lang }) {
     );
 
   const m = data?.merchant;
+  // A shop opened by ?m= belongs in the picker too, or the box would sit blank
+  // on the very shop the page is showing.
+  const picks = m && !shops.some((s) => s.id === m.id) ? [...shops, m] : shops;
   return (
     <ToolPage eyebrow={eyebrow} title={title} wide>
-      {shops.length > 1 && (
+      {picks.length > 1 && (
         <div className="max-w-sm">
           <label className={LABEL} htmlFor="merchant-pick">
             {t('Merchant', '商家')}
@@ -159,7 +168,7 @@ export function MerchantPage({ lang }: { lang: Lang }) {
               setData(null);
             }}
           >
-            {shops.map((s) => (
+            {picks.map((s) => (
               <option key={s.id} value={s.id}>
                 {pickName(s, lang)}
               </option>
@@ -170,7 +179,9 @@ export function MerchantPage({ lang }: { lang: Lang }) {
       {error && <Notice tone="error">{error}</Notice>}
       {notice && <Notice tone="success">{notice}</Notice>}
       {!data || !m ? (
-        <Spinner label={t('Loading…', '加载中…')} />
+        // A refused shop has already said so above; spinning on for ever would
+        // only suggest something is still coming.
+        !error && <Spinner label={t('Loading…', '加载中…')} />
       ) : (
         <>
           <div className="grid sm:grid-cols-2 gap-6 sm:gap-10 items-start">

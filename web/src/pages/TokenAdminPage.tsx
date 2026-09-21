@@ -7,7 +7,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { Download, LayoutDashboard, Plus, Printer, Search } from 'lucide-react';
+import { Download, LayoutDashboard, Plus, Printer, Search, Store } from 'lucide-react';
 import qrcode from 'qrcode-generator';
 import { FluidTabs } from '../components/FluidTabs';
 import { LiquidToggle } from '../components/bencho/LiquidToggle';
@@ -61,6 +61,10 @@ type Act = (body: Record<string, unknown>, ok: string) => Promise<ActResult>;
 
 const central = (d = new Date()) => d.toLocaleDateString('sv-SE', { timeZone: 'America/Chicago' }); // YYYY-MM-DD
 
+/** /merchant/, in the language being read, for one shop or for whatever the account has. */
+const merchantHref = (lang: Lang, merchantId = '') =>
+  `${lang === 'zh' ? '/zh' : ''}/merchant/${merchantId ? `?m=${merchantId}` : ''}`;
+
 // /token-admin/ — the back office for tokens: the treasurer's totals, merchants
 // with their staff, menus and statements, disputes, the ledger, the cash taken
 // at a desk, and (root only) the settings and who is an admin. Every button
@@ -86,11 +90,20 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
 
   const eyebrow = t('CAACI Tokens', '华协币');
   const title = t('Token back office', '代币后台');
-  const toAdmin = (
-    <a className={SECONDARY} href="/admin/">
-      <LayoutDashboard className="w-4 h-4" aria-hidden />
-      {t('Admin', '管理后台')}
-    </a>
+  // Beside the title: back to the admin panel, and across to the counter's own
+  // screen. An admin always has CAACI's own stalls there, so the plain /merchant/
+  // link lands on something; a partner shop is opened from its row below.
+  const headerLinks = (
+    <div className="shrink-0 flex flex-col sm:flex-row items-end sm:items-center justify-end gap-2">
+      <a className={SECONDARY} href={merchantHref(lang)}>
+        <Store className="w-4 h-4" aria-hidden />
+        {t('Merchant console', '商家中台')}
+      </a>
+      <a className={SECONDARY} href="/admin/">
+        <LayoutDashboard className="w-4 h-4" aria-hidden />
+        {t('Admin', '管理后台')}
+      </a>
+    </div>
   );
   if (denied)
     return (
@@ -118,7 +131,7 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
   ];
 
   return (
-    <ToolPage eyebrow={eyebrow} title={title} wide action={toAdmin}>
+    <ToolPage eyebrow={eyebrow} title={title} wide action={headerLinks}>
       <FluidTabs
         id="token-admin-tabs"
         tone="brand"
@@ -560,6 +573,13 @@ function MerchantDetail({
           {t('Suspended', '已暂停')}: {m.suspended_reason}
         </Notice>
       )}
+
+      <div>
+        <a className={SECONDARY} href={merchantHref(lang, m.id)}>
+          <Store className="w-4 h-4" aria-hidden />
+          {t('Open the merchant console', '打开该商家中台')}
+        </a>
+      </div>
 
       {/* staff */}
       <section className={SECTION}>
