@@ -1,6 +1,7 @@
 // /api/admin/merchants  (admin only)
 //   GET  — every merchant with its staff, menu, what CAACI owes it now, and its
-//          statements.
+//          statements; plus `people`, every account on the site, for the
+//          add-staff pick-list.
 //   POST { action } — save_merchant | set_status | delete_merchant | add_staff |
 //          remove_staff | save_item | delete_item | issue_code | clear_code |
 //          close_statement | mark_paid
@@ -49,16 +50,15 @@ export async function onRequestGet({ request, env }) {
       DB.selectOne('token_settings', { id: true }, 'tokens_per_dollar,settle_min_cents'),
     ]);
 
-    const ids = [...new Set(staff.rows.map((s) => s.member_id))];
-    const people = new Map();
-    if (ids.length) {
-      const { rows } = await DB.select('members', {
-        columns: 'id,full_name,email',
-        filters: [`id=in.(${ids.join(',')})`],
-        limit: ids.length,
-      });
-      for (const m of rows) people.set(m.id, m);
-    }
+    // Every account on the site, once: it names the staff already on a
+    // merchant, and it fills the page's pick-list for adding one, so an admin
+    // can choose a volunteer instead of typing an address from memory.
+    const accounts = await DB.select('members', {
+      columns: 'id,full_name,email',
+      order: 'full_name.asc.nullslast,email.asc',
+      limit: 2000,
+    });
+    const people = new Map(accounts.rows.map((m) => [m.id, m]));
 
     const before = new Date(Date.now() + 1000).toISOString();
     const rate = settings?.tokens_per_dollar || 10;
@@ -94,7 +94,12 @@ export async function onRequestGet({ request, env }) {
         };
       }),
     );
-    return json({ rows, rate, settle_min_cents: settings?.settle_min_cents ?? 2000 });
+    return json({
+      rows,
+      rate,
+      settle_min_cents: settings?.settle_min_cents ?? 2000,
+      people: accounts.rows.filter((m) => m.email),
+    });
   } catch (e) {
     return bad(e.message, 500);
   }

@@ -37,6 +37,7 @@ import {
   type MenuItem,
   type LedgerTx,
   type Overview,
+  type Person,
   type TokenSettings,
 } from '../lib/tokens';
 
@@ -277,12 +278,15 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
   const [nameZh, setNameZh] = useState('');
   // tokens per dollar, so a printed sticker can show the money as well
   const [rate, setRate] = useState(10);
+  // every account on the site, so staff can be picked from a list
+  const [people, setPeople] = useState<Person[]>([]);
 
   const load = useCallback(async () => {
     const res = await tokens.admin.merchants();
     if (res.ok) {
       setRows(res.data.rows);
       setRate(res.data.rate || 10);
+      setPeople(res.data.people ?? []);
     } else say('error', refusalText(res, lang));
     // `say` is a fresh closure each render; the list only depends on the language
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -347,7 +351,7 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
               </span>
             </button>
             {openId === m.id && (
-              <MerchantDetail lang={lang} m={m} rate={rate} act={act} say={say} />
+              <MerchantDetail lang={lang} m={m} rate={rate} people={people} act={act} say={say} />
             )}
           </div>
         ))}
@@ -396,12 +400,14 @@ function MerchantDetail({
   lang,
   m,
   rate,
+  people,
   act,
   say,
 }: {
   lang: Lang;
   m: AdminMerchant;
   rate: number;
+  people: Person[];
   act: Act;
   say: Say;
 }) {
@@ -409,6 +415,13 @@ function MerchantDetail({
   const [email, setEmail] = useState('');
   const [payout, setPayout] = useState(m.payout_note ?? '');
   const [refs, setRefs] = useState<Record<string, string>>({});
+
+  // The pick-list offers everyone not already on this merchant. Choosing one
+  // fills the email box, so the same request goes out either way; the list is
+  // a shortcut, not a second path.
+  const onStaff = new Set(m.staff.map((s) => s.member_id));
+  const candidates = people.filter((p) => !onStaff.has(p.id));
+  const picked = candidates.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
 
   return (
     <div className="mt-1 mb-3 space-y-2">
@@ -452,7 +465,7 @@ function MerchantDetail({
           ))}
         </ul>
         <form
-          className="flex gap-2"
+          className="space-y-2"
           onSubmit={(e) => {
             e.preventDefault();
             void act(
@@ -461,18 +474,40 @@ function MerchantDetail({
             ).then(() => setEmail(''));
           }}
         >
-          <input
-            className={INPUT}
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={t('Email of their CAACI account', '对方华协账号的邮箱')}
-            aria-label={t('Email of their CAACI account', '对方华协账号的邮箱')}
-          />
-          <button type="submit" className={SECONDARY}>
-            {t('Add', '添加')}
-          </button>
+          {candidates.length > 0 && (
+            <select
+              className={INPUT}
+              value={picked?.id ?? ''}
+              onChange={(e) => {
+                const p = candidates.find((c) => c.id === e.target.value);
+                setEmail(p?.email ?? '');
+              }}
+              aria-label={t('Pick a registered account', '从已注册账号中选择')}
+            >
+              <option value="">
+                {t('Pick a registered account (optional)', '从已注册账号中选择（可选）')}
+              </option>
+              {candidates.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name ? `${p.full_name} · ${p.email}` : p.email}
+                </option>
+              ))}
+            </select>
+          )}
+          <div className="flex gap-2">
+            <input
+              className={INPUT}
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t('Email of their CAACI account', '对方华协账号的邮箱')}
+              aria-label={t('Email of their CAACI account', '对方华协账号的邮箱')}
+            />
+            <button type="submit" className={SECONDARY}>
+              {t('Add', '添加')}
+            </button>
+          </div>
         </form>
         <p className="text-[11px] text-neutral-500">
           {t('They must sign up on the site first.', '对方需先在网站注册账号。')}
