@@ -154,6 +154,9 @@ const GATES = [
   'npm run format:check',
   'npm test',
   'npm run build',
+  // The browser suite. Listed here for the same reason as the rest: deleting
+  // its step from ci.yml is a change nothing else would notice.
+  'npm run test:ui',
 ];
 
 test('each gate is a real npm script', () => {
