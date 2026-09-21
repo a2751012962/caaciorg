@@ -18,13 +18,19 @@ permissions:
 
 jobs:
   check:
-    # Two Node versions, because the two that matter disagree. 20 is what
-    # Cloudflare Pages builds with, so it decides what can ship. 24 is what this
-    # project is developed on, and the gap between them has already cost a red
+    # Two Node versions, because the two that matter disagree. 20 is the floor
+    # this project has always supported and the only version CI used until now;
+    # 24 is what it is developed on. The gap between them has already cost a red
     # main: `navigator` is a global from 21 onward, so code using it passed
     # every local run and failed here. Testing only 20 catches that one; testing
     # both also catches its mirror image — a change that is fine on 20 and
     # breaks the machine it was written on.
+    #
+    # Note on 20: the repo pins no Node version outside these workflows (no
+    # .nvmrc, no `engines`, no NODE_VERSION), so which version Cloudflare Pages
+    # actually builds with is set in the Pages dashboard and is not verifiable
+    # from here. Do not drop 20 on the assumption that it is arbitrary — check
+    # the Pages build settings first.
     strategy:
       fail-fast: false
       matrix:
