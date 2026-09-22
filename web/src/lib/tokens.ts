@@ -291,6 +291,20 @@ export function refusalText(res: ApiResult<Refusal>, lang: Lang): string {
   return res.data.error || (lang === 'zh' ? '操作失败。' : 'Something went wrong.');
 }
 
+/** What each membership plan grants for the year, as /membership/ asks for it. */
+export interface PlanTokens {
+  enabled: boolean;
+  /** tier id → tokens granted each membership year; a plan that grants none is absent */
+  grants: Record<string, number>;
+}
+
+/**
+ * The one token call a signed-out visitor makes: the plan cards on the public
+ * membership page. Answers { enabled: false } while the feature is dark, so the
+ * page can ask without knowing whether tokens have launched.
+ */
+export const planTokens = () => api<PlanTokens>('/api/tokens/plans');
+
 const signed = { auth: true } as const;
 const get = <T>(path: string) => api<T & Refusal>(path, undefined, signed);
 const post = <T>(path: string, body: unknown) => api<T & Refusal>(path, body, signed);
