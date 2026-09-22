@@ -7,12 +7,13 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { Download, LayoutDashboard, Plus, Printer, Search, Store } from 'lucide-react';
-import qrcode from 'qrcode-generator';
+import { LayoutDashboard, Search, Store } from 'lucide-react';
 import { FluidTabs } from '../components/FluidTabs';
-import { LiquidToggle } from '../components/bencho/LiquidToggle';
+import { MenuSection } from '../components/tokens/Menu';
 import {
   ASIDE,
+  AddRow,
+  Confirm,
   DANGER,
   EYEBROW,
   INPUT,
@@ -28,10 +29,12 @@ import {
   ToolPage,
   tr,
   useSignedIn,
+  type Act,
+  type Say,
+  type Tone,
 } from '../components/tokens/ui';
 import { api } from '../lib/api';
 import type { Lang } from '../lib/lang';
-import { openPaySheet, PRINT_CELL } from '../lib/payPrint.js';
 import {
   day,
   kindLabel,
@@ -51,13 +54,6 @@ import {
 } from '../lib/tokens';
 
 type Tab = 'overview' | 'merchants' | 'disputes' | 'ledger' | 'cash' | 'settings';
-
-type Tone = 'success' | 'error' | 'warn';
-type Say = (tone: Tone, text: string) => void;
-
-/** What a merchant action answered, or null when it was refused. */
-type ActResult = { reprint?: boolean } | null;
-type Act = (body: Record<string, unknown>, ok: string) => Promise<ActResult>;
 
 const central = (d = new Date()) => d.toLocaleDateString('sv-SE', { timeZone: 'America/Chicago' }); // YYYY-MM-DD
 
@@ -667,7 +663,17 @@ function MerchantDetail({
         )}
       </section>
 
-      <MenuSection lang={lang} m={m} rate={rate} act={act} say={say} />
+      {/* the same menu the shop keeps on /merchant/, with the ledger's record
+          of each line underneath — which only the back office can read */}
+      <MenuSection
+        lang={lang}
+        m={m}
+        items={m.items}
+        rate={rate}
+        act={act}
+        say={say}
+        sales={(item) => <ItemSales lang={lang} item={item} rate={rate} />}
+      />
 
       {/* money */}
       {m.kind === 'partner' && (
@@ -863,353 +869,6 @@ function MerchantDetail({
           )}
         </div>
       </section>
-    </div>
-  );
-}
-
-/** A quiet "+ …" line that opens a form in place, so a page holds one open form at a time. */
-function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      className="inline-flex items-center gap-2 min-h-[44px] text-xs font-semibold text-neutral-700 hover:text-brick transition-colors cursor-pointer"
-      onClick={onClick}
-    >
-      <span className="w-6 h-6 rounded-full border border-dashed border-neutral-300 inline-flex items-center justify-center">
-        <Plus className="w-3.5 h-3.5" aria-hidden />
-      </span>
-      {label}
-    </button>
-  );
-}
-
-/** A labelled field: the name sits above the control, so a filled form still reads. */
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block min-w-0">
-      <span className="block text-[11px] text-neutral-500 mb-1">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-/** A destructive action that asks once, in place — no browser dialog. */
-function Confirm({
-  lang,
-  label,
-  confirmLabel,
-  onConfirm,
-  quiet = false,
-}: {
-  lang: Lang;
-  label: string;
-  confirmLabel: string;
-  onConfirm: () => Promise<unknown>;
-  /** grey until armed: for a rare action that should not read as a warning until it is one */
-  quiet?: boolean;
-}) {
-  const t = (en: string, zh: string) => tr(lang, en, zh);
-  const [armed, setArmed] = useState(false);
-  if (!armed)
-    return (
-      <button
-        type="button"
-        className={
-          quiet
-            ? 'min-h-[44px] text-[11px] font-medium text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer'
-            : TEXT_DANGER
-        }
-        onClick={() => setArmed(true)}
-      >
-        {label}
-      </button>
-    );
-  return (
-    <span className="inline-flex items-center gap-4">
-      <button
-        type="button"
-        className={TEXT_DANGER}
-        onClick={() => {
-          setArmed(false);
-          void onConfirm();
-        }}
-      >
-        {confirmLabel}
-      </button>
-      <button type="button" className={TEXT_ACTION} onClick={() => setArmed(false)}>
-        {t('Cancel', '取消')}
-      </button>
-    </span>
-  );
-}
-
-// ----------------------------------------------------------------- menu ----
-// A merchant's menu. Each line opens in place onto the three things an admin
-// actually wants with it: change it, print its QR, and see what it has sold.
-function MenuSection({
-  lang,
-  m,
-  rate,
-  act,
-  say,
-}: {
-  lang: Lang;
-  m: AdminMerchant;
-  rate: number;
-  act: Act;
-  say: Say;
-}) {
-  const t = (en: string, zh: string) => tr(lang, en, zh);
-  const [openItem, setOpenItem] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState({ name: '', name_zh: '', tokens: '', group_label: '' });
-
-  return (
-    <section className={SECTION}>
-      <span className={EYEBROW}>{t('Menu', '菜单')}</span>
-      {m.items.length === 0 ? (
-        <p className="text-xs text-neutral-500">
-          {t('Nothing on the menu yet.', '菜单还是空的。')}
-        </p>
-      ) : (
-        <ul className="divide-y divide-neutral-200/80">
-          {m.items.map((i) => (
-            <li key={i.id} className="py-1 text-xs">
-              <button
-                type="button"
-                className="w-full flex items-center justify-between gap-3 text-left min-h-[44px] cursor-pointer"
-                onClick={() => setOpenItem(openItem === i.id ? '' : i.id)}
-                aria-expanded={openItem === i.id}
-              >
-                <span className="min-w-0 truncate">
-                  {i.group_label && <span className="text-neutral-500">[{i.group_label}] </span>}
-                  <span className="font-semibold text-neutral-900">{i.name}</span>
-                  {i.name_zh ? ` · ${i.name_zh}` : ''}
-                  {i.pay_code && (
-                    <span className="ml-2 text-neutral-500 tabular-nums">QR {i.pay_code}</span>
-                  )}
-                </span>
-                <span className="flex items-center gap-3 shrink-0">
-                  {i.active === false && <Status tone="muted">{t('Hidden', '已下架')}</Status>}
-                  <span className="text-neutral-500 tabular-nums">
-                    {t(`${i.sold ?? 0} sold`, `已售 ${i.sold ?? 0}`)}
-                  </span>
-                  <span className="font-bold tabular-nums text-neutral-900">
-                    {i.tokens} {t('tokens', '币')}
-                  </span>
-                </span>
-              </button>
-              {openItem === i.id && (
-                <ItemDetail lang={lang} m={m} item={i} rate={rate} act={act} say={say} />
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {adding ? (
-        <form
-          className="space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void act(
-              {
-                action: 'save_item',
-                merchant_id: m.id,
-                ...draft,
-                tokens: Number(draft.tokens),
-                sort_order: m.items.length,
-              },
-              t('Item added.', '已添加。'),
-            ).then((done) => {
-              if (done) {
-                setDraft({ name: '', name_zh: '', tokens: '', group_label: draft.group_label });
-                setAdding(false);
-              }
-            });
-          }}
-        >
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <Field label={t('Item', '品名（英）')}>
-              <input
-                className={INPUT}
-                required
-                autoFocus
-                value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              />
-            </Field>
-            <Field label={t('Chinese name', '品名（中）')}>
-              <input
-                className={INPUT}
-                value={draft.name_zh}
-                onChange={(e) => setDraft({ ...draft, name_zh: e.target.value })}
-              />
-            </Field>
-            <Field label={t('Price (tokens)', '价格（币）')}>
-              <input
-                className={INPUT}
-                required
-                inputMode="numeric"
-                value={draft.tokens}
-                onChange={(e) => setDraft({ ...draft, tokens: e.target.value.replace(/\D/g, '') })}
-              />
-            </Field>
-            <Field label={t('Stall (optional)', '摊位（可选）')}>
-              <input
-                className={INPUT}
-                value={draft.group_label}
-                onChange={(e) => setDraft({ ...draft, group_label: e.target.value })}
-              />
-            </Field>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <button type="submit" className={SECONDARY}>
-              {t('Add item', '添加')}
-            </button>
-            <button type="button" className={TEXT_ACTION} onClick={() => setAdding(false)}>
-              {t('Cancel', '取消')}
-            </button>
-          </div>
-        </form>
-      ) : (
-        <AddRow label={t('Add an item', '添加菜品')} onClick={() => setAdding(true)} />
-      )}
-    </section>
-  );
-}
-
-// One menu item, opened: its own fields, its printed QR, and its sales.
-function ItemDetail({
-  lang,
-  m,
-  item,
-  rate,
-  act,
-  say,
-}: {
-  lang: Lang;
-  m: AdminMerchant;
-  item: MenuItem;
-  rate: number;
-  act: Act;
-  say: Say;
-}) {
-  const t = (en: string, zh: string) => tr(lang, en, zh);
-  const [f, setF] = useState({
-    name: item.name,
-    name_zh: item.name_zh ?? '',
-    tokens: String(item.tokens),
-    group_label: item.group_label ?? '',
-    sort_order: String(item.sort_order ?? 0),
-    active: item.active !== false,
-  });
-
-  const save = async (e: FormEvent) => {
-    e.preventDefault();
-    const done = await act(
-      {
-        action: 'save_item',
-        merchant_id: m.id,
-        id: item.id,
-        name: f.name,
-        name_zh: f.name_zh,
-        tokens: Number(f.tokens),
-        group_label: f.group_label,
-        sort_order: Number(f.sort_order) || 0,
-        active: f.active,
-      },
-      t('Saved.', '已保存。'),
-    );
-    if (done?.reprint)
-      say(
-        'warn',
-        t(
-          'Saved. The QR carries the code, never the price — so every sticker already printed for this item now charges the new price. Reprint the sheets.',
-          '已保存。二维码里只有编码、没有价格——所以已经贴出去的每一张贴纸，现在都按新价扣币，请重新打印。',
-        ),
-      );
-  };
-
-  return (
-    <div className="mb-3 space-y-6">
-      <form className="space-y-3" onSubmit={(e) => void save(e)}>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          <Field label={t('Item', '品名（英）')}>
-            <input
-              className={INPUT}
-              required
-              value={f.name}
-              onChange={(e) => setF({ ...f, name: e.target.value })}
-            />
-          </Field>
-          <Field label={t('Chinese name', '品名（中）')}>
-            <input
-              className={INPUT}
-              value={f.name_zh}
-              onChange={(e) => setF({ ...f, name_zh: e.target.value })}
-            />
-          </Field>
-          <Field label={t('Price (tokens)', '价格（币）')}>
-            <input
-              className={INPUT}
-              required
-              inputMode="numeric"
-              value={f.tokens}
-              onChange={(e) => setF({ ...f, tokens: e.target.value.replace(/\D/g, '') })}
-            />
-          </Field>
-          <Field label={t('Stall (optional)', '摊位（可选）')}>
-            <input
-              className={INPUT}
-              value={f.group_label}
-              onChange={(e) => setF({ ...f, group_label: e.target.value })}
-            />
-          </Field>
-          <Field label={t('Order on the menu', '菜单排序')}>
-            <input
-              className={INPUT}
-              inputMode="numeric"
-              value={f.sort_order}
-              onChange={(e) => setF({ ...f, sort_order: e.target.value.replace(/\D/g, '') })}
-            />
-          </Field>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <button type="submit" className={SECONDARY}>
-            {t('Save changes', '保存修改')}
-          </button>
-          <span className="inline-flex items-center gap-2 text-xs text-neutral-700">
-            <LiquidToggle
-              checked={f.active}
-              onChange={(next) => setF({ ...f, active: next })}
-              label={t('On the menu', '在售')}
-            />
-            {t('On the menu', '在售')}
-          </span>
-        </div>
-        {item.active === false && (
-          <p className={ASIDE}>
-            {t(
-              'Hidden: it is off the till’s menu and its QR refuses, but everything it has already sold stays in the ledger.',
-              '已下架：收银台菜单中不再显示，二维码也不再受理；此前卖出的记录仍留在流水里。',
-            )}
-          </p>
-        )}
-      </form>
-
-      <PayCode lang={lang} m={m} item={item} rate={rate} act={act} />
-      <ItemSales lang={lang} item={item} rate={rate} />
-
-      {/* the one irreversible thing, last and in words, away from the fields */}
-      <div className="flex justify-end border-t border-dashed border-neutral-200/80 pt-1">
-        <Confirm
-          lang={lang}
-          label={t('Delete this item', '删除该菜品')}
-          confirmLabel={t('Yes, delete it', '确定删除')}
-          onConfirm={() => act({ action: 'delete_item', id: item.id }, t('Deleted.', '已删除。'))}
-        />
-      </div>
     </div>
   );
 }
@@ -1842,172 +1501,6 @@ function SettingsTab({
             '管理员可在上述上限内直接发币。root 只能在 Supabase SQL 编辑器中设置。',
           )}
         </p>
-      </div>
-    </div>
-  );
-}
-
-// The printed sticker for one menu item (0030). The code is the sticker: a new
-// one kills every sheet already printed, which is the answer to a QR that was
-// swapped, copied or photographed. The price is NOT in the code — it is read
-// from this item when someone pays — so editing the price below changes what
-// every sticker already on a cup charges, and the sheets have to be reprinted.
-function PayCode({
-  lang,
-  m,
-  item,
-  rate,
-  act,
-}: {
-  lang: Lang;
-  m: AdminMerchant;
-  item: MenuItem;
-  rate: number;
-  act: Act;
-}) {
-  const t = (en: string, zh: string) => tr(lang, en, zh);
-  const [blocked, setBlocked] = useState(false);
-  const url = item.pay_code ? `${window.location.origin}/pay/?c=${item.pay_code}` : '';
-  const png = useMemo(() => {
-    if (!url) return '';
-    const qr = qrcode(0, 'M');
-    qr.addData(url);
-    qr.make();
-    return qr.createDataURL(8, 16);
-  }, [url]);
-
-  const issue = (ok: string) => act({ action: 'issue_code', merchant_id: m.id, id: item.id }, ok);
-
-  // Redrawn at the sheet's own cell size: the 8px cells on screen would print
-  // at about 90dpi, which a phone camera reads badly on a curved cup.
-  const print = (size: 'small' | 'large') => {
-    const qr = qrcode(0, 'M');
-    qr.addData(url);
-    qr.make();
-    const cell = PRINT_CELL[size];
-    setBlocked(
-      !openPaySheet(
-        {
-          name: item.name,
-          name_zh: item.name_zh,
-          tokens: item.tokens,
-          code: item.pay_code || '',
-          url,
-          rate,
-        },
-        size,
-        lang,
-        qr.createDataURL(cell, cell * 2),
-      ),
-    );
-  };
-
-  if (!item.pay_code)
-    return (
-      <div className="space-y-2">
-        <p className={LABEL}>{t('Scan-to-pay', '扫码付款')}</p>
-        <p className={ASIDE}>
-          {t(
-            `A QR on the product that charges ${item.tokens} tokens when a member scans it. Nobody needs a till.`,
-            `给这件商品生成一张二维码，会员扫码即可支付 ${item.tokens} 币，摊位不需要任何设备。`,
-          )}
-        </p>
-        <button
-          type="button"
-          className={SECONDARY}
-          onClick={() => void issue(t('QR code created.', '二维码已生成。'))}
-        >
-          {t('Make a QR code', '生成二维码')}
-        </button>
-        {m.kind !== 'internal' && (
-          <p className="border-l-2 border-amber-300 pl-3 text-[11px] text-amber-800 leading-relaxed">
-            {t(
-              'Partner shops can only take scan-to-pay once root turns it on in Settings.',
-              '合作商家需由 root 在设置中开启后才能收扫码付款。',
-            )}
-          </p>
-        )}
-      </div>
-    );
-
-  return (
-    <div className="flex flex-col sm:flex-row gap-4 text-xs">
-      {png && (
-        <img
-          src={png}
-          alt={t(`Pay QR code for ${item.name}`, `${item.name} 付款二维码`)}
-          className="w-36 h-36 rounded-xl border border-neutral-200 bg-white shrink-0"
-        />
-      )}
-      <div className="min-w-0 space-y-2">
-        <p className={LABEL}>
-          {t('Scan-to-pay', '扫码付款')} · {item.tokens} {t('tokens', '币')}
-        </p>
-        <p className="text-neutral-600">
-          <code className="break-all text-ink font-mono">{url}</code>
-        </p>
-        {item.pay_code_at && (
-          <p className="text-[11px] text-neutral-500">
-            {t('Issued', '生成于')} {day(item.pay_code_at, lang)} ·{' '}
-            {t('reprint the sheet whenever you change the price above.', '上方改价后请重新打印。')}
-          </p>
-        )}
-        {blocked && (
-          <Notice tone="warn">
-            {t(
-              'Your browser blocked the print window. Allow pop-ups for this site and try again.',
-              '浏览器拦截了打印窗口，请允许本站弹出窗口后重试。',
-            )}
-          </Notice>
-        )}
-        {/* one button — the thing this block exists for — and words for the rest */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <button type="button" className={PRIMARY} onClick={() => print('small')}>
-            <Printer className="w-4 h-4" aria-hidden />
-            {t('Print 12 stickers', '打印贴纸 · 12 枚一页')}
-          </button>
-          <button type="button" className={TEXT_ACTION} onClick={() => print('large')}>
-            {t('Print 4 signs', '打印立牌 · 4 枚一页')}
-          </button>
-          {png && (
-            <a
-              className={`${TEXT_ACTION} inline-flex items-center gap-1.5`}
-              download={`caaci-pay-${item.pay_code}.gif`}
-              href={png}
-            >
-              <Download className="w-3.5 h-3.5" aria-hidden />
-              {t('Download image', '下载图片')}
-            </a>
-          )}
-        </div>
-        {/* both of these kill every sticker already on a cup, so they are quiet and ask first */}
-        <div className="flex flex-wrap items-center gap-x-3 text-[11px] text-neutral-500">
-          <Confirm
-            lang={lang}
-            quiet
-            label={t('New code', '换新码')}
-            confirmLabel={t(
-              'Yes, new code — the old stickers stop working',
-              '确定换码，旧贴纸作废',
-            )}
-            onConfirm={() =>
-              issue(t('New code. Reprint the stickers.', '已换新码，请重新打印贴纸。'))
-            }
-          />
-          <span aria-hidden>·</span>
-          <Confirm
-            lang={lang}
-            quiet
-            label={t('Stop scan-to-pay', '停用扫码付款')}
-            confirmLabel={t('Yes, stop it', '确定停用')}
-            onConfirm={() =>
-              act(
-                { action: 'clear_code', merchant_id: m.id, id: item.id },
-                t('Scan-to-pay is off for this item.', '该商品扫码付款已停用。'),
-              )
-            }
-          />
-        </div>
       </div>
     </div>
   );

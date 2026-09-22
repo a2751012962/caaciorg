@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, RotateCcw } from 'lucide-react';
+import { MenuSection } from '../components/tokens/Menu';
 import {
   INPUT,
   LABEL,
@@ -10,6 +11,9 @@ import {
   ToolPage,
   tr,
   useSignedIn,
+  type Act,
+  type Say,
+  type Tone,
 } from '../components/tokens/ui';
 import type { Lang } from '../lib/lang';
 import {
@@ -22,15 +26,17 @@ import {
   usd,
   when,
   type MerchantConsole,
+  type MerchantMenu,
   type MerchantRef,
   type MerchantTx,
 } from '../lib/tokens';
 
 const PAGE = 50;
 
-// /merchant/ — a shop's own console: what CAACI owes it, its statements, and
-// every charge with a Void button while the window is open. Customers show by
-// family name only; the server sends nothing more (tokens/merchant.js).
+// /merchant/ — a shop's own console: what CAACI owes it, its statements, every
+// charge with a Void button while the window is open, and the menu the shop
+// keeps itself (prices, what is on sale, the printed QR stickers). Customers
+// show by family name only; the server sends nothing more (tokens/merchant.js).
 //
 // ?m=<merchant id> opens that shop straight away, which is how the token back
 // office links here. An admin is not on a partner shop's staff list, so the
@@ -45,8 +51,12 @@ export function MerchantPage({ lang }: { lang: Lang }) {
   const [data, setData] = useState<MerchantConsole | null>(null);
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [note, setNote] = useState<{ tone: Tone; text: string } | null>(null);
   const [busyTx, setBusyTx] = useState('');
+  // The menu is loaded when it is opened: the counter's list is what this page
+  // is for, and most days nobody touches the prices.
+  const [menu, setMenu] = useState<MerchantMenu | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -70,6 +80,39 @@ export function MerchantPage({ lang }: { lang: Lang }) {
     void load();
   }, [load]);
 
+  const loadMenu = useCallback(async () => {
+    if (!shopId) return;
+    const res = await tokens.menu(shopId);
+    if (res.ok) setMenu(res.data);
+    else setError(refusalText(res, lang));
+  }, [shopId, lang]);
+
+  useEffect(() => {
+    if (showMenu) void loadMenu();
+  }, [showMenu, loadMenu]);
+
+  // Every menu write goes through here, so one refusal reads the same as any
+  // other and the list is re-read from the server rather than patched locally.
+  const say: Say = (tone, text) => {
+    if (tone === 'error') {
+      setError(text);
+      setNote(null);
+    } else {
+      setError('');
+      setNote({ tone, text });
+    }
+  };
+  const act: Act = async (body, ok) => {
+    const res = await tokens.menuAction(body);
+    if (!res.ok) {
+      say('error', refusalText(res, lang));
+      return null;
+    }
+    say('success', ok);
+    await loadMenu();
+    return res.data;
+  };
+
   // A scan-to-pay charge lands with nobody pressing anything here, and the
   // counter is checking this list against a customer's screen — so the newest
   // page keeps itself current while the console is actually on screen.
@@ -87,7 +130,7 @@ export function MerchantPage({ lang }: { lang: Lang }) {
   const collect = async (row: MerchantTx, collected: boolean) => {
     setBusyTx(row.id);
     setError('');
-    setNotice('');
+    setNote(null);
     const res = await tokens.collect(row.id, collected);
     setBusyTx('');
     if (!res.ok) {
@@ -95,7 +138,8 @@ export function MerchantPage({ lang }: { lang: Lang }) {
       void load(); // whatever really happened is in the list
       return;
     }
-    setNotice(
+    say(
+      'success',
       collected
         ? t(`${row.confirm} handed over.`, `${row.confirm} 已标记出货。`)
         : t(`${row.confirm} is waiting again.`, `${row.confirm} 已改回待出货。`),
@@ -115,7 +159,7 @@ export function MerchantPage({ lang }: { lang: Lang }) {
     const res = await tokens.void(row.id, 'voided from the merchant console');
     setBusyTx('');
     if (!res.ok) return setError(refusalText(res, lang));
-    setNotice(t(`Returned ${res.data.amount} tokens.`, `已退回 ${res.data.amount} 币。`));
+    say('success', t(`Returned ${res.data.amount} tokens.`, `已退回 ${res.data.amount} 币。`));
     void load();
   };
 
@@ -166,6 +210,7 @@ export function MerchantPage({ lang }: { lang: Lang }) {
               setShopId(e.target.value);
               setOffset(0);
               setData(null);
+              setMenu(null);
             }}
           >
             {picks.map((s) => (
@@ -177,7 +222,7 @@ export function MerchantPage({ lang }: { lang: Lang }) {
         </div>
       )}
       {error && <Notice tone="error">{error}</Notice>}
-      {notice && <Notice tone="success">{notice}</Notice>}
+      {note && <Notice tone={note.tone}>{note.text}</Notice>}
       {!data || !m ? (
         // A refused shop has already said so above; spinning on for ever would
         // only suggest something is still coming.
@@ -262,6 +307,42 @@ export function MerchantPage({ lang }: { lang: Lang }) {
                 </ul>
               )}
             </div>
+          </div>
+
+          {/* The shop's own menu: prices, what is on sale today, the QR
+              stickers. Closed by default — the list below is what this page is
+              open for during an event, and the menu is a before-and-after job. */}
+          <div className="pt-6 border-t border-neutral-200/80">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between gap-3 text-left min-h-[44px] cursor-pointer"
+              onClick={() => setShowMenu(!showMenu)}
+              aria-expanded={showMenu}
+            >
+              <span className="text-xs font-semibold text-brick">{t('Menu', '菜单')}</span>
+              <span className="text-[11px] text-neutral-500">
+                {menu
+                  ? t(`${menu.items.length} items`, `${menu.items.length} 项`)
+                  : t('Prices and QR stickers', '价格与二维码贴纸')}
+                {' · '}
+                {showMenu ? t('Hide', '收起') : t('Open', '展开')}
+              </span>
+            </button>
+            {showMenu &&
+              (menu ? (
+                <MenuSection
+                  bare
+                  lang={lang}
+                  m={menu.merchant}
+                  items={menu.items}
+                  rate={menu.rate}
+                  allowPartners={menu.allow_partners}
+                  act={act}
+                  say={say}
+                />
+              ) : (
+                <Spinner label={t('Loading…', '加载中…')} />
+              ))}
           </div>
 
           <div className="pt-6 border-t border-neutral-200/80">
