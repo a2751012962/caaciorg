@@ -47,6 +47,10 @@ export interface WalletTx {
   state: TxState;
   items: TxLine[];
   note: string;
+  /** paid by scanning the item's own QR, with nobody at a till */
+  self_serve: boolean;
+  /** the four characters to read out at the stall; '' when there is nothing to check */
+  confirm: string;
   merchant: { name: string; name_zh: string | null } | null;
 }
 
@@ -226,6 +230,10 @@ export interface LedgerTx {
   resolution: string | null;
   receipt_sent_at: string | null;
   receipt_error: string | null;
+  /** paid by the member scanning the item's own QR */
+  self_serve: boolean;
+  /** the four characters the member's screen showed; '' when there is nothing to check */
+  confirm: string;
 }
 
 /** An admin's account, as the add-staff pick-list shows it. */

@@ -5,7 +5,7 @@
 // { enabled: false } while the switch is off, so the account page can ask
 // without knowing. Nothing expires since 0027.
 import { json, bad, sb, requireUser, CARD_SURCHARGE, memberIsActive } from '../_lib.js';
-import { tokensEnabled, callerRoles } from '../_tokens.js';
+import { tokensEnabled, callerRoles, confirmCode } from '../_tokens.js';
 
 export async function onRequestGet({ request, env }) {
   if (!tokensEnabled(env)) return json({ enabled: false });
@@ -20,7 +20,7 @@ export async function onRequestGet({ request, env }) {
       callerRoles(DB, id),
       DB.rpc('token_balance', { p_member: id }),
       DB.select('token_tx', {
-        columns: 'id,created_at,kind,amount,state,items,note,merchants(name,name_zh)',
+        columns: 'id,created_at,kind,amount,state,items,note,self_serve,merchants(name,name_zh)',
         filters: [`member_id=eq.${id}`],
         order: 'created_at.desc',
         limit: 30,
@@ -76,6 +76,11 @@ export async function onRequestGet({ request, env }) {
         state: t.state,
         items: t.items || [],
         note: t.note || '',
+        self_serve: t.self_serve === true,
+        // The same four characters the receipt showed right after the tap, so a
+        // member who has closed that page can still read them out at the stall.
+        // Only for a scan-to-pay charge: a clerk's charge has nothing to check.
+        confirm: t.kind === 'charge' && t.self_serve ? confirmCode(t.id) : '',
         merchant: t.merchants ? { name: t.merchants.name, name_zh: t.merchants.name_zh } : null,
       })),
       family,
