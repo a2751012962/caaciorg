@@ -70,6 +70,10 @@ const UNGATED = {
     by: 'link-key',
     why: "the dispute_key in the link is the proof, and it only ever went to the member's own mailbox.",
   },
+  'functions/api/tokens/plans.js onRequestGet': {
+    by: 'read-only',
+    why: 'the price list on the public /membership/ page: how many tokens each plan grants. It names no member and reads nothing but that one settings column.',
+  },
   'functions/api/verify.js onRequestGet': {
     by: 'read-only',
     why: 'the QR on a membership card. A restaurant scans it without an account; it reveals name, tier and validity, nothing else.',

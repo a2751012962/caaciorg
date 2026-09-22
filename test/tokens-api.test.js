@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { fakeRequest, mockFetch, fakeEnv } from './helpers.js';
 import { maskName, tokensEnabled } from '../functions/api/_tokens.js';
 import { onRequestGet as me } from '../functions/api/tokens/me.js';
+import { onRequestGet as plans } from '../functions/api/tokens/plans.js';
 import { onRequestGet as scan } from '../functions/api/tokens/scan.js';
 import { onRequestPost as charge } from '../functions/api/tokens/charge.js';
 import { onRequestGet as payGet, onRequestPost as payPost } from '../functions/api/tokens/pay.js';
@@ -69,6 +70,9 @@ test('the switch: off by default, and every token endpoint is dark while it is o
     const env = fakeEnv();
     const r = await me({ request: fakeRequest({ headers: auth }), env });
     assert.deepEqual(await r.json(), { enabled: false });
+    // The membership page asks without knowing, so this one answers rather
+    // than 404s — and says nothing about any plan.
+    assert.deepEqual(await (await plans({ env })).json(), { enabled: false, grants: {} });
     for (const call of [
       scan({
         request: fakeRequest({ url: `https://x/api/tokens/scan?m=${MEMBER}`, headers: auth }),
@@ -84,6 +88,37 @@ test('the switch: off by default, and every token endpoint is dark while it is o
     ])
       assert.equal((await call).status, 404);
     assert.equal(fetch.calls.length, 0, 'nothing is even looked up while the switch is off');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('plans: the public grant list drops anything that is not a positive whole number', async () => {
+  const fetch = mockFetch(
+    backend({
+      token_settings: [{ grants: { student: 150, individual: 450, free: 0, business: 'x' } }],
+    }),
+  );
+  try {
+    const r = await plans({ env: fakeEnv(ON) });
+    assert.deepEqual(await r.json(), {
+      enabled: true,
+      grants: { student: 150, individual: 450 },
+    });
+    // Only the one column, and nothing that could name a member.
+    assert.equal(fetch.calls.length, 1);
+    assert.match(fetch.calls[0].url, /token_settings\?select=grants/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('plans: a settings row it cannot read leaves the page silent about tokens', async () => {
+  const fetch = mockFetch(() => ({ status: 500, body: 'boom' }));
+  try {
+    const r = await plans({ env: fakeEnv(ON) });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { enabled: false, grants: {} });
   } finally {
     fetch.restore();
   }

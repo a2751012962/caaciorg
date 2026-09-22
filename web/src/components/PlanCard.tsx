@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Check } from 'lucide-react';
+import { Check, Coins } from 'lucide-react';
 import { hoverLift, hoverScale, inView, rise, riseFrom, tap } from '../lib/motion';
 import { usd } from '../lib/shared';
 import { cardTotal, isFree, money, tierName, type Tier } from '../lib/tiers';
@@ -28,6 +28,8 @@ interface PlanCardProps {
   index?: number;
   selected?: boolean;
   isMyPlan?: boolean;
+  /** 华协币 this plan grants each membership year; 0 or absent shows no line. */
+  tokens?: number;
   onSelect?: () => void;
 }
 
@@ -38,6 +40,7 @@ export function PlanCard({
   index = 0,
   selected = false,
   isMyPlan = false,
+  tokens = 0,
   onSelect,
 }: PlanCardProps) {
   const t = (en: string, zh: string) => (lang === 'en' ? en : zh);
@@ -88,7 +91,22 @@ export function PlanCard({
           </div>
         </div>
 
-        <ul className="space-y-2.5 pt-4 border-t border-neutral-100">
+        {/* What the plan puts in the member's wallet. It sits above the benefit
+            lines rather than among them because it is a number, and because the
+            admin's own benefit lines must not be able to contradict it. */}
+        {tokens > 0 && (
+          <div className="flex items-start gap-2 pt-4 border-t border-neutral-100 text-xs font-medium text-brick">
+            <Coins className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>
+              {t(
+                `${tokens.toLocaleString('en-US')} CAACI Tokens each year`,
+                `每年赠送 ${tokens.toLocaleString('en-US')} 华协币`,
+              )}
+            </span>
+          </div>
+        )}
+
+        <ul className={`space-y-2.5 pt-4 ${tokens > 0 ? '' : 'border-t border-neutral-100'}`}>
           {copy.features.map((feat, fIdx) => (
             <li
               key={fIdx}
