@@ -180,6 +180,24 @@ export interface MerchantConsole {
   settlements: Settlement[];
 }
 
+/** A shop's own menu, as its console loads it (/api/tokens/menu). */
+export interface MerchantMenu {
+  merchant: MerchantRef & { kind: 'internal' | 'partner'; status: 'active' | 'suspended' };
+  rate: number;
+  /** false while root has scan-to-pay switched off for partner shops */
+  allow_partners: boolean;
+  items: MenuItem[];
+}
+
+/** What a menu write answers, from either endpoint. */
+export interface MenuWrite {
+  ok: true;
+  /** the price moved under a sticker that is already printed */
+  reprint?: boolean;
+  item?: MenuItem;
+  pay_code?: string;
+}
+
 export interface TokenSettings {
   tokens_per_dollar: number;
   grants: Record<string, number>;
@@ -353,6 +371,11 @@ export const tokens = {
     ),
   merchant: (id: string, offset = 0) =>
     get<MerchantConsole>(`/api/tokens/merchant?merchant_id=${id}&offset=${offset}`),
+
+  // The shop's own menu. The same four writes the back office sends, so both
+  // pages render one component (components/tokens/Menu.tsx).
+  menu: (merchant_id: string) => get<MerchantMenu>(`/api/tokens/menu?merchant_id=${merchant_id}`),
+  menuAction: (body: Record<string, unknown>) => post<MenuWrite>('/api/tokens/menu', body),
 
   admin: {
     overview: () => get<Overview>('/api/admin/tokens?view=overview'),
