@@ -14,7 +14,16 @@ import {
 import { ContactSection } from '../components/ContactSection';
 import { PlanCard } from '../components/PlanCard';
 import { TiltCard } from '../components/bencho/TiltCard';
-import { QrCode, ShieldCheck, Star, Gift, Utensils, ChevronRight, ChevronLeft } from 'lucide-react';
+import {
+  QrCode,
+  ShieldCheck,
+  Star,
+  Gift,
+  Utensils,
+  ChevronRight,
+  ChevronLeft,
+  Coins,
+} from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { membershipPageDataEN, membershipPageDataZH } from '../data/pagesContent';
 import { api } from '../lib/api';
@@ -32,6 +41,7 @@ import {
   type Discount,
   type Tier,
 } from '../lib/tiers';
+import { planTokens } from '../lib/tokens';
 import { smoothScrollTo } from '../utils/smoothScroll';
 
 interface MembershipPageProps {
@@ -55,6 +65,23 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
   const tiers = useTiers();
   const plans = useMemo(() => purchasable(tiers), [tiers]);
   const hasInviteTier = tiers.some((x) => x.invite_only);
+
+  // How many 华协币 each plan grants for the year. token_settings is
+  // service-role only, so this is a small public endpoint rather than a
+  // Supabase read; it stays {} while the feature is dark, and then no card,
+  // note or order line mentions tokens at all.
+  const [grants, setGrants] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let alive = true;
+    void planTokens().then(({ ok, data }) => {
+      if (alive && ok && data.enabled) setGrants(data.grants || {});
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const grantFor = (tierId: string | undefined) => (tierId && grants[tierId]) || 0;
+  const anyGrant = plans.some((x) => grantFor(x.id) > 0);
 
   // ?tier=<id> (login round-trip, /register/<tier>/ stubs, Business page CTA)
   // and ?code=<discount> (flyers / QR codes) are read once on arrival.
@@ -404,6 +431,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 index={idx}
                 selected={selected?.id === tier.id}
                 isMyPlan={myStatus === 'active' && member?.tier_id === tier.id}
+                tokens={grantFor(tier.id)}
                 onSelect={() => {
                   selectTier(tier.id);
                   scrollToForm();
@@ -436,6 +464,20 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+
+          {/* One line saying what the number on the cards is, once, instead of
+              repeating it on each of them. */}
+          {anyGrant && (
+            <div className="mt-6 sm:mt-8 max-w-3xl mx-auto flex items-start justify-center gap-2 text-xs sm:text-sm text-neutral-600 leading-relaxed">
+              <Coins className="w-4 h-4 shrink-0 mt-0.5 text-brick" />
+              <p>
+                {t(
+                  'CAACI Tokens land in your member wallet when you join, and again at every renewal. Spend them at CAACI event stalls and participating partner shops — they never expire.',
+                  '华协币会在入会时存入您的会员钱包，之后每次续费都会再次到账。可在华协活动摊位及合作商户消费，永不过期。',
+                )}
+              </p>
+            </div>
+          )}
 
           <div className="mt-6 sm:mt-8 max-w-3xl mx-auto text-center text-[11px] sm:text-xs text-neutral-400 space-y-1">
             <p>{data.note}</p>
@@ -673,6 +715,14 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                         </span>
                         <span className="tabular-nums">{usd(summary.due)}</span>
                       </div>
+                      {grantFor(selected.id) > 0 && (
+                        <div className="flex justify-between gap-3 pt-1 text-brick">
+                          <span>{t('CAACI Tokens included', '赠送华协币')}</span>
+                          <span className="tabular-nums">
+                            {grantFor(selected.id).toLocaleString('en-US')}
+                          </span>
+                        </div>
+                      )}
                       <p className="pt-1 text-neutral-500">
                         {mode !== 'switch' && applied
                           ? t(

@@ -180,6 +180,24 @@ export interface MerchantConsole {
   settlements: Settlement[];
 }
 
+/** A shop's own menu, as its console loads it (/api/tokens/menu). */
+export interface MerchantMenu {
+  merchant: MerchantRef & { kind: 'internal' | 'partner'; status: 'active' | 'suspended' };
+  rate: number;
+  /** false while root has scan-to-pay switched off for partner shops */
+  allow_partners: boolean;
+  items: MenuItem[];
+}
+
+/** What a menu write answers, from either endpoint. */
+export interface MenuWrite {
+  ok: true;
+  /** the price moved under a sticker that is already printed */
+  reprint?: boolean;
+  item?: MenuItem;
+  pay_code?: string;
+}
+
 export interface TokenSettings {
   tokens_per_dollar: number;
   grants: Record<string, number>;
@@ -291,6 +309,20 @@ export function refusalText(res: ApiResult<Refusal>, lang: Lang): string {
   return res.data.error || (lang === 'zh' ? '操作失败。' : 'Something went wrong.');
 }
 
+/** What each membership plan grants for the year, as /membership/ asks for it. */
+export interface PlanTokens {
+  enabled: boolean;
+  /** tier id → tokens granted each membership year; a plan that grants none is absent */
+  grants: Record<string, number>;
+}
+
+/**
+ * The one token call a signed-out visitor makes: the plan cards on the public
+ * membership page. Answers { enabled: false } while the feature is dark, so the
+ * page can ask without knowing whether tokens have launched.
+ */
+export const planTokens = () => api<PlanTokens>('/api/tokens/plans');
+
 const signed = { auth: true } as const;
 const get = <T>(path: string) => api<T & Refusal>(path, undefined, signed);
 const post = <T>(path: string, body: unknown) => api<T & Refusal>(path, body, signed);
@@ -339,6 +371,11 @@ export const tokens = {
     ),
   merchant: (id: string, offset = 0) =>
     get<MerchantConsole>(`/api/tokens/merchant?merchant_id=${id}&offset=${offset}`),
+
+  // The shop's own menu. The same four writes the back office sends, so both
+  // pages render one component (components/tokens/Menu.tsx).
+  menu: (merchant_id: string) => get<MerchantMenu>(`/api/tokens/menu?merchant_id=${merchant_id}`),
+  menuAction: (body: Record<string, unknown>) => post<MenuWrite>('/api/tokens/menu', body),
 
   admin: {
     overview: () => get<Overview>('/api/admin/tokens?view=overview'),

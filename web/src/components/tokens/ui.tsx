@@ -2,10 +2,19 @@
 // wallet on /account/). Classes are web/DESIGN_SYSTEM.md §5 verbatim. These are
 // working screens used on a phone at a counter, so they skip the hero and keep
 // one column.
-import { useEffect, type ReactNode } from 'react';
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { AlertCircle, CheckCircle2, Loader2, Plus } from 'lucide-react';
 import { loginUrl, useAuth } from '../../lib/auth';
 import type { Lang } from '../../lib/lang';
+
+/** How a page answers a write: one line, in the tone it deserves. */
+export type Tone = 'success' | 'error' | 'warn';
+export type Say = (tone: Tone, text: string) => void;
+
+/** What a write answered, or null when it was refused. */
+export type ActResult = { reprint?: boolean } | null;
+/** Send one write and report it. Each page binds this to its own endpoint. */
+export type Act = (body: Record<string, unknown>, ok: string) => Promise<ActResult>;
 
 export const PRIMARY =
   'min-h-[44px] px-8 py-3 rounded-full bg-brick hover:bg-brick-hover text-white font-semibold text-xs uppercase tracking-wider shadow-xs transition-all active:scale-98 cursor-pointer inline-flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-wait';
@@ -135,3 +144,79 @@ export function useSignedIn(): boolean {
 }
 
 export const tr = (lang: Lang, en: string, zh: string) => (lang === 'zh' ? zh : en);
+
+/** A quiet "+ …" line that opens a form in place, so a page holds one open form at a time. */
+export function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center gap-2 min-h-[44px] text-xs font-semibold text-neutral-700 hover:text-brick transition-colors cursor-pointer"
+      onClick={onClick}
+    >
+      <span className="w-6 h-6 rounded-full border border-dashed border-neutral-300 inline-flex items-center justify-center">
+        <Plus className="w-3.5 h-3.5" aria-hidden />
+      </span>
+      {label}
+    </button>
+  );
+}
+
+/** A labelled field: the name sits above the control, so a filled form still reads. */
+export function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block min-w-0">
+      <span className="block text-[11px] text-neutral-500 mb-1">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+/** A destructive action that asks once, in place — no browser dialog. */
+export function Confirm({
+  lang,
+  label,
+  confirmLabel,
+  onConfirm,
+  quiet = false,
+}: {
+  lang: Lang;
+  label: string;
+  confirmLabel: string;
+  onConfirm: () => Promise<unknown>;
+  /** grey until armed: for a rare action that should not read as a warning until it is one */
+  quiet?: boolean;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const [armed, setArmed] = useState(false);
+  if (!armed)
+    return (
+      <button
+        type="button"
+        className={
+          quiet
+            ? 'min-h-[44px] text-[11px] font-medium text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer'
+            : TEXT_DANGER
+        }
+        onClick={() => setArmed(true)}
+      >
+        {label}
+      </button>
+    );
+  return (
+    <span className="inline-flex items-center gap-4">
+      <button
+        type="button"
+        className={TEXT_DANGER}
+        onClick={() => {
+          setArmed(false);
+          void onConfirm();
+        }}
+      >
+        {confirmLabel}
+      </button>
+      <button type="button" className={TEXT_ACTION} onClick={() => setArmed(false)}>
+        {t('Cancel', '取消')}
+      </button>
+    </span>
+  );
+}

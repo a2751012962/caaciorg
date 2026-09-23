@@ -8,29 +8,16 @@
 // Merchants and their staff are created here and nowhere else: an account that
 // can take tokens is one CAACI has vetted. Staff are added by the email of an
 // account that already exists — the person signs up on the site first.
+//
+// The menu actions are the four this endpoint shares with the shop's own
+// console (functions/api/_menu.js): the same bodies, the same answers, whether
+// an admin sends them from the back office or a stall sends them from
+// /merchant/.
 import { json, bad, sb, requireAdmin } from '../_lib.js';
 import { tokensEnabled, tokensOff, ledgerError, UUID_RE } from '../_tokens.js';
+import { menuAction } from '../_menu.js';
 
 const text = (v, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
-
-// A printed pay code (0030). No I, O or U, and no 0 or 1, so nothing on a
-// sticker can be read back wrong; 31^8 ≈ 8.5e11, drawn from the CSPRNG, so a
-// code cannot be guessed at from another one. Bytes at or above 248 are thrown
-// away rather than folded, which would make the first few letters likelier.
-const ALPHABET = '23456789ABCDEFGHJKLMNPQRSTVWXYZ';
-const CODE_LENGTH = 8;
-function newPayCode() {
-  let code = '';
-  while (code.length < CODE_LENGTH) {
-    const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
-    for (const byte of bytes) {
-      if (byte >= 248) continue;
-      code += ALPHABET[byte % ALPHABET.length];
-      if (code.length === CODE_LENGTH) break;
-    }
-  }
-  return code;
-}
 
 export async function onRequestGet({ request, env }) {
   if (!tokensEnabled(env)) return tokensOff();
@@ -183,8 +170,12 @@ export async function onRequestPost({ request, env }) {
       return json({ ok: true, merchant: created });
     }
 
-    if (!UUID_RE.test(b.merchant_id || '') && !['mark_paid', 'delete_item'].includes(b.action))
+    if (!UUID_RE.test(b.merchant_id || '') && b.action !== 'mark_paid')
       return bad('Which merchant?');
+
+    // save_item | delete_item | issue_code | clear_code, scoped to this merchant
+    const menu = await menuAction(DB, b);
+    if (menu) return menu;
 
     if (b.action === 'set_status') {
       if (!['active', 'suspended'].includes(b.status)) return bad('Invalid status.');
@@ -267,78 +258,6 @@ export async function onRequestPost({ request, env }) {
     if (b.action === 'remove_staff') {
       if (!UUID_RE.test(b.member_id || '')) return bad('Which person?');
       await DB.del('merchant_staff', { merchant_id: b.merchant_id, member_id: b.member_id });
-      return json({ ok: true });
-    }
-
-    if (b.action === 'save_item') {
-      const tokens = Number(b.tokens);
-      if (!Number.isInteger(tokens) || tokens <= 0 || tokens > 100000)
-        return bad('Tokens must be a whole number above zero.');
-      const row = {
-        merchant_id: b.merchant_id,
-        name: text(b.name, 120),
-        name_zh: text(b.name_zh, 120) || null,
-        group_label: text(b.group_label, 80) || null,
-        tokens,
-        sort_order: Number.isInteger(Number(b.sort_order)) ? Number(b.sort_order) : 0,
-        active: b.active !== false,
-      };
-      if (!row.name) return bad('The item needs a name.');
-      if (b.id) {
-        if (!UUID_RE.test(b.id)) return bad('Unknown item.');
-        const before = await DB.selectOne(
-          'merchant_items',
-          { id: b.id, merchant_id: b.merchant_id },
-          'id,tokens,pay_code',
-        );
-        if (!before) return bad('Unknown item.', 404);
-        await DB.update('merchant_items', { id: b.id, merchant_id: b.merchant_id }, row);
-        // The sticker carries the code, never the price, so a price change takes
-        // effect on every cup already out there the moment it is saved.
-        return json({ ok: true, reprint: !!before.pay_code && before.tokens !== tokens });
-      }
-      const [created] = await DB.insert('merchant_items', row);
-      return json({ ok: true, item: created });
-    }
-
-    if (b.action === 'delete_item') {
-      if (!UUID_RE.test(b.id || '')) return bad('Unknown item.');
-      await DB.del('merchant_items', { id: b.id }); // past charges keep their own copy of the line
-      return json({ ok: true });
-    }
-
-    // Give an item the code printed in its QR sticker (0030), or give it a new
-    // one. Re-issuing is how a sticker that was swapped, copied or photographed
-    // is killed: every sheet printed from the old code stops working at once.
-    if (b.action === 'issue_code') {
-      if (!UUID_RE.test(b.id || '')) return bad('Unknown item.');
-      const item = await DB.selectOne('merchant_items', { id: b.id }, 'id,merchant_id');
-      if (!item || item.merchant_id !== b.merchant_id) return bad('Unknown item.', 404);
-      // Unique index, not a read-then-write: two admins pressing at once each
-      // get their own code instead of one silently overwriting the other.
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const pay_code = newPayCode();
-        try {
-          await DB.update(
-            'merchant_items',
-            { id: b.id },
-            { pay_code, pay_code_at: new Date().toISOString() },
-          );
-          return json({ ok: true, pay_code });
-        } catch (err) {
-          if (!/duplicate key|23505/i.test(err.message)) throw err;
-        }
-      }
-      return bad('Could not make a unique code. Try again.', 503);
-    }
-
-    if (b.action === 'clear_code') {
-      if (!UUID_RE.test(b.id || '')) return bad('Unknown item.');
-      await DB.update(
-        'merchant_items',
-        { id: b.id, merchant_id: b.merchant_id },
-        { pay_code: null, pay_code_at: null },
-      );
       return json({ ok: true });
     }
 
