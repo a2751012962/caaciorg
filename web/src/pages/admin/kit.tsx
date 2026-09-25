@@ -111,6 +111,7 @@ export type TabId =
   | 'families'
   | 'payments'
   | 'discounts'
+  | 'invites'
   | 'events'
   | 'volunteers'
   | 'directory'

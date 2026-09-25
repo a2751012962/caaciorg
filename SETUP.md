@@ -772,6 +772,33 @@ active (families an admin made by hand, with no founder, keep using the
   4. For founder emails, set the `RESEND_API_KEY` and `NOTIFY_FROM` secrets in
      Cloudflare Pages.
 
+## Honorable Membership by invitation link (`/api/invite`, `/api/admin/invites`)
+
+The invite-only Honorable tier (`0011`) is handed out by link instead of one
+member at a time from the Members tab. An admin creates a code under
+**Invitation codes** in `/admin/` (the emailed verification code guards it, as a
+plan change is guarded), with an optional expiry and a cap on how many people may
+use it, and sends `/account/?invite=<code>` (the tab shows the link and a QR).
+The invited person opens it, signs in or signs up on `/login-3/` (which returns
+to `/account/` with the code), and presses **Activate**: `invite_redeem()` puts
+them on the tier — active, no expiry, no Stripe — under a lock on the code's row,
+so a capped code cannot be over-used. A member holding an active **paid** plan is
+refused (the Board moves those by hand from the Members tab), and the account page
+does not offer the line to them. A member without a link types the code under
+their plan on `/account/` ("Have an invitation code?").
+
+- **Tokens:** an Honorable member receives 20 华协币 on activation (the Board's
+  decision, 2026-09-24), granted through the same `token_membership_grant()` the
+  Stripe webhook calls; `0034` adds `honorary: 20` to `token_settings.grants`
+  (only when the key is absent), and `/token-admin/` settings can change it.
+- **Migration:** `0034_honorary_invites.sql` — `invite_codes`, `invite_redemptions`
+  (both server-only) and `invite_redeem()` (`service_role` only). Paste it
+  **before** deploying this code: without it `/api/invite` and the Invitation
+  codes tab answer 500. It only adds. `test/honorary-invites-migration.test.js`
+  runs it in PGlite after the token migrations.
+- A used code is never deleted (the API refuses; the redemption row references
+  it): switch it off instead. The tab lists who used each code.
+
 ## Admin / back-office panel (`/admin/`)
 
 **The way in is `/admin/`**, the back office in React (`web/src/pages/admin/`):

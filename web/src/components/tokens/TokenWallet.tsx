@@ -51,6 +51,14 @@ export function TokenWallet({ lang, className = '' }: { lang: Lang; className?: 
     if (res.ok) setWallet(res.data);
   }, []);
 
+  // Another part of the page credited the wallet (an invitation code's grant,
+  // pages/account/InviteRedeem.tsx): read the balance again.
+  useEffect(() => {
+    const again = () => void load();
+    window.addEventListener('caaci:wallet-refresh', again);
+    return () => window.removeEventListener('caaci:wallet-refresh', again);
+  }, [load]);
+
   useEffect(() => {
     void load();
     // Back from Stripe: say so, and look again shortly — the webhook that
