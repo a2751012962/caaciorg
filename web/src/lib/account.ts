@@ -47,6 +47,7 @@ export interface Landing {
   linkFailed: boolean; // Supabase reported a dead or failed email/OAuth link
   checkoutSuccess: boolean;
   familyInvite: string; // ?family_invite=<id>; compared with server ids, never rendered
+  inviteCode: string; // ?invite=<code>; an Honorable Membership invitation link
 }
 
 export function readLanding(): Landing {
@@ -57,6 +58,7 @@ export function readLanding(): Landing {
     linkFailed: hasLinkError(landingHash) || hasLinkError(search),
     checkoutSuccess: q.get('checkout') === 'success',
     familyInvite: q.get('family_invite') || '',
+    inviteCode: (q.get('invite') || '').trim().toUpperCase(),
   };
 }
 

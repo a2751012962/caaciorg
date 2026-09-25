@@ -35,6 +35,7 @@ import { RecoveryNotice } from './account/RecoveryNotice';
 import { ProfileEdit } from './account/ProfileEditModal';
 import { EventFeedback } from './account/EventFeedback';
 import { CancelRsvp } from './account/CancelRsvp';
+import { InviteRedeem } from './account/InviteRedeem';
 import { FEATURES } from '../lib/features';
 import { loginUrl, useAuth } from '../lib/auth';
 import { api } from '../lib/api';
@@ -233,6 +234,10 @@ export function AccountPage({
       : '';
   const pastDue = member?.status === 'past_due';
   const hasBilling = !!member?.stripe_customer_id;
+  // An invitation code (Honorable Membership) is for someone without a paid
+  // plan: the free tier, a lapsed plan, or no plan yet. /api/invite refuses a
+  // paid member anyway; the line is simply not offered to them.
+  const canUseInvite = !ownActive || (!!ownTier && isFreeTier(ownTier));
   const displayName = member?.full_name || user?.email || '';
   const validThrough = shownExpires ? fmtDate(shownExpires, lang) : t('No expiry', '长期有效');
 
@@ -532,6 +537,15 @@ export function AccountPage({
               signedIn
               onGoToSecurity={goToSecurity}
             />
+
+            {/* Arrived by an invitation link: the code is offered before anything else. */}
+            {landing.inviteCode && (
+              <InviteRedeem
+                lang={lang}
+                initialCode={landing.inviteCode}
+                onActivated={refreshMember}
+              />
+            )}
 
             {checkout !== 'none' && (
               <div
@@ -1081,6 +1095,11 @@ export function AccountPage({
                     <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                     <span>{billingError}</span>
                   </div>
+                )}
+
+                {/* A code given in person, typed here; a link's code is handled at the top. */}
+                {canUseInvite && !landing.inviteCode && (
+                  <InviteRedeem lang={lang} initialCode="" onActivated={refreshMember} />
                 )}
 
                 {/* Subscription Action Buttons */}
