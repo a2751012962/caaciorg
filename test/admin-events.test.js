@@ -230,6 +230,7 @@ test('admin events: lists and re-reads the Chinese title, questions and gift nam
         'title_zh',
         'description_zh',
         'registration_questions',
+        'volunteer_questions',
         'perk_item_zh',
         'perk_item_en',
       ])
@@ -350,6 +351,37 @@ test('admin events: an empty page reads no registrations; a failed count read is
     const r = await onRequestGet({ request: authed(), env: fakeEnv() });
     assert.equal(r.status, 500);
     assert.match((await r.json()).error, /event_registrations: 503/);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin events: volunteer_questions (0035) are validated and stored normalized, or cleared with null', async () => {
+  const fetch = mockFetch(route());
+  try {
+    const set = await postPatch({
+      volunteer_questions: [{ ...QUESTION, label_en: '  How did you hear?  ', color: 'red' }],
+    });
+    assert.equal(set.status, 200);
+    assert.deepEqual(patchBodies(fetch).at(-1), { volunteer_questions: [QUESTION] });
+
+    // null = back to the site's default volunteer template
+    const off = await postPatch({ volunteer_questions: null });
+    assert.equal(off.status, 200);
+    assert.deepEqual(patchBodies(fetch).at(-1), { volunteer_questions: null });
+
+    const patches = patchBodies(fetch).length;
+    const r = await postPatch({ volunteer_questions: 'shifts' });
+    assert.equal(r.status, 400);
+    assert.match((await r.json()).error, /^Volunteer questions must be a list\.$/);
+    const dup = await postPatch({ volunteer_questions: [QUESTION, QUESTION] });
+    assert.equal(dup.status, 400);
+    assert.match((await dup.json()).error, /repeats the id "heard_from"/);
+    assert.equal(patchBodies(fetch).length, patches, 'nothing written for a refused list');
+
+    // Untouched when not sent: a title patch says nothing about volunteers.
+    await postPatch({ title: 'Gala' });
+    assert.equal('volunteer_questions' in patchBodies(fetch).at(-1), false);
   } finally {
     fetch.restore();
   }
