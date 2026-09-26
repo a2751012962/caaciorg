@@ -58,8 +58,19 @@ export interface AdminEvent {
   perk_item_zh: string | null;
   perk_item_en: string | null;
   registration_questions: Question[] | null;
+  /** null: the volunteer page asks the site's default questions (0035). */
+  volunteer_questions?: Question[] | null;
   created_at?: string;
   registration_count?: number;
+}
+
+/** A form template (form_templates, 0035): questions an admin copies into an event. */
+export interface FormTemplate {
+  id: string;
+  kind: 'volunteer' | 'registration';
+  name: string;
+  questions: Question[];
+  is_default: boolean;
 }
 
 export interface Perk {
@@ -116,10 +127,48 @@ export interface Volunteer {
   message: string | null;
   source: string | null;
   member_id: string | null;
+  /** { questionId: answer } (0035), to the event's own questions or the default ones. */
+  answers?: Record<string, Answer>;
   created_at: string;
   updated_at?: string;
-  event: { slug: string | null; title: string; title_zh: string | null; starts_at: string } | null;
+  event: {
+    slug: string | null;
+    title: string;
+    title_zh: string | null;
+    starts_at: string;
+    /** The event's own volunteer questions, or null: it asks the default ones. */
+    questions?: Question[] | null;
+  } | null;
   account: { id: string; status: string; tier_id: string | null; expires_at: string | null } | null;
+}
+
+/** GET /api/admin/event-volunteers: the rows, and the default volunteer questions. */
+export interface VolunteersData {
+  rows: Volunteer[];
+  questions?: Question[];
+}
+
+/** How many rows picked each option of each choice question (Other counted
+ *  under 'other'), for the head-count block above a volunteer list. */
+export function choiceCounts(questions: Question[], rows: { answers?: Record<string, Answer> }[]) {
+  const counts: Record<string, Record<string, number>> = {};
+  for (const q of questions) {
+    if (!CHOICE_TYPES.has(q.type)) continue;
+    const c: Record<string, number> = Object.fromEntries((q.options || []).map((o) => [o.id, 0]));
+    c.other = 0;
+    for (const r of rows) {
+      const a = r.answers?.[q.id];
+      if (!a || typeof a !== 'object') continue;
+      const picked = new Set([
+        ...(Array.isArray(a.options) ? a.options : []),
+        ...(typeof a.option === 'string' ? [a.option] : []),
+      ]);
+      for (const id of picked) if (id !== 'other' && Object.hasOwn(c, id)) c[id]++;
+      if (typeof a.other === 'string') c.other++;
+    }
+    counts[q.id] = c;
+  }
+  return counts;
 }
 
 // ------------------------------------------------------------------ events
@@ -431,8 +480,9 @@ export function registrationsCsv(
   return csvText(lines);
 }
 
-/** The volunteers CSV from the rows the panel shows. UTF-8 BOM, CRLF. */
-export function volunteersCsv(rows: Volunteer[]) {
+/** The volunteers CSV from the rows the panel shows, one column per question
+ *  of the form those rows answer (English labels). UTF-8 BOM, CRLF. */
+export function volunteersCsv(rows: Volunteer[], questions: Question[] = []) {
   const lines: unknown[][] = [
     [
       '#',
@@ -442,6 +492,7 @@ export function volunteersCsv(rows: Volunteer[]) {
       'phone',
       'event',
       'source',
+      ...questions.map((q) => q.label_en),
       'message',
       'has_account',
       'account_status',
@@ -456,6 +507,7 @@ export function volunteersCsv(rows: Volunteer[]) {
       r.phone || '',
       r.event ? r.event.title : 'Any event',
       r.source || '',
+      ...questions.map((q) => answerText(q, r.answers?.[q.id], 'en')),
       r.message || '',
       yesNo(!!r.account),
       r.account?.status || '',
