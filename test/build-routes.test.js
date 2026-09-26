@@ -33,6 +33,8 @@ test('build: the React site is written at every route it serves, in English and 
     'business-services/',
     'thank-you/',
     'event-register/',
+    // an event's volunteer form, served at /events/<slug>/volunteer/ the same way
+    'event-volunteer/',
     // tokens: a scanned member card lands on /charge/?m=…
     'charge/',
     'merchant/',
@@ -138,6 +140,15 @@ test('build: _redirects rewrites /events/<slug>/register onto the React registra
   // App.tsx), so that address must resolve too: refresh, bookmark, shared link.
   assert.ok(rules.includes('/zh/events/:slug/register /zh/event-register/ 200'), rules.join('\n'));
   assert.ok(rules.includes('/zh/events/:slug/register/ /zh/event-register/ 200'), rules.join('\n'));
+  // The volunteer page (0035) is served the same way, both spellings, both languages.
+  for (const rule of [
+    '/events/:slug/volunteer /event-volunteer/ 200',
+    '/events/:slug/volunteer/ /event-volunteer/ 200',
+    '/zh/events/:slug/volunteer /zh/event-volunteer/ 200',
+    '/zh/events/:slug/volunteer/ /zh/event-volunteer/ 200',
+  ])
+    assert.ok(rules.includes(rule), rule);
+  assert.equal(await dist('event-volunteer/index.html'), await dist('index.html'));
 
   // The rewrite target is the React site, not the retired Tabler form.
   const home = await dist('index.html');
