@@ -10,13 +10,15 @@
 /**
  * Which event the page is for: the slug in `/events/<slug>/register/` (the
  * _redirects rewrite keeps that path in the address bar, with or without the
- * /zh/ prefix), else `?event=<slug>`. '' when neither names one.
+ * /zh/ prefix), else `?event=<slug>`. '' when neither names one. The volunteer
+ * page reads `/events/<slug>/volunteer/` the same way (`kind`).
  * @param {string} pathname
  * @param {string} [search]
+ * @param {'register'|'volunteer'} [kind]
  * @returns {string}
  */
-export function eventSlugFrom(pathname, search = '') {
-  const m = /^\/(?:zh\/)?events\/([^/]+)\/register\/?$/i.exec(pathname || '');
+export function eventSlugFrom(pathname, search = '', kind = 'register') {
+  const m = new RegExp(`^\\/(?:zh\\/)?events\\/([^/]+)\\/${kind}\\/?$`, 'i').exec(pathname || '');
   if (m) {
     try {
       return decodeURIComponent(m[1]);
@@ -212,4 +214,57 @@ export const REGISTER_ERRORS_ZH = {
  */
 export function zhError(msg) {
   return (msg && REGISTER_ERRORS_ZH[msg]) || '';
+}
+
+// /api/volunteer refuses with English sentences too; the ones a person can act
+// on get a Chinese counterpart on /zh/ (the volunteer dialog and each event's
+// volunteer page share this table). A refused answer arrives as
+// "Answer the question: <label>" — the pages check answers before sending, so
+// that one is only ever seen when the form changed under the visitor.
+export const VOLUNTEER_ERRORS_ZH = {
+  'Enter your name.': '请填写姓名。',
+  'Enter a valid email address.': '请输入有效的电子邮箱。',
+  'That phone number is too long.': '电话号码太长了。',
+  'Event not found.': '所选活动已不可报名，请关闭后重新打开再试。',
+  'Too many events selected.': '选择的活动太多了。',
+  'invalid JSON': '提交内容有误，请重试。',
+};
+
+/**
+ * @param {string|undefined|null} msg
+ * @returns {string}
+ */
+export function volunteerZhError(msg) {
+  if (!msg) return '';
+  if (VOLUNTEER_ERRORS_ZH[msg]) return VOLUNTEER_ERRORS_ZH[msg];
+  const m = /^Answer the question: (.+)$/.exec(msg);
+  return m ? `请回答：${m[1]}` : '';
+}
+
+/**
+ * The page's answer state for questions someone answered before (the API's
+ * stored shape, from a signed-in GET), so the form opens filled in: a typed
+ * question's text, a choice question's picked options and Other. Unanswered
+ * questions start blank.
+ * @param {Array<any>} questions
+ * @param {Record<string, any>|null|undefined} stored
+ * @returns {Record<string, any>}
+ */
+export function answerStateFrom(questions, stored) {
+  const state = {};
+  for (const q of questions || []) {
+    const a = stored && Object.hasOwn(stored, q.id) ? stored[q.id] : undefined;
+    if (isTypedQuestion(q)) {
+      state[q.id] = typeof a === 'string' || typeof a === 'number' ? String(a) : '';
+      continue;
+    }
+    const picked = [];
+    if (a && typeof a === 'object') {
+      if (Array.isArray(a.options)) picked.push(...a.options.filter((x) => typeof x === 'string'));
+      if (typeof a.option === 'string') picked.push(a.option);
+    }
+    const other = a && typeof a === 'object' && typeof a.other === 'string' ? a.other : null;
+    state[q.id] = { picked, other };
+  }
+  return state;
 }

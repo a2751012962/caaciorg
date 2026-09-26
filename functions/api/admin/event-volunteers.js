@@ -12,22 +12,38 @@
 // member_id first, else lower(members.email) — but nothing here depends on the
 // email being confirmed, so the (slow, paged) GoTrue user listing is not read.
 // Every request is gated by requireAdmin.
+// Answers (0035): each row carries its `answers`, and the response says which
+// questions they answer — `questions` is the site's default volunteer form,
+// and each event that has its own carries it as event.questions (null = the
+// default). The panel counts the choices itself.
 import { json, bad, sb, requireAdmin } from '../_lib.js';
+import { questionsOf, defaultVolunteerQuestions } from '../_volunteers.js';
 
 const MAX_ROWS = 2000;
 const MAX_MEMBERS = 5000;
-const EVENT_COLUMNS = 'id,slug,title,title_zh,starts_at';
-const ROW_COLUMNS = 'id,event_id,name,email,phone,message,source,member_id,created_at,updated_at';
+const EVENT_COLUMNS = 'id,slug,title,title_zh,starts_at,volunteer_questions';
+const ROW_COLUMNS =
+  'id,event_id,name,email,phone,message,source,member_id,answers,created_at,updated_at';
 // The events FK (0021) makes this embed resolvable, so one request carries the
 // event of every sign-up instead of one lookup per distinct event_id.
-const ROW_COLUMNS_WITH_EVENT = `${ROW_COLUMNS},events(slug,title,title_zh,starts_at)`;
+const ROW_COLUMNS_WITH_EVENT = `${ROW_COLUMNS},events(slug,title,title_zh,starts_at,volunteer_questions)`;
 // events.id and event_volunteers.id are uuids: anything else can't match, and
 // PostgREST would answer a malformed one with a cast error (500) rather than an
 // empty result.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const eventOf = (e) =>
-  e ? { slug: e.slug, title: e.title, title_zh: e.title_zh ?? null, starts_at: e.starts_at } : null;
+  e
+    ? {
+        slug: e.slug,
+        title: e.title,
+        title_zh: e.title_zh ?? null,
+        starts_at: e.starts_at,
+        questions: questionsOf(e.volunteer_questions),
+      }
+    : null;
+
+const answersOf = (r) => (r.answers && typeof r.answers === 'object' ? r.answers : {});
 
 // members.email keeps whatever case the account was made with; volunteer rows
 // are stored lower-cased, so match on the lower-cased address.
@@ -67,26 +83,29 @@ export async function onRequestGet({ request, env }) {
     });
 
     if (!eventId) {
-      const [{ rows: raw }, { rows: members }] = await Promise.all([
+      const [{ rows: raw }, { rows: members }, questions] = await Promise.all([
         DB.select('event_volunteers', {
           columns: ROW_COLUMNS_WITH_EVENT,
           order: 'created_at.desc',
           limit: MAX_ROWS,
         }),
         membersQuery,
+        defaultVolunteerQuestions(DB),
       ]);
       const accountOf = accountIndex(members);
       const rows = raw.map(({ events, ...r }) => ({
         ...r,
+        answers: answersOf(r),
         event: eventOf(events),
         account: accountOf(r),
       }));
-      return json({ rows, summary: { total: rows.length } });
+      return json({ rows, questions, summary: { total: rows.length } });
     }
 
     const event = await DB.selectOne('events', { id: eventId }, EVENT_COLUMNS);
     if (!event) return bad('Event not found.', 404);
-    const [{ rows: raw }, { rows: members }] = await Promise.all([
+    const own = questionsOf(event.volunteer_questions);
+    const [{ rows: raw }, { rows: members }, questions] = await Promise.all([
       DB.select('event_volunteers', {
         columns: ROW_COLUMNS,
         filters: [`event_id=eq.${eventId}`],
@@ -94,9 +113,16 @@ export async function onRequestGet({ request, env }) {
         limit: MAX_ROWS,
       }),
       membersQuery,
+      // The default is only read when the event asks it.
+      own ? Promise.resolve(own) : defaultVolunteerQuestions(DB),
     ]);
     const accountOf = accountIndex(members);
-    const rows = raw.map((r) => ({ ...r, event: eventOf(event), account: accountOf(r) }));
+    const rows = raw.map((r) => ({
+      ...r,
+      answers: answersOf(r),
+      event: eventOf(event),
+      account: accountOf(r),
+    }));
     return json({
       event: {
         id: event.id,
@@ -104,7 +130,9 @@ export async function onRequestGet({ request, env }) {
         title: event.title,
         title_zh: event.title_zh ?? null,
         starts_at: event.starts_at,
+        questions: own,
       },
+      questions,
       rows,
       summary: { total: rows.length, with_account: rows.filter((r) => r.account).length },
     });
