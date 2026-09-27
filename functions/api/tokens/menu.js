@@ -57,7 +57,7 @@ export async function onRequestGet({ request, env }) {
 
     return json({
       merchant,
-      rate: settings?.tokens_per_dollar || 10,
+      rate: settings?.tokens_per_dollar || 50,
       // A partner shop's printed codes are refused while this is off, so the
       // page can say that instead of handing out stickers that will not work.
       allow_partners: settings?.pay_allow_partners !== false,

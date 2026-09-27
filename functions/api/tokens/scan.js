@@ -72,7 +72,7 @@ export async function onRequestGet({ request, env }) {
       grant_target: roles.isAdmin ? Number(settings?.grants?.[target.tier_id]) || 0 : 0,
       limits: {
         max_charge: settings?.max_charge ?? 500,
-        rate: settings?.tokens_per_dollar ?? 10,
+        rate: settings?.tokens_per_dollar ?? 50,
         cash_min_cents: settings?.cash_min_cents ?? 500,
         admin_mint_cap: settings?.admin_mint_cap ?? 500,
       },

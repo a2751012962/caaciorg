@@ -63,7 +63,7 @@ export async function onRequestGet({ request, env }) {
     }
 
     const before = new Date(Date.now() + 1000).toISOString();
-    const rate = settings?.tokens_per_dollar || 10;
+    const rate = settings?.tokens_per_dollar || 50;
     // What each merchant and each menu line has sold (0033), in one call for
     // all of them. Until that migration is applied the call fails, and the page
     // simply shows no sales figures rather than no page.

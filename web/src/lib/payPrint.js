@@ -50,7 +50,7 @@ const esc = (s) =>
   );
 
 const money = (tokens, rate) =>
-  `$${(tokens / (rate || 10)).toLocaleString('en-US', {
+  `$${(tokens / (rate || 50)).toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

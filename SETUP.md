@@ -620,7 +620,9 @@ Both write `event_volunteers`.
 
 ## Tokens · 华协币 (`/charge/`, `/merchant/`, `/token-admin/`, `/api/tokens/*`)
 
-Stored value members spend by showing the QR on their member card. **$1 = 10 tokens.**
+Stored value members spend by showing the QR on their member card. **$1 = 50 tokens**
+(since 0036; it was 10 at launch — balances, menu prices and grants were deliberately
+not rescaled, so a token is now worth 2¢ everywhere it is spent or settled).
 CAACI pays partner merchants the face value of what they took, monthly, outside this
 system (cheque / Zelle); the system records what is owed.
 
