@@ -19,10 +19,24 @@ const EVENTS = {
   },
   [EV_OTHER]: { id: EV_OTHER, slug: 'picnic', title: 'Picnic', title_zh: null, starts_at: STARTS },
 };
+// What the PostgREST embed carries (0035 adds the event's own volunteer
+// questions, null when it asks the default template).
 const embedOf = (id) => {
   const { slug, title, title_zh, starts_at } = EVENTS[id];
-  return { slug, title, title_zh, starts_at };
+  return { slug, title, title_zh, starts_at, volunteer_questions: null };
 };
+const SHIFTS = {
+  id: 'shifts',
+  type: 'multi',
+  label_en: 'When can you help?',
+  label_zh: '您可以帮忙的时间段？',
+  required: true,
+  options: [{ id: 'setup', label_en: 'Setup', label_zh: '布置' }],
+  other: false,
+};
+const DEFAULT_Q = [
+  { id: 'notes', type: 'textarea', label_en: 'Notes', label_zh: '备注', required: false },
+];
 
 const MEMBERS = [
   {
@@ -76,14 +90,21 @@ const ALL_ROWS = [
   }),
 ];
 
-function route({ admin = true, eventRows = EVENT_ROWS, allRows = ALL_ROWS } = {}) {
+function route({
+  admin = true,
+  eventRows = EVENT_ROWS,
+  allRows = ALL_ROWS,
+  events = EVENTS,
+  templates = [],
+} = {}) {
   return (u) => {
     if (u.includes('/auth/v1/user')) return { body: { id: 'admin-1' } };
     if (u.includes('/rest/v1/members') && u.includes('is_admin'))
       return { body: [{ id: 'admin-1', is_admin: admin }] };
+    if (u.includes('/rest/v1/form_templates')) return { body: templates };
     if (u.includes('/rest/v1/events')) {
       const id = decodeURIComponent(u.match(/id=eq\.([^&]+)/)?.[1] || '');
-      return { body: EVENTS[id] ? [EVENTS[id]] : [] };
+      return { body: events[id] ? [events[id]] : [] };
     }
     if (u.includes('/rest/v1/event_volunteers'))
       return { body: u.includes('event_id=eq.') ? eventRows : allRows };
@@ -168,11 +189,15 @@ test('admin volunteers: one event lists its sign-ups oldest first, with accounts
       title: 'Mid-Autumn Festival',
       title_zh: '中秋节',
       starts_at: STARTS,
+      questions: null,
     });
+    // No questions of its own, so the answers are to the default template's —
+    // none seeded here, so an empty list.
+    assert.deepEqual(data.questions, []);
     const q = fetch.calls.find((c) => c.url.includes('/rest/v1/event_volunteers')).url;
     assert.ok(
       q.includes(
-        'select=id,event_id,name,email,phone,message,source,member_id,created_at,updated_at&',
+        'select=id,event_id,name,email,phone,message,source,member_id,answers,created_at,updated_at&',
       ),
       'no embed is asked for when the event is already known',
     );
@@ -196,14 +221,18 @@ test('admin volunteers: one event lists its sign-ups oldest first, with accounts
       title: 'Mid-Autumn Festival',
       title_zh: '中秋节',
       starts_at: STARTS,
+      questions: null,
     });
     // member_id first; a stale one falls back to the (unknown) email
     assert.equal(by['helper@example.com'].account.id, 'm-jun');
     assert.equal(by['nobody@example.com'].account, null);
+    // A row written before 0035 has no answers column value: still an object.
+    assert.deepEqual(by['nobody@example.com'].answers, {});
 
     // The row shape the admin panel and CSV rely on.
     assert.deepEqual(Object.keys(data.rows[0]).sort(), [
       'account',
+      'answers',
       'created_at',
       'email',
       'event',
@@ -232,10 +261,11 @@ test('admin volunteers: scope=all embeds each row’s event, newest first, "any 
     const q = fetch.calls.find((c) => c.url.includes('/rest/v1/event_volunteers')).url;
     assert.ok(
       q.includes(
-        'select=id,event_id,name,email,phone,message,source,member_id,created_at,updated_at,events(slug,title,title_zh,starts_at)&',
+        'select=id,event_id,name,email,phone,message,source,member_id,answers,created_at,updated_at,events(slug,title,title_zh,starts_at,volunteer_questions)&',
       ),
-      'the PostgREST embed carries every row’s event',
+      'the PostgREST embed carries every row’s event, with its own volunteer questions',
     );
+    assert.deepEqual(data.questions, [], 'the default template’s questions (none seeded here)');
     assert.ok(q.includes('order=created_at.desc'));
     assert.ok(q.includes('limit=2000'));
     assert.equal(
@@ -259,12 +289,69 @@ test('admin volunteers: scope=all embeds each row’s event, newest first, "any 
       title: 'Picnic',
       title_zh: null,
       starts_at: STARTS,
+      questions: null,
     });
     assert.equal(data.rows[0].message, 'Weekends work best');
     assert.equal(data.rows[2].source, 'registration');
     assert.equal(data.rows[2].account.id, 'm-jun');
     assert.equal(data.rows[0].account, null);
     assert.deepEqual(data.summary, { total: 3 });
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin volunteers (0035): answers ride with each row, and the questions they answer are named', async () => {
+  const withOwn = {
+    ...EVENTS,
+    [EV]: { ...EVENTS[EV], volunteer_questions: [{ ...SHIFTS, extra: 'dropped' }] },
+  };
+  const rows = [
+    vol({ email: 'mei.lin@example.com', answers: { shifts: { options: ['setup'] } } }),
+    vol({ email: 'raw@example.com', answers: 'not an object' }),
+  ];
+  const templates = [{ questions: DEFAULT_Q }];
+  let fetch = mockFetch(route({ events: withOwn, eventRows: rows, templates }));
+  try {
+    const data = await (await get(`?event_id=${EV}`)).json();
+    assert.deepEqual(data.event.questions, [SHIFTS], 'the event’s own questions, normalized');
+    assert.deepEqual(data.questions, [SHIFTS], 'and those are the ones the rows answer');
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('/rest/v1/form_templates')),
+      false,
+      'the default template is not read when the event has its own questions',
+    );
+    assert.deepEqual(data.rows[0].answers, { shifts: { options: ['setup'] } });
+    assert.deepEqual(data.rows[1].answers, {}, 'a non-object answers value reads as none');
+  } finally {
+    fetch.restore();
+  }
+
+  // Without its own questions the event asks the default template, which is
+  // read and returned so the panel knows what the answers mean.
+  fetch = mockFetch(route({ eventRows: rows, templates }));
+  try {
+    const data = await (await get(`?event_id=${EV}`)).json();
+    assert.equal(data.event.questions, null);
+    assert.deepEqual(data.questions, DEFAULT_Q);
+    const t = fetch.calls.find((c) => c.url.includes('/rest/v1/form_templates')).url;
+    assert.ok(t.includes('kind=eq.volunteer') && t.includes('is_default=eq.true'), t);
+  } finally {
+    fetch.restore();
+  }
+
+  // scope=all: the default questions, and each row's event says whether it
+  // has questions of its own.
+  const all = [
+    vol({ email: 'a@example.com', event_id: EV, events: withOwn[EV] }),
+    vol({ email: 'b@example.com', event_id: null, events: null }),
+  ];
+  fetch = mockFetch(route({ allRows: all, templates }));
+  try {
+    const data = await (await get('?scope=all')).json();
+    assert.deepEqual(data.questions, DEFAULT_Q);
+    assert.deepEqual(data.rows[0].event.questions, [SHIFTS]);
+    assert.equal(data.rows[1].event, null);
   } finally {
     fetch.restore();
   }

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { motion } from 'motion/react';
 import { AlertTriangle, Calendar, Check, Gift, MapPin, RefreshCw } from 'lucide-react';
+import {
+  QuestionFields,
+  blankAnswers,
+  type AnswerState,
+  type Question,
+} from '../components/QuestionFields';
 import { SubpageHero } from '../components/SubpageHero';
 import { TurnstileBox, useTurnstile } from '../components/Turnstile';
 import type { CAACIContent } from '../data/content';
@@ -12,22 +18,13 @@ import {
   eventTitle,
   eventWhenText,
   eventsPath,
+  volunteerPath,
   EVENT_TZ,
   type EventRow,
 } from '../lib/events';
 import type { Lang } from '../lib/lang';
 import { mountIn, riseFromSm, shown } from '../lib/motion';
-import {
-  eventSlugFrom,
-  isTypedQuestion,
-  otherFieldId,
-  perkStep,
-  questionFieldId,
-  questionLabel,
-  readAnswers,
-  volunteerBody,
-  zhError,
-} from '../lib/registration';
+import { eventSlugFrom, perkStep, readAnswers, volunteerBody, zhError } from '../lib/registration';
 
 // ---------------------------------------------------------------- the API's shapes
 
@@ -36,19 +33,6 @@ interface Perk {
   item_en: string;
   item_zh: string;
   deadline: string | null;
-}
-
-interface Question {
-  id: string;
-  type: 'text' | 'textarea' | 'number' | 'phone' | 'date' | 'single' | 'multi';
-  label_en: string;
-  label_zh?: string | null;
-  required?: boolean;
-  other?: boolean;
-  options?: { id: string; label_en: string; label_zh?: string | null }[];
-  /** A number question's optional bounds (whole numbers). */
-  min?: number;
-  max?: number;
 }
 
 /** GET /api/event-register?event=<slug> → `event`. */
@@ -64,6 +48,9 @@ interface RegEvent {
   perk: Perk | null;
   questions: Question[];
   open: boolean;
+  /** The event's own volunteer questions (0035), asked on its volunteer page;
+   *  null when it asks the site's default ones. */
+  volunteer_questions?: Question[] | null;
 }
 
 interface RegInfo {
@@ -94,10 +81,6 @@ interface Done {
   linked: boolean;
   volunteer: boolean;
 }
-
-/** One question's state: a typed string, or the choices picked plus "Other". */
-type ChoiceState = { picked: string[]; other: string | null };
-type AnswerState = Record<string, string | ChoiceState>;
 
 // The address an anonymous registrant's account is offered under, handed to
 // /login-3/ through sessionStorage so the email never rides in the URL.
@@ -279,10 +262,7 @@ export function EventRegisterPage({
       setEv(event);
       setPerk(event.perk ?? null);
       // One entry per question, so every field is controlled from the start.
-      const blank: AnswerState = {};
-      for (const q of event.questions ?? [])
-        blank[q.id] = isTypedQuestion(q) ? '' : { picked: [], other: null };
-      setAnswers(blank);
+      setAnswers(blankAnswers(event.questions ?? []));
       setSignedIn(!!data.signed_in);
       if (data.signed_in) {
         if (data.email) setEmail(data.email);
@@ -464,148 +444,9 @@ export function EventRegisterPage({
 
   const perkOpen = !!perk && (!perk.deadline || Date.now() <= new Date(perk.deadline).getTime());
   const perkWhen = perk ? deadlineText(perk.deadline, lang) : '';
-
-  const setChoice = (q: Question, next: ChoiceState) =>
-    setAnswers((prev) => ({ ...prev, [q.id]: next }));
-  const choiceOf = (q: Question): ChoiceState => {
-    const value = answers[q.id];
-    return typeof value === 'object' && value ? value : { picked: [], other: null };
-  };
-
-  const questionField = (q: Question, index: number) => {
-    const label = questionLabel(q, lang);
-    const mark = q.required ? ' *' : '';
-    if (isTypedQuestion(q)) {
-      const value = typeof answers[q.id] === 'string' ? (answers[q.id] as string) : '';
-      const common = {
-        id: questionFieldId(q),
-        value,
-        autoComplete: 'off',
-        onChange: (e: { target: { value: string } }) =>
-          setAnswers((prev) => ({ ...prev, [q.id]: e.target.value })),
-      };
-      // One box per kind: the phone keyboard for a number or a phone, the
-      // device's date picker for a date. The API re-checks every one of them.
-      const box =
-        q.type === 'textarea' ? (
-          <textarea rows={3} maxLength={2000} className={`${INPUT} resize-none`} {...common} />
-        ) : q.type === 'number' ? (
-          <input
-            type="number"
-            inputMode="numeric"
-            step={1}
-            min={q.min}
-            max={q.max}
-            className={INPUT}
-            {...common}
-          />
-        ) : q.type === 'phone' ? (
-          <input
-            type="tel"
-            inputMode="tel"
-            maxLength={40}
-            className={INPUT}
-            {...common}
-            autoComplete="tel"
-          />
-        ) : q.type === 'date' ? (
-          <input type="date" className={INPUT} {...common} />
-        ) : (
-          <input type="text" maxLength={500} className={INPUT} {...common} />
-        );
-      return (
-        <div key={q.id}>
-          <label className={LABEL} htmlFor={questionFieldId(q)}>
-            {label}
-            {mark}
-          </label>
-          {box}
-        </div>
-      );
-    }
-    const single = q.type === 'single';
-    const state = choiceOf(q);
-    return (
-      <fieldset key={q.id}>
-        <legend className={LABEL} id={index === 0 ? undefined : undefined}>
-          {label}
-          {mark}
-        </legend>
-        <div className="space-y-1.5">
-          {(q.options ?? []).map((o, i) => {
-            const checked = state.picked.includes(o.id);
-            return (
-              <label key={o.id} className="flex items-center gap-2 cursor-pointer text-sm">
-                <input
-                  id={i === 0 ? questionFieldId(q) : `${questionFieldId(q)}-o-${o.id}`}
-                  type={single ? 'radio' : 'checkbox'}
-                  name={questionFieldId(q)}
-                  className="accent-brick"
-                  value={o.id}
-                  checked={checked}
-                  onChange={() =>
-                    setChoice(
-                      q,
-                      single
-                        ? { picked: [o.id], other: null }
-                        : {
-                            ...state,
-                            picked: checked
-                              ? state.picked.filter((id) => id !== o.id)
-                              : [...state.picked, o.id],
-                          },
-                    )
-                  }
-                />
-                <span className="text-neutral-800">{questionLabel(o, lang)}</span>
-              </label>
-            );
-          })}
-          {q.other && (
-            <div className="space-y-1.5">
-              <label className="flex items-center gap-2 cursor-pointer text-sm">
-                <input
-                  id={`${questionFieldId(q)}-other`}
-                  type={single ? 'radio' : 'checkbox'}
-                  name={questionFieldId(q)}
-                  className="accent-brick"
-                  checked={state.other !== null}
-                  onChange={() =>
-                    setChoice(
-                      q,
-                      state.other !== null
-                        ? { ...state, other: null }
-                        : { picked: single ? [] : state.picked, other: state.other ?? '' },
-                    )
-                  }
-                />
-                <span className="text-neutral-800">{en ? 'Other:' : '其他：'}</span>
-              </label>
-              <label className="sr-only" htmlFor={otherFieldId(q)}>
-                {en ? `Other — ${q.label_en}` : `其他——${label}`}
-              </label>
-              <input
-                id={otherFieldId(q)}
-                type="text"
-                maxLength={200}
-                autoComplete="off"
-                className={INPUT}
-                placeholder={en ? 'Please specify' : '请注明'}
-                value={state.other ?? ''}
-                // Typing an "Other" answer picks Other, as the Google Form did.
-                onChange={(e) =>
-                  setChoice(q, {
-                    picked: single && e.target.value.trim() ? [] : state.picked,
-                    other: e.target.value,
-                  })
-                }
-              />
-            </div>
-          )}
-        </div>
-      </fieldset>
-    );
-  };
+  // An event with volunteer questions of its own asks them on its volunteer
+  // page; the name-and-phone box here cannot, so it points there instead.
+  const ownVolunteerForm = Array.isArray(ev?.volunteer_questions);
 
   const perkCallout = perk && ev?.open !== false && (
     <div
@@ -788,57 +629,70 @@ export function EventRegisterPage({
         )}
       </div>
 
-      {questions.map(questionField)}
+      <QuestionFields questions={questions} answers={answers} onChange={setAnswers} lang={lang} />
 
       {/* Volunteering at this event, asked alongside the registration so nobody
           has to fill in the volunteer form as well. The name and phone only
-          appear once the box is ticked. */}
-      <div className="space-y-2">
-        <label className="flex items-center gap-2 cursor-pointer text-sm">
-          <input
-            id="ev-vol"
-            type="checkbox"
-            className="accent-brick"
-            checked={volChecked}
-            onChange={(e) => setVolChecked(e.target.checked)}
-          />
-          <span className="text-neutral-800">
-            {en ? "I'd also like to volunteer at this event" : '我也想在本次活动做志愿者'}
-          </span>
-        </label>
-        {volChecked && (
-          <div className="space-y-3 pl-6">
-            <div>
-              <label className={LABEL} htmlFor="ev-vol-name">
-                {en ? 'Your name *' : '姓名 *'}
-              </label>
-              <input
-                id="ev-vol-name"
-                type="text"
-                autoComplete="name"
-                maxLength={120}
-                value={volName}
-                onChange={(e) => setVolName(e.target.value)}
-                className={INPUT}
-              />
+          appear once the box is ticked. An event with volunteer questions of
+          its own (shifts, stations…) sends people to its volunteer page instead. */}
+      {ownVolunteerForm ? (
+        <p className="text-sm text-neutral-700">
+          {en ? 'Want to help out at this event? ' : '想在本次活动做志愿者？'}
+          <a
+            href={volunteerPath(ev as unknown as EventRow, lang)}
+            className="font-semibold text-neutral-800 hover:text-brick transition-colors"
+          >
+            {en ? 'Fill in the volunteer form' : '填写志愿者报名表'}
+          </a>
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer text-sm">
+            <input
+              id="ev-vol"
+              type="checkbox"
+              className="accent-brick"
+              checked={volChecked}
+              onChange={(e) => setVolChecked(e.target.checked)}
+            />
+            <span className="text-neutral-800">
+              {en ? "I'd also like to volunteer at this event" : '我也想在本次活动做志愿者'}
+            </span>
+          </label>
+          {volChecked && (
+            <div className="space-y-3 pl-6">
+              <div>
+                <label className={LABEL} htmlFor="ev-vol-name">
+                  {en ? 'Your name *' : '姓名 *'}
+                </label>
+                <input
+                  id="ev-vol-name"
+                  type="text"
+                  autoComplete="name"
+                  maxLength={120}
+                  value={volName}
+                  onChange={(e) => setVolName(e.target.value)}
+                  className={INPUT}
+                />
+              </div>
+              <div>
+                <label className={LABEL} htmlFor="ev-vol-phone">
+                  {en ? 'Phone' : '电话'}
+                </label>
+                <input
+                  id="ev-vol-phone"
+                  type="tel"
+                  autoComplete="tel"
+                  maxLength={40}
+                  value={volPhone}
+                  onChange={(e) => setVolPhone(e.target.value)}
+                  className={INPUT}
+                />
+              </div>
             </div>
-            <div>
-              <label className={LABEL} htmlFor="ev-vol-phone">
-                {en ? 'Phone' : '电话'}
-              </label>
-              <input
-                id="ev-vol-phone"
-                type="tel"
-                autoComplete="tel"
-                maxLength={40}
-                value={volPhone}
-                onChange={(e) => setVolPhone(e.target.value)}
-                className={INPUT}
-              />
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Honeypot: people never see or fill it; the API then answers ok without
           saving anything. Its name means nothing to browser autofill. */}
