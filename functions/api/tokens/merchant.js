@@ -69,7 +69,7 @@ export async function onRequestGet({ request, env }) {
       for (const m of rows) names.set(m.id, m.full_name);
     }
 
-    const rate = settings?.tokens_per_dollar || 10;
+    const rate = settings?.tokens_per_dollar || 50;
     const voidMs = (settings?.void_hours || 24) * 3600_000;
     const openTokens = Number(open) || 0;
     return json({

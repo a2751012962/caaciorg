@@ -53,8 +53,9 @@ test('every sticker says what it is, in both languages, and what it costs', () =
 test('the money line follows the rate, not a hard-coded ten', () => {
   assert.match(paySheetHtml({ ...JUICE, rate: 20 }, 'small', 'en', QR), /\$1\.50/);
   assert.match(paySheetHtml({ ...JUICE, tokens: 450, rate: 10 }, 'small', 'en', QR), /\$45\.00/);
-  // A missing rate must not print $Infinity on a hundred stickers.
-  assert.match(paySheetHtml({ ...JUICE, rate: 0 }, 'small', 'en', QR), /\$3\.00/);
+  // A missing rate must not print $Infinity on a hundred stickers: it falls
+  // back to the current default, 50 to the dollar (0036).
+  assert.match(paySheetHtml({ ...JUICE, rate: 0 }, 'small', 'en', QR), /\$0\.60/);
 });
 
 test('an item name cannot break out of the sheet', () => {

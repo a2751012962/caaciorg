@@ -40,7 +40,7 @@ export async function onRequestGet({ request, env }) {
       family = rows.map((m) => ({ id: m.id, name: m.full_name || 'Family member' }));
     }
 
-    const rate = settings?.tokens_per_dollar || 10;
+    const rate = settings?.tokens_per_dollar || 50;
     // Price each pack through token_quote rather than here, so the wallet can
     // never show a different number from the one the ledger will credit.
     const packCents = settings?.packs_cents || [];

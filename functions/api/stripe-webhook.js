@@ -173,7 +173,7 @@ export async function onRequestPost({ request, env }) {
         if (s.payment_status === 'paid') {
           const cents = Number(md.pack_cents);
           const settings = await DB.selectOne('token_settings', { id: true }, 'tokens_per_dollar');
-          const tokens = (cents * (settings?.tokens_per_dollar || 10)) / 100;
+          const tokens = (cents * (settings?.tokens_per_dollar || 50)) / 100;
           if (Number.isInteger(tokens) && tokens > 0) {
             const result = await DB.rpc('token_purchase_credit', {
               p_member: md.member_id,

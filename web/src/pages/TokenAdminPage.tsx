@@ -295,7 +295,7 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
   const [name, setName] = useState('');
   const [nameZh, setNameZh] = useState('');
   // tokens per dollar, so a printed sticker can show the money as well
-  const [rate, setRate] = useState(10);
+  const [rate, setRate] = useState(50);
   // the site's admins, so staff can be picked from a list
   const [people, setPeople] = useState<Person[]>([]);
 
@@ -303,7 +303,7 @@ function MerchantsTab({ lang, say }: { lang: Lang; say: Say }) {
     const res = await tokens.admin.merchants();
     if (res.ok) {
       setRows(res.data.rows);
-      setRate(res.data.rate || 10);
+      setRate(res.data.rate || 50);
       setPeople(res.data.people ?? []);
     } else say('error', refusalText(res, lang));
     // `say` is a fresh closure each render; the list only depends on the language

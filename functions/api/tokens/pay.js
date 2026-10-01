@@ -64,7 +64,7 @@ export async function onRequestGet({ request, env }) {
         (merchant.kind === 'internal' || settings?.pay_allow_partners === true) &&
         item.tokens <= (settings?.max_charge ?? 500),
       suspended: merchant.status !== 'active',
-      rate: settings?.tokens_per_dollar ?? 10,
+      rate: settings?.tokens_per_dollar ?? 50,
       signed_in: !!user,
       balance,
     });
