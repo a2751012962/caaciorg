@@ -873,6 +873,9 @@ test('admin member view: each top-up says what came back, a refund reads as one,
   }
 });
 
+// A call to Resend, by host — not by substring, which CodeQL rightly flags.
+const isMail = (c) => new URL(c.url).hostname === 'api.resend.com';
+
 test('refund request: the session is the member, two emails go out, and a repeat sends none', async () => {
   let already = false;
   const fetch = mockFetch(
@@ -908,9 +911,7 @@ test('refund request: the session is the member, two emails go out, and a repeat
     );
     assert.deepEqual(args, { p_tx: CASH, p_member: USER, p_note: 'changed my mind' });
 
-    const mails = fetch.calls
-      .filter((c) => c.url.includes('api.resend.com'))
-      .map((c) => JSON.parse(c.options.body));
+    const mails = fetch.calls.filter(isMail).map((c) => JSON.parse(c.options.body));
     assert.equal(mails.length, 2, 'one to the member, one to staff');
     const toMember = mails.find((m) => m.to === 'wei@example.com');
     assert.ok(toMember, 'the member gets a confirmation');
@@ -934,7 +935,7 @@ test('refund request: the session is the member, two emails go out, and a repeat
       }),
     });
     assert.deepEqual(await again.json(), { ok: true, already: true, kind: null });
-    assert.equal(fetch.calls.filter((c) => c.url.includes('api.resend.com')).length, 2);
+    assert.equal(fetch.calls.filter(isMail).length, 2);
 
     const malformed = await refundRequest({
       request: fakeRequest({ headers: auth, body: { tx_id: 'nope' } }),
@@ -958,11 +959,7 @@ test('refund request: the session is the member, two emails go out, and a repeat
     const body = await r.json();
     assert.equal(body.code, 'already_refunded');
     assert.match(body.error_zh, /已经退款/);
-    assert.equal(
-      refused.calls.some((c) => c.url.includes('api.resend.com')),
-      false,
-      'nothing is emailed for a refusal',
-    );
+    assert.equal(refused.calls.some(isMail), false, 'nothing is emailed for a refusal');
   } finally {
     refused.restore();
   }
