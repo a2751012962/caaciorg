@@ -19,6 +19,7 @@ const MIGRATIONS = [
   new URL('../supabase/migrations/0030_token_pay_codes.sql', import.meta.url),
   new URL('../supabase/migrations/0031_token_collected.sql', import.meta.url),
   new URL('../supabase/migrations/0032_token_item_report.sql', import.meta.url),
+  new URL('../supabase/migrations/0037_token_refund.sql', import.meta.url),
 ];
 
 // Open the bonus window around now() so the rate rules can be driven directly.
@@ -705,6 +706,195 @@ test('an admin can take tokens back, with a reason, never below zero', async () 
   assert.deepEqual(row, { kind: 'adjust', amount: -200 });
 });
 
+// ---------------------------------------------------------- refunds (0037) ----
+test('a top-up is refunded against its own row, in parts, never past what it was', async () => {
+  const admin = await member({ admin: true });
+  const m = await member({ tier: 'free', expires: null });
+  const cash = await call('token_admin_credit', m, 'cash', 200, 2000, admin, null); // $20 -> 200
+  assert.equal(await balance(m), 200);
+
+  // Not a top-up: a grant or a mint was never paid for.
+  const gift = await call('token_admin_credit', m, 'mint', 50, null, admin, 'prize');
+  assert.equal(
+    (await call('token_admin_refund', gift.tx_id, 10, 0, admin, null)).error,
+    'credit_not_found',
+  );
+  assert.equal(
+    (await call('token_admin_refund', uuid(), 10, 0, admin, null)).error,
+    'credit_not_found',
+  );
+  // Only an admin; whole positive numbers; the cash is never negative.
+  assert.equal((await call('token_admin_refund', cash.tx_id, 10, 100, m, null)).error, 'not_admin');
+  assert.equal(
+    (await call('token_admin_refund', cash.tx_id, 0, 0, admin, null)).error,
+    'invalid_amount',
+  );
+  assert.equal(
+    (await call('token_admin_refund', cash.tx_id, 10, -1, admin, null)).error,
+    'invalid_amount',
+  );
+
+  // Half back: the row points at the top-up and carries the cash handed over.
+  const half = await call('token_admin_refund', cash.tx_id, 100, 1000, admin, 'changed mind');
+  assert.equal(half.ok, true);
+  assert.equal(half.balance, 150, '200 + 50 gift - 100');
+  assert.deepEqual([half.tokens_left, half.cents_left], [100, 1000]);
+  const row = await one(
+    'select kind, amount, related_tx, cash_cents, reason, actor_id from public.token_tx where id = $1',
+    [half.tx_id],
+  );
+  assert.deepEqual(row, {
+    kind: 'adjust',
+    amount: -100,
+    related_tx: cash.tx_id,
+    cash_cents: 1000,
+    reason: 'changed mind',
+    actor_id: admin,
+  });
+
+  // The other half cannot become more than the top-up was, in tokens or in cash.
+  const tooMany = await call('token_admin_refund', cash.tx_id, 101, 1000, admin, null);
+  assert.equal(tooMany.error, 'over_refund');
+  assert.deepEqual([tooMany.left, tooMany.cents_left], [100, 1000]);
+  const tooMuch = await call('token_admin_refund', cash.tx_id, 100, 1001, admin, null);
+  assert.equal(tooMuch.error, 'over_refund_cash');
+  assert.equal(tooMuch.cents_left, 1000);
+
+  // Tokens already spent cannot be refunded: they are not in the account.
+  const clerk = await member();
+  const shop = await merchant({ staff: [clerk] });
+  await call('token_charge', m, shop, clerk, 120, null, null, 'idem-r1');
+  assert.equal(await balance(m), 30);
+  const spent = await call('token_admin_refund', cash.tx_id, 100, 1000, admin, null);
+  assert.equal(spent.error, 'insufficient_balance');
+  assert.equal(spent.balance, 30);
+
+  // What is left can go back with no cash at all (a token-only take-back).
+  const rest = await call('token_admin_refund', cash.tx_id, 30, 0, admin, null);
+  assert.equal(rest.ok, true);
+  assert.equal(rest.balance, 0);
+  assert.deepEqual([rest.tokens_left, rest.cents_left], [70, 1000]);
+});
+
+test('a refund’s cash is held to the desk’s ceiling; root is exempt; the tokens are not capped', async () => {
+  const admin = await member({ admin: true });
+  const root = await member({ admin: true, root: true });
+  const m = await member({ tier: 'free', expires: null });
+  // $200 bought at the desk is 2000 tokens — four times the 500-token mint cap.
+  await call('token_admin_credit', m, 'cash', 2000, 20000, admin, null);
+  const big = await call('token_purchase_credit', m, 2500, 25000, 'cs_refund_big'); // $250 online
+
+  // The tokens are bounded by the top-up itself, so 2000 go back in one action…
+  const cash = await one(`select id from public.token_tx where member_id = $1 and kind = 'cash'`, [
+    m,
+  ]);
+  assert.equal((await call('token_admin_refund', cash.id, 2000, 20000, admin, null)).ok, true);
+  // …but the cash is held to admin_cash_cap_cents per action, like taking it.
+  const over = await call('token_admin_refund', big.tx_id, 2500, 25000, admin, null);
+  assert.equal(over.error, 'over_cash_cap');
+  assert.equal(over.cap_cents, 20000);
+  assert.equal((await call('token_admin_refund', big.tx_id, 2500, 25000, root, null)).ok, true);
+  assert.equal(await balance(m), 0);
+});
+
+test('a member asks about their own row; the back office answers it', async () => {
+  const admin = await member({ admin: true });
+  const clerk = await member();
+  const shop = await merchant({ staff: [clerk] });
+  const m = await member({ tier: 'individual' });
+  const other = await member({ tier: 'individual' });
+  await call('token_membership_grant', m, null); // 450
+  const topUp = await call('token_purchase_credit', m, 100, 1000, 'cs_ask');
+  const charge = await call('token_charge', m, shop, clerk, 40, null, null, 'idem-ask');
+  const grant = await one(
+    `select id from public.token_tx where member_id = $1 and kind = 'grant'`,
+    [m],
+  );
+
+  // Only my own charges and top-ups; a grant is not something to ask back.
+  assert.equal(
+    (await call('token_refund_request', topUp.tx_id, other, 'mine?')).error,
+    'tx_not_found',
+  );
+  assert.equal((await call('token_refund_request', grant.id, m, null)).error, 'tx_not_found');
+  assert.equal((await call('token_refund_request', uuid(), m, null)).error, 'tx_not_found');
+
+  // A top-up: the row waits under review, the note kept; asking twice is fine.
+  const ask = await call('token_refund_request', topUp.tx_id, m, '  did not mean to  ');
+  assert.deepEqual(ask, { ok: true, kind: 'purchase', amount: 100 });
+  assert.deepEqual(
+    await one('select state, dispute_note from public.token_tx where id = $1', [topUp.tx_id]),
+    { state: 'disputed', dispute_note: 'did not mean to' },
+  );
+  assert.deepEqual(await call('token_refund_request', topUp.tx_id, m, 'again'), {
+    ok: true,
+    already: true,
+  });
+  assert.equal(await balance(m), 510, 'asking moves nothing');
+
+  // A top-up is never upheld from the dispute screen: the refund form is the
+  // answer, so the money handed back is on the record — and it closes the ask.
+  assert.equal(
+    (await call('token_dispute_resolve', topUp.tx_id, admin, true, null)).error,
+    'use_refund',
+  );
+  const refund = await call('token_admin_refund', topUp.tx_id, 100, 1000, admin, null);
+  assert.equal(refund.ok, true);
+  assert.equal(refund.resolved, true);
+  assert.deepEqual(
+    await one('select state, resolution, resolved_by from public.token_tx where id = $1', [
+      topUp.tx_id,
+    ]),
+    { state: 'ok', resolution: 'refunded', resolved_by: admin },
+  );
+  assert.equal(await balance(m), 410);
+  // Fully refunded: nothing left to ask about.
+  assert.equal(
+    (await call('token_refund_request', topUp.tx_id, m, null)).error,
+    'already_refunded',
+  );
+
+  // A charge: the same as the receipt link, proven by the session instead of
+  // the key, and rejected or upheld exactly as before.
+  assert.equal((await call('token_refund_request', charge.tx_id, m, 'not me')).ok, true);
+  assert.equal(
+    (await one('select state from public.token_tx where id = $1', [charge.tx_id])).state,
+    'disputed',
+  );
+  const rejected = await call(
+    'token_dispute_resolve',
+    charge.tx_id,
+    admin,
+    false,
+    'they were there',
+  );
+  assert.equal(rejected.upheld, false);
+  assert.equal(
+    (await one('select state from public.token_tx where id = $1', [charge.tx_id])).state,
+    'ok',
+  );
+  // A second ask, and a rejection of a top-up request, keep the row as it is.
+  const second = await call('token_purchase_credit', m, 100, 1000, 'cs_ask_2');
+  await call('token_refund_request', second.tx_id, m, null);
+  assert.equal((await call('token_dispute_resolve', second.tx_id, admin, false, 'no')).ok, true);
+  assert.deepEqual(
+    await one('select state, resolution from public.token_tx where id = $1', [second.tx_id]),
+    { state: 'ok', resolution: 'rejected' },
+  );
+  assert.equal(await balance(m), 510);
+
+  // The window is dispute_days, like the receipt link; a row already undone refuses.
+  await db.query(
+    `update public.token_tx set created_at = now() - interval '61 days' where id = $1`,
+    [second.tx_id],
+  );
+  const late = await call('token_refund_request', second.tx_id, m, null);
+  assert.equal(late.error, 'dispute_window_closed');
+  assert.equal(late.days, 60);
+  await call('token_void', charge.tx_id, admin, 'fix');
+  assert.equal((await call('token_refund_request', charge.tx_id, m, null)).error, 'already_undone');
+});
+
 // -------------------------------------------------------------- disputes ----
 test('a dispute needs the secret from the receipt; upheld ones reverse and suspend a shop at three', async () => {
   const clerk = await member();
@@ -959,7 +1149,7 @@ test('the ledger is server-only: RLS on, no policies, nothing for the browser ro
        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and (p.proname like 'token\\_%' or p.proname = 'members_guard_root')`,
   );
-  assert.ok(fns.length >= 14, `expected the token functions, saw ${fns.length}`);
+  assert.ok(fns.length >= 16, `expected the token functions, saw ${fns.length}`);
   for (const f of fns)
     assert.deepEqual({ anon: f.anon, auth: f.auth }, { anon: false, auth: false }, f.proname);
 });

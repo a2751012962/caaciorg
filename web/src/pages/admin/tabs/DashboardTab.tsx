@@ -89,6 +89,8 @@ interface Dashboard {
   };
   volunteers: { total: number; this_month: number };
   business: { pending: number };
+  /** open token disputes and refund requests (0037); null while tokens are off */
+  tokens?: { requests: number } | null;
 }
 
 const numFmt = (n: number | null | undefined) => (n == null ? '—' : String(n));
@@ -204,7 +206,15 @@ export default function DashboardTab() {
 
   // Three colours only: ink, green for the active count, and one attention
   // colour for the queues that need a follow-up.
-  const tiles: { label: string; value: number; sub?: string; tone?: string; goto: TabId }[] = [
+  // A tile opens a tab here, or — for the token back office, its own page — a link.
+  const tiles: {
+    label: string;
+    value: number;
+    sub?: string;
+    tone?: string;
+    goto?: TabId;
+    href?: string;
+  }[] = [
     {
       label: t('Active members', '有效会员'),
       value: sc.active,
@@ -244,6 +254,17 @@ export default function DashboardTab() {
       tone: d.business.pending ? 'text-amber-700' : undefined,
       goto: 'directory',
     },
+    ...(d.tokens
+      ? [
+          {
+            label: t('Token disputes & refund requests', '华协币申诉 / 退款申请'),
+            value: d.tokens.requests,
+            tone: d.tokens.requests ? 'text-amber-700' : undefined,
+            sub: t('In the token back office', '在代币后台处理'),
+            href: '/token-admin/?tab=disputes',
+          },
+        ]
+      : []),
   ];
 
   // Revenue: the shown year's total (and this month, when it is this year).
@@ -352,33 +373,47 @@ export default function DashboardTab() {
 
       {/* Stat tiles: the numbers staff act on, each a shortcut to its tab. */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-x-6 gap-y-6">
-        {tiles.map((x, i) => (
-          <motion.button
-            key={x.goto + x.label}
-            type="button"
-            initial={riseFromSm}
-            animate={shown}
-            transition={listItem(i)}
-            whileHover={hoverLift}
-            whileTap={tap}
-            onClick={() => go(x.goto)}
-            className="group text-left min-h-11 cursor-pointer"
-          >
-            <span className="flex items-start justify-between gap-2 text-xs font-bold text-neutral-500">
-              <span>{x.label}</span>
-              <ChevronRight
-                className="w-3.5 h-3.5 shrink-0 text-neutral-400 group-hover:text-brick transition-colors"
-                aria-hidden
-              />
-            </span>
-            <span
-              className={`block mt-1 text-2xl sm:text-3xl font-bold tabular-nums ${x.tone ?? 'text-ink'}`}
+        {tiles.map((x, i) => {
+          const inner = (
+            <>
+              <span className="flex items-start justify-between gap-2 text-xs font-bold text-neutral-500">
+                <span>{x.label}</span>
+                <ChevronRight
+                  className="w-3.5 h-3.5 shrink-0 text-neutral-400 group-hover:text-brick transition-colors"
+                  aria-hidden
+                />
+              </span>
+              <span
+                className={`block mt-1 text-2xl sm:text-3xl font-bold tabular-nums ${x.tone ?? 'text-ink'}`}
+              >
+                {numFmt(x.value)}
+              </span>
+              {x.sub && <span className="block text-xs text-neutral-500">{x.sub}</span>}
+            </>
+          );
+          const motionProps = {
+            initial: riseFromSm,
+            animate: shown,
+            transition: listItem(i),
+            whileHover: hoverLift,
+            whileTap: tap,
+            className: 'group block text-left min-h-11 cursor-pointer',
+          };
+          return x.href ? (
+            <motion.a key={x.href} href={x.href} {...motionProps}>
+              {inner}
+            </motion.a>
+          ) : (
+            <motion.button
+              key={(x.goto ?? '') + x.label}
+              type="button"
+              onClick={() => x.goto && go(x.goto)}
+              {...motionProps}
             >
-              {numFmt(x.value)}
-            </span>
-            {x.sub && <span className="block text-xs text-neutral-500">{x.sub}</span>}
-          </motion.button>
-        ))}
+              {inner}
+            </motion.button>
+          );
+        })}
       </div>
 
       {/* Revenue: figures beside the shown year month by month. */}
