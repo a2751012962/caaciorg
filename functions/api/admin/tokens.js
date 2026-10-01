@@ -1,12 +1,14 @@
 // /api/admin/tokens  (admin only; changing the settings is root only)
 //   GET ?view=overview            — settings + the treasurer's totals
-//       ?view=member&id=<uuid>    — one member's balance and history
+//       ?view=member&id=<uuid>[&offset=] — one member's balance and history, with
+//                                   what each top-up has had refunded
 //       ?view=ledger[&kind=&merchant_id=&offset=] — the whole ledger, newest first
 //       ?view=item&id=<uuid>[&offset=] — one menu item: what it sold, and the
 //                                   charges behind that
-//       ?view=disputes            — charges a member reported as not theirs
+//       ?view=disputes            — charges a member reported as not theirs, and
+//                                   top-ups a member asked back (0037)
 //       ?view=cash&date=YYYY-MM-DD — cash taken per admin that day (Central time)
-//   POST { action }               — grant | mint | cash | debit | resolve | settings
+//   POST { action }               — grant | mint | cash | debit | refund | resolve | settings
 // The caps on what an admin may mint live in the SQL functions (0024), so they
 // hold for every caller; this file only routes and explains refusals.
 import { json, bad, sb, requireAdmin } from '../_lib.js';
@@ -52,19 +54,47 @@ async function namesFor(DB, rows) {
   return names;
 }
 
-const shape = (names) => (t) => ({
-  ...t,
-  merchant: t.merchants || null,
-  merchants: undefined,
-  // The four characters the member's screen showed and the shop's console
-  // lists, so a query about one scan-to-pay charge can be matched from here
-  // without opening the merchant console. Same rule as merchant.js: a charge a
-  // clerk rang up has no code, because nobody had to check one.
-  confirm: t.kind === 'charge' && t.self_serve ? confirmCode(t.id) : '',
-  member_name: names.get(t.member_id)?.full_name || '',
-  member_email: names.get(t.member_id)?.email || '',
-  actor_name: names.get(t.actor_id)?.full_name || '',
-});
+// What each top-up on a page of rows has had refunded so far (0037): the
+// 'adjust' rows that point back at it, added up. Only cash and online purchases
+// can be refunded, so only those are looked up.
+async function refundsFor(DB, rows) {
+  const ids = rows.filter((t) => t.kind === 'cash' || t.kind === 'purchase').map((t) => t.id);
+  const back = new Map();
+  if (!ids.length) return back;
+  const { rows: refunds } = await DB.select('token_tx', {
+    columns: 'related_tx,amount,cash_cents',
+    filters: [`related_tx=in.(${ids.join(',')})`, 'kind=eq.adjust'],
+    limit: 500,
+  });
+  for (const r of refunds) {
+    const sum = back.get(r.related_tx) || { tokens: 0, cents: 0 };
+    sum.tokens += -r.amount;
+    sum.cents += r.cash_cents || 0;
+    back.set(r.related_tx, sum);
+  }
+  return back;
+}
+
+const shape =
+  (names, refunds = new Map()) =>
+  (t) => ({
+    ...t,
+    merchant: t.merchants || null,
+    merchants: undefined,
+    // A refund (0037) is the 'adjust' row that carries the cash handed back,
+    // 0 included; a plain take-back carries none.
+    refund: t.kind === 'adjust' && t.cash_cents !== null && t.cash_cents !== undefined,
+    // On a top-up: what has been refunded of it so far, or null when nothing has.
+    refunded: refunds.get(t.id) || null,
+    // The four characters the member's screen showed and the shop's console
+    // lists, so a query about one scan-to-pay charge can be matched from here
+    // without opening the merchant console. Same rule as merchant.js: a charge a
+    // clerk rang up has no code, because nobody had to check one.
+    confirm: t.kind === 'charge' && t.self_serve ? confirmCode(t.id) : '',
+    member_name: names.get(t.member_id)?.full_name || '',
+    member_email: names.get(t.member_id)?.email || '',
+    actor_name: names.get(t.actor_id)?.full_name || '',
+  });
 
 // Midnight-to-midnight in Central time for a YYYY-MM-DD, as UTC instants.
 function centralDay(date) {
@@ -119,14 +149,15 @@ export async function onRequestGet({ request, env }) {
         }),
         DB.selectOne('token_settings', { id: true }, 'grants'),
       ]);
-      const names = await namesFor(DB, tx.rows);
+      const [names, refunds] = await Promise.all([namesFor(DB, tx.rows), refundsFor(DB, tx.rows)]);
       return json({
         member,
         masked_name: maskName(member.full_name),
         balance: Number(balance) || 0,
         grant_target: Number(settings?.grants?.[member.tier_id]) || 0,
         total: tx.total,
-        rows: tx.rows.map(shape(names)),
+        offset,
+        rows: tx.rows.map(shape(names, refunds)),
       });
     }
 
@@ -145,8 +176,8 @@ export async function onRequestGet({ request, env }) {
         offset,
         count: 'exact',
       });
-      const names = await namesFor(DB, tx.rows);
-      return json({ total: tx.total, offset, rows: tx.rows.map(shape(names)) });
+      const [names, refunds] = await Promise.all([namesFor(DB, tx.rows), refundsFor(DB, tx.rows)]);
+      return json({ total: tx.total, offset, rows: tx.rows.map(shape(names, refunds)) });
     }
 
     // One menu item on its own: what it is, what it has sold, and the charges
@@ -299,6 +330,26 @@ export async function onRequestPost({ request, env }) {
         p_actor: actor,
         p_uphold: b.uphold === true,
         p_note: typeof b.note === 'string' ? b.note.slice(0, 500) : null,
+      });
+      return result?.ok ? json(result) : ledgerError(result);
+    }
+
+    // Undo a top-up (0037): the credit row names the member, so none is passed.
+    // The money itself is handed back at the desk, or refunded on the card in
+    // Stripe first; this records it and takes the tokens out of the account.
+    if (b.action === 'refund') {
+      if (!UUID_RE.test(b.tx_id || '')) return bad('Which top-up?');
+      const amount = Number(b.amount);
+      const cents = b.cash_cents === undefined || b.cash_cents === null ? 0 : Number(b.cash_cents);
+      if (!Number.isInteger(amount) || amount <= 0)
+        return bad('Enter a whole number of tokens above zero.');
+      if (!Number.isInteger(cents) || cents < 0) return bad('Enter the cash returned, in cents.');
+      const result = await DB.rpc('token_admin_refund', {
+        p_tx: b.tx_id,
+        p_amount: amount,
+        p_cash_cents: cents,
+        p_actor: actor,
+        p_reason: typeof b.reason === 'string' ? b.reason.slice(0, 200) : null,
       });
       return result?.ok ? json(result) : ledgerError(result);
     }

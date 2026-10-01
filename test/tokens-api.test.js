@@ -14,6 +14,7 @@ import { onRequestGet as payGet, onRequestPost as payPost } from '../functions/a
 import { onRequestPost as collect } from '../functions/api/tokens/collect.js';
 import { onRequestPost as buy } from '../functions/api/tokens/buy.js';
 import { onRequestGet as disputeGet } from '../functions/api/tokens/dispute.js';
+import { onRequestPost as refundRequest } from '../functions/api/tokens/refund-request.js';
 import {
   onRequestPost as adminTokens,
   onRequestGet as adminTokensGet,
@@ -740,6 +741,296 @@ test('admin cash top-up: a running promotion is handed over at the desk', async 
     );
     assert.equal(args.p_amount, 150, '$10 buys 150 while the promotion is on');
     assert.equal(args.p_cash_cents, 1000, 'the cash taken is still $10');
+  } finally {
+    fetch.restore();
+  }
+});
+
+// ---------------------------------------------------- refunds (0037) ----
+const CASH = '77777777-7777-4777-8777-777777777777';
+const BACK = '88888888-8888-4888-8888-888888888888';
+
+test('admin member view: each top-up says what came back, a refund reads as one, and refund routes to the ledger', async () => {
+  const fetch = mockFetch(
+    backend({
+      members: [
+        {
+          id: USER,
+          full_name: 'Wei Zhang',
+          email: 'wei@example.com',
+          is_admin: true,
+          is_root: false,
+        },
+      ],
+      token_settings: [{ id: true, grants: { student: 150 } }],
+      token_balance: 150,
+      token_tx: (url) =>
+        // the second read is the refunds behind the page's top-ups
+        url.includes('related_tx=in.')
+          ? [{ related_tx: CASH, amount: -50, cash_cents: 500 }]
+          : [
+              {
+                id: BACK,
+                created_at: '2026-10-01T20:00:00Z',
+                kind: 'adjust',
+                amount: -50,
+                state: 'ok',
+                cash_cents: 500,
+                related_tx: CASH,
+                member_id: USER,
+                actor_id: USER,
+              },
+              {
+                id: CASH,
+                created_at: '2026-10-01T19:00:00Z',
+                kind: 'cash',
+                amount: 200,
+                state: 'ok',
+                cash_cents: 2000,
+                member_id: USER,
+                actor_id: USER,
+              },
+              {
+                id: TX,
+                created_at: '2026-10-01T18:00:00Z',
+                kind: 'adjust',
+                amount: -20,
+                state: 'ok',
+                cash_cents: null,
+                reason: 'mint by mistake',
+                member_id: USER,
+                actor_id: USER,
+              },
+            ],
+      token_admin_refund: {
+        ok: true,
+        tx_id: BACK,
+        balance: 100,
+        tokens_left: 100,
+        cents_left: 1000,
+      },
+    }),
+  );
+  try {
+    const r = await adminTokensGet({
+      request: fakeRequest({
+        url: `https://x/api/admin/tokens?view=member&id=${USER}&offset=50`,
+        headers: auth,
+      }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.equal(body.offset, 50);
+    assert.equal(body.balance, 150);
+    assert.equal(body.grant_target, 0, 'no tier on the member row');
+    assert.deepEqual(
+      body.rows.map((t) => [t.id, t.refund, t.refunded]),
+      [
+        [BACK, true, null],
+        [CASH, false, { tokens: 50, cents: 500 }],
+        [TX, false, null],
+      ],
+      'a refund is the adjust row with cash on it; a plain take-back is not',
+    );
+    const lookup = fetch.calls.find((c) => c.url.includes('related_tx=in.')).url;
+    assert.ok(decodeURIComponent(lookup).includes(`related_tx=in.(${CASH})`), lookup);
+    assert.doesNotMatch(decodeURIComponent(lookup), new RegExp(TX), 'only top-ups are looked up');
+
+    // The refund names the top-up, not the member: the row knows whose it is.
+    const refund = await adminTokens({
+      request: fakeRequest({
+        headers: auth,
+        body: { action: 'refund', tx_id: CASH, amount: 100, cash_cents: 1000, reason: ' x ' },
+      }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(refund.status, 200);
+    const args = JSON.parse(
+      fetch.calls.find((c) => c.url.includes('rpc/token_admin_refund')).options.body,
+    );
+    assert.deepEqual(args, {
+      p_tx: CASH,
+      p_amount: 100,
+      p_cash_cents: 1000,
+      p_actor: USER,
+      p_reason: ' x ',
+    });
+    for (const body of [
+      { action: 'refund', tx_id: 'nope', amount: 1, cash_cents: 0 },
+      { action: 'refund', tx_id: CASH, amount: 0, cash_cents: 0 },
+      { action: 'refund', tx_id: CASH, amount: 1.5, cash_cents: 0 },
+      { action: 'refund', tx_id: CASH, amount: 1, cash_cents: -1 },
+    ]) {
+      const bad = await adminTokens({
+        request: fakeRequest({ headers: auth, body }),
+        env: fakeEnv(ON),
+      });
+      assert.equal(bad.status, 400, JSON.stringify(body));
+    }
+  } finally {
+    fetch.restore();
+  }
+});
+
+// A call to Resend, by host — not by substring, which CodeQL rightly flags.
+const isMail = (c) => new URL(c.url).hostname === 'api.resend.com';
+
+test('refund request: the session is the member, two emails go out, and a repeat sends none', async () => {
+  let already = false;
+  const fetch = mockFetch(
+    backend({
+      members: [{ id: USER, full_name: 'Wei Zhang', email: 'wei@example.com' }],
+      token_refund_request: () =>
+        already ? { ok: true, already: true } : { ok: true, kind: 'cash', amount: 200 },
+      token_tx: [
+        {
+          id: CASH,
+          kind: 'cash',
+          amount: 200,
+          created_at: '2026-10-01T19:00:00Z',
+          cash_cents: 2000,
+        },
+      ],
+    }),
+  );
+  try {
+    const r = await refundRequest({
+      request: fakeRequest({ headers: auth, body: { tx_id: CASH, note: '  changed my mind  ' } }),
+      env: fakeEnv({
+        ...ON,
+        RESEND_API_KEY: 'k',
+        NOTIFY_FROM: 'noreply@caaci',
+        NOTIFY_TO: 'staff@caaci',
+      }),
+    });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { ok: true, already: false, kind: 'cash' });
+    const args = JSON.parse(
+      fetch.calls.find((c) => c.url.includes('rpc/token_refund_request')).options.body,
+    );
+    assert.deepEqual(args, { p_tx: CASH, p_member: USER, p_note: 'changed my mind' });
+
+    const mails = fetch.calls.filter(isMail).map((c) => JSON.parse(c.options.body));
+    assert.equal(mails.length, 2, 'one to the member, one to staff');
+    const toMember = mails.find((m) => m.to === 'wei@example.com');
+    assert.ok(toMember, 'the member gets a confirmation');
+    assert.match(toMember.subject, /refund request/i);
+    assert.match(toMember.html, /changed my mind/);
+    assert.match(toMember.html, /200 tokens/);
+    const toStaff = mails.find((m) => m.to === 'staff@caaci');
+    assert.ok(toStaff, 'staff are told');
+    assert.match(toStaff.subject, /refund requested/i);
+    assert.equal(toStaff.reply_to, 'wei@example.com');
+
+    // Asked again: the function says so, and nobody is emailed twice.
+    already = true;
+    const again = await refundRequest({
+      request: fakeRequest({ headers: auth, body: { tx_id: CASH } }),
+      env: fakeEnv({
+        ...ON,
+        RESEND_API_KEY: 'k',
+        NOTIFY_FROM: 'noreply@caaci',
+        NOTIFY_TO: 'staff@caaci',
+      }),
+    });
+    assert.deepEqual(await again.json(), { ok: true, already: true, kind: null });
+    assert.equal(fetch.calls.filter(isMail).length, 2);
+
+    const malformed = await refundRequest({
+      request: fakeRequest({ headers: auth, body: { tx_id: 'nope' } }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(malformed.status, 400);
+  } finally {
+    fetch.restore();
+  }
+
+  // A refusal from the ledger comes back in both languages.
+  const refused = mockFetch(
+    backend({ token_refund_request: { error: 'already_refunded' }, members: [{ id: USER }] }),
+  );
+  try {
+    const r = await refundRequest({
+      request: fakeRequest({ headers: auth, body: { tx_id: CASH } }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(r.status, 409);
+    const body = await r.json();
+    assert.equal(body.code, 'already_refunded');
+    assert.match(body.error_zh, /已经退款/);
+    assert.equal(refused.calls.some(isMail), false, 'nothing is emailed for a refusal');
+  } finally {
+    refused.restore();
+  }
+});
+
+test('wallet: a row can be asked about while it stands and is recent; a refund reads as one', async () => {
+  const OLD = '99999999-9999-4999-8999-999999999999';
+  const fetch = mockFetch(
+    backend({
+      members: [{ id: USER, full_name: 'Wei Zhang', status: 'active' }],
+      token_settings: [{ id: true, tokens_per_dollar: 10, packs_cents: [], dispute_days: 60 }],
+      token_balance: 100,
+      token_tx: (url) =>
+        url.includes('related_tx=in.')
+          ? [{ related_tx: CASH, amount: -200, cash_cents: 2000 }]
+          : [
+              // a top-up fully refunded: nothing left to ask about
+              {
+                id: CASH,
+                created_at: new Date().toISOString(),
+                kind: 'cash',
+                amount: 200,
+                state: 'ok',
+                cash_cents: 2000,
+                items: [],
+              },
+              // the refund itself
+              {
+                id: BACK,
+                created_at: new Date().toISOString(),
+                kind: 'adjust',
+                amount: -200,
+                state: 'ok',
+                cash_cents: 2000,
+                items: [],
+              },
+              // a recent charge that stands
+              {
+                id: TX,
+                created_at: new Date().toISOString(),
+                kind: 'charge',
+                amount: -30,
+                state: 'ok',
+                items: [],
+                merchant_id: SHOP,
+              },
+              // a charge too old to ask about
+              {
+                id: OLD,
+                created_at: '2020-01-01T00:00:00Z',
+                kind: 'charge',
+                amount: -30,
+                state: 'ok',
+                items: [],
+              },
+            ],
+    }),
+  );
+  try {
+    const r = await me({ request: fakeRequest({ headers: auth }), env: fakeEnv(ON) });
+    assert.equal(r.status, 200);
+    const { history } = await r.json();
+    assert.deepEqual(
+      history.map((t) => [t.id, t.can_request, t.refund, t.refunded]),
+      [
+        [CASH, false, false, { tokens: 200, cents: 2000 }],
+        [BACK, false, true, null],
+        [TX, true, false, null],
+        [OLD, false, false, null],
+      ],
+    );
   } finally {
     fetch.restore();
   }
