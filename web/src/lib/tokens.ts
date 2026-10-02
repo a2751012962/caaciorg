@@ -265,6 +265,10 @@ export interface LedgerTx {
   refund: boolean;
   /** on a cash or online top-up: what has been refunded of it so far; null when nothing */
   refunded: { tokens: number; cents: number } | null;
+  /** an online purchase whose Stripe session is on record: refundable to the card (0039) */
+  card?: boolean;
+  /** on a refund row: Stripe's id for the money that went back to the card */
+  stripe_refund_id?: string | null;
 }
 
 /** One member's account as the back office reads it (view=member). */
@@ -292,6 +296,8 @@ export interface RefundDone {
   balance: number;
   tokens_left: number;
   cents_left: number;
+  /** set when the card was refunded as well (0039) */
+  stripe_refund_id?: string;
 }
 
 /** An admin's account, as the add-staff pick-list shows it. */
@@ -365,7 +371,8 @@ export const planTokens = () => api<PlanTokens>('/api/tokens/plans');
 
 const signed = { auth: true } as const;
 const get = <T>(path: string) => api<T & Refusal>(path, undefined, signed);
-const post = <T>(path: string, body: unknown) => api<T & Refusal>(path, body, signed);
+const post = <T>(path: string, body: unknown, headers?: Record<string, string>) =>
+  api<T & Refusal>(path, body, { ...signed, headers });
 
 export const tokens = {
   wallet: () => get<Wallet>('/api/tokens/me'),
@@ -474,14 +481,22 @@ export const tokens = {
         reason,
       }),
     /** Give a cash or online top-up back, in whole or in part (0037). */
-    refund: (tx_id: string, amount: number, cash_cents: number, reason: string) =>
-      post<RefundDone>('/api/admin/tokens', {
-        action: 'refund',
-        tx_id,
-        amount,
-        cash_cents,
-        reason,
-      }),
+    refund: (
+      tx_id: string,
+      amount: number,
+      cash_cents: number,
+      reason: string,
+      /** 0039: also refund the card (an online purchase); needs the emailed code in `headers` */
+      opts: { stripe?: boolean; headers?: Record<string, string> } = {},
+    ) =>
+      post<RefundDone>(
+        '/api/admin/tokens',
+        { action: 'refund', tx_id, amount, cash_cents, reason, stripe: opts.stripe === true },
+        opts.headers,
+      ),
+    /** Email the signed-in admin the code that a card refund must carry. */
+    actionCode: () =>
+      post<{ ok: true; sent_to: string; valid_minutes: number }>('/api/admin/action-code', {}),
     resolve: (tx_id: string, uphold: boolean, note: string) =>
       post<{ ok: true; upheld: boolean; merchant_suspended?: boolean }>('/api/admin/tokens', {
         action: 'resolve',

@@ -48,7 +48,11 @@ export async function onRequestGet({ request, env }) {
     if (topUps.length) {
       const { rows: backs } = await DB.select('token_tx', {
         columns: 'related_tx,amount,cash_cents',
-        filters: [`related_tx=in.(${topUps.map((t) => t.id).join(',')})`, 'kind=eq.adjust'],
+        filters: [
+          `related_tx=in.(${topUps.map((t) => t.id).join(',')})`,
+          'kind=eq.adjust',
+          'state=neq.voided',
+        ],
         limit: 200,
       });
       for (const r of backs) {

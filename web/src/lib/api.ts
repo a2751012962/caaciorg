@@ -13,9 +13,9 @@ export interface ApiResult<T> {
 export async function api<T = Record<string, unknown>>(
   path: string,
   body?: unknown,
-  opts: { method?: string; auth?: boolean } = {},
+  opts: { method?: string; auth?: boolean; headers?: Record<string, string> } = {},
 ): Promise<ApiResult<T>> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...(opts.headers ?? {}) };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (opts.auth) {
     const { data } = await supabase.auth.getSession();

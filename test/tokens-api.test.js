@@ -21,6 +21,7 @@ import {
 } from '../functions/api/admin/tokens.js';
 import { onRequestPost as roles } from '../functions/api/admin/roles.js';
 import { onRequestPost as adminMembers } from '../functions/api/admin/members.js';
+import { codeFor, currentSlot } from '../functions/api/admin/_action-code.js';
 import { onRequestGet as verify } from '../functions/api/verify.js';
 import { onRequestPost as webhook } from '../functions/api/stripe-webhook.js';
 
@@ -875,6 +876,166 @@ test('admin member view: each top-up says what came back, a refund reads as one,
 
 // A call to Resend, by host — not by substring, which CodeQL rightly flags.
 const isMail = (c) => new URL(c.url).hostname === 'api.resend.com';
+const isStripe = (c) => new URL(c.url).hostname === 'api.stripe.com';
+
+// ------------------------------------------- refund to the card (0039) ----
+const BUY = '66666666-6666-4666-8666-666666666666';
+const codeHeaders = async () => ({
+  ...auth,
+  'x-admin-code': await codeFor(fakeEnv(ON), USER, currentSlot()),
+});
+
+// The ledger rows the refund reads, and Stripe answering by path.
+function cardBackend({ stripeRefund = { id: 're_1' }, refundStatus = 200 } = {}) {
+  const db = backend({
+    members: [{ id: USER, email: 'admin@example.com', is_admin: true, is_root: false }],
+    token_tx: (url) => {
+      if (url.includes(`id=eq.${BUY}`))
+        return [
+          {
+            id: BUY,
+            kind: 'purchase',
+            member_id: MEMBER,
+            stripe_session_id: 'cs_tok',
+            cash_cents: 2000,
+          },
+        ];
+      if (url.includes(`id=eq.${CASH}`))
+        return [
+          { id: CASH, kind: 'cash', member_id: MEMBER, stripe_session_id: null, cash_cents: 2000 },
+        ];
+      return [];
+    },
+    token_admin_refund: { ok: true, tx_id: BACK, balance: 0, tokens_left: 0, cents_left: 0 },
+    token_refund_undo: { ok: true, tx_id: TX, balance: 200 },
+  });
+  return (url, options) => {
+    if (new URL(url).hostname !== 'api.stripe.com') return db(url, options);
+    const path = new URL(url).pathname;
+    if (path.endsWith('/checkout/sessions/cs_tok'))
+      return { body: { id: 'cs_tok', payment_intent: 'pi_1' } };
+    if (path.endsWith('/refunds'))
+      return {
+        status: refundStatus,
+        body: refundStatus === 200 ? stripeRefund : { error: { message: 'card expired' } },
+      };
+    return { status: 404, body: { error: { message: `no stub for ${path}` } } };
+  };
+}
+
+const refundToCard = (headers, body) =>
+  adminTokens({
+    request: fakeRequest({
+      headers,
+      body: { action: 'refund', tx_id: BUY, amount: 200, cash_cents: 2000, stripe: true, ...body },
+    }),
+    env: fakeEnv(ON),
+  });
+
+test('card refund: needs the emailed code, then the ledger goes first and Stripe second', async () => {
+  const fetch = mockFetch(cardBackend());
+  try {
+    // No code: nothing moves, nothing is asked of Stripe.
+    const asked = await refundToCard(auth);
+    assert.equal(asked.status, 428);
+    assert.equal((await asked.json()).code_required, true);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('/rpc/')),
+      false,
+      'the ledger was not touched',
+    );
+    assert.equal(fetch.calls.some(isStripe), false);
+
+    const r = await refundToCard(await codeHeaders());
+    assert.equal(r.status, 200);
+    const body = await r.json();
+    assert.equal(body.stripe_refund_id, 're_1');
+    assert.equal(body.tx_id, BACK);
+
+    const ledger = fetch.calls.findIndex((c) => c.url.includes('rpc/token_admin_refund'));
+    const stripeCalls = fetch.calls.filter(isStripe);
+    assert.equal(stripeCalls.length, 2, 'the session is read, then one refund is made');
+    assert.ok(
+      fetch.calls.indexOf(stripeCalls[0]) > ledger,
+      'the ledger took the tokens before Stripe was asked',
+    );
+    const refund = stripeCalls[1];
+    assert.ok(refund.url.endsWith('/refunds'));
+    const params = new URLSearchParams(refund.options.body);
+    assert.equal(params.get('payment_intent'), 'pi_1');
+    assert.equal(params.get('amount'), '2000', 'the cash entered, not the whole purchase');
+    assert.equal(params.get('metadata[token_tx]'), BACK);
+    assert.equal(params.get('metadata[credit_tx]'), BUY);
+    assert.equal(
+      refund.options.headers['idempotency-key'],
+      `token-refund-${BACK}`,
+      'a retry cannot refund the card twice for one ledger row',
+    );
+    // Stripe's id lands on the refund row.
+    const stamp = fetch.calls.find(
+      (c) => c.options.method === 'PATCH' && c.url.includes(`id=eq.${BACK}`),
+    );
+    assert.deepEqual(JSON.parse(stamp.options.body), { stripe_refund_id: 're_1' });
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('rpc/token_refund_undo')),
+      false,
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('card refund: when Stripe refuses, the tokens go back and nothing is recorded', async () => {
+  const fetch = mockFetch(cardBackend({ refundStatus: 402 }));
+  try {
+    const r = await refundToCard(await codeHeaders());
+    assert.equal(r.status, 502);
+    const body = await r.json();
+    assert.equal(body.code, 'stripe_refused');
+    assert.equal(body.restored, true);
+    assert.match(body.error, /card expired/);
+    assert.match(body.error_zh, /已退回会员账户/);
+    const undo = JSON.parse(
+      fetch.calls.find((c) => c.url.includes('rpc/token_refund_undo')).options.body,
+    );
+    assert.equal(undo.p_tx, BACK, 'the refund row that was just written');
+    assert.equal(undo.p_actor, USER);
+    assert.match(undo.p_reason, /card expired/);
+    assert.equal(
+      fetch.calls.some((c) => c.options.method === 'PATCH'),
+      false,
+      'no Stripe id is stamped on a refund that did not happen',
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('card refund: only an online purchase with a session; without the flag no code and no Stripe', async () => {
+  const fetch = mockFetch(cardBackend());
+  try {
+    // A cash top-up is handed back at the desk, never to a card.
+    const cash = await refundToCard(await codeHeaders(), { tx_id: CASH });
+    assert.equal(cash.status, 409);
+    // Nothing to send back to the card: refused before the code is even checked.
+    const nothing = await refundToCard(auth, { cash_cents: 0 });
+    assert.equal(nothing.status, 400);
+    assert.equal(fetch.calls.some(isStripe), false);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('/rpc/')),
+      false,
+    );
+
+    // Recording a refund made by hand in the Dashboard needs no code.
+    const byHand = await refundToCard(auth, { stripe: false });
+    assert.equal(byHand.status, 200);
+    assert.equal((await byHand.json()).stripe_refund_id, undefined);
+    assert.equal(fetch.calls.some(isStripe), false);
+    assert.ok(fetch.calls.some((c) => c.url.includes('rpc/token_admin_refund')));
+  } finally {
+    fetch.restore();
+  }
+});
 
 test('refund request: the session is the member, two emails go out, and a repeat sends none', async () => {
   let already = false;

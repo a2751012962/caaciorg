@@ -192,6 +192,7 @@ const MESSAGES = {
     `这笔充值还可退现金 $${(d.cents_left / 100).toFixed(2)}。`,
   ],
   tx_not_found: () => ['That record is not in your account.', '你的账户里没有这条记录。'],
+  refund_not_found: () => ['That is not a refund row.', '这不是一条退款记录。'],
   already_refunded: () => ['That top-up has already been refunded.', '这笔充值已经退款。'],
   use_refund: () => [
     'A top-up is given back with the Refund form, so the money returned is on the record.',

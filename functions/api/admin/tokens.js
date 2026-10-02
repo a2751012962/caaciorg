@@ -9,9 +9,11 @@
 //                                   top-ups a member asked back (0037)
 //       ?view=cash&date=YYYY-MM-DD — cash taken per admin that day (Central time)
 //   POST { action }               — grant | mint | cash | debit | refund | resolve | settings
+//                                   (refund with stripe:true also refunds the card: 0039,
+//                                   needs the x-admin-code header)
 // The caps on what an admin may mint live in the SQL functions (0024), so they
 // hold for every caller; this file only routes and explains refusals.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+import { json, bad, sb, stripe, requireAdmin } from '../_lib.js';
 import {
   tokensEnabled,
   tokensOff,
@@ -21,6 +23,8 @@ import {
   confirmCode,
   UUID_RE,
 } from '../_tokens.js';
+import { requireActionCode } from './_action-code.js';
+import { resolveTarget } from './_stripe-target.js';
 
 const PAGE = 50;
 const KINDS = [
@@ -38,7 +42,7 @@ const KINDS = [
 const TX_COLS =
   'id,created_at,kind,amount,state,items,note,reason,cash_cents,member_id,actor_id,merchant_id,related_tx,' +
   'grant_period,disputed_at,dispute_note,resolution,receipt_sent_at,receipt_error,self_serve,' +
-  'merchants(name,name_zh)';
+  'stripe_session_id,stripe_refund_id,merchants(name,name_zh)';
 
 // full names for the member/actor ids on a page of ledger rows
 async function namesFor(DB, rows) {
@@ -63,7 +67,8 @@ async function refundsFor(DB, rows) {
   if (!ids.length) return back;
   const { rows: refunds } = await DB.select('token_tx', {
     columns: 'related_tx,amount,cash_cents',
-    filters: [`related_tx=in.(${ids.join(',')})`, 'kind=eq.adjust'],
+    // a refund Stripe refused was voided (0039) and gave nothing back
+    filters: [`related_tx=in.(${ids.join(',')})`, 'kind=eq.adjust', 'state=neq.voided'],
     limit: 500,
   });
   for (const r of refunds) {
@@ -86,6 +91,10 @@ const shape =
     refund: t.kind === 'adjust' && t.cash_cents !== null && t.cash_cents !== undefined,
     // On a top-up: what has been refunded of it so far, or null when nothing has.
     refunded: refunds.get(t.id) || null,
+    // An online purchase whose Checkout Session is on record can be refunded to
+    // the card from here (0039). The session id itself stays on the server.
+    card: t.kind === 'purchase' && !!t.stripe_session_id,
+    stripe_session_id: undefined,
     // The four characters the member's screen showed and the shop's console
     // lists, so a query about one scan-to-pay charge can be matched from here
     // without opening the merchant console. Same rule as merchant.js: a charge a
@@ -335,8 +344,12 @@ export async function onRequestPost({ request, env }) {
     }
 
     // Undo a top-up (0037): the credit row names the member, so none is passed.
-    // The money itself is handed back at the desk, or refunded on the card in
-    // Stripe first; this records it and takes the tokens out of the account.
+    // Cash is handed back at the desk and this records it. An online purchase
+    // with `stripe: true` (0039) is also refunded to the card: the ledger goes
+    // first (its refusal costs nothing), then Stripe; if Stripe refuses, the
+    // tokens are put back (token_refund_undo) and nothing is recorded. Money
+    // leaving the account needs the emailed verification code, like the
+    // membership refunds.
     if (b.action === 'refund') {
       if (!UUID_RE.test(b.tx_id || '')) return bad('Which top-up?');
       const amount = Number(b.amount);
@@ -344,6 +357,28 @@ export async function onRequestPost({ request, env }) {
       if (!Number.isInteger(amount) || amount <= 0)
         return bad('Enter a whole number of tokens above zero.');
       if (!Number.isInteger(cents) || cents < 0) return bad('Enter the cash returned, in cents.');
+      const toCard = b.stripe === true;
+      let credit = null;
+      if (toCard) {
+        credit = await DB.selectOne(
+          'token_tx',
+          { id: b.tx_id },
+          'id,kind,member_id,stripe_session_id,cash_cents',
+        );
+        if (!credit || credit.kind !== 'purchase')
+          return bad(
+            'Only an online purchase is refunded to a card. A cash top-up is handed back at the desk.',
+            409,
+          );
+        if (cents <= 0) return bad('Enter the amount to refund to the card.');
+        if (!credit.stripe_session_id)
+          return bad(
+            'This purchase has no Stripe session on record. Refund it in the Stripe Dashboard, then record it here without the card option.',
+            422,
+          );
+        const check = await requireActionCode(request, env, actor);
+        if (check.error) return check.error;
+      }
       const result = await DB.rpc('token_admin_refund', {
         p_tx: b.tx_id,
         p_amount: amount,
@@ -351,7 +386,59 @@ export async function onRequestPost({ request, env }) {
         p_actor: actor,
         p_reason: typeof b.reason === 'string' ? b.reason.slice(0, 200) : null,
       });
-      return result?.ok ? json(result) : ledgerError(result);
+      if (!result?.ok) return ledgerError(result);
+      if (!toCard) return json(result);
+
+      // The money. The refund row's id is the idempotency key, so a retried
+      // request cannot refund the card twice for one ledger row.
+      try {
+        const S = stripe(env);
+        const target = await resolveTarget(S, { stripe_session_id: credit.stripe_session_id });
+        if (!target) throw new Error('no charge is linked to this Checkout Session');
+        const refund = await S.call(
+          'refunds',
+          {
+            ...target,
+            amount: cents,
+            metadata: {
+              token_tx: result.tx_id,
+              credit_tx: b.tx_id,
+              member_id: credit.member_id || '',
+              issued_by: gate.member?.email || actor,
+            },
+          },
+          { idempotencyKey: `token-refund-${result.tx_id}` },
+        );
+        try {
+          await DB.update('token_tx', { id: result.tx_id }, { stripe_refund_id: refund.id });
+        } catch (err) {
+          // the money moved and the tokens are gone: the row stands, only the id is missing
+          console.warn('tokens: could not stamp stripe_refund_id —', err.message);
+        }
+        return json({ ...result, stripe_refund_id: refund.id });
+      } catch (e) {
+        const why = String(e.message || e).slice(0, 160);
+        const undo = await DB.rpc('token_refund_undo', {
+          p_tx: result.tx_id,
+          p_actor: actor,
+          p_reason: `Stripe refused the refund: ${why}`.slice(0, 200),
+        }).catch(() => null);
+        const restored = undo?.ok === true;
+        return json(
+          {
+            error: restored
+              ? `Stripe refused the refund (${why}). The tokens are back in the account and nothing was recorded.`
+              : `Stripe refused the refund (${why}) AND the tokens could not be put back — fix the ledger by hand.`,
+            error_zh: restored
+              ? `Stripe 拒绝了退款（${why}）。币已退回会员账户，未记录任何退款。`
+              : `Stripe 拒绝了退款（${why}），而且币未能退回账户——请手动修正账本。`,
+            code: 'stripe_refused',
+            restored,
+            tx_id: result.tx_id,
+          },
+          502,
+        );
+      }
     }
 
     if (!UUID_RE.test(b.member_id || '')) return bad('Member id is required.');
