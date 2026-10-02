@@ -1166,6 +1166,13 @@ function LedgerRow({ tx, lang }: { tx: LedgerTx; lang: Lang }) {
           {tx.confirm && (
             <span className="ml-2 font-mono tracking-widest text-brick">{tx.confirm}</span>
           )}
+          {/* A developer/demo account (0038): the row is real history and stays,
+              but the overview, cash report and sales figures leave it out. */}
+          {tx.member_test && (
+            <span className="ml-2 font-normal uppercase tracking-wider text-[10px] text-neutral-400">
+              {t('test', '测试')}
+            </span>
+          )}
           <span className="ml-2 font-normal text-neutral-500">{when(tx.created_at, lang)}</span>
         </p>
         <p className="text-neutral-600 truncate">

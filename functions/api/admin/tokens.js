@@ -43,8 +43,11 @@ async function namesFor(DB, rows) {
   const ids = [...new Set(rows.flatMap((t) => [t.member_id, t.actor_id]).filter(Boolean))];
   const names = new Map();
   if (!ids.length) return names;
+  // `*`: is_test arrives with 0038, and the ledger must not 400 on a database
+  // where that migration is not applied yet. Only name, email and the flag
+  // leave this function.
   const { rows: members } = await DB.select('members', {
-    columns: 'id,full_name,email',
+    columns: '*',
     filters: [`id=in.(${ids.join(',')})`],
     limit: ids.length,
   });
@@ -63,6 +66,8 @@ const shape = (names) => (t) => ({
   confirm: t.kind === 'charge' && t.self_serve ? confirmCode(t.id) : '',
   member_name: names.get(t.member_id)?.full_name || '',
   member_email: names.get(t.member_id)?.email || '',
+  // a developer/demo account (0038): shown, tagged, and out of the reports
+  member_test: names.get(t.member_id)?.is_test === true,
   actor_name: names.get(t.actor_id)?.full_name || '',
 });
 

@@ -851,6 +851,46 @@ test('admin ledger: filters by merchant and kind, and ignores a malformed mercha
   }
 });
 
+// 0038: a developer/demo account's rows stay in the ledger, tagged, so the
+// back office can see what the reports are leaving out. The member lookup reads
+// every column, so a database without 0038 still lists the ledger.
+test('admin ledger: a test account’s row is tagged, and the name lookup does not insist on is_test', async () => {
+  const fetch = mockFetch(
+    backend({
+      members: [{ id: USER, full_name: 'dev LNU', is_admin: true, is_root: true, is_test: true }],
+      token_tx: [
+        {
+          id: TX,
+          kind: 'cash',
+          amount: 5000,
+          state: 'ok',
+          member_id: USER,
+          actor_id: USER,
+          cash_cents: 50000,
+          created_at: '2026-09-18T05:52:00Z',
+        },
+      ],
+    }),
+  );
+  try {
+    const r = await adminTokensGet({
+      request: fakeRequest({ url: 'https://x/api/admin/tokens?view=ledger', headers: auth }),
+      env: fakeEnv(ON),
+    });
+    assert.equal(r.status, 200);
+    const { rows } = await r.json();
+    assert.equal(rows[0].member_name, 'dev LNU');
+    assert.equal(rows[0].member_test, true);
+    const lookup = fetch.calls.find(
+      (c) => c.url.includes('/rest/v1/members') && c.url.includes('id=in.'),
+    );
+    assert.ok(lookup, 'the names are looked up in one call');
+    assert.match(decodeURIComponent(lookup.url), /select=\*/);
+  } finally {
+    fetch.restore();
+  }
+});
+
 // A scan-to-pay charge is the only one with nothing behind it but the customer's
 // own screen, so its four-character code has to be readable wherever that charge
 // is listed — not only in the shop's console. The member's wallet needs it

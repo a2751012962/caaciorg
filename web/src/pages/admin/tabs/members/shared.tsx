@@ -19,6 +19,8 @@ export interface MemberRow {
   expires_at: string | null;
   household_id: string | null;
   created_at: string;
+  /** developer/demo account, left out of the token finance reports (0038); absent before that migration */
+  is_test?: boolean | null;
 }
 
 export interface Account {

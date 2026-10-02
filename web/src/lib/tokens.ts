@@ -241,6 +241,8 @@ export interface LedgerTx {
   member_id: string | null;
   member_name: string;
   member_email: string;
+  /** the member is a developer/demo account (0038): shown here, left out of the reports */
+  member_test: boolean;
   actor_name: string;
   merchant: { name: string; name_zh: string | null } | null;
   disputed_at: string | null;

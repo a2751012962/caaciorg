@@ -340,6 +340,7 @@ function Editor({
   const [tierId, setTierId] = useState(m.tier_id || '');
   const [expires, setExpires] = useState(dateInput(m.expires_at));
   const [householdId, setHouseholdId] = useState(m.household_id || '');
+  const [isTest, setIsTest] = useState(m.is_test === true);
   const [saving, setSaving] = useState(false);
   const loaded = households !== null;
   const who = m.full_name || m.email || '';
@@ -350,7 +351,7 @@ function Editor({
   const stale = status === 'active' && effectiveStatus(m.status, m.expires_at) === 'expired';
 
   const save = () => {
-    const body: Record<string, string> = {
+    const body: Record<string, string | boolean> = {
       id: m.id,
       status,
       tier_id: tierId,
@@ -358,6 +359,9 @@ function Editor({
     };
     // Left out, the API keeps the member's family as it is.
     if (loaded) body.household_id = householdId;
+    // Only sent when it moved, so a database without 0038 still saves the rest.
+    const testWas = m.is_test === true;
+    if (isTest !== testWas) body.is_test = isTest;
     // A second look before anything is written: what changes, for whom.
     const changes: string[] = [];
     if (status !== m.status)
@@ -370,6 +374,12 @@ function Editor({
     if (expires !== expWas)
       changes.push(`${t('expires', '到期')}: ${expWas || '—'} → ${expires || '—'}`);
     if (loaded && householdId !== (m.household_id || '')) changes.push(t('family', '家庭'));
+    if (isTest !== testWas)
+      changes.push(
+        isTest
+          ? t('mark as a test account', '标为测试账号')
+          : t('no longer a test account', '取消测试账号'),
+      );
     ask(
       changes.length
         ? t(
@@ -453,6 +463,26 @@ function Editor({
             </select>
           </Field>
         </div>
+
+        {/* A developer or demo account. The flag only changes what the token
+            reports count; the ledger keeps every row and tags it. */}
+        <label className="flex items-start gap-2.5 text-sm text-neutral-800 max-w-xl">
+          <input
+            type="checkbox"
+            className="mt-1 accent-brick"
+            checked={isTest}
+            onChange={(e) => setIsTest(e.target.checked)}
+          />
+          <span>
+            {t('Test account', '测试账号')}
+            <span className="block text-xs text-neutral-500 mt-0.5 leading-relaxed">
+              {t(
+                'Left out of the token finance figures: unspent balances, the cash report and merchant sales. The ledger still shows every row, tagged.',
+                '不计入华协币财务数字：未兑付余额、现金台报表、商家销量。账本仍显示每一条，并标注「测试」。',
+              )}
+            </span>
+          </span>
+        </label>
 
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className={PRIMARY} disabled={saving} onClick={save}>

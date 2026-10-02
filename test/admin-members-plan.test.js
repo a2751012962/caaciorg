@@ -74,6 +74,27 @@ test('members: the same plan again, or any other field, needs no code', async ()
   }
 });
 
+// 0038: a developer/demo account. Only the reports care, so no emailed code;
+// but it is a flag, and "yes" is not one.
+test('members: is_test is saved as a plain boolean, without the code, and refused otherwise', async () => {
+  let fetch = mockFetch(route());
+  try {
+    const r = await post({ id: 'm1', is_test: true });
+    assert.equal(r.status, 200);
+    assert.deepEqual(JSON.parse(patched(fetch)[0].options.body), { is_test: true });
+  } finally {
+    fetch.restore();
+  }
+  fetch = mockFetch(route());
+  try {
+    const r = await post({ id: 'm1', is_test: 'yes' });
+    assert.equal(r.status, 400);
+    assert.equal(patched(fetch).length, 0);
+  } finally {
+    fetch.restore();
+  }
+});
+
 test('members: ?sort maps to a whitelisted PostgREST order with a stable tiebreak', () => {
   assert.equal(memberOrder(undefined), 'created_at.desc,id.asc');
   assert.equal(memberOrder('full_name.asc'), 'full_name.asc.nullslast,id.asc');

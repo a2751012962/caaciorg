@@ -629,6 +629,12 @@ system (cheque / Zelle); the system records what is owed.
   `/account/` renders nothing, `/api/verify` keeps showing the full name and no
   merchant button, and the webhook grants nothing. Unset it to switch the feature off
   again; member cards and verification are untouched.
+- **Test accounts (0038).** A developer or demo account is marked in the admin console
+  (Members → open the row → "Test account"), which sets `members.is_test`. Its token rows
+  are left out of the treasurer's figures — unspent balances and holders in the overview,
+  the cash report, merchant and item sales — so a $500 "cash" top-up made to try the desk
+  never reads as money CAACI owes. The ledger keeps every row and tags it _test_; what is
+  owed to a partner shop is never hidden, so test against CAACI's own merchant.
 - **Roles: root > admin > merchant > user.** `members.is_admin` is unchanged.
   `members.is_root` can only be set from the SQL editor — a trigger refuses the change
   from the API's `service_role`:
