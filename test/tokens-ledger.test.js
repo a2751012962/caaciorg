@@ -20,6 +20,7 @@ const MIGRATIONS = [
   new URL('../supabase/migrations/0031_token_collected.sql', import.meta.url),
   new URL('../supabase/migrations/0032_token_item_report.sql', import.meta.url),
   new URL('../supabase/migrations/0037_token_refund.sql', import.meta.url),
+  new URL('../supabase/migrations/0039_token_refund_stripe.sql', import.meta.url),
 ];
 
 // Open the bonus window around now() so the rate rules can be driven directly.
@@ -797,6 +798,77 @@ test('a refund’s cash is held to the desk’s ceiling; root is exempt; the tok
   assert.equal(await balance(m), 0);
 });
 
+test('a refund Stripe refused is undone: the tokens come back and it no longer counts (0039)', async () => {
+  const admin = await member({ admin: true });
+  const m = await member({ tier: 'free', expires: null });
+  const buy = await call('token_purchase_credit', m, 200, 2000, 'cs_undo'); // $20 -> 200
+  const gift = await call('token_admin_credit', m, 'mint', 50, null, admin, 'prize');
+
+  // The ledger refund went through; Stripe then said no.
+  const refund = await call('token_admin_refund', buy.tx_id, 200, 2000, admin, null);
+  assert.equal(refund.ok, true);
+  assert.equal(await balance(m), 50);
+
+  // Only a refund row can be undone, only by an admin.
+  assert.equal((await call('token_refund_undo', buy.tx_id, admin, 'x')).error, 'refund_not_found');
+  assert.equal((await call('token_refund_undo', gift.tx_id, admin, 'x')).error, 'refund_not_found');
+  assert.equal((await call('token_refund_undo', refund.tx_id, m, 'x')).error, 'not_admin');
+
+  const undo = await call('token_refund_undo', refund.tx_id, admin, 'Stripe refused: card expired');
+  assert.equal(undo.ok, true);
+  assert.equal(undo.balance, 250, 'the 200 are back');
+  assert.equal(await balance(m), 250);
+  const rows = await q(
+    `select kind, amount, state, related_tx, reason from public.token_tx
+      where id in ($1, $2) order by kind`,
+    [refund.tx_id, undo.tx_id],
+  );
+  assert.deepEqual(rows, [
+    { kind: 'adjust', amount: -200, state: 'voided', related_tx: buy.tx_id, reason: null },
+    {
+      kind: 'void',
+      amount: 200,
+      state: 'ok',
+      related_tx: refund.tx_id,
+      reason: 'Stripe refused: card expired',
+    },
+  ]);
+  // The lots the refund drew from are whole again.
+  assert.deepEqual(
+    await q(
+      `select source, remaining from public.token_lots where member_id = $1 order by source`,
+      [m],
+    ),
+    [
+      { source: 'mint', remaining: 50 },
+      { source: 'purchase', remaining: 200 },
+    ],
+  );
+  assert.equal(
+    (await call('token_refund_undo', refund.tx_id, admin, 'again')).error,
+    'already_undone',
+  );
+
+  // A voided refund gave nothing back, so the top-up can still be refunded in
+  // full, and the member can still ask for it.
+  const again = await call('token_admin_refund', buy.tx_id, 200, 2000, admin, null);
+  assert.equal(again.ok, true, 'the whole $20 is still unrefunded');
+  assert.deepEqual([again.tokens_left, again.cents_left], [0, 0]);
+  await call('token_refund_undo', again.tx_id, admin, null);
+  assert.equal((await call('token_refund_request', buy.tx_id, m, null)).ok, true);
+
+  // stripe_refund_id is a plain stamp on the row for the API to write.
+  await db.query('update public.token_tx set stripe_refund_id = $2 where id = $1', [
+    again.tx_id,
+    're_123',
+  ]);
+  assert.equal(
+    (await one('select stripe_refund_id from public.token_tx where id = $1', [again.tx_id]))
+      .stripe_refund_id,
+    're_123',
+  );
+});
+
 test('a member asks about their own row; the back office answers it', async () => {
   const admin = await member({ admin: true });
   const clerk = await member();
@@ -1149,7 +1221,7 @@ test('the ledger is server-only: RLS on, no policies, nothing for the browser ro
        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and (p.proname like 'token\\_%' or p.proname = 'members_guard_root')`,
   );
-  assert.ok(fns.length >= 16, `expected the token functions, saw ${fns.length}`);
+  assert.ok(fns.length >= 17, `expected the token functions, saw ${fns.length}`);
   for (const f of fns)
     assert.deepEqual({ anon: f.anon, auth: f.auth }, { anon: false, auth: false }, f.proname);
 });

@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { Banknote, LayoutDashboard, PlusCircle, Search, Store, Undo2 } from 'lucide-react';
 import { FluidTabs } from '../components/FluidTabs';
+import { useActionCode, type Guarded } from '../components/tokens/ActionCode';
 import { MenuSection } from '../components/tokens/Menu';
 import {
   ASIDE,
@@ -107,6 +108,8 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
   const [denied, setDenied] = useState('');
   const [message, setMessage] = useState<{ tone: Tone; text: string } | null>(null);
   const say: Say = (tone, text) => setMessage({ tone, text });
+  // A card refund (0039) carries the emailed verification code.
+  const { guarded, dialog: codeDialog } = useActionCode(lang);
 
   const loadOverview = useCallback(async () => {
     const res = await tokens.admin.overview();
@@ -198,6 +201,7 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
           root={overview.root}
           memberId={memberId}
           onOpen={openMember}
+          guarded={guarded}
         />
       )}
       {tab === 'merchants' && <MerchantsTab lang={lang} say={say} />}
@@ -207,8 +211,10 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
           say={say}
           rate={overview.settings.tokens_per_dollar}
           onChange={loadOverview}
+          guarded={guarded}
         />
       )}
+      {codeDialog}
       {tab === 'ledger' && <LedgerTab lang={lang} />}
       {tab === 'cash' && <CashTab lang={lang} />}
       {tab === 'settings' && overview.root && (
@@ -387,6 +393,7 @@ function MembersTab({
   root,
   memberId,
   onOpen,
+  guarded,
 }: {
   lang: Lang;
   say: Say;
@@ -394,6 +401,7 @@ function MembersTab({
   root: boolean;
   memberId: string;
   onOpen: (id: string) => void;
+  guarded: Guarded;
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   return (
@@ -407,6 +415,7 @@ function MembersTab({
           settings={settings}
           root={root}
           onClose={() => onOpen('')}
+          guarded={guarded}
         />
       ) : (
         <div className="space-y-3">
@@ -432,6 +441,7 @@ function MemberPanel({
   settings,
   root,
   onClose,
+  guarded,
 }: {
   lang: Lang;
   id: string;
@@ -439,6 +449,7 @@ function MemberPanel({
   settings: TokenSettings;
   root: boolean;
   onClose: () => void;
+  guarded: Guarded;
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const [offset, setOffset] = useState(0);
@@ -470,16 +481,22 @@ function MemberPanel({
     };
   }, [id, offset, lang]);
 
-  // One write, then the account is read again so the balance and the list agree.
-  const write = async (call: () => Promise<ApiResult<Refusal>>, ok: string) => {
+  // One write, then the account is read again so the balance and the list
+  // agree. `ok` may read the answer (a card refund names its Stripe id). A
+  // write the admin backed out of at the code dialog says nothing.
+  const write = async <T extends Refusal>(
+    call: () => Promise<ApiResult<T> & { cancelled?: boolean }>,
+    ok: string | ((data: T) => string),
+  ) => {
     setBusy(true);
     const res = await call();
     setBusy(false);
+    if (res.cancelled) return false;
     if (!res.ok) {
       say('error', refusalText(res, lang));
       return false;
     }
-    say('success', ok);
+    say('success', typeof ok === 'function' ? ok(res.data) : ok);
     setForm('');
     await load();
     return true;
@@ -647,13 +664,16 @@ function MemberPanel({
                         tx={tx}
                         rate={rate}
                         busy={busy}
-                        onRefund={(amount, cents, reason) =>
+                        onRefund={(amount, cents, reason, toCard) =>
                           write(
-                            () => tokens.admin.refund(tx.id, amount, cents, reason),
-                            t(
-                              `Refunded ${amount} tokens${cents ? ` and ${usd(cents)}` : ''}.`,
-                              `已退回 ${amount} 币${cents ? `，退还 ${usd(cents)}` : ''}。`,
-                            ),
+                            () =>
+                              guarded((headers) =>
+                                tokens.admin.refund(tx.id, amount, cents, reason, {
+                                  stripe: toCard,
+                                  headers,
+                                }),
+                              ),
+                            (d) => refundDone(lang, amount, cents, d.stripe_refund_id),
                           )
                         }
                       />
@@ -807,10 +827,23 @@ function AmountReasonForm({
   );
 }
 
+/** What a finished refund says, with the Stripe id when the card was refunded too. */
+function refundDone(lang: Lang, amount: number, cents: number, stripeId?: string) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const money = cents ? (lang === 'zh' ? `，退还 ${usd(cents)}` : ` and ${usd(cents)}`) : '';
+  const card = stripeId
+    ? t(` Refunded to the card (Stripe ${stripeId}).`, ` 已退到卡（Stripe ${stripeId}）。`)
+    : '';
+  return t(`Refunded ${amount} tokens${money}.${card}`, `已退回 ${amount} 币${money}。${card}`);
+}
+
 // Under a cash or online top-up: what has come back so far, and a form to give
 // the rest (or part of it) back. The tokens follow the money at the row's own
 // rate, bonus included, so a half refund takes back half the bonus too; either
-// number can still be edited before confirming. The server holds the caps.
+// number can still be edited. Sending is two steps: the form, then a
+// confirmation that spells out what will happen. An online purchase whose
+// Stripe session is on record is refunded to the card as well (0039), which
+// the server gates with the emailed code. The server holds the caps.
 function RefundRow({
   lang,
   tx,
@@ -825,12 +858,13 @@ function RefundRow({
   busy: boolean;
   /** the Disputes tab: the member asked, so the form is already out */
   startOpen?: boolean;
-  onRefund: (amount: number, cents: number, reason: string) => Promise<boolean>;
+  onRefund: (amount: number, cents: number, reason: string, toCard: boolean) => Promise<boolean>;
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const paidCents = tx.cash_cents ?? 0;
   const tokensLeft = tx.amount - (tx.refunded?.tokens ?? 0);
   const centsLeft = paidCents - (tx.refunded?.cents ?? 0);
+  const canCard = tx.kind === 'purchase' && tx.card === true;
 
   const [open, setOpen] = useState(startOpen && tokensLeft > 0);
   const [cash, setCash] = useState(() =>
@@ -838,9 +872,11 @@ function RefundRow({
   );
   const [amount, setAmount] = useState(() => (startOpen ? String(tokensLeft) : ''));
   const [reason, setReason] = useState('');
+  const [toCard, setToCard] = useState(canCard);
   const [confirming, setConfirming] = useState(false);
   const cents = /^\d+(\.\d{1,2})?$/.test(cash) ? Math.round(Number(cash) * 100) : 0;
   const n = Number(amount);
+  const cardNow = canCard && toCard && cents > 0;
 
   // Money first: typing the cash fills in the tokens it bought on this row.
   const setCashAndTokens = (value: string) => {
@@ -878,14 +914,14 @@ function RefundRow({
           onSubmit={(e) => {
             e.preventDefault();
             if (!confirming) return setConfirming(true);
-            void onRefund(n, cents, reason.trim()).then((done) => done && setOpen(false));
+            void onRefund(n, cents, reason.trim(), cardNow).then((done) => done && setOpen(false));
           }}
         >
-          {tx.kind === 'purchase' && (
+          {tx.kind === 'purchase' && !canCard && (
             <p className={ASIDE}>
               {t(
-                'Paid by card: refund the card in Stripe first (the admin panel’s Payments tab, or the Dashboard). This records that it happened and takes the tokens back; it moves no money.',
-                '这是刷卡购买：请先在 Stripe（管理后台「付款」页或 Stripe Dashboard）退款到卡，再在这里记录并收回币。此操作本身不转账。',
+                'Paid by card, but no Stripe session is on record for it: refund the card in the Stripe Dashboard, then record it here. This takes the tokens back and moves no money.',
+                '这是刷卡购买，但没有记录 Stripe 会话：请在 Stripe Dashboard 退款到卡，再在这里记录。此操作只收回币，不转账。',
               )}
             </p>
           )}
@@ -916,36 +952,84 @@ function RefundRow({
                 maxLength={200}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
+                disabled={confirming}
               />
             </Field>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
-              className={DANGER}
-              disabled={busy || !n || n > tokensLeft || cents > centsLeft}
-            >
-              {confirming
-                ? t(
-                    `Yes — refund ${n} tokens${cents ? ` and ${usd(cents)}` : ''}`,
-                    `确定退回 ${n} 币${cents ? `，退还 ${usd(cents)}` : ''}`,
-                  )
-                : t('Refund', '退款')}
-            </button>
-            {!startOpen && (
+          {canCard && (
+            <label className="flex items-start gap-3 text-xs text-neutral-700 leading-relaxed">
+              <input
+                type="checkbox"
+                className="mt-0.5 w-4 h-4 accent-brick cursor-pointer"
+                checked={toCard}
+                disabled={confirming}
+                onChange={(e) => setToCard(e.target.checked)}
+              />
+              <span>
+                {t(
+                  'Also refund the card through Stripe (the cash amount above goes back the way it was paid). Off, only the tokens come back and the money is recorded as returned by hand.',
+                  '同时通过 Stripe 退到卡（上面的现金金额按原付款方式退回）。不勾选则只收回币，并记录为已另行退款。',
+                )}
+              </span>
+            </label>
+          )}
+          {confirming ? (
+            // The confirmation: what will happen, in words, before anything does.
+            <div className="space-y-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
+              <p className="text-sm text-amber-900 font-semibold">
+                {t('Please confirm', '请确认')}
+              </p>
+              <ul className="text-xs text-amber-900 space-y-1">
+                <li>{t(`${n} tokens leave the member’s account.`, `从会员账户收回 ${n} 币。`)}</li>
+                <li>
+                  {cardNow
+                    ? t(
+                        `${usd(cents)} is refunded to the card through Stripe. You will be asked for the verification code emailed to you.`,
+                        `通过 Stripe 退 ${usd(cents)} 到卡。接下来会要求输入发送到你邮箱的验证码。`,
+                      )
+                    : cents
+                      ? t(
+                          `${usd(cents)} is recorded as returned by hand; no money moves here.`,
+                          `记录为已另行退还 ${usd(cents)}；此处不转账。`,
+                        )
+                      : t('No money is recorded as returned.', '不记录退还的钱。')}
+                </li>
+              </ul>
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="submit" className={DANGER} disabled={busy}>
+                  {busy
+                    ? t('Refunding…', '退款中…')
+                    : cardNow
+                      ? t('Confirm — refund the card', '确认退款并退卡')
+                      : t('Confirm the refund', '确认退款')}
+                </button>
+                <button
+                  type="button"
+                  className={TEXT_ACTION}
+                  disabled={busy}
+                  onClick={() => setConfirming(false)}
+                >
+                  {t('Back', '返回')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
               <button
-                type="button"
-                className={TEXT_ACTION}
-                onClick={() => {
-                  setOpen(false);
-                  setConfirming(false);
-                }}
+                type="submit"
+                className={SECONDARY}
+                disabled={busy || !n || n > tokensLeft || cents > centsLeft}
               >
-                {t('Cancel', '取消')}
+                {t('Refund…', '退款…')}
               </button>
-            )}
-          </div>
-          {n > 0 && n < tokensLeft && cents === 0 && (
+              {!startOpen && (
+                <button type="button" className={TEXT_ACTION} onClick={() => setOpen(false)}>
+                  {t('Cancel', '取消')}
+                </button>
+              )}
+            </div>
+          )}
+          {!confirming && n > 0 && n < tokensLeft && cents === 0 && (
             <p className="text-[11px] text-neutral-500">
               {t(
                 'No cash entered: the tokens come back and no money is recorded as returned.',
@@ -1632,11 +1716,13 @@ function DisputesTab({
   say,
   rate,
   onChange,
+  guarded,
 }: {
   lang: Lang;
   say: Say;
   rate: number;
   onChange: () => Promise<void>;
+  guarded: Guarded;
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const [rows, setRows] = useState<LedgerTx[] | null>(null);
@@ -1672,20 +1758,26 @@ function DisputesTab({
     await Promise.all([load(), onChange()]);
   };
 
-  const refund = async (tx: LedgerTx, amount: number, cents: number, reason: string) => {
+  const refund = async (
+    tx: LedgerTx,
+    amount: number,
+    cents: number,
+    reason: string,
+    toCard: boolean,
+  ) => {
     setBusy(true);
-    const res = await tokens.admin.refund(tx.id, amount, cents, reason);
+    const res = await guarded((headers) =>
+      tokens.admin.refund(tx.id, amount, cents, reason, { stripe: toCard, headers }),
+    );
     setBusy(false);
+    if (res.cancelled) return false;
     if (!res.ok) {
       say('error', refusalText(res, lang));
       return false;
     }
     say(
       'success',
-      t(
-        `Refunded ${amount} tokens${cents ? ` and ${usd(cents)}` : ''}. The request is closed.`,
-        `已退回 ${amount} 币${cents ? `，退还 ${usd(cents)}` : ''}，申请已结案。`,
-      ),
+      `${refundDone(lang, amount, cents, res.data.stripe_refund_id)} ${t('The request is closed.', '申请已结案。')}`,
     );
     await Promise.all([load(), onChange()]);
     return true;
@@ -1758,7 +1850,9 @@ function DisputesTab({
                   rate={rate}
                   busy={busy}
                   startOpen
-                  onRefund={(amount, cents, reason) => refund(tx, amount, cents, reason)}
+                  onRefund={(amount, cents, reason, toCard) =>
+                    refund(tx, amount, cents, reason, toCard)
+                  }
                 />
                 <div className="flex flex-wrap items-center gap-2">
                   <input
@@ -1925,6 +2019,7 @@ function LedgerRow({ tx, lang, action }: { tx: LedgerTx; lang: Lang; action?: Re
             {lineText(tx.items, lang) ? ` · ${lineText(tx.items, lang)}` : ''}
             {tx.reason ? ` · ${tx.reason}` : ''}
             {tx.note ? ` · ${tx.note}` : ''}
+            {tx.stripe_refund_id ? ` · Stripe ${tx.stripe_refund_id}` : ''}
           </p>
           <p className="text-[11px] text-neutral-500">
             {tx.actor_name ? `${t('by', '操作人')} ${tx.actor_name}` : t('automatic', '系统自动')}
