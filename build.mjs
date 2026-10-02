@@ -167,6 +167,11 @@ await writeFile(
     '/events/:slug/register/ /event-register/ 200',
     '/zh/events/:slug/register /zh/event-register/ 200',
     '/zh/events/:slug/register/ /zh/event-register/ 200',
+    // An event's own volunteer form (0035), served the same way.
+    '/events/:slug/volunteer /event-volunteer/ 200',
+    '/events/:slug/volunteer/ /event-volunteer/ 200',
+    '/zh/events/:slug/volunteer /zh/event-volunteer/ 200',
+    '/zh/events/:slug/volunteer/ /zh/event-volunteer/ 200',
     '',
   ].join('\n'),
 );
@@ -192,6 +197,8 @@ const SPA_ROUTES = [
   // Public event registration. The _redirects rewrites above serve this copy at
   // /events/<slug>/register/, where the page reads the slug from the path.
   'event-register',
+  // An event's volunteer sign-up, served at /events/<slug>/volunteer/ likewise.
+  'event-volunteer',
   // Tokens: /charge/?m=<member> is where a scanned member card lands a signed-in
   // merchant, /merchant/ is a shop's own console, /token-admin/ the back office.
   'charge',

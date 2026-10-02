@@ -15,6 +15,7 @@ import {
 } from '../../kit';
 import { ImageField } from './ImageField';
 import { QuestionBuilder } from './QuestionBuilder';
+import { TemplateBar } from './TemplateBar';
 import {
   dtInput,
   localToIso,
@@ -38,6 +39,9 @@ export function EventForm({
   // null registration_questions = the event takes no registrations.
   const accepting = edit && Array.isArray(ev.registration_questions);
   const regCount = (edit && Number(ev.registration_count)) || 0;
+  // null volunteer_questions = the volunteer page asks the site's default
+  // questions; an array = this event's own (0035).
+  const ownVolunteer = edit && Array.isArray(ev.volunteer_questions);
 
   const [f, setF] = useState({
     title: ev?.title ?? '',
@@ -53,10 +57,14 @@ export function EventForm({
     description_zh: ev?.description_zh ?? '',
     published: !edit || !!ev.published,
     accept: accepting,
+    ownVolunteer,
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   const [questions, setQuestions] = useState(() =>
     questionState(edit ? ev.registration_questions : null),
+  );
+  const [volQuestions, setVolQuestions] = useState(() =>
+    questionState(edit ? ev.volunteer_questions : null),
   );
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -80,6 +88,8 @@ export function EventForm({
     published: f.published,
     // Switched off → null: no registration page, and the public API answers 404.
     registration_questions: f.accept ? questionsPayload(questions) : null,
+    // Switched off → null: the volunteer page asks the default questions.
+    volunteer_questions: f.ownVolunteer ? questionsPayload(volQuestions) : null,
   });
 
   const save = async (confirmed: boolean) => {
@@ -97,6 +107,10 @@ export function EventForm({
     if (f.accept) {
       const problem = questionsError(t, questions);
       if (problem) return setMsg(problem);
+    }
+    if (f.ownVolunteer) {
+      const problem = questionsError(t, volQuestions);
+      if (problem) return setMsg(t(`Volunteer questions — ${problem}`, `志愿者问题——${problem}`));
     }
     // Stored answers are keyed by question and option id and never rewritten.
     const saved = accepting ? questionsPayload(questionState(ev.registration_questions)) : null;
@@ -260,7 +274,36 @@ export function EventForm({
           </Notice>
         )}
         {/* The questions are kept while registration is switched off. */}
-        {f.accept && <QuestionBuilder questions={questions} onChange={setQuestions} />}
+        {f.accept && (
+          <>
+            <TemplateBar kind="registration" questions={questions} onFill={setQuestions} />
+            <QuestionBuilder questions={questions} onChange={setQuestions} />
+          </>
+        )}
+      </div>
+
+      <div className="border-t border-neutral-200 pt-5 space-y-3">
+        <span className="text-xs font-semibold text-brick block">{t('Volunteers', '志愿者')}</span>
+        <div className="flex items-center gap-3 text-sm font-semibold text-neutral-700">
+          <LiquidToggle
+            checked={f.ownVolunteer}
+            onChange={(v) => set('ownVolunteer', v)}
+            label={t('Ask this event’s own volunteer questions', '为本活动设置专属志愿者问题')}
+          />
+          {t('Ask this event’s own volunteer questions', '为本活动设置专属志愿者问题')}
+        </div>
+        <p className="text-xs text-neutral-500">
+          {t(
+            'While the event is published and has not ended, people can sign up to help on its volunteer page (/events/<slug>/volunteer/). Name, email and phone are always asked. Switched off, the page asks the site’s default volunteer questions; switched on, it asks the questions below — shifts, stations, whatever this event needs.',
+            '活动发布后、结束前，大家可以在活动的志愿者报名页（/events/<slug>/volunteer/）报名帮忙。姓名、邮箱和电话始终收集。关闭时，报名页使用网站默认的志愿者问题；开启后，使用下方的问题——班次、岗位，按本活动的需要设置。',
+          )}
+        </p>
+        {f.ownVolunteer && (
+          <>
+            <TemplateBar kind="volunteer" questions={volQuestions} onFill={setVolQuestions} />
+            <QuestionBuilder questions={volQuestions} onChange={setVolQuestions} />
+          </>
+        )}
       </div>
 
       {confirming && (

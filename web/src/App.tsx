@@ -33,6 +33,10 @@ const BusinessServicesPage = lazy(() =>
 const EventRegisterPage = lazy(() =>
   import('./pages/EventRegisterPage').then((m) => ({ default: m.EventRegisterPage })),
 );
+// /events/<slug>/volunteer/: an event's own volunteer sign-up form (0035).
+const EventVolunteerPage = lazy(() =>
+  import('./pages/EventVolunteerPage').then((m) => ({ default: m.EventVolunteerPage })),
+);
 // Token pages: reached from a scanned member card or the account page, never from the nav.
 const ChargePage = lazy(() =>
   import('./pages/ChargePage').then((m) => ({ default: m.ChargePage })),
@@ -66,6 +70,7 @@ export type PageId =
   | 'community-calendar'
   | 'business-services'
   | 'event-register'
+  | 'event-volunteer'
   | 'charge'
   | 'merchant'
   | 'pay'
@@ -85,6 +90,7 @@ const PAGE_BY_SEGMENT: Record<string, PageId> = {
   'community-calendar': 'community-calendar',
   'business-services': 'business-services',
   'event-register': 'event-register',
+  'event-volunteer': 'event-volunteer',
   charge: 'charge',
   merchant: 'merchant',
   pay: 'pay',
@@ -95,11 +101,14 @@ const PAGE_BY_SEGMENT: Record<string, PageId> = {
 // without the /zh/ prefix): the _redirects rewrite serves this SPA there and
 // keeps the slug in the address bar, which is how the page knows its event.
 const REGISTER_PATH = /^\/(?:zh\/)?events\/([^/]+)\/register\/?$/i;
+// …and the volunteer page at /events/<slug>/volunteer/, the same way.
+const VOLUNTEER_PATH = /^\/(?:zh\/)?events\/([^/]+)\/volunteer\/?$/i;
 
 // A path with more segments than its page has (/about/x/) or one no page owns
 // is the 404 page: Pages only serves this app there through dist/404.html.
 function pageFromPath(pathname: string): PageId {
   if (REGISTER_PATH.test(pathname)) return 'event-register';
+  if (VOLUNTEER_PATH.test(pathname)) return 'event-volunteer';
   const segments = pathname
     .replace(/^\/zh(?=\/|$)/, '')
     .split('/')
@@ -116,6 +125,8 @@ const pathFor = (page: PageId, lang: Lang, from = '') => {
   const prefix = lang === 'zh' ? '/zh' : '';
   const match = page === 'event-register' ? REGISTER_PATH.exec(from) : null;
   if (match) return `${prefix}/events/${match[1]}/register/`;
+  const volunteer = page === 'event-volunteer' ? VOLUNTEER_PATH.exec(from) : null;
+  if (volunteer) return `${prefix}/events/${volunteer[1]}/volunteer/`;
   if (page === 'not-found') return prefix + (from.replace(/^\/zh(?=\/|$)/, '') || '/');
   return `${prefix}/${page === 'home' ? '' : `${page}/`}`;
 };
@@ -253,6 +264,8 @@ function Site() {
         // path once, so stepping back to a different /events/<slug>/register/
         // has to start it over rather than leave the old event on screen.
         return <EventRegisterPage key={route} {...pageProps} />;
+      case 'event-volunteer':
+        return <EventVolunteerPage key={route} {...pageProps} />;
       case 'charge':
         return <ChargePage key={route} {...pageProps} />;
       case 'merchant':

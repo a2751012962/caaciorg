@@ -7,8 +7,9 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { LayoutDashboard, Search, Store } from 'lucide-react';
+import { Banknote, LayoutDashboard, PlusCircle, Search, Store, Undo2 } from 'lucide-react';
 import { FluidTabs } from '../components/FluidTabs';
+import { useActionCode, type Guarded } from '../components/tokens/ActionCode';
 import { MenuSection } from '../components/tokens/Menu';
 import {
   ASIDE,
@@ -16,6 +17,7 @@ import {
   Confirm,
   DANGER,
   EYEBROW,
+  Field,
   INPUT,
   LABEL,
   Notice,
@@ -33,7 +35,7 @@ import {
   type Say,
   type Tone,
 } from '../components/tokens/ui';
-import { api } from '../lib/api';
+import { api, type ApiResult } from '../lib/api';
 import type { Lang } from '../lib/lang';
 import {
   day,
@@ -42,18 +44,40 @@ import {
   pickName,
   refusalText,
   tokens,
+  txLabel,
   usd,
   when,
   type AdminMerchant,
   type ItemReport,
+  type MemberAccount,
   type MenuItem,
   type LedgerTx,
   type Overview,
   type Person,
+  type Refusal,
   type TokenSettings,
 } from '../lib/tokens';
 
-type Tab = 'overview' | 'merchants' | 'disputes' | 'ledger' | 'cash' | 'settings';
+const TABS = [
+  'overview',
+  'members',
+  'merchants',
+  'disputes',
+  'ledger',
+  'cash',
+  'settings',
+] as const;
+type Tab = (typeof TABS)[number];
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A member as /api/admin/members lists one. */
+interface Found {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  tier_id: string | null;
+}
 
 const central = (d = new Date()) => d.toLocaleDateString('sv-SE', { timeZone: 'America/Chicago' }); // YYYY-MM-DD
 
@@ -68,11 +92,24 @@ const merchantHref = (lang: Lang, merchantId = '') =>
 export function TokenAdminPage({ lang }: { lang: Lang }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const signedIn = useSignedIn();
-  const [tab, setTab] = useState<Tab>('overview');
+  // /token-admin/?member=<uuid> opens straight onto that member's account, so a
+  // reload keeps the page and another screen can link to one account; ?tab=
+  // opens a tab the same way (the admin panel's dashboard links to disputes).
+  const [memberId, setMemberId] = useState(() => {
+    const m = new URLSearchParams(window.location.search).get('member') || '';
+    return UUID_RE.test(m) ? m : '';
+  });
+  const [tab, setTab] = useState<Tab>(() => {
+    if (memberId) return 'members';
+    const wanted = new URLSearchParams(window.location.search).get('tab') || '';
+    return (TABS as readonly string[]).includes(wanted) ? (wanted as Tab) : 'overview';
+  });
   const [overview, setOverview] = useState<Overview | null>(null);
   const [denied, setDenied] = useState('');
   const [message, setMessage] = useState<{ tone: Tone; text: string } | null>(null);
   const say: Say = (tone, text) => setMessage({ tone, text });
+  // A card refund (0039) carries the emailed verification code.
+  const { guarded, dialog: codeDialog } = useActionCode(lang);
 
   const loadOverview = useCallback(async () => {
     const res = await tokens.admin.overview();
@@ -83,6 +120,18 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
   useEffect(() => {
     if (signedIn) void loadOverview();
   }, [signedIn, loadOverview]);
+
+  // The member being looked at rides in the address, so it survives a reload
+  // and can be sent to someone; closing the account takes it out again.
+  const openMember = (id: string) => {
+    setMemberId(id);
+    setTab('members');
+    setMessage(null);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set('member', id);
+    else url.searchParams.delete('member');
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  };
 
   const eyebrow = t('CAACI Tokens', '华协币');
   const title = t('Token back office', '代币后台');
@@ -116,6 +165,7 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
 
   const tabs: { value: Tab; label: string }[] = [
     { value: 'overview', label: t('Overview', '总览') },
+    { value: 'members', label: t('Members', '会员账户') },
     { value: 'merchants', label: t('Merchants', '商家') },
     {
       value: 'disputes',
@@ -140,9 +190,31 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
         className="flex overflow-x-auto no-scrollbar max-w-full"
       />
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
-      {tab === 'overview' && <OverviewTab lang={lang} overview={overview} />}
+      {tab === 'overview' && (
+        <OverviewTab lang={lang} overview={overview} onOpenMember={openMember} />
+      )}
+      {tab === 'members' && (
+        <MembersTab
+          lang={lang}
+          say={say}
+          settings={overview.settings}
+          root={overview.root}
+          memberId={memberId}
+          onOpen={openMember}
+          guarded={guarded}
+        />
+      )}
       {tab === 'merchants' && <MerchantsTab lang={lang} say={say} />}
-      {tab === 'disputes' && <DisputesTab lang={lang} say={say} onChange={loadOverview} />}
+      {tab === 'disputes' && (
+        <DisputesTab
+          lang={lang}
+          say={say}
+          rate={overview.settings.tokens_per_dollar}
+          onChange={loadOverview}
+          guarded={guarded}
+        />
+      )}
+      {codeDialog}
       {tab === 'ledger' && <LedgerTab lang={lang} />}
       {tab === 'cash' && <CashTab lang={lang} />}
       {tab === 'settings' && overview.root && (
@@ -153,7 +225,15 @@ export function TokenAdminPage({ lang }: { lang: Lang }) {
 }
 
 // ------------------------------------------------------------- overview ----
-function OverviewTab({ lang, overview }: { lang: Lang; overview: Overview }) {
+function OverviewTab({
+  lang,
+  overview,
+  onOpenMember,
+}: {
+  lang: Lang;
+  overview: Overview;
+  onOpenMember: (id: string) => void;
+}) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const { totals, settings } = overview;
   const rate = settings.tokens_per_dollar;
@@ -208,45 +288,50 @@ function OverviewTab({ lang, overview }: { lang: Lang; overview: Overview }) {
           )}
         </Notice>
       )}
-      <MemberLookup lang={lang} />
+      <div className={SECTION}>
+        <span className={EYEBROW}>{t('Find a member', '查找会员')}</span>
+        <p className="text-xs text-neutral-500">
+          {t(
+            'Their account: balance, every movement, top-up and refund. “Charge” opens the same screen a scanned card does, for when a card cannot be scanned.',
+            '「账户」查看余额、全部流水、充值与退款。「扣币」打开与扫码相同的页面，供无法扫码时使用。',
+          )}
+        </p>
+        <MemberSearch lang={lang} onOpen={onOpenMember} charge />
+      </div>
     </div>
   );
 }
 
-// Find a member without scanning their card, then open the same /charge/
-// screen a scan opens (grant, cash top-up, mint and charge all live there).
-function MemberLookup({ lang }: { lang: Lang }) {
+// Find a member by name or email. Each hit opens their account here, and —
+// where the page asks for it — the /charge/ screen a scanned card opens.
+function MemberSearch({
+  lang,
+  onOpen,
+  charge = false,
+}: {
+  lang: Lang;
+  onOpen: (id: string) => void;
+  charge?: boolean;
+}) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const [q, setQ] = useState('');
-  const [rows, setRows] = useState<
-    { id: string; full_name: string | null; email: string | null; tier_id: string | null }[] | null
-  >(null);
+  const [rows, setRows] = useState<Found[] | null>(null);
   const [error, setError] = useState('');
   const search = async (e: FormEvent) => {
     e.preventDefault();
     if (!q.trim()) return;
-    const res = await api<{
-      rows: {
-        id: string;
-        full_name: string | null;
-        email: string | null;
-        tier_id: string | null;
-      }[];
-    }>(`/api/admin/members?limit=10&q=${encodeURIComponent(q.trim())}`, undefined, { auth: true });
+    const res = await api<{ rows: Found[] }>(
+      `/api/admin/members?limit=10&q=${encodeURIComponent(q.trim())}`,
+      undefined,
+      { auth: true },
+    );
     if (res.ok) {
       setRows(res.data.rows);
       setError('');
     } else setError(res.data.error || 'Search failed.');
   };
   return (
-    <div className={SECTION}>
-      <span className={EYEBROW}>{t('Find a member', '查找会员')}</span>
-      <p className="text-xs text-neutral-500">
-        {t(
-          'For when a card cannot be scanned. Opens the same screen as a scan: grant, cash top-up, add tokens.',
-          '无法扫码时使用。打开的页面与扫码相同：补发、现金充值、发币。',
-        )}
-      </p>
+    <div className="space-y-3">
       <form onSubmit={(e) => void search(e)} className="flex gap-2">
         <input
           className={INPUT}
@@ -276,12 +361,683 @@ function MemberLookup({ lang }: { lang: Lang }) {
                   {m.email} · {m.tier_id ?? t('no plan', '无等级')}
                 </span>
               </span>
-              <a className={SECONDARY} href={`${lang === 'zh' ? '/zh' : ''}/charge/?m=${m.id}`}>
-                {t('Open', '打开')}
-              </a>
+              <span className="shrink-0 flex items-center gap-4">
+                {charge && (
+                  <a
+                    className={`${TEXT_ACTION} inline-flex items-center`}
+                    href={`${lang === 'zh' ? '/zh' : ''}/charge/?m=${m.id}`}
+                  >
+                    {t('Charge', '扣币')}
+                  </a>
+                )}
+                <button type="button" className={SECONDARY} onClick={() => onOpen(m.id)}>
+                  {t('Account', '账户')}
+                </button>
+              </span>
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------- members ----
+// One member's account: who they are, the balance, every movement on the
+// ledger, and the desk's writes — cash top-up, free tokens, a take-back — plus
+// a refund against any top-up. The caps are the server's; this page only asks.
+function MembersTab({
+  lang,
+  say,
+  settings,
+  root,
+  memberId,
+  onOpen,
+  guarded,
+}: {
+  lang: Lang;
+  say: Say;
+  settings: TokenSettings;
+  root: boolean;
+  memberId: string;
+  onOpen: (id: string) => void;
+  guarded: Guarded;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  return (
+    <div className="space-y-6">
+      {memberId ? (
+        <MemberPanel
+          key={memberId}
+          lang={lang}
+          id={memberId}
+          say={say}
+          settings={settings}
+          root={root}
+          onClose={() => onOpen('')}
+          guarded={guarded}
+        />
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs text-neutral-500">
+            {t(
+              'Find a member to see their balance and every movement on it, take cash for tokens, add tokens, or refund a top-up.',
+              '查找会员，查看余额与全部流水，收现金充值、发币，或为某笔充值退款。',
+            )}
+          </p>
+          <MemberSearch lang={lang} onOpen={onOpen} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+type DeskForm = '' | 'cash' | 'mint' | 'debit';
+
+function MemberPanel({
+  lang,
+  id,
+  say,
+  settings,
+  root,
+  onClose,
+  guarded,
+}: {
+  lang: Lang;
+  id: string;
+  say: Say;
+  settings: TokenSettings;
+  root: boolean;
+  onClose: () => void;
+  guarded: Guarded;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const [offset, setOffset] = useState(0);
+  const [data, setData] = useState<MemberAccount | null>(null);
+  const [error, setError] = useState('');
+  const [form, setForm] = useState<DeskForm>('');
+  const [busy, setBusy] = useState(false);
+  const rate = settings.tokens_per_dollar;
+
+  const load = useCallback(async () => {
+    const res = await tokens.admin.member(id, offset);
+    if (res.ok) {
+      setData(res.data);
+      setError('');
+    } else setError(refusalText(res, lang));
+  }, [id, offset, lang]);
+
+  useEffect(() => {
+    // a slow answer for an earlier page must not overwrite the current one
+    let current = true;
+    setData(null);
+    void tokens.admin.member(id, offset).then((res) => {
+      if (!current) return;
+      if (res.ok) setData(res.data);
+      else setError(refusalText(res, lang));
+    });
+    return () => {
+      current = false;
+    };
+  }, [id, offset, lang]);
+
+  // One write, then the account is read again so the balance and the list
+  // agree. `ok` may read the answer (a card refund names its Stripe id). A
+  // write the admin backed out of at the code dialog says nothing.
+  const write = async <T extends Refusal>(
+    call: () => Promise<ApiResult<T> & { cancelled?: boolean }>,
+    ok: string | ((data: T) => string),
+  ) => {
+    setBusy(true);
+    const res = await call();
+    setBusy(false);
+    if (res.cancelled) return false;
+    if (!res.ok) {
+      say('error', refusalText(res, lang));
+      return false;
+    }
+    say('success', typeof ok === 'function' ? ok(res.data) : ok);
+    setForm('');
+    await load();
+    return true;
+  };
+
+  if (error)
+    return (
+      <div className="space-y-3">
+        <Notice tone="error">{error}</Notice>
+        <button type="button" className={TEXT_ACTION} onClick={onClose}>
+          {t('Back to search', '返回查找')}
+        </button>
+      </div>
+    );
+  if (!data) return <Spinner label={t('Loading…', '加载中…')} />;
+
+  const { member } = data;
+  const active =
+    member.status === 'active' && (!member.expires_at || new Date(member.expires_at) > new Date());
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-lg font-bold text-neutral-900 truncate">{member.full_name || '—'}</p>
+          <p className="text-xs text-neutral-500 truncate">
+            {member.email}
+            {member.tier_id ? ` · ${member.tier_id}` : ''}
+            {member.expires_at ? ` · ${t('to', '至')} ${day(member.expires_at, lang)}` : ''}
+            {' · '}
+            {active ? (
+              <Status tone="good">{t('Active', '有效')}</Status>
+            ) : (
+              <Status tone="bad">{t('Not active', '已失效')}</Status>
+            )}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-4">
+            <a
+              className={`${TEXT_ACTION} inline-flex items-center`}
+              href={`${lang === 'zh' ? '/zh' : ''}/charge/?m=${member.id}`}
+            >
+              {t('Charge at the counter', '扣币')}
+            </a>
+            <button type="button" className={TEXT_ACTION} onClick={onClose}>
+              {t('Another member', '换一位会员')}
+            </button>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-[11px] text-neutral-500">{t('Balance', '余额')}</p>
+          <p className="text-3xl font-bold text-ink tabular-nums">{data.balance}</p>
+          <p className="text-[11px] text-neutral-500">{usd((data.balance * 100) / rate)}</p>
+        </div>
+      </div>
+
+      {/* the desk's writes, one form open at a time */}
+      <section className={SECTION}>
+        <span className={EYEBROW}>{t('Top up, add, take back', '充值、发币、扣回')}</span>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className={SECONDARY}
+            aria-pressed={form === 'cash'}
+            onClick={() => setForm(form === 'cash' ? '' : 'cash')}
+          >
+            <Banknote className="w-4 h-4" aria-hidden />
+            {t('Cash top-up', '现金充值')}
+          </button>
+          <button
+            type="button"
+            className={SECONDARY}
+            aria-pressed={form === 'mint'}
+            onClick={() => setForm(form === 'mint' ? '' : 'mint')}
+          >
+            <PlusCircle className="w-4 h-4" aria-hidden />
+            {t('Add tokens', '发币')}
+          </button>
+          <button
+            type="button"
+            className={SECONDARY}
+            aria-pressed={form === 'debit'}
+            onClick={() => setForm(form === 'debit' ? '' : 'debit')}
+          >
+            <Undo2 className="w-4 h-4" aria-hidden />
+            {t('Take back', '扣回')}
+          </button>
+        </div>
+        {form === 'cash' && (
+          <CashForm
+            lang={lang}
+            settings={settings}
+            root={root}
+            busy={busy}
+            onSubmit={(cents) =>
+              write(
+                () => tokens.admin.cashTopUp(id, cents),
+                t(
+                  `Took ${usd(cents)} in cash. Added ${(cents * rate) / 100} tokens.`,
+                  `已收现金 ${usd(cents)}，充入 ${(cents * rate) / 100} 币。`,
+                ),
+              )
+            }
+          />
+        )}
+        {form === 'mint' && (
+          <AmountReasonForm
+            lang={lang}
+            busy={busy}
+            label={t('Tokens to add, for free', '发放币数（免费）')}
+            hint={
+              root
+                ? ''
+                : t(
+                    `Up to ${settings.admin_mint_cap} tokens at a time and ${settings.admin_daily_cap} a day. More needs root.`,
+                    `单次最多 ${settings.admin_mint_cap} 币，每日最多 ${settings.admin_daily_cap} 币，超出请找 root。`,
+                  )
+            }
+            action={t('Add tokens', '发币')}
+            onSubmit={(n, reason) =>
+              write(
+                () => tokens.admin.mint(id, n, reason),
+                t(`Added ${n} tokens.`, `已发放 ${n} 币。`),
+              )
+            }
+          />
+        )}
+        {form === 'debit' && (
+          <AmountReasonForm
+            lang={lang}
+            busy={busy}
+            label={t('Tokens to take back', '扣回币数')}
+            hint={t(
+              'For a grant or a gift made by mistake. To give a top-up back, use “Refund” on that row below instead, so the money is on the record.',
+              '用于误发的赠币或发币。退还充值请在下方对应那笔上点「退款」，以便记录退回的钱。',
+            )}
+            action={t('Take back', '扣回')}
+            danger
+            onSubmit={(n, reason) =>
+              write(
+                () => tokens.admin.debit(id, n, reason),
+                t(`Took back ${n} tokens.`, `已扣回 ${n} 币。`),
+              )
+            }
+          />
+        )}
+      </section>
+
+      {/* every movement, newest first, with a refund under any top-up */}
+      <section className={SECTION}>
+        <span className={EYEBROW}>{t('Account history', '账户流水')}</span>
+        {data.rows.length === 0 ? (
+          <p className="text-xs text-neutral-500 py-4">{t('Nothing yet.', '暂无记录。')}</p>
+        ) : (
+          <>
+            <ul className="divide-y divide-neutral-200/80">
+              {data.rows.map((tx) => (
+                <LedgerRow
+                  key={tx.id}
+                  tx={tx}
+                  lang={lang}
+                  action={
+                    (tx.kind === 'cash' || tx.kind === 'purchase') && (
+                      <RefundRow
+                        lang={lang}
+                        tx={tx}
+                        rate={rate}
+                        busy={busy}
+                        onRefund={(amount, cents, reason, toCard) =>
+                          write(
+                            () =>
+                              guarded((headers) =>
+                                tokens.admin.refund(tx.id, amount, cents, reason, {
+                                  stripe: toCard,
+                                  headers,
+                                }),
+                              ),
+                            (d) => refundDone(lang, amount, cents, d.stripe_refund_id),
+                          )
+                        }
+                      />
+                    )
+                  }
+                />
+              ))}
+            </ul>
+            <Pager lang={lang} offset={offset} total={data.total} onChange={setOffset} />
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+const CASH_QUICK = [500, 1000, 2000, 5000];
+
+// Cash for tokens, as the /charge/ desk takes it: a few quick amounts and a box.
+function CashForm({
+  lang,
+  settings,
+  root,
+  busy,
+  onSubmit,
+}: {
+  lang: Lang;
+  settings: TokenSettings;
+  root: boolean;
+  busy: boolean;
+  onSubmit: (cents: number) => Promise<boolean>;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const [cash, setCash] = useState('');
+  const cents = /^\d+(\.\d{1,2})?$/.test(cash) ? Math.round(Number(cash) * 100) : 0;
+  const rate = settings.tokens_per_dollar;
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void onSubmit(cents).then((done) => done && setCash(''));
+      }}
+    >
+      <div className="flex flex-wrap gap-2">
+        {CASH_QUICK.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => setCash(String(c / 100))}
+            className="px-3 min-h-[44px] rounded-full border border-neutral-300 bg-neutral-50 text-xs font-semibold hover:border-brick hover:text-brick cursor-pointer"
+          >
+            {usd(c)}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          className={INPUT}
+          inputMode="decimal"
+          placeholder={t('Cash received (US$)', '收到的现金（美元）')}
+          aria-label={t('Cash received (US$)', '收到的现金（美元）')}
+          value={cash}
+          onChange={(e) => setCash(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))}
+        />
+        <button
+          type="submit"
+          className={`${PRIMARY} shrink-0 whitespace-nowrap`}
+          disabled={busy || cents < settings.cash_min_cents}
+        >
+          {cents > 0 ? `+${(cents * rate) / 100}` : t('Add', '充值')}
+        </button>
+      </div>
+      <p className="text-[11px] text-neutral-500">
+        {t(
+          `Minimum ${usd(settings.cash_min_cents)}. Put the cash in the box before you tap. A running promotion is added by the server.`,
+          `最低 ${usd(settings.cash_min_cents)}。先把现金放进钱箱，再点按钮。如有促销赠币，由系统自动加上。`,
+        )}
+        {!root && settings.admin_cash_cap_cents
+          ? ` ${t(`Up to ${usd(settings.admin_cash_cap_cents)} at a time.`, `单次最多 ${usd(settings.admin_cash_cap_cents)}。`)}`
+          : ''}
+      </p>
+    </form>
+  );
+}
+
+// A number of tokens and a reason: the shape of a free mint and of a take-back.
+function AmountReasonForm({
+  lang,
+  busy,
+  label,
+  hint,
+  action,
+  danger = false,
+  onSubmit,
+}: {
+  lang: Lang;
+  busy: boolean;
+  label: string;
+  hint: string;
+  action: string;
+  danger?: boolean;
+  onSubmit: (amount: number, reason: string) => Promise<boolean>;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const n = Number(amount);
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void onSubmit(n, reason.trim()).then((done) => {
+          if (done) {
+            setAmount('');
+            setReason('');
+          }
+        });
+      }}
+    >
+      <div className="grid grid-cols-3 gap-2">
+        <input
+          className={INPUT}
+          inputMode="numeric"
+          placeholder={label}
+          aria-label={label}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value.replace(/\D/g, '').slice(0, 5))}
+        />
+        <input
+          className={`${INPUT} col-span-2`}
+          placeholder={t('Reason (kept on the record)', '原因（存档）')}
+          aria-label={t('Reason', '原因')}
+          maxLength={200}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          className={danger ? DANGER : PRIMARY}
+          disabled={busy || !n || !reason.trim()}
+        >
+          {action}
+        </button>
+        {hint && <p className="text-[11px] text-neutral-500 leading-relaxed">{hint}</p>}
+      </div>
+    </form>
+  );
+}
+
+/** What a finished refund says, with the Stripe id when the card was refunded too. */
+function refundDone(lang: Lang, amount: number, cents: number, stripeId?: string) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const money = cents ? (lang === 'zh' ? `，退还 ${usd(cents)}` : ` and ${usd(cents)}`) : '';
+  const card = stripeId
+    ? t(` Refunded to the card (Stripe ${stripeId}).`, ` 已退到卡（Stripe ${stripeId}）。`)
+    : '';
+  return t(`Refunded ${amount} tokens${money}.${card}`, `已退回 ${amount} 币${money}。${card}`);
+}
+
+// Under a cash or online top-up: what has come back so far, and a form to give
+// the rest (or part of it) back. The tokens follow the money at the row's own
+// rate, bonus included, so a half refund takes back half the bonus too; either
+// number can still be edited. Sending is two steps: the form, then a
+// confirmation that spells out what will happen. An online purchase whose
+// Stripe session is on record is refunded to the card as well (0039), which
+// the server gates with the emailed code. The server holds the caps.
+function RefundRow({
+  lang,
+  tx,
+  rate,
+  busy,
+  startOpen = false,
+  onRefund,
+}: {
+  lang: Lang;
+  tx: LedgerTx;
+  rate: number;
+  busy: boolean;
+  /** the Disputes tab: the member asked, so the form is already out */
+  startOpen?: boolean;
+  onRefund: (amount: number, cents: number, reason: string, toCard: boolean) => Promise<boolean>;
+}) {
+  const t = (en: string, zh: string) => tr(lang, en, zh);
+  const paidCents = tx.cash_cents ?? 0;
+  const tokensLeft = tx.amount - (tx.refunded?.tokens ?? 0);
+  const centsLeft = paidCents - (tx.refunded?.cents ?? 0);
+  const canCard = tx.kind === 'purchase' && tx.card === true;
+
+  const [open, setOpen] = useState(startOpen && tokensLeft > 0);
+  const [cash, setCash] = useState(() =>
+    startOpen && centsLeft > 0 ? String(centsLeft / 100) : '',
+  );
+  const [amount, setAmount] = useState(() => (startOpen ? String(tokensLeft) : ''));
+  const [reason, setReason] = useState('');
+  const [toCard, setToCard] = useState(canCard);
+  const [confirming, setConfirming] = useState(false);
+  const cents = /^\d+(\.\d{1,2})?$/.test(cash) ? Math.round(Number(cash) * 100) : 0;
+  const n = Number(amount);
+  const cardNow = canCard && toCard && cents > 0;
+
+  // Money first: typing the cash fills in the tokens it bought on this row.
+  const setCashAndTokens = (value: string) => {
+    setCash(value);
+    const c = /^\d+(\.\d{1,2})?$/.test(value) ? Math.round(Number(value) * 100) : 0;
+    const share = paidCents > 0 ? Math.round((c * tx.amount) / paidCents) : (c * rate) / 100;
+    setAmount(c > 0 ? String(Math.min(share, tokensLeft)) : '');
+  };
+  const start = () => {
+    setOpen(true);
+    setConfirming(false);
+    setCash(centsLeft > 0 ? String(centsLeft / 100) : '');
+    setAmount(String(tokensLeft));
+    setReason('');
+  };
+
+  return (
+    <div className="mt-1 space-y-2">
+      {tx.refunded && (
+        <p className="text-[11px] text-neutral-500">
+          {t(
+            `Refunded so far: ${tx.refunded.tokens} tokens${tx.refunded.cents ? ` · ${usd(tx.refunded.cents)}` : ''}.`,
+            `已退回 ${tx.refunded.tokens} 币${tx.refunded.cents ? ` · ${usd(tx.refunded.cents)}` : ''}。`,
+          )}
+        </p>
+      )}
+      {tokensLeft > 0 && !open && (
+        <button type="button" className={TEXT_ACTION} onClick={start}>
+          {t('Refund', '退款')}
+        </button>
+      )}
+      {open && (
+        <form
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!confirming) return setConfirming(true);
+            void onRefund(n, cents, reason.trim(), cardNow).then((done) => done && setOpen(false));
+          }}
+        >
+          {tx.kind === 'purchase' && !canCard && (
+            <p className={ASIDE}>
+              {t(
+                'Paid by card, but no Stripe session is on record for it: refund the card in the Stripe Dashboard, then record it here. This takes the tokens back and moves no money.',
+                '这是刷卡购买，但没有记录 Stripe 会话：请在 Stripe Dashboard 退款到卡，再在这里记录。此操作只收回币，不转账。',
+              )}
+            </p>
+          )}
+          <div className="grid sm:grid-cols-3 gap-2">
+            <Field
+              label={t(`Cash back (of ${usd(centsLeft)})`, `退还现金（最多 ${usd(centsLeft)}）`)}
+            >
+              <input
+                className={INPUT}
+                inputMode="decimal"
+                value={cash}
+                onChange={(e) =>
+                  setCashAndTokens(e.target.value.replace(/[^\d.]/g, '').slice(0, 7))
+                }
+              />
+            </Field>
+            <Field label={t(`Tokens back (of ${tokensLeft})`, `收回币数（最多 ${tokensLeft}）`)}>
+              <input
+                className={INPUT}
+                inputMode="numeric"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/\D/g, '').slice(0, 5))}
+              />
+            </Field>
+            <Field label={t('Note (optional)', '备注（可选）')}>
+              <input
+                className={INPUT}
+                maxLength={200}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                disabled={confirming}
+              />
+            </Field>
+          </div>
+          {canCard && (
+            <label className="flex items-start gap-3 text-xs text-neutral-700 leading-relaxed">
+              <input
+                type="checkbox"
+                className="mt-0.5 w-4 h-4 accent-brick cursor-pointer"
+                checked={toCard}
+                disabled={confirming}
+                onChange={(e) => setToCard(e.target.checked)}
+              />
+              <span>
+                {t(
+                  'Also refund the card through Stripe (the cash amount above goes back the way it was paid). Off, only the tokens come back and the money is recorded as returned by hand.',
+                  '同时通过 Stripe 退到卡（上面的现金金额按原付款方式退回）。不勾选则只收回币，并记录为已另行退款。',
+                )}
+              </span>
+            </label>
+          )}
+          {confirming ? (
+            // The confirmation: what will happen, in words, before anything does.
+            <div className="space-y-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
+              <p className="text-sm text-amber-900 font-semibold">
+                {t('Please confirm', '请确认')}
+              </p>
+              <ul className="text-xs text-amber-900 space-y-1">
+                <li>{t(`${n} tokens leave the member’s account.`, `从会员账户收回 ${n} 币。`)}</li>
+                <li>
+                  {cardNow
+                    ? t(
+                        `${usd(cents)} is refunded to the card through Stripe. You will be asked for the verification code emailed to you.`,
+                        `通过 Stripe 退 ${usd(cents)} 到卡。接下来会要求输入发送到你邮箱的验证码。`,
+                      )
+                    : cents
+                      ? t(
+                          `${usd(cents)} is recorded as returned by hand; no money moves here.`,
+                          `记录为已另行退还 ${usd(cents)}；此处不转账。`,
+                        )
+                      : t('No money is recorded as returned.', '不记录退还的钱。')}
+                </li>
+              </ul>
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="submit" className={DANGER} disabled={busy}>
+                  {busy
+                    ? t('Refunding…', '退款中…')
+                    : cardNow
+                      ? t('Confirm — refund the card', '确认退款并退卡')
+                      : t('Confirm the refund', '确认退款')}
+                </button>
+                <button
+                  type="button"
+                  className={TEXT_ACTION}
+                  disabled={busy}
+                  onClick={() => setConfirming(false)}
+                >
+                  {t('Back', '返回')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                className={SECONDARY}
+                disabled={busy || !n || n > tokensLeft || cents > centsLeft}
+              >
+                {t('Refund…', '退款…')}
+              </button>
+              {!startOpen && (
+                <button type="button" className={TEXT_ACTION} onClick={() => setOpen(false)}>
+                  {t('Cancel', '取消')}
+                </button>
+              )}
+            </div>
+          )}
+          {!confirming && n > 0 && n < tokensLeft && cents === 0 && (
+            <p className="text-[11px] text-neutral-500">
+              {t(
+                'No cash entered: the tokens come back and no money is recorded as returned.',
+                '未填现金：只收回币，不记录退还的钱。',
+              )}
+            </p>
+          )}
+        </form>
       )}
     </div>
   );
@@ -951,18 +1707,27 @@ function Figure({ label, value, sub }: { label: string; value: string; sub?: str
 }
 
 // ------------------------------------------------------------- disputes ----
+// Two kinds of row wait here (0037): a charge a member says was not theirs
+// (uphold = reversal, or reject), and a top-up a member asked back (refund it
+// with the same form the account page uses, or reject). Both came in from the
+// receipt link or the member's own account page.
 function DisputesTab({
   lang,
   say,
+  rate,
   onChange,
+  guarded,
 }: {
   lang: Lang;
   say: Say;
+  rate: number;
   onChange: () => Promise<void>;
+  guarded: Guarded;
 }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   const [rows, setRows] = useState<LedgerTx[] | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     const res = await tokens.admin.disputes();
     if (res.ok) setRows(res.data.rows);
@@ -986,56 +1751,130 @@ function DisputesTab({
               'Upheld: the tokens are back with the member and come off the merchant’s next statement.',
               '申诉成立：币已退回会员，并从商家下期对账中扣除。',
             )
-        : t('Rejected: the charge stands.', '已驳回：扣币有效。'),
+        : tx.kind === 'charge'
+          ? t('Rejected: the charge stands.', '已驳回：扣币有效。')
+          : t('Rejected: the top-up stays as it is.', '已驳回：充值保持不变。'),
     );
     await Promise.all([load(), onChange()]);
+  };
+
+  const refund = async (
+    tx: LedgerTx,
+    amount: number,
+    cents: number,
+    reason: string,
+    toCard: boolean,
+  ) => {
+    setBusy(true);
+    const res = await guarded((headers) =>
+      tokens.admin.refund(tx.id, amount, cents, reason, { stripe: toCard, headers }),
+    );
+    setBusy(false);
+    if (res.cancelled) return false;
+    if (!res.ok) {
+      say('error', refusalText(res, lang));
+      return false;
+    }
+    say(
+      'success',
+      `${refundDone(lang, amount, cents, res.data.stripe_refund_id)} ${t('The request is closed.', '申请已结案。')}`,
+    );
+    await Promise.all([load(), onChange()]);
+    return true;
   };
 
   if (!rows) return <Spinner label={t('Loading…', '加载中…')} />;
   if (rows.length === 0)
     return (
-      <p className="text-sm text-neutral-500">{t('No open disputes.', '没有待处理的申诉。')}</p>
+      <p className="text-sm text-neutral-500">
+        {t('No open disputes or refund requests.', '没有待处理的申诉或退款申请。')}
+      </p>
     );
   return (
     <div className="divide-y divide-neutral-200/80 border-y border-neutral-200/80">
-      {rows.map((tx) => (
-        <div key={tx.id} className="py-5 space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-neutral-900">
-                {tx.member_name || '—'}{' '}
-                <span className="font-normal text-neutral-500">· {tx.member_email}</span>
+      {rows.map((tx) => {
+        const isCharge = tx.kind === 'charge';
+        return (
+          <div key={tx.id} className="py-5 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-neutral-900">
+                  {tx.member_name || '—'}{' '}
+                  <span className="font-normal text-neutral-500">· {tx.member_email}</span>
+                </p>
+                <p className="text-xs text-neutral-600">
+                  {isCharge
+                    ? `${pickName(tx.merchant, lang)} · ${when(tx.created_at, lang)} · ${t('by', '操作人')} ${tx.actor_name || '—'}`
+                    : `${t('Refund request', '退款申请')} · ${kindLabel(tx.kind, lang)}${tx.cash_cents ? ` · ${usd(tx.cash_cents)}` : ''} · ${when(tx.created_at, lang)}`}
+                </p>
+                {isCharge && (
+                  <p className="text-xs text-neutral-600">{lineText(tx.items, lang) || tx.note}</p>
+                )}
+              </div>
+              <p className="text-lg font-bold tabular-nums shrink-0">
+                {isCharge ? -tx.amount : `+${tx.amount}`}
               </p>
-              <p className="text-xs text-neutral-600">
-                {pickName(tx.merchant, lang)} · {when(tx.created_at, lang)} · {t('by', '操作人')}{' '}
-                {tx.actor_name || '—'}
-              </p>
-              <p className="text-xs text-neutral-600">{lineText(tx.items, lang) || tx.note}</p>
             </div>
-            <p className="text-lg font-bold tabular-nums shrink-0">{-tx.amount}</p>
+            {tx.dispute_note && (
+              <p className="text-xs text-neutral-700 border-l-2 border-neutral-300 pl-3">
+                “{tx.dispute_note}”
+              </p>
+            )}
+            {isCharge ? (
+              <>
+                <input
+                  className={INPUT}
+                  value={notes[tx.id] ?? ''}
+                  onChange={(e) => setNotes({ ...notes, [tx.id]: e.target.value })}
+                  placeholder={t('What you found out (kept on the record)', '核实结果（存档）')}
+                  aria-label={t('Resolution note', '核实结果')}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className={DANGER} onClick={() => void resolve(tx, true)}>
+                    {t('Uphold — return the tokens', '申诉成立，退币')}
+                  </button>
+                  <button
+                    type="button"
+                    className={SECONDARY}
+                    onClick={() => void resolve(tx, false)}
+                  >
+                    {t('Reject — the charge stands', '驳回，扣币有效')}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <RefundRow
+                  lang={lang}
+                  tx={tx}
+                  rate={rate}
+                  busy={busy}
+                  startOpen
+                  onRefund={(amount, cents, reason, toCard) =>
+                    refund(tx, amount, cents, reason, toCard)
+                  }
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    className={INPUT}
+                    value={notes[tx.id] ?? ''}
+                    onChange={(e) => setNotes({ ...notes, [tx.id]: e.target.value })}
+                    placeholder={t('Why not (kept on the record)', '驳回原因（存档）')}
+                    aria-label={t('Resolution note', '核实结果')}
+                  />
+                  <button
+                    type="button"
+                    className={SECONDARY}
+                    onClick={() => void resolve(tx, false)}
+                  >
+                    {t('Reject — no refund', '驳回，不退款')}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-          {tx.dispute_note && (
-            <p className="text-xs text-neutral-700 border-l-2 border-neutral-300 pl-3">
-              “{tx.dispute_note}”
-            </p>
-          )}
-          <input
-            className={INPUT}
-            value={notes[tx.id] ?? ''}
-            onChange={(e) => setNotes({ ...notes, [tx.id]: e.target.value })}
-            placeholder={t('What you found out (kept on the record)', '核实结果（存档）')}
-            aria-label={t('Resolution note', '核实结果')}
-          />
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className={DANGER} onClick={() => void resolve(tx, true)}>
-              {t('Uphold — return the tokens', '申诉成立，退币')}
-            </button>
-            <button type="button" className={SECONDARY} onClick={() => void resolve(tx, false)}>
-              {t('Reject — the charge stands', '驳回，扣币有效')}
-            </button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -1152,53 +1991,63 @@ function LedgerTab({ lang }: { lang: Lang }) {
   );
 }
 
-/** One ledger row, wherever it is shown: the whole ledger, or one item's own. */
-function LedgerRow({ tx, lang }: { tx: LedgerTx; lang: Lang }) {
+/**
+ * One ledger row, wherever it is shown: the whole ledger, one item's own, or a
+ * member's account. `action` is what the page lets an admin do about this row
+ * (the refund under a top-up), rendered beneath it.
+ */
+function LedgerRow({ tx, lang, action }: { tx: LedgerTx; lang: Lang; action?: ReactNode }) {
   const t = (en: string, zh: string) => tr(lang, en, zh);
   return (
-    <li className="py-2.5 flex items-start justify-between gap-3 text-xs">
-      <div className="min-w-0">
-        <p className="font-semibold text-neutral-900 truncate">
-          {tx.member_name || tx.member_email || '—'}
-          {/* A scan-to-pay charge, by the code the member's screen showed and
-              the shop's console lists — what a question about one charge is
-              matched on. */}
-          {tx.confirm && (
-            <span className="ml-2 font-mono tracking-widest text-brick">{tx.confirm}</span>
+    <li className="py-2.5 text-xs">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-semibold text-neutral-900 truncate">
+            {tx.member_name || tx.member_email || '—'}
+            {/* A scan-to-pay charge, by the code the member's screen showed and
+                the shop's console lists — what a question about one charge is
+                matched on. */}
+            {tx.confirm && (
+              <span className="ml-2 font-mono tracking-widest text-brick">{tx.confirm}</span>
+            )}
+            <span className="ml-2 font-normal text-neutral-500">{when(tx.created_at, lang)}</span>
+          </p>
+          <p className="text-neutral-600 truncate">
+            {txLabel(tx, lang)}
+            {tx.merchant ? ` · ${pickName(tx.merchant, lang)}` : ''}
+            {tx.cash_cents ? ` · ${usd(tx.cash_cents)}` : ''}
+            {lineText(tx.items, lang) ? ` · ${lineText(tx.items, lang)}` : ''}
+            {tx.reason ? ` · ${tx.reason}` : ''}
+            {tx.note ? ` · ${tx.note}` : ''}
+            {tx.stripe_refund_id ? ` · Stripe ${tx.stripe_refund_id}` : ''}
+          </p>
+          <p className="text-[11px] text-neutral-500">
+            {tx.actor_name ? `${t('by', '操作人')} ${tx.actor_name}` : t('automatic', '系统自动')}
+            {tx.kind === 'charge' && tx.receipt_error
+              ? ` · ${t('receipt failed', '回执失败')}: ${tx.receipt_error}`
+              : ''}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p
+            className={`text-sm font-bold tabular-nums ${tx.amount > 0 ? 'text-emerald-700' : 'text-neutral-900'}`}
+          >
+            {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
+          </p>
+          {tx.state !== 'ok' && (
+            <Status tone={tx.state === 'disputed' ? 'warn' : 'muted'}>
+              {tx.state === 'disputed'
+                ? tx.kind === 'charge'
+                  ? t('Disputed', '争议中')
+                  : t('Refund requested', '申请退款中')
+                : tx.state === 'voided'
+                  ? t('Voided', '已撤销')
+                  : t('Reversed', '已冲回')}
+            </Status>
           )}
-          <span className="ml-2 font-normal text-neutral-500">{when(tx.created_at, lang)}</span>
-        </p>
-        <p className="text-neutral-600 truncate">
-          {kindLabel(tx.kind, lang)}
-          {tx.merchant ? ` · ${pickName(tx.merchant, lang)}` : ''}
-          {tx.cash_cents ? ` · ${usd(tx.cash_cents)}` : ''}
-          {lineText(tx.items, lang) ? ` · ${lineText(tx.items, lang)}` : ''}
-          {tx.reason ? ` · ${tx.reason}` : ''}
-          {tx.note ? ` · ${tx.note}` : ''}
-        </p>
-        <p className="text-[11px] text-neutral-500">
-          {tx.actor_name ? `${t('by', '操作人')} ${tx.actor_name}` : t('automatic', '系统自动')}
-          {tx.kind === 'charge' && tx.receipt_error
-            ? ` · ${t('receipt failed', '回执失败')}: ${tx.receipt_error}`
-            : ''}
-        </p>
+        </div>
       </div>
-      <div className="text-right shrink-0">
-        <p
-          className={`text-sm font-bold tabular-nums ${tx.amount > 0 ? 'text-emerald-700' : 'text-neutral-900'}`}
-        >
-          {tx.amount > 0 ? `+${tx.amount}` : tx.amount}
-        </p>
-        {tx.state !== 'ok' && (
-          <Status tone={tx.state === 'disputed' ? 'warn' : 'muted'}>
-            {tx.state === 'disputed'
-              ? t('Disputed', '争议中')
-              : tx.state === 'voided'
-                ? t('Voided', '已撤销')
-                : t('Reversed', '已冲回')}
-          </Status>
-        )}
-      </div>
+      {action}
     </li>
   );
 }

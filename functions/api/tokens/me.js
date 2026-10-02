@@ -20,7 +20,8 @@ export async function onRequestGet({ request, env }) {
       callerRoles(DB, id),
       DB.rpc('token_balance', { p_member: id }),
       DB.select('token_tx', {
-        columns: 'id,created_at,kind,amount,state,items,note,self_serve,merchants(name,name_zh)',
+        columns:
+          'id,created_at,kind,amount,state,items,note,self_serve,cash_cents,merchants(name,name_zh)',
         filters: [`member_id=eq.${id}`],
         order: 'created_at.desc',
         limit: 30,
@@ -39,6 +40,36 @@ export async function onRequestGet({ request, env }) {
       });
       family = rows.map((m) => ({ id: m.id, name: m.full_name || 'Family member' }));
     }
+
+    // What each top-up has had refunded (0037), so the wallet can say so and
+    // not offer a refund request on one that has nothing left.
+    const topUps = history.rows.filter((t) => t.kind === 'cash' || t.kind === 'purchase');
+    const refunded = new Map();
+    if (topUps.length) {
+      const { rows: backs } = await DB.select('token_tx', {
+        columns: 'related_tx,amount,cash_cents',
+        filters: [
+          `related_tx=in.(${topUps.map((t) => t.id).join(',')})`,
+          'kind=eq.adjust',
+          'state=neq.voided',
+        ],
+        limit: 200,
+      });
+      for (const r of backs) {
+        const sum = refunded.get(r.related_tx) || { tokens: 0, cents: 0 };
+        sum.tokens += -r.amount;
+        sum.cents += r.cash_cents || 0;
+        refunded.set(r.related_tx, sum);
+      }
+    }
+    // A member may ask about a row for dispute_days after it (the same window
+    // as the receipt's "not me" link), while it still stands.
+    const askUntil = Date.now() - (Number(settings?.dispute_days) || 60) * 86_400_000;
+    const canRequest = (t) =>
+      t.state === 'ok' &&
+      ['charge', 'cash', 'purchase'].includes(t.kind) &&
+      new Date(t.created_at).getTime() >= askUntil &&
+      (t.kind === 'charge' || t.amount - (refunded.get(t.id)?.tokens || 0) > 0);
 
     const rate = settings?.tokens_per_dollar || 10;
     // Price each pack through token_quote rather than here, so the wallet can
@@ -77,6 +108,11 @@ export async function onRequestGet({ request, env }) {
         items: t.items || [],
         note: t.note || '',
         self_serve: t.self_serve === true,
+        // A top-up given back (0037): the member reads "refund", not "adjusted".
+        refund: t.kind === 'adjust' && t.cash_cents !== null && t.cash_cents !== undefined,
+        cash_cents: t.cash_cents ?? null,
+        refunded: refunded.get(t.id) || null,
+        can_request: canRequest(t),
         // The same four characters the receipt showed right after the tap, so a
         // member who has closed that page can still read them out at the stall.
         // Only for a scan-to-pay charge: a clerk's charge has nothing to check.

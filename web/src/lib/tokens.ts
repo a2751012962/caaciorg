@@ -51,6 +51,13 @@ export interface WalletTx {
   self_serve: boolean;
   /** the four characters to read out at the stall; '' when there is nothing to check */
   confirm: string;
+  /** a top-up given back (0037), as opposed to any other adjustment */
+  refund?: boolean;
+  cash_cents?: number | null;
+  /** on a top-up: what has been refunded of it so far */
+  refunded?: { tokens: number; cents: number } | null;
+  /** the member may still ask about this row (within dispute_days, still standing) */
+  can_request?: boolean;
   merchant: { name: string; name_zh: string | null } | null;
 }
 
@@ -213,6 +220,8 @@ export interface TokenSettings {
   /** 0030; older databases answer without these until the migration is applied */
   pay_repeat_seconds?: number;
   pay_allow_partners?: boolean;
+  /** 0029: most cash a non-root admin may take, or give back (0037), in one action */
+  admin_cash_cap_cents?: number;
 }
 
 export interface Overview {
@@ -252,6 +261,43 @@ export interface LedgerTx {
   self_serve: boolean;
   /** the four characters the member's screen showed; '' when there is nothing to check */
   confirm: string;
+  /** an 'adjust' row that gave a top-up back (0037): cash_cents is the money returned */
+  refund: boolean;
+  /** on a cash or online top-up: what has been refunded of it so far; null when nothing */
+  refunded: { tokens: number; cents: number } | null;
+  /** an online purchase whose Stripe session is on record: refundable to the card (0039) */
+  card?: boolean;
+  /** on a refund row: Stripe's id for the money that went back to the card */
+  stripe_refund_id?: string | null;
+}
+
+/** One member's account as the back office reads it (view=member). */
+export interface MemberAccount {
+  member: {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    tier_id: string | null;
+    status: string | null;
+    expires_at: string | null;
+  };
+  balance: number;
+  /** what the member's plan grants for the year; 0 when the plan grants none */
+  grant_target: number;
+  total: number;
+  offset: number;
+  rows: LedgerTx[];
+}
+
+/** What a refund answered: the balance now, and what is left of the top-up. */
+export interface RefundDone {
+  ok: true;
+  tx_id: string;
+  balance: number;
+  tokens_left: number;
+  cents_left: number;
+  /** set when the card was refunded as well (0039) */
+  stripe_refund_id?: string;
 }
 
 /** An admin's account, as the add-staff pick-list shows it. */
@@ -325,13 +371,20 @@ export const planTokens = () => api<PlanTokens>('/api/tokens/plans');
 
 const signed = { auth: true } as const;
 const get = <T>(path: string) => api<T & Refusal>(path, undefined, signed);
-const post = <T>(path: string, body: unknown) => api<T & Refusal>(path, body, signed);
+const post = <T>(path: string, body: unknown, headers?: Record<string, string>) =>
+  api<T & Refusal>(path, body, { ...signed, headers });
 
 export const tokens = {
   wallet: () => get<Wallet>('/api/tokens/me'),
   buy: (pack_cents: number) => post<{ url: string }>('/api/tokens/buy', { pack_cents }),
   transfer: (to: string, amount: number) =>
     post<{ ok: true; balance: number }>('/api/tokens/transfer', { to, amount }),
+  /** Ask about one of my own rows: a charge that was not me, or a top-up I want back (0037). */
+  refundRequest: (tx_id: string, note: string) =>
+    post<{ ok: true; already: boolean; kind: TxKind | null }>('/api/tokens/refund-request', {
+      tx_id,
+      note,
+    }),
 
   scan: (memberId: string) => get<Scan>(`/api/tokens/scan?m=${encodeURIComponent(memberId)}`),
   charge: (body: {
@@ -379,18 +432,8 @@ export const tokens = {
 
   admin: {
     overview: () => get<Overview>('/api/admin/tokens?view=overview'),
-    member: (id: string) =>
-      get<{
-        member: {
-          id: string;
-          full_name: string | null;
-          email: string | null;
-          tier_id: string | null;
-        };
-        balance: number;
-        grant_target: number;
-        rows: LedgerTx[];
-      }>(`/api/admin/tokens?view=member&id=${id}`),
+    member: (id: string, offset = 0) =>
+      get<MemberAccount>(`/api/admin/tokens?view=member&id=${id}&offset=${offset}`),
     ledger: (params: { kind?: string; merchant_id?: string; offset?: number } = {}) => {
       const qs = new URLSearchParams({ view: 'ledger' });
       if (params.kind) qs.set('kind', params.kind);
@@ -437,6 +480,23 @@ export const tokens = {
         amount,
         reason,
       }),
+    /** Give a cash or online top-up back, in whole or in part (0037). */
+    refund: (
+      tx_id: string,
+      amount: number,
+      cash_cents: number,
+      reason: string,
+      /** 0039: also refund the card (an online purchase); needs the emailed code in `headers` */
+      opts: { stripe?: boolean; headers?: Record<string, string> } = {},
+    ) =>
+      post<RefundDone>(
+        '/api/admin/tokens',
+        { action: 'refund', tx_id, amount, cash_cents, reason, stripe: opts.stripe === true },
+        opts.headers,
+      ),
+    /** Email the signed-in admin the code that a card refund must carry. */
+    actionCode: () =>
+      post<{ ok: true; sent_to: string; valid_minutes: number }>('/api/admin/action-code', {}),
     resolve: (tx_id: string, uphold: boolean, note: string) =>
       post<{ ok: true; upheld: boolean; merchant_suspended?: boolean }>('/api/admin/tokens', {
         action: 'resolve',
@@ -519,6 +579,10 @@ const KIND_LABEL: Record<TxKind, [string, string]> = {
   adjust: ['Adjusted by CAACI', '华协调整'],
 };
 export const kindLabel = (kind: TxKind, lang: Lang) => KIND_LABEL[kind][lang === 'zh' ? 1 : 0];
+
+/** What a row is, in words: a refund (0037) reads as one, not as "adjusted". */
+export const txLabel = (tx: { kind: TxKind; refund?: boolean }, lang: Lang) =>
+  tx.refund ? (lang === 'zh' ? '退款' : 'Refund') : kindLabel(tx.kind, lang);
 
 export const lineText = (items: TxLine[] | null | undefined, lang: Lang) =>
   (items || [])

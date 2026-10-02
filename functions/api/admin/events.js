@@ -9,6 +9,8 @@
 // Registration (0018): registration_questions null means the event takes no
 // registrations; an array is its form, checked by validateQuestions. The free
 // gift is perk_item_zh + perk_item_en (both or neither) with perk_deadline.
+// Volunteers (0035): volunteer_questions null means the event's volunteer page
+// asks the site's default questions; an array is its own form, same check.
 // Listed rows carry registration_count, so the admin can be warned before
 // changing the questions of a form people have already answered.
 // Every request is gated by requireAdmin.
@@ -21,7 +23,7 @@ const MAX_LIMIT = 50;
 const COUNT_PAGE = 1000;
 const COUNT_MAX_PAGES = 20;
 const COLUMNS =
-  'id,title,title_zh,slug,description,description_zh,starts_at,ends_at,location,image_url,published,perk_deadline,perk_item_zh,perk_item_en,registration_questions,created_at';
+  'id,title,title_zh,slug,description,description_zh,starts_at,ends_at,location,image_url,published,perk_deadline,perk_item_zh,perk_item_en,registration_questions,volunteer_questions,created_at';
 
 const slugify = (s) =>
   String(s || '')
@@ -84,6 +86,17 @@ function parseFields(b) {
       const { questions, error } = validateQuestions(b.registration_questions);
       if (error) return { error };
       patch.registration_questions = questions;
+    }
+  }
+  // The event's own volunteer questions (0035): null means it asks the site's
+  // default volunteer template; an array is its own form, same shape.
+  if (b.volunteer_questions !== undefined) {
+    if (b.volunteer_questions === null) {
+      patch.volunteer_questions = null;
+    } else {
+      const { questions, error } = validateQuestions(b.volunteer_questions);
+      if (error) return { error: error.replace(/^Registration questions/, 'Volunteer questions') };
+      patch.volunteer_questions = questions;
     }
   }
   if (b.description !== undefined) patch.description = String(b.description || '').trim() || null;
