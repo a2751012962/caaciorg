@@ -305,7 +305,9 @@ export async function requireAdmin(request, env) {
 // --- Stripe via raw form-encoded API calls ---
 export function stripe(env) {
   const key = env.STRIPE_SECRET_KEY;
-  const call = async (path, params) => {
+  // `idempotencyKey` makes a retried call (a dropped connection, a double tap)
+  // land once on Stripe's side: it answers the first result again.
+  const call = async (path, params, { idempotencyKey } = {}) => {
     const body = new URLSearchParams();
     const add = (k, v) => {
       if (v !== undefined && v !== null) body.append(k, String(v));
@@ -330,6 +332,7 @@ export function stripe(env) {
       headers: {
         authorization: `Bearer ${key}`,
         'content-type': 'application/x-www-form-urlencoded',
+        ...(idempotencyKey ? { 'idempotency-key': String(idempotencyKey) } : {}),
       },
       body,
     });

@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  answerStateFrom,
   eventSlugFrom,
   perkStep,
   questionFieldId,
@@ -12,6 +13,7 @@ import {
   questionLabel,
   readAnswers,
   volunteerBody,
+  volunteerZhError,
   zhError,
 } from '../web/src/lib/registration.js';
 
@@ -40,6 +42,18 @@ test('?event= is the fallback, and a malformed escape names no event', () => {
 
 test('the path wins over ?event=', () => {
   assert.equal(eventSlugFrom('/events/from-path/register/', '?event=from-query'), 'from-path');
+});
+
+test('the volunteer page reads /events/<slug>/volunteer/ the same way (0035)', () => {
+  assert.equal(
+    eventSlugFrom('/events/mid-autumn-festival/volunteer/', '', 'volunteer'),
+    'mid-autumn-festival',
+  );
+  assert.equal(eventSlugFrom('/zh/events/gala/volunteer', '', 'volunteer'), 'gala');
+  assert.equal(eventSlugFrom('/event-volunteer/', '?event=gala', 'volunteer'), 'gala');
+  // A register path is not a volunteer path, and the other way round.
+  assert.equal(eventSlugFrom('/events/gala/register/', '', 'volunteer'), '');
+  assert.equal(eventSlugFrom('/events/gala/volunteer/', ''), '');
 });
 
 // ---------------------------------------------------------------- perkStep
@@ -274,3 +288,50 @@ test('refusals a person can act on have Chinese wording', () => {
   assert.equal(zhError('some server detail nobody can act on'), '');
   assert.equal(zhError(undefined), '');
 });
+
+test('the volunteer endpoint’s refusals too, including an unanswered question', () => {
+  assert.equal(volunteerZhError('Enter your name.'), '请填写姓名。');
+  assert.equal(volunteerZhError('Event not found.'), '所选活动已不可报名，请关闭后重新打开再试。');
+  assert.equal(
+    volunteerZhError('Answer the question: When can you help?'),
+    '请回答：When can you help?',
+  );
+  assert.equal(volunteerZhError('supabase upsert event_volunteers: 500 boom'), '');
+  assert.equal(volunteerZhError(null), '');
+});
+
+// ---------------------------------------------------------------- answerStateFrom
+
+test('stored answers become the page’s state, so a signed-in visitor sees the form as sent', () => {
+  const stored = {
+    name: 'Mei',
+    meal: { other: 'Halal' },
+    heard: { options: ['friend', 'wechat'], other: 'A poster' },
+  };
+  assert.deepEqual(answerStateFrom(QUESTIONS, stored), {
+    name: 'Mei',
+    notes: '',
+    meal: { picked: [], other: 'Halal' },
+    heard: { picked: ['friend', 'wechat'], other: 'A poster' },
+  });
+  assert.deepEqual(answerStateFrom(QUESTIONS, { meal: { option: 'veg' } }).meal, {
+    picked: ['veg'],
+    other: null,
+  });
+  // A number comes back as the text of the box; nothing stored is blank.
+  assert.equal(answerStateFrom(TYPED, { guests: 2 }).guests, '2');
+  assert.deepEqual(answerStateFrom(QUESTIONS, null), readAnswersBlank());
+  // …and it round-trips through readAnswers.
+  assert.deepEqual(readAnswers(QUESTIONS, answerStateFrom(QUESTIONS, stored), 'en'), {
+    answers: stored,
+  });
+});
+
+function readAnswersBlank() {
+  return {
+    name: '',
+    notes: '',
+    meal: { picked: [], other: null },
+    heard: { picked: [], other: null },
+  };
+}

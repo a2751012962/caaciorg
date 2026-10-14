@@ -169,11 +169,9 @@ test('build: every /assets/ URL in the built site carries the hash of the file i
       checkVersion(where, m[1], m[2]);
   }
   const v = (name) => `/assets/${name}?v=${hashOf.get(name)}`;
-  // One page from each kind of page the build writes.
-  const mirrored = 'hello-world/index.html';
-  assert.ok(pages[mirrored].includes(`<link rel="stylesheet" href="${v('caaci-ui.css')}">`));
-  assert.ok(pages[mirrored].includes(`<script type="module" src="${v('caaci-app.js')}">`));
-  assert.ok(pages[`zh/${mirrored}`].includes(`src="${v('caaci-app.js')}"`));
+  // One page from each kind of page the build writes. (No mirrored WordPress
+  // page is served as-is any more — the last ones became stubs on 2026-10-11 —
+  // so the Tabler login page and the React site are the two kinds left.)
   assert.ok(pages['login-3/index.html'].includes(`href="${v('tabler.min.css')}"`));
   assert.ok(pages['login-3/index.html'].includes(`src="${v('caaci-member.js')}"`));
   assert.ok(pages['login-3/index.html'].includes(`src="${v('caaci-config.js')}"`));

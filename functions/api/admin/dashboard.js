@@ -3,10 +3,12 @@
 // head-counts (per status, per tier, new this month, expiring within 30 days),
 // revenue this year / this month with the latest payments, the next published
 // events with their registration counts, the latest registrations, volunteer
-// sign-ups, and the business-listing review queue. Read-only; every number is
+// sign-ups, the business-listing review queue and, while tokens are on, the
+// open token disputes and refund requests. Read-only; every number is
 // counted here from the same tables the other admin tabs page through.
 // Every request is gated by requireAdmin.
 import { json, bad, sb, requireAdmin, memberStatusFilter } from '../_lib.js';
+import { tokensEnabled } from '../_tokens.js';
 
 const STATUSES = ['active', 'pending', 'past_due', 'expired', 'cancelled'];
 export const EXPIRING_DAYS = 30;
@@ -242,6 +244,13 @@ export async function onRequestGet({ request, env }) {
     const volunteers_this_month = await count('event_volunteers', [`created_at=gte.${monthStart}`]);
     const business_pending = await count('business_directory', ['approved=eq.false']);
 
+    // ---- tokens (only while the feature is on) ----
+    // Charges a member reported and top-ups they asked back (0037): the queue
+    // the token back office's Disputes tab works through.
+    const tokens = tokensEnabled(env)
+      ? { requests: await count('token_tx', ['state=eq.disputed']) }
+      : null;
+
     return json({
       generated_at: nowIso,
       members: {
@@ -274,6 +283,7 @@ export async function onRequestGet({ request, env }) {
       },
       volunteers: { total: volunteers_total, this_month: volunteers_this_month },
       business: { pending: business_pending },
+      tokens,
     });
   } catch (e) {
     return bad(e.message, 500);

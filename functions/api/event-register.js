@@ -24,11 +24,17 @@
 import { json, bad, sb, sendEmail } from './_lib.js';
 import { validateQuestions, validateAnswers, perkOf, registrationOpen } from './_event-form.js';
 import { registrationConfirmation, emailLogo } from './_event-emails.js';
-import { EMAIL_RE, optionalUser, volunteerFields, saveVolunteer } from './_volunteers.js';
+import {
+  EMAIL_RE,
+  optionalUser,
+  volunteerFields,
+  saveVolunteer,
+  questionsOf,
+} from './_volunteers.js';
 import { requireHuman, turnstileToken } from './_turnstile.js';
 
 const EVENT_COLUMNS =
-  'id,slug,title,title_zh,description,description_zh,starts_at,ends_at,location,perk_deadline,perk_item_zh,perk_item_en,registration_questions,published';
+  'id,slug,title,title_zh,description,description_zh,starts_at,ends_at,location,perk_deadline,perk_item_zh,perk_item_en,registration_questions,volunteer_questions,published';
 
 // The event and its questions → { event, questions }, or { error: Response }.
 // An unpublished event, or one that takes no registrations, is not found.
@@ -65,6 +71,10 @@ export async function onRequestGet({ request, env }) {
         perk: perkOf(event),
         questions,
         open: registrationOpen(event),
+        // The event's own volunteer questions (0035), or null: with its own the
+        // page points volunteers at /events/<slug>/volunteer/ instead of the
+        // name-and-phone box, which cannot ask them.
+        volunteer_questions: questionsOf(event.volunteer_questions),
       },
       signed_in: false,
     };

@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Coins, History, LayoutDashboard, Plus, Send, Store, Wrench, X } from 'lucide-react';
+import type { ApiResult } from '../../lib/api';
 import type { Lang } from '../../lib/lang';
 import { overlayIn, sheetFrom, sheetIn, sheetOut, sheetShown } from '../../lib/motion';
 import {
   day,
-  kindLabel,
   lineText,
   pickName,
   refusalText,
   tokens,
+  txLabel,
   usd,
   when,
+  type Refusal,
   type Wallet,
+  type WalletTx,
 } from '../../lib/tokens';
-import { INPUT, LABEL, Notice, PRIMARY, SECONDARY, Status, tr } from './ui';
+import { INPUT, LABEL, Notice, PRIMARY, SECONDARY, Status, TEXT_ACTION, tr } from './ui';
 
 const SHOWN = 6;
 
@@ -45,6 +48,9 @@ export function TokenWallet({ lang, className = '' }: { lang: Lang; className?: 
   const [sheet, setSheet] = useState<Sheet>(null);
   const [to, setTo] = useState('');
   const [amount, setAmount] = useState('');
+  // the history row whose "ask about this" form is open, and its note
+  const [asking, setAsking] = useState('');
+  const [askNote, setAskNote] = useState('');
 
   const load = useCallback(async () => {
     const res = await tokens.wallet();
@@ -101,6 +107,21 @@ export function TokenWallet({ lang, className = '' }: { lang: Lang; className?: 
     setAmount('');
     setSheet(null);
     setNotice('sent');
+    void load();
+  };
+
+  // A charge that was not me, or a top-up I want back: the row goes under
+  // review and two emails go out (one to me). The server decides what may be
+  // asked about; this only shows the form where it says so.
+  const ask = async (tx: WalletTx) => {
+    setBusy('ask');
+    setError('');
+    const res: ApiResult<Refusal> = await tokens.refundRequest(tx.id, askNote.trim());
+    setBusy('');
+    if (!res.ok) return setError(refusalText(res, lang));
+    setAsking('');
+    setAskNote('');
+    setNotice(tx.kind === 'charge' ? 'reported' : 'requested');
     void load();
   };
 
@@ -210,41 +231,113 @@ export function TokenWallet({ lang, className = '' }: { lang: Lang; className?: 
       ) : (
         <ul className="divide-y divide-neutral-200/80">
           {(all ? wallet.history : wallet.history.slice(0, SHOWN)).map((tx) => (
-            <li key={tx.id} className="py-3 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-neutral-900 truncate">
-                  {tx.kind === 'charge' && tx.merchant
-                    ? pickName(tx.merchant, lang)
-                    : kindLabel(tx.kind, lang)}
-                </p>
-                <p className="text-xs text-neutral-500 truncate">
-                  {when(tx.at, lang)}
-                  {lineText(tx.items, lang) ? ` · ${lineText(tx.items, lang)}` : ''}
-                </p>
-                {/* Paid by scanning the QR on the product: the stall has no
-                    record of the tap other than its console, so the member
-                    needs these four characters to hand with the order. */}
-                {tx.confirm && (
-                  <p className="text-xs text-neutral-500">
-                    {t('Show this code', '出示确认码')}{' '}
-                    <span className="font-mono tracking-widest font-semibold text-brick">
-                      {tx.confirm}
-                    </span>
+            <li key={tx.id} className="py-3 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-neutral-900 truncate">
+                    {tx.kind === 'charge' && tx.merchant
+                      ? pickName(tx.merchant, lang)
+                      : txLabel(tx, lang)}
                   </p>
-                )}
+                  <p className="text-xs text-neutral-500 truncate">
+                    {when(tx.at, lang)}
+                    {lineText(tx.items, lang) ? ` · ${lineText(tx.items, lang)}` : ''}
+                    {tx.refund && tx.cash_cents ? ` · ${usd(tx.cash_cents)}` : ''}
+                    {tx.refunded
+                      ? ` · ${t(`${tx.refunded.tokens} refunded`, `已退回 ${tx.refunded.tokens} 币`)}`
+                      : ''}
+                  </p>
+                  {/* Paid by scanning the QR on the product: the stall has no
+                      record of the tap other than its console, so the member
+                      needs these four characters to hand with the order. */}
+                  {tx.confirm && (
+                    <p className="text-xs text-neutral-500">
+                      {t('Show this code', '出示确认码')}{' '}
+                      <span className="font-mono tracking-widest font-semibold text-brick">
+                        {tx.confirm}
+                      </span>
+                    </p>
+                  )}
+                  {tx.can_request && asking !== tx.id && (
+                    <button
+                      type="button"
+                      className={TEXT_ACTION}
+                      onClick={() => {
+                        setError('');
+                        setAskNote('');
+                        setAsking(tx.id);
+                      }}
+                    >
+                      {tx.kind === 'charge'
+                        ? t('This wasn’t me', '这不是我的消费')
+                        : t('Request a refund', '申请退款')}
+                    </button>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  <p
+                    className={`text-sm font-bold tabular-nums ${tx.amount > 0 ? 'text-emerald-700' : 'text-neutral-900'}`}
+                  >
+                    {tx.amount > 0 ? `+${tx.amount}` : `−${-tx.amount}`}
+                  </p>
+                  {tx.state === 'voided' && (
+                    <Status tone="muted">{t('Cancelled', '已撤销')}</Status>
+                  )}
+                  {tx.state === 'reversed' && (
+                    <Status tone="muted">{t('Refunded', '已退回')}</Status>
+                  )}
+                  {tx.state === 'disputed' && (
+                    <Status tone="warn">{t('Under review', '核实中')}</Status>
+                  )}
+                </div>
               </div>
-              <div className="text-right shrink-0">
-                <p
-                  className={`text-sm font-bold tabular-nums ${tx.amount > 0 ? 'text-emerald-700' : 'text-neutral-900'}`}
+              {asking === tx.id && (
+                <form
+                  className="space-y-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void ask(tx);
+                  }}
                 >
-                  {tx.amount > 0 ? `+${tx.amount}` : `−${-tx.amount}`}
-                </p>
-                {tx.state === 'voided' && <Status tone="muted">{t('Cancelled', '已撤销')}</Status>}
-                {tx.state === 'reversed' && <Status tone="muted">{t('Refunded', '已退回')}</Status>}
-                {tx.state === 'disputed' && (
-                  <Status tone="warn">{t('Under review', '核实中')}</Status>
-                )}
-              </div>
+                  <p className="text-xs text-neutral-600 leading-relaxed">
+                    {tx.kind === 'charge'
+                      ? t(
+                          'An admin will check with the merchant and email you. If the charge was not yours, the tokens come back.',
+                          '管理员会向商家核实并邮件回复。若确认不是你的消费，币会退回你的账户。',
+                        )
+                      : t(
+                          'An admin will review it and email you. If approved, the tokens leave your account and the money is returned the way it was paid.',
+                          '管理员会核实并邮件回复。通过后，币将从你的账户扣除，款项按原付款方式退还。',
+                        )}
+                  </p>
+                  <textarea
+                    className={`${INPUT} resize-none`}
+                    rows={2}
+                    maxLength={500}
+                    value={askNote}
+                    onChange={(e) => setAskNote(e.target.value)}
+                    placeholder={t('Anything that helps (optional)', '补充说明（可选）')}
+                    aria-label={t('Note', '说明')}
+                  />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button type="submit" className={SECONDARY} disabled={busy === 'ask'}>
+                      {busy === 'ask'
+                        ? t('Sending…', '提交中…')
+                        : tx.kind === 'charge'
+                          ? t('Report it', '提交申诉')
+                          : t('Send the request', '提交申请')}
+                    </button>
+                    <button
+                      type="button"
+                      className={TEXT_ACTION}
+                      onClick={() => setAsking('')}
+                      disabled={busy === 'ask'}
+                    >
+                      {t('Cancel', '取消')}
+                    </button>
+                  </div>
+                </form>
+              )}
             </li>
           ))}
         </ul>
@@ -304,6 +397,14 @@ export function TokenWallet({ lang, className = '' }: { lang: Lang; className?: 
             </Notice>
           )}
           {notice === 'sent' && <Notice tone="success">{t('Sent.', '已转出。')}</Notice>}
+          {(notice === 'requested' || notice === 'reported') && (
+            <Notice tone="success">
+              {t(
+                'Received. A confirmation is on its way to your email, and an admin will reply once it has been looked into.',
+                '已收到。确认邮件已发送到你的邮箱，管理员核实后会邮件回复你。',
+              )}
+            </Notice>
+          )}
           {error && !sheet && <Notice tone="error">{error}</Notice>}
 
           {/* phone: two plain buttons, each opening a sheet */}

@@ -152,6 +152,8 @@ function route() {
     if (u.includes('/rest/v1/event_volunteers')) return { body: [{ id: 'x' }], headers: range(12) };
     if (u.includes('/rest/v1/business_directory'))
       return { body: [{ id: 'x' }], headers: range(2) };
+    if (u.includes('/rest/v1/token_tx') && u.includes('state=eq.disputed'))
+      return { body: [{ id: 'x' }], headers: range(3) };
     return { body: [] };
   };
 }
@@ -184,6 +186,18 @@ test('admin dashboard: refuses a signed-in non-admin', async () => {
   try {
     const r = await get();
     assert.equal(r.status, 403);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin dashboard: with tokens on, the open disputes and refund requests are counted', async () => {
+  const fetch = mockFetch(route());
+  try {
+    const r = await get(fakeEnv({ TOKENS_ENABLED: '1' }));
+    assert.equal(r.status, 200);
+    const d = await r.json();
+    assert.deepEqual(d.tokens, { requests: 3 });
   } finally {
     fetch.restore();
   }
@@ -278,6 +292,13 @@ test('admin dashboard: counts members, revenue, events, volunteers and listings'
 
     assert.deepEqual(d.volunteers, { total: 12, this_month: 3 });
     assert.deepEqual(d.business, { pending: 2 });
+    // Tokens are off in this env: the tile is absent, and the ledger not read.
+    assert.equal(d.tokens, null);
+    assert.equal(
+      fetch.calls.some((c) => c.url.includes('/rest/v1/token_tx')),
+      false,
+      'the token ledger is not read while the feature is dark',
+    );
     assert.ok(!isNaN(Date.parse(d.generated_at)));
   } finally {
     fetch.restore();

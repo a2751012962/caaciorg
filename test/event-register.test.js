@@ -152,7 +152,7 @@ const volunteerUpsertBody = (fetch) =>
 const emails = (fetch) => callsTo(fetch, 'api.resend.com').map((c) => JSON.parse(c.options.body));
 
 const EVENT_SELECT =
-  /\?select=id,slug,title,title_zh,description,description_zh,starts_at,ends_at,location,perk_deadline,perk_item_zh,perk_item_en,registration_questions,published&slug=eq\.mid-autumn-festival&limit=1$/;
+  /\?select=id,slug,title,title_zh,description,description_zh,starts_at,ends_at,location,perk_deadline,perk_item_zh,perk_item_en,registration_questions,volunteer_questions,published&slug=eq\.mid-autumn-festival&limit=1$/;
 
 // ---------------------------------------------------------------- POST ----
 
@@ -730,7 +730,46 @@ const PUBLIC_EVENT = {
   perk: PERK,
   questions: QUESTIONS,
   open: true,
+  volunteer_questions: null,
 };
+
+test('event-register GET: an event with its own volunteer questions (0035) says so, normalized', async () => {
+  const shifts = {
+    id: 'shifts',
+    type: 'multi',
+    label_en: '  When can you help?  ',
+    label_zh: '您可以帮忙的时间段？',
+    required: true,
+    options: [{ id: 'setup', label_en: 'Setup', label_zh: '布置', extra: 'dropped' }],
+    other: false,
+  };
+  const fetch = mockFetch(route({ event: { ...EVENT, volunteer_questions: [shifts] } }));
+  try {
+    const { event } = await (await get('?event=mid-autumn-festival')).json();
+    assert.deepEqual(event.volunteer_questions, [
+      {
+        id: 'shifts',
+        type: 'multi',
+        label_en: 'When can you help?',
+        label_zh: '您可以帮忙的时间段？',
+        required: true,
+        options: [{ id: 'setup', label_en: 'Setup', label_zh: '布置' }],
+        other: false,
+      },
+    ]);
+  } finally {
+    fetch.restore();
+  }
+  // A hand-edited column that fails validation reads as "no questions of its
+  // own", never as a broken page.
+  const broken = mockFetch(route({ event: { ...EVENT, volunteer_questions: [{ id: 'x' }] } }));
+  try {
+    const { event } = await (await get('?event=mid-autumn-festival')).json();
+    assert.equal(event.volunteer_questions, null);
+  } finally {
+    broken.restore();
+  }
+});
 
 test('event-register GET: no slug -> 400 with no fetch', async () => {
   for (const query of ['', '?event=', '?event=%20%20']) {

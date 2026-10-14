@@ -46,6 +46,8 @@ import {
   eventsPath,
   registrationPath,
   takesRegistration,
+  takesVolunteers,
+  volunteerPath,
   type EventRow,
 } from '../lib/events';
 
@@ -439,6 +441,36 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
     );
   };
 
+  // "Volunteer": the event's own sign-up page (/events/<slug>/volunteer/, 0035)
+  // when it can be addressed, else the site-wide dialog. Three sizes, passed in.
+  const volunteerAction = (
+    item: UpcomingItem,
+    className: string,
+    iconClass: string,
+    short = false,
+  ) => {
+    const label = short ? (en ? 'Volunteer' : '义工') : en ? 'Volunteer' : '报名义工';
+    const title = en ? 'Volunteer' : '报名义工';
+    if (takesVolunteers(item.ev))
+      return (
+        <a href={volunteerPath(item.ev, lang)} className={className} title={title}>
+          <Users className={iconClass} />
+          <span>{label}</span>
+        </a>
+      );
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenModal('volunteer')}
+        className={className}
+        title={title}
+      >
+        <Users className={iconClass} />
+        <span>{label}</span>
+      </button>
+    );
+  };
+
   // What the RSVP call said, under the event.
   const rsvpNote = (item: UpcomingItem, dark = false) => {
     const state = item.register ? undefined : rsvp[item.ev.id];
@@ -555,14 +587,11 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                 <div className="flex flex-wrap items-center justify-start gap-3">
                   {primaryAction(spotlightEvent, 'spotlight')}
 
-                  <button
-                    type="button"
-                    onClick={() => onOpenModal('volunteer')}
-                    className="min-h-[42px] px-5 py-2.5 rounded-full border border-white/20 text-white hover:bg-white/10 text-xs font-semibold tracking-wide transition-all cursor-pointer inline-flex items-center justify-center gap-2 active:scale-98"
-                  >
-                    <Users className="w-4 h-4 text-white/80" />
-                    <span>{lang === 'en' ? 'Volunteer' : '报名义工'}</span>
-                  </button>
+                  {volunteerAction(
+                    spotlightEvent,
+                    'min-h-[42px] px-5 py-2.5 rounded-full border border-white/20 text-white hover:bg-white/10 text-xs font-semibold tracking-wide transition-all cursor-pointer inline-flex items-center justify-center gap-2 active:scale-98',
+                    'w-4 h-4 text-white/80',
+                  )}
 
                   <button
                     type="button"
@@ -1002,15 +1031,12 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 {primaryAction(event, 'mobile')}
 
                                 {/* Mobile Volunteer (Text is NOT hidden) */}
-                                <button
-                                  type="button"
-                                  onClick={() => onOpenModal('volunteer')}
-                                  className="h-8 px-3 text-xs font-medium rounded-full border border-neutral-200 text-neutral-700 hover:border-neutral-400 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 bg-white shrink-0 active:scale-95 shadow-xs whitespace-nowrap"
-                                  title={lang === 'en' ? 'Volunteer' : '报名义工'}
-                                >
-                                  <Users className="w-3.5 h-3.5 text-neutral-500" />
-                                  <span>{lang === 'en' ? 'Volunteer' : '义工'}</span>
-                                </button>
+                                {volunteerAction(
+                                  event,
+                                  'h-8 px-3 text-xs font-medium rounded-full border border-neutral-200 text-neutral-700 hover:border-neutral-400 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 bg-white shrink-0 active:scale-95 shadow-xs whitespace-nowrap',
+                                  'w-3.5 h-3.5 text-neutral-500',
+                                  true,
+                                )}
 
                                 {/* Mobile Share (Icon always shown, text collapses on tight mobile screens) */}
                                 <button
@@ -1047,14 +1073,11 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                               {primaryAction(event, 'desktop')}
 
                               {/* Volunteer Button */}
-                              <button
-                                type="button"
-                                onClick={() => onOpenModal('volunteer')}
-                                className="w-full min-h-[34px] px-3 text-xs font-medium rounded-full border border-neutral-200 text-neutral-700 hover:border-neutral-400 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 bg-white shrink-0 active:scale-95"
-                              >
-                                <Users className="w-3.5 h-3.5 text-neutral-400" />
-                                <span>{lang === 'en' ? 'Volunteer' : '报名义工'}</span>
-                              </button>
+                              {volunteerAction(
+                                event,
+                                'w-full min-h-[34px] px-3 text-xs font-medium rounded-full border border-neutral-200 text-neutral-700 hover:border-neutral-400 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 bg-white shrink-0 active:scale-95',
+                                'w-3.5 h-3.5 text-neutral-400',
+                              )}
 
                               {/* Share Button */}
                               <button

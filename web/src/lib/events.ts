@@ -199,6 +199,14 @@ export const eventsPath = (lang: Lang) => `${lang === 'zh' ? '/zh' : ''}/events/
 export const registrationPath = (ev: EventRow, lang: Lang) =>
   `/events/${encodeURIComponent(ev.slug ?? '')}/register/${lang === 'zh' ? '?lang=zh' : ''}`;
 
+// Every published event that has not happened yet has a volunteer page of its
+// own (/events/<slug>/volunteer/, 0035): it asks the event's own questions when
+// the admin set some, else the site's default ones. Needs a slug to be addressed.
+export const takesVolunteers = (ev: Pick<EventRow, 'slug'>) => !!ev.slug;
+
+export const volunteerPath = (ev: Pick<EventRow, 'slug'>, lang: Lang) =>
+  `/events/${encodeURIComponent(ev.slug ?? '')}/volunteer/${lang === 'zh' ? '?lang=zh' : ''}`;
+
 // The id an event's row carries on the events page, so /events/#<slug> lands on it.
 export const eventAnchor = (ev: EventRow) => ev.slug || ev.id;
 

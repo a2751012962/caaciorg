@@ -29,18 +29,58 @@ const PUBLIC_LUNAR = {
   slug: LUNAR.slug,
   title: LUNAR.title,
   title_zh: LUNAR.title_zh,
+  description: null,
+  description_zh: null,
   starts_at: LUNAR.starts_at,
   ends_at: LUNAR.ends_at,
   location: LUNAR.location,
+  questions: null,
 };
 const PUBLIC_PICNIC = {
   slug: PICNIC.slug,
   title: PICNIC.title,
   title_zh: null,
+  description: null,
+  description_zh: null,
   starts_at: PICNIC.starts_at,
   ends_at: null,
   location: null,
+  questions: null,
 };
+
+// The volunteer questions (0035): one event's own form, and the site's default
+// template as a form_templates row.
+const SHIFTS = {
+  id: 'shifts',
+  type: 'multi',
+  label_en: 'When can you help?',
+  label_zh: '您可以帮忙的时间段？',
+  required: true,
+  options: [
+    { id: 'setup', label_en: '12:00–2:00 PM (setup)', label_zh: '12:00–2:00 PM（布置）' },
+    { id: 'late', label_en: '4:30–7:00 PM', label_zh: '4:30–7:00 PM' },
+  ],
+  other: false,
+};
+const DEFAULT_Q = [
+  {
+    id: 'interests',
+    type: 'multi',
+    label_en: 'Areas of interest',
+    label_zh: '感兴趣的志愿领域',
+    required: false,
+    options: [{ id: 'stage', label_en: 'Stage management', label_zh: '舞台管理' }],
+    other: true,
+  },
+  {
+    id: 'notes',
+    type: 'textarea',
+    label_en: 'Skills or notes',
+    label_zh: '专长或备注',
+    required: false,
+  },
+];
+const DEFAULT_TEMPLATE = [{ questions: DEFAULT_Q }];
 
 const VALID = {
   name: 'Pat Lee',
@@ -58,11 +98,16 @@ const resendEnv = () =>
   });
 
 // Routes the auth lookup, the events select (which answers with whatever the
-// `in.(…)` list asks for out of `events`), the event_volunteers upsert and Resend.
+// `in.(…)` list or `eq.` asks for out of `events`), the default volunteer
+// template (form_templates, 0035), the event_volunteers read before each write
+// (`prior`: the rows already stored, or a function of the URL) and upsert, and
+// Resend.
 function route({
   user = null,
   events = [LUNAR, PICNIC],
   upsert,
+  prior = [],
+  templates = [],
   resend,
   hostname = new URL(API).hostname,
 } = {}) {
@@ -74,13 +119,20 @@ function route({
     if (human) return human;
     if (url.includes('/auth/v1/user')) return user ? { body: user } : { ok: false, status: 401 };
     if (url.includes('/rest/v1/events')) {
-      const m = decodeURIComponent(url).match(/slug=in\.\(([^)]*)\)/);
+      const decoded = decodeURIComponent(url);
+      const one = decoded.match(/slug=eq\.([^&]+)/);
+      if (one) return { body: events.filter((e) => e.slug === one[1]) };
+      const m = decoded.match(/slug=in\.\(([^)]*)\)/);
       if (!m) return { body: events };
       const want = new Set(m[1].split(','));
       return { body: events.filter((e) => want.has(e.slug)) };
     }
-    if (url.includes('/rest/v1/event_volunteers'))
+    if (url.includes('/rest/v1/form_templates')) return { body: templates };
+    if (url.includes('/rest/v1/event_volunteers')) {
+      if (options.method !== 'POST')
+        return typeof prior === 'function' ? prior(url) : { body: prior };
       return upsert ?? { body: [{ id: 'v1', ...JSON.parse(options.body) }] };
+    }
     if (url.includes('api.resend.com')) {
       if (typeof resend === 'function') return resend();
       return resend ?? { body: { id: 'email_1' } };
@@ -91,11 +143,15 @@ function route({
 
 const post = (body, { headers = {}, url = API, env = resendEnv() } = {}) =>
   onRequestPost({ request: fakeRequest({ url, body: withTurnstile(body), headers }), env });
-const get = ({ env = fakeEnv() } = {}) => onRequestGet({ request: fakeRequest({ url: API }), env });
+const get = ({ query = '', headers = {}, env = fakeEnv() } = {}) =>
+  onRequestGet({ request: fakeRequest({ url: `${API}${query}`, headers }), env });
 
 const callsTo = (fetch, part) => fetch.calls.filter((c) => c.url.includes(part));
-const upserts = (fetch) =>
-  callsTo(fetch, '/rest/v1/event_volunteers').map((c) => JSON.parse(c.options.body));
+const writes = (fetch) =>
+  callsTo(fetch, '/rest/v1/event_volunteers').filter((c) => c.options.method === 'POST');
+const reads = (fetch) =>
+  callsTo(fetch, '/rest/v1/event_volunteers').filter((c) => c.options.method !== 'POST');
+const upserts = (fetch) => writes(fetch).map((c) => JSON.parse(c.options.body));
 const emails = (fetch) => callsTo(fetch, 'api.resend.com').map((c) => JSON.parse(c.options.body));
 
 // ----------------------------------------------------------------- GET ----
@@ -105,11 +161,14 @@ test('volunteer GET: the published, not-yet-over events, oldest first, and nothi
   try {
     const r = await get();
     assert.equal(r.status, 200);
-    assert.deepEqual(await r.json(), { events: [PUBLIC_LUNAR, PUBLIC_PICNIC] });
+    assert.deepEqual(await r.json(), { events: [PUBLIC_LUNAR, PUBLIC_PICNIC], questions: [] });
 
     const [call] = callsTo(fetch, '/rest/v1/events');
     const url = decodeURIComponent(call.url);
-    assert.match(url, /select=id,slug,title,title_zh,starts_at,ends_at,location/);
+    assert.match(
+      url,
+      /select=id,slug,title,title_zh,description,description_zh,starts_at,ends_at,location,volunteer_questions/,
+    );
     assert.match(url, /published=eq\.true/);
     // (ends_at ?? starts_at) >= now, as a PostgREST filter.
     assert.match(url, /or=\(ends_at\.gte\.[^,]+,and\(ends_at\.is\.null,starts_at\.gte\.[^)]+\)\)/);
@@ -126,7 +185,7 @@ test('volunteer GET: the event id is never exposed; no events is an empty list',
   try {
     const r = await get();
     assert.equal(r.status, 200);
-    assert.deepEqual(await r.json(), { events: [] });
+    assert.deepEqual(await r.json(), { events: [], questions: [] });
   } finally {
     fetch.restore();
   }
@@ -136,6 +195,242 @@ test('volunteer GET: the event id is never exposed; no events is an empty list',
     for (const e of events) assert.equal('id' in e, false, 'the event id is not exposed');
   } finally {
     f2.restore();
+  }
+});
+
+// ------------------------------------------------- the volunteer forms (0035) ----
+
+test('volunteer GET: each event carries its own volunteer questions, normalized, or null; the default template rides along', async () => {
+  const own = { ...LUNAR, volunteer_questions: [{ ...SHIFTS, extra: 'dropped' }] };
+  const broken = { ...PICNIC, volunteer_questions: [{ id: 'x' }] }; // hand-edited, invalid
+  const fetch = mockFetch(route({ events: [own, broken], templates: DEFAULT_TEMPLATE }));
+  try {
+    const out = await (await get()).json();
+    assert.deepEqual(out.events[0].questions, [SHIFTS]);
+    assert.equal(
+      out.events[1].questions,
+      null,
+      'an invalid column reads as no questions of its own',
+    );
+    assert.deepEqual(out.questions, DEFAULT_Q);
+    const t = decodeURIComponent(callsTo(fetch, '/rest/v1/form_templates')[0].url);
+    assert.match(t, /kind=eq\.volunteer/);
+    assert.match(t, /is_default=eq\.true/);
+    assert.equal(reads(fetch).length, 0, 'the list never reads a volunteer row');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('volunteer GET ?event=: one event for its page; unknown, past or malformed is 404', async () => {
+  let fetch = mockFetch(route({ templates: DEFAULT_TEMPLATE }));
+  try {
+    const r = await get({ query: '?event=summer-picnic' });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), {
+      events: [PUBLIC_PICNIC],
+      questions: DEFAULT_Q,
+      signed_in: false,
+    });
+    assert.match(
+      decodeURIComponent(callsTo(fetch, '/rest/v1/events')[0].url),
+      /slug=eq\.summer-picnic/,
+    );
+    assert.equal(callsTo(fetch, '/auth/v1/user').length, 0, 'no token, no auth lookup');
+  } finally {
+    fetch.restore();
+  }
+  for (const query of ['?event=no-such-event', '?event=Lunar%20New%20Year', '?event=a,b)']) {
+    fetch = mockFetch(route());
+    try {
+      const r = await get({ query });
+      assert.equal(r.status, 404, query);
+      assert.deepEqual(await r.json(), { error: 'Event not found.' });
+    } finally {
+      fetch.restore();
+    }
+  }
+});
+
+test('volunteer GET ?event=: signed in, the caller’s own sign-up for it — by the login email only', async () => {
+  const stored = {
+    name: 'Pat Lee',
+    phone: '217-555-0101',
+    answers: { shifts: { options: ['setup'] } },
+    created_at: '2026-09-10T12:00:00+00:00',
+    updated_at: '2026-09-11T12:00:00+00:00',
+  };
+  let fetch = mockFetch(
+    route({
+      user: { id: 'u1', email: 'Pat@Example.com' },
+      prior: [stored],
+      templates: DEFAULT_TEMPLATE,
+    }),
+  );
+  try {
+    const r = await get({
+      query: '?event=lunar-new-year',
+      headers: { authorization: 'Bearer good' },
+    });
+    assert.equal(r.status, 200);
+    const out = await r.json();
+    assert.equal(out.signed_in, true);
+    assert.equal(out.email, 'Pat@Example.com');
+    assert.deepEqual(out.signup, stored);
+    const [read] = reads(fetch);
+    assert.match(
+      read.url,
+      /event_volunteers\?select=name,phone,answers,created_at,updated_at&event_id=eq\.e1&email=eq\.pat%40example\.com&limit=1&offset=0$/,
+    );
+  } finally {
+    fetch.restore();
+  }
+  // No sign-up -> null; a bad token is the anonymous answer with no lookup.
+  fetch = mockFetch(route({ user: { id: 'u1', email: 'pat@example.com' } }));
+  try {
+    const out = await (
+      await get({ query: '?event=lunar-new-year', headers: { authorization: 'Bearer good' } })
+    ).json();
+    assert.equal(out.signup, null);
+  } finally {
+    fetch.restore();
+  }
+  fetch = mockFetch(route({ user: null }));
+  try {
+    const out = await (
+      await get({ query: '?event=lunar-new-year', headers: { authorization: 'Bearer bad' } })
+    ).json();
+    assert.deepEqual(out, { events: [PUBLIC_LUNAR], questions: [], signed_in: false });
+    assert.equal(reads(fetch).length, 0);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('volunteer POST: one event with its own questions -> answers checked against those and stored', async () => {
+  const own = { ...LUNAR, volunteer_questions: [SHIFTS] };
+  let fetch = mockFetch(route({ events: [own, PICNIC], templates: DEFAULT_TEMPLATE }));
+  try {
+    const r = await post({
+      ...VALID,
+      events: ['lunar-new-year'],
+      answers: { shifts: { options: ['late', 'setup'] }, notes: 'ignored: not asked' },
+    });
+    assert.equal(r.status, 200);
+    const [row] = upserts(fetch);
+    // In the question's own order; an answer to a question the form does not ask is dropped.
+    assert.deepEqual(row.answers, { shifts: { options: ['setup', 'late'] } });
+    assert.equal(
+      callsTo(fetch, '/rest/v1/form_templates').length,
+      0,
+      'the default template is not read when the event has its own questions',
+    );
+  } finally {
+    fetch.restore();
+  }
+  // A required question left out is refused before anything is written.
+  fetch = mockFetch(route({ events: [own, PICNIC] }));
+  try {
+    const r = await post({ ...VALID, events: ['lunar-new-year'], answers: {} });
+    assert.equal(r.status, 400);
+    assert.deepEqual(await r.json(), { error: 'Answer the question: When can you help?' });
+    assert.equal(callsTo(fetch, '/rest/v1/event_volunteers').length, 0);
+    assert.equal(emails(fetch).length, 0);
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('volunteer POST: no event, several events, or one without its own questions -> the default template', async () => {
+  const own = { ...LUNAR, volunteer_questions: [SHIFTS] };
+  for (const events of [undefined, ['summer-picnic'], ['lunar-new-year', 'summer-picnic']]) {
+    const fetch = mockFetch(route({ events: [own, PICNIC], templates: DEFAULT_TEMPLATE }));
+    try {
+      const r = await post({
+        ...VALID,
+        events,
+        answers: {
+          interests: { options: ['stage'], other: 'Photos' },
+          shifts: { options: ['setup'] },
+        },
+      });
+      assert.equal(r.status, 200, JSON.stringify(events));
+      for (const row of upserts(fetch))
+        assert.deepEqual(row.answers, { interests: { options: ['stage'], other: 'Photos' } });
+      assert.equal(callsTo(fetch, '/rest/v1/form_templates').length, 1);
+    } finally {
+      fetch.restore();
+    }
+  }
+  // With no default template at all, answers are simply not asked for.
+  const fetch = mockFetch(route());
+  try {
+    const r = await post({ ...VALID, answers: { interests: { options: ['stage'] } } });
+    assert.equal(r.status, 200);
+    assert.deepEqual(upserts(fetch)[0].answers, {});
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('volunteer POST: answers merge into the stored ones, key by key; already and created_at report the earlier sign-up', async () => {
+  const own = { ...LUNAR, volunteer_questions: [SHIFTS] };
+  const stored = {
+    answers: { interests: { options: ['stage'] }, shifts: { options: ['late'] } },
+    created_at: '2026-09-10T12:00:00+00:00',
+  };
+  const fetch = mockFetch(route({ events: [own, PICNIC], prior: [stored] }));
+  try {
+    const r = await post({
+      ...VALID,
+      events: ['lunar-new-year'],
+      answers: { shifts: { options: ['setup'] } },
+    });
+    assert.equal(r.status, 200);
+    const out = await r.json();
+    assert.equal(out.already, true);
+    assert.equal(out.created_at, stored.created_at);
+    const [read] = reads(fetch);
+    assert.match(
+      read.url,
+      /select=answers,created_at&event_id=eq\.e1&email=eq\.pat%40example\.com&limit=1&offset=0$/,
+    );
+    assert.deepEqual(upserts(fetch)[0].answers, {
+      interests: { options: ['stage'] },
+      shifts: { options: ['setup'] },
+    });
+  } finally {
+    fetch.restore();
+  }
+  // The "wherever needed" row is looked up with is.null, which eq cannot say.
+  const f2 = mockFetch(route());
+  try {
+    await post(VALID);
+    const [read] = reads(f2);
+    assert.match(read.url, /event_id=is\.null&email=eq\.pat%40example\.com&limit=1&offset=0$/);
+    const out = upserts(f2)[0];
+    assert.deepEqual(out.answers, {});
+  } finally {
+    f2.restore();
+  }
+});
+
+test('volunteer POST: the staff notification lists the answers, escaped; the thank-you carries none of them', async () => {
+  const own = { ...LUNAR, volunteer_questions: [SHIFTS, DEFAULT_Q[1]] };
+  const fetch = mockFetch(route({ events: [own, PICNIC] }));
+  try {
+    await post({
+      ...VALID,
+      events: ['lunar-new-year'],
+      answers: { shifts: { options: ['setup'] }, notes: 'Bring <b>ladders</b>' },
+    });
+    const [staff, mine] = emails(fetch);
+    assert.match(staff.html, /<b>When can you help\?:<\/b> 12:00–2:00 PM \(setup\)/);
+    assert.match(staff.html, /<b>Skills or notes:<\/b> Bring &lt;b&gt;ladders&lt;\/b&gt;/);
+    assert.equal(mine.html.includes('ladders'), false);
+    assert.equal(mine.html.includes('12:00'), false);
+  } finally {
+    fetch.restore();
   }
 });
 
@@ -228,11 +523,20 @@ test('volunteer POST: no events -> one row with event_id null, the "wherever nee
     const before = Date.now();
     const r = await post({ ...VALID, email: '  Pat@Example.COM ', name: '  Pat Lee  ' });
     assert.equal(r.status, 200);
-    assert.deepEqual(await r.json(), { ok: true, events: [], signed_in: false, linked: false });
+    assert.deepEqual(await r.json(), {
+      ok: true,
+      events: [],
+      signed_in: false,
+      linked: false,
+      already: false,
+      created_at: null,
+    });
 
     // No slugs to resolve, so no event lookup at all.
     assert.equal(callsTo(fetch, '/rest/v1/events').length, 0);
-    const calls = callsTo(fetch, '/rest/v1/event_volunteers');
+    // One read (the answers to merge into) and one write.
+    assert.equal(reads(fetch).length, 1);
+    const calls = writes(fetch);
     assert.equal(calls.length, 1);
     assert.equal(
       calls[0].url,
@@ -250,6 +554,7 @@ test('volunteer POST: no events -> one row with event_id null, the "wherever nee
       phone: '217-555-0101',
       message: 'Happy to help with setup.',
       source: 'volunteer',
+      answers: {},
     });
     for (const key of ['created_at', 'member_id'])
       assert.equal(key in row, false, `${key} is never sent`);
@@ -301,6 +606,8 @@ test('volunteer POST: one row per chosen event, de-duplicated, in the order give
       ],
       signed_in: false,
       linked: false,
+      already: false,
+      created_at: null,
     });
 
     // One lookup for the whole list, filtered to the events people may pick.

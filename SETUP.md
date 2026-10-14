@@ -618,6 +618,51 @@ Both write `event_volunteers`.
   live Supabase database and sends real email. Sign up there against a separate,
   temporary published event, then delete that event (its volunteers cascade).
 
+### Volunteer questions and form templates (0035)
+
+Every event has a volunteer page of its own at `/events/<slug>/volunteer/`
+(and `/zh/events/<slug>/volunteer/`; the "Volunteer" buttons on `/events/`
+open it). Like the registration page it asks name, email and phone, then the
+form's questions — the same question shapes as registration forms (one choice,
+several, text, number, phone, date, with "Other"), drawn by the shared
+`web/src/components/QuestionFields.tsx`.
+
+- **Which questions.** `events.volunteer_questions` null (the default for every
+  event) means the page asks the **site's default volunteer questions**; an
+  array is the event's own form — shifts, stations, whatever that event needs —
+  set under **Admin → Events → edit → Volunteers** with the same question
+  builder as registrations. The default questions are the `form_templates` row
+  of kind `volunteer` marked default (seeded by 0035 with the dialog's old
+  "areas of interest" and "availability" chips and a notes box).
+- **The volunteer dialog** (the site-wide "Volunteer" button, `/volunteer/`)
+  first asks whether the sign-up is for a particular event: picking one that
+  has its own questions asks those in the dialog; "any event", or an event
+  without its own, asks the default questions.
+- **Templates.** Under either question builder the admin can _fill in from a
+  template_, _save as template_ (same name = overwrite), _make default_ and
+  delete. Templates are **copies**: filling in or saving never links the event
+  and the template, so editing one never changes the other and stored answers
+  keep matching their ids. The volunteer default cannot be deleted (make
+  another the default first). 0035 also seeds "Event volunteer (reference)"
+  with the Mid-Autumn Festival 2026 shift/station questions, to copy and
+  re-time. `/api/admin/form-templates` (GET/PUT/POST/DELETE, admin only).
+- **Answers** are stored in `event_volunteers.answers` (`{ questionId: answer }`,
+  the registration shape). `POST /api/volunteer` takes `answers` and checks them
+  against the form in effect (exactly one event picked that has its own
+  questions → those; anything else → the default); a second submission for the
+  same `(event, email)` **merges** into the stored answers key by key. `GET
+/api/volunteer` returns each event's `questions` (null = default) plus the
+  default `questions`; `GET /api/volunteer?event=<slug>` returns that one event
+  and, with a bearer token, the caller's `signup` so the page opens filled in.
+  The registration form's "I'd also like to volunteer" box stays for events
+  without their own questions; with them it links to the volunteer page instead.
+- **Admin → Volunteers**: filtered to one event (or "Any event"), one column per
+  question of the form those rows answer, per-option head counts, and the
+  answers in the CSV.
+- **Migration:** `0035_volunteer_forms.sql`. Paste it into the Supabase SQL
+  editor **before** deploying this code — the public and admin APIs read the
+  new columns and table. It only adds and is idempotent; the seeds run once.
+
 ## Tokens · 华协币 (`/charge/`, `/merchant/`, `/token-admin/`, `/api/tokens/*`)
 
 Stored value members spend by showing the QR on their member card. **$1 = 10 tokens.**

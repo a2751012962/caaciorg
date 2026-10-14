@@ -175,6 +175,29 @@ const MESSAGES = {
     `现金充值最低 $${(d.min_cents / 100).toFixed(2)}。`,
   ],
   cash_amount_mismatch: () => ['Cash and tokens do not match the rate.', '现金与币数不符合汇率。'],
+  over_cash_cap: (d) => [
+    `An admin can take or return at most $${(d.cap_cents / 100).toFixed(2)} in cash at a time. Ask root.`,
+    `管理员单次现金最多 $${(d.cap_cents / 100).toFixed(2)}，超出请找 root。`,
+  ],
+  credit_not_found: () => [
+    'That is not a cash or online top-up, so there is nothing to refund.',
+    '这不是现金或线上充值记录，无法退款。',
+  ],
+  over_refund: (d) => [
+    `Only ${d.left} tokens of this top-up are still unrefunded.`,
+    `这笔充值还可退回 ${d.left} 币。`,
+  ],
+  over_refund_cash: (d) => [
+    `Only $${(d.cents_left / 100).toFixed(2)} of this top-up is still unrefunded.`,
+    `这笔充值还可退现金 $${(d.cents_left / 100).toFixed(2)}。`,
+  ],
+  tx_not_found: () => ['That record is not in your account.', '你的账户里没有这条记录。'],
+  refund_not_found: () => ['That is not a refund row.', '这不是一条退款记录。'],
+  already_refunded: () => ['That top-up has already been refunded.', '这笔充值已经退款。'],
+  use_refund: () => [
+    'A top-up is given back with the Refund form, so the money returned is on the record.',
+    '充值请用「退款」表单退还，以便记录退回的钱。',
+  ],
   invalid_kind: () => ['Unknown kind of credit.', '未知的入账类型。'],
   not_same_family: () => ['Tokens can only move within your family.', '只能转给同一家庭的成员。'],
   same_member: () => ['Pick someone else to send tokens to.', '请选择另一位家人。'],
