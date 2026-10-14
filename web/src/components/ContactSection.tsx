@@ -122,7 +122,7 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
           >
             <div className="mb-8 text-center">
               <span className="text-xs font-semibold text-brick block mb-1">
-                Get In Touch · 联络我们
+                {content.contact.eyebrow}
               </span>
               <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
                 {content.contact.heading}
@@ -262,8 +262,8 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
             {/* Authentic Photograph */}
             <div className="overflow-hidden rounded-2xl shadow-xs border border-neutral-200/80 group">
               <img
-                src="/images/contact-photo.jpg"
-                alt="CAACI Community Event"
+                src={content.contact.photoImage}
+                alt={content.contact.photoAlt}
                 className="w-full h-[280px] md:h-[320px] object-cover transition-transform duration-500 group-hover:scale-101"
               />
             </div>

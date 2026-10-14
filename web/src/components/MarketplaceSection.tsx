@@ -1,36 +1,8 @@
 import { ArrowUpRight, MessageCircle, Search, ShoppingBag } from 'lucide-react';
+import { contentEN, contentZH } from '../data/content';
 import type { Lang } from '../lib/lang';
 import { marketplaceUrl } from '../lib/marketplace';
 import { Reveal } from './Reveal';
-
-const copy = {
-  en: {
-    title: 'Buy, sell, and find what you need nearby.',
-    description:
-      'A desk for your new place. A bike you no longer use. Illini Market brings for-sale and wanted posts together for UIUC and Champaign–Urbana, so useful finds do not get lost in separate group chats.',
-    browse: 'Explore Illini Market',
-    more: 'Community & contact',
-    features: [
-      { title: 'Find it', description: 'Search listings and browse by category.' },
-      { title: 'Post it', description: 'Sell an item or say what you are looking for.' },
-      { title: 'Talk it through', description: 'Ask about condition and arrange pickup in chat.' },
-    ],
-    note: 'Opens a separate website, in English and Chinese. Posting and messaging use your Illini Market account.',
-  },
-  zh: {
-    title: '附近的闲置，和你正在找的东西。',
-    description:
-      '刚搬家想找张桌子，或是有辆闲置自行车？Illini 集市把 UIUC 和香槟–厄巴纳的出售、求购信息放在一起，不用再挨个翻找不同的微信群。',
-    browse: '逛逛 Illini 集市',
-    more: '社区与联系',
-    features: [
-      { title: '找一找', description: '搜索商品，按分类浏览附近的闲置。' },
-      { title: '发一条', description: '发布出售，或说说你想求购什么。' },
-      { title: '聊清楚', description: '私信确认成色、尺寸，再约好取货。' },
-    ],
-    note: '将在独立网站打开，中英文均可；发布和私信使用 Illini 集市账号。',
-  },
-};
 
 const featureIcons = [Search, ShoppingBag, MessageCircle];
 
@@ -44,7 +16,7 @@ export function MarketplaceSection({
   lang: Lang;
   placement: 'home' | 'resources';
 }) {
-  const text = copy[lang];
+  const text = (lang === 'zh' ? contentZH : contentEN).marketplace;
   return (
     <section
       aria-labelledby="marketplace-heading"
@@ -52,9 +24,7 @@ export function MarketplaceSection({
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Reveal className="max-w-3xl mb-10 sm:mb-14">
-          <span className="text-xs font-semibold text-brick block mb-2">
-            Illini Market · Illini 集市
-          </span>
+          <span className="text-xs font-semibold text-brick block mb-2">{text.eyebrow}</span>
           <h2
             id="marketplace-heading"
             className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-ink"
@@ -93,7 +63,8 @@ export function MarketplaceSection({
           <Reveal className="lg:col-span-6" index={1}>
             <ul className="divide-y divide-neutral-200/80 border-y border-neutral-200/80">
               {text.features.map((feature, index) => {
-                const Icon = featureIcons[index];
+                // A feature an editor adds past the third reuses the icons in turn.
+                const Icon = featureIcons[index % featureIcons.length];
                 return (
                   <li key={feature.title} className="flex gap-4 items-start py-4">
                     <span className="w-10 h-10 shrink-0 rounded-full bg-white border border-neutral-200/70 shadow-2xs flex items-center justify-center">
