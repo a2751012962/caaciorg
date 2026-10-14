@@ -117,6 +117,7 @@ export type TabId =
   | 'directory'
   | 'plans'
   | 'news'
+  | 'pages'
   | 'refunds'
   | 'account';
 

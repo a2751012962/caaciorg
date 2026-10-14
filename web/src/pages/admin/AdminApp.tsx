@@ -11,6 +11,7 @@ import {
   CalendarDays,
   Coins,
   ExternalLink,
+  FileText,
   Gift,
   HandHeart,
   Home,
@@ -60,6 +61,7 @@ const TABS: Tab[] = [
   tab('directory', 'Business directory', '商家名录', Store, () => import('./tabs/DirectoryTab')),
   tab('plans', 'Membership plans', '会员方案', BadgeCheck, () => import('./tabs/PlansTab')),
   tab('news', 'Send news', '发送通讯', Send, () => import('./tabs/NewsTab')),
+  tab('pages', 'Page content', '页面内容', FileText, () => import('./tabs/PagesTab')),
   tab('refunds', 'Refunds', '退款', Undo2, () => import('./tabs/RefundsTab')),
   tab('account', 'My account', '我的账号', UserCog, () => import('./tabs/AccountTab')),
 ];
