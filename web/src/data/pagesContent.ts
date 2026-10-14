@@ -6,3 +6,4 @@ export * from './pages/calendar';
 export * from './pages/membership';
 export * from './pages/business';
 export * from './pages/notFound';
+export * from './pages/columns';

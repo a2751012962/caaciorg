@@ -1,6 +1,7 @@
 import { Heart, Calendar, UserPlus } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { Reveal } from './Reveal';
+import { isPlainClick } from '../lib/articleRoutes';
 
 interface SubpageHeroProps {
   title: string;
@@ -11,6 +12,9 @@ interface SubpageHeroProps {
   onNavigate: (page: string) => void;
   currentPage: string;
   showActionBanners?: boolean;
+  /** A crumb between home and this page, for a page that lives under another
+   *  (Columns under About): a real link, with `page` as the in-app target. */
+  parent?: { label: string; href: string; page: string };
 }
 
 export function SubpageHero({
@@ -22,6 +26,7 @@ export function SubpageHero({
   onNavigate,
   currentPage,
   showActionBanners = true,
+  parent,
 }: SubpageHeroProps) {
   return (
     <div className="relative w-full">
@@ -48,6 +53,23 @@ export function SubpageHero({
                 {content.nav.welcome}
               </button>
               <span>/</span>
+              {parent && (
+                <>
+                  <a
+                    href={parent.href}
+                    onClick={(e) => {
+                      // A plain click stays in the app; modified clicks open a tab.
+                      if (!isPlainClick(e)) return;
+                      e.preventDefault();
+                      onNavigate(parent.page);
+                    }}
+                    className="hover:text-brick transition-colors"
+                  >
+                    {parent.label}
+                  </a>
+                  <span>/</span>
+                </>
+              )}
               <span className="text-brick font-bold">{title}</span>
             </Reveal>
 
