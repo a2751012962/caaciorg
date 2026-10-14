@@ -17,21 +17,23 @@
 中英双语页面、会员与家庭方案、活动报名与志愿者、商家名录、华协币，以及工作人员后台，
 运行在 Cloudflare Pages + Supabase + Stripe 上。
 
-功能测试在真实浏览器里用 [e2e](https://github.com/tester-army/e2e) 跑：
-绝不能坏的地方写成普通的定位器断言，其余流程可以直接用一句话描述目标，交给 agent 去完成。
+浏览器功能测试放在 [`e2e/`](./e2e/README.md)，基于 [tester-army/e2e](https://github.com/tester-army/e2e)。
+目前有一套只读的公开页面冒烟测试（不需要模型），外加两条需要 API key 的 agent 测试。
+它们在本地按需运行，还没有接入 CI。下面是其中一条冒烟测试：
 
 ```ts
-// e2e/tests/agent/navigation.e2e.ts
+// e2e/tests/smoke/site.e2e.ts
 import { test } from '@e2e-dev/web';
 import { expect } from 'e2e';
 
-test('a visitor finds the student dues from the home page', async ({ app, agent, browser }) => {
-  await app.open('/');
-
-  await agent.act('open the membership page from the top navigation');
-  await expect(browser).toHaveURL(/\/membership\/$/);
-
-  await agent.assert('the page shows a yearly price for Student Membership');
+test('the membership page lists every tier', async ({ app, screen }) => {
+  await app.open('/membership/');
+  await expect(
+    screen.getByRole('heading', { name: 'Membership Tiers & Annual Dues' }),
+  ).toBeVisible();
+  for (const tier of ['Free', 'Student', 'Individual', 'Family', 'Business']) {
+    await expect(screen.getByRole('heading', { name: `${tier} Membership` })).toBeVisible();
+  }
 });
 ```
 

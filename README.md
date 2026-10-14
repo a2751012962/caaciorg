@@ -18,21 +18,24 @@ The website of the **Chinese American Association of Central Illinois** (伊利�
 registration and volunteers, a business directory, member tokens (华协币), and the staff
 back office, all on Cloudflare Pages + Supabase + Stripe.
 
-Features are checked in a real browser with [e2e](https://github.com/tester-army/e2e):
-plain locator tests for what must never break, and agent steps written as goals.
+Browser functional tests live in [`e2e/`](./e2e/README.md), written with
+[tester-army/e2e](https://github.com/tester-army/e2e). So far that is a read-only smoke
+suite of the public pages, which needs no model, plus two agent steps that need an API key.
+They run locally on demand, not in CI yet. One of the smoke tests:
 
 ```ts
-// e2e/tests/agent/navigation.e2e.ts
+// e2e/tests/smoke/site.e2e.ts
 import { test } from '@e2e-dev/web';
 import { expect } from 'e2e';
 
-test('a visitor finds the student dues from the home page', async ({ app, agent, browser }) => {
-  await app.open('/');
-
-  await agent.act('open the membership page from the top navigation');
-  await expect(browser).toHaveURL(/\/membership\/$/);
-
-  await agent.assert('the page shows a yearly price for Student Membership');
+test('the membership page lists every tier', async ({ app, screen }) => {
+  await app.open('/membership/');
+  await expect(
+    screen.getByRole('heading', { name: 'Membership Tiers & Annual Dues' }),
+  ).toBeVisible();
+  for (const tier of ['Free', 'Student', 'Individual', 'Family', 'Business']) {
+    await expect(screen.getByRole('heading', { name: `${tier} Membership` })).toBeVisible();
+  }
 });
 ```
 
