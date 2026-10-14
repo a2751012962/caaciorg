@@ -17,7 +17,7 @@ import {
   diffAuthConfig,
   loadTemplates,
   main,
-} from '../push-auth-emails.mjs';
+} from '../scripts/push-auth-emails.mjs';
 
 const TEMPLATES = new URL('../supabase/templates/', import.meta.url);
 const read = (name) => readFile(new URL(name, TEMPLATES), 'utf8');
@@ -567,7 +567,7 @@ function runCli(args, { env = {}, preload } = {}) {
     delete base[name];
   }
   const flags = preload ? ['--import', `data:text/javascript,${encodeURIComponent(preload)}`] : [];
-  const script = fileURLToPath(new URL('../push-auth-emails.mjs', import.meta.url));
+  const script = fileURLToPath(new URL('../scripts/push-auth-emails.mjs', import.meta.url));
   return spawnSync(process.execPath, [...flags, script, ...args], {
     env: { ...base, ...env },
     encoding: 'utf8',

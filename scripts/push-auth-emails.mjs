@@ -46,7 +46,7 @@ export const SMTP_SETTINGS = Object.freeze({
   smtp_max_frequency: 60,
 });
 
-const TEMPLATES_DIR = new URL('./supabase/templates/', import.meta.url);
+const TEMPLATES_DIR = new URL('../supabase/templates/', import.meta.url);
 const API = 'https://api.supabase.com/v1';
 
 export async function loadTemplates(dir = TEMPLATES_DIR) {

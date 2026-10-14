@@ -7,7 +7,7 @@ import {
   templateBody,
   diffTemplate,
   RESERVED_KEYS,
-} from '../resend-templates.mjs';
+} from '../scripts/resend-templates.mjs';
 import { templateVariables } from '../functions/api/_event-emails.js';
 
 const KEY = 're_SECRET_full_access_key_123';

@@ -7,7 +7,7 @@ import {
   candidateProducts,
   pickProduct,
   main as catalog,
-} from '../stripe-catalog.mjs';
+} from '../scripts/stripe-catalog.mjs';
 import { tierPrice, tierLookupKey, stripe } from '../functions/api/_lib.js';
 import { onRequestPost as checkout } from '../functions/api/checkout.js';
 import { onRequestPost as changePlan } from '../functions/api/change-plan.js';

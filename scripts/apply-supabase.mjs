@@ -15,7 +15,7 @@ const API = 'https://api.supabase.com/v1';
 const H = { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' };
 
 async function runSql(label, file) {
-  const query = await readFile(new URL(`./supabase/${file}`, import.meta.url), 'utf8');
+  const query = await readFile(new URL(`../supabase/${file}`, import.meta.url), 'utf8');
   const r = await fetch(`${API}/projects/${REF}/database/query`, {
     method: 'POST',
     headers: H,
@@ -42,7 +42,7 @@ console.log(`Project: ${p.name} (${p.region}) status=${p.status}`);
 console.log('\nApplying migrations…');
 // Every file in supabase/migrations/, in order. All migrations are idempotent
 // (if-not-exists / drop-if-exists / on-conflict), so re-running is safe.
-const migrations = (await readdir(new URL('./supabase/migrations/', import.meta.url)))
+const migrations = (await readdir(new URL('../supabase/migrations/', import.meta.url)))
   .filter((f) => f.endsWith('.sql'))
   .sort();
 const results = [];
@@ -71,7 +71,7 @@ if (!anon || !service) {
 }
 
 // Update .env in place (only the two SUPABASE key lines).
-const envPath = new URL('./.env', import.meta.url);
+const envPath = new URL('../.env', import.meta.url);
 let env = await readFile(envPath, 'utf8');
 env = env
   .replace(/^SUPABASE_ANON_KEY=.*$/m, `SUPABASE_ANON_KEY=${anon}`)

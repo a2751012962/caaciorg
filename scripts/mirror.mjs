@@ -4,7 +4,7 @@ import { mkdir, writeFile, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 const ORIGIN = 'https://caaciorg.com';
-const OUT = new URL('./mirror/', import.meta.url).pathname;
+const OUT = new URL('../mirror/', import.meta.url).pathname;
 const UA = { 'user-agent': 'Mozilla/5.0 (mirror; caaci migration)' };
 const CONCURRENCY = 8;
 

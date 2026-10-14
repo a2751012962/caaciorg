@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { applyPlan, main, maskEmail, planImport, stripeKeyFrom } from '../migrate-members.mjs';
+import {
+  applyPlan,
+  main,
+  maskEmail,
+  planImport,
+  stripeKeyFrom,
+} from '../scripts/migrate-members.mjs';
 import { fakeEnv, mockFetch } from './helpers.js';
 
 const TIERS = ['free', 'student', 'individual', 'family', 'business', 'honorary'];
@@ -671,7 +677,7 @@ test('applying never calls an auth endpoint that sends mail, and skips write not
   );
   assert.equal(sbx.calls.length, 3);
   for (const c of sbx.calls) assert.doesNotMatch(c.url, /\/(invite|recover|otp|magiclink)\b/);
-  const source = await readFile(new URL('../migrate-members.mjs', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../scripts/migrate-members.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /auth\/v1\/(invite|recover|otp|magiclink)/);
 });
 

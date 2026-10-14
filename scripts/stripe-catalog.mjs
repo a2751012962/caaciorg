@@ -37,8 +37,8 @@ import {
   createdHere,
   planTier,
   applyTierPlan,
-} from './functions/api/_tier-price.js';
-import { CARD_SURCHARGE } from './functions/api/_lib.js';
+} from '../functions/api/_tier-price.js';
+import { CARD_SURCHARGE } from '../functions/api/_lib.js';
 
 // The planning helpers live in functions/api/_tier-price.js (the admin Plans tab
 // uses them too); re-exported for existing callers and tests.
@@ -57,7 +57,7 @@ export {
 async function loadEnv(env) {
   let text;
   try {
-    text = await readFile(new URL('./.env', import.meta.url), 'utf8');
+    text = await readFile(new URL('../.env', import.meta.url), 'utf8');
   } catch {
     return env;
   }

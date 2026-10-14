@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const DIR = process.argv[2] || 'mirror';
 // fileURLToPath, not .pathname — see build.mjs.
-const ROOT = fileURLToPath(new URL(`./${DIR}/`, import.meta.url));
+const ROOT = fileURLToPath(new URL(`../${DIR}/`, import.meta.url));
 const PORT = Number(process.argv[3] || 8799);
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
