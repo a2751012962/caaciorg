@@ -677,6 +677,10 @@ Contract: `docs/content-management.md`.
   `articles`, `content_editors`, `site_content`; server-only, like 0035). It only
   adds and is idempotent; the three starting columns (`news`, `community`,
   `members`) are seeded once and never overwritten by a re-paste.
+- **Migration:** `0041_content_manager_perms.sql`, after 0040: adds
+  `content_editors.perms` (events, news, invites, plans, directory for content
+  managers). Defaults to empty, so it grants nothing by itself. The code reads
+  the row with `select=*`, so it works before 0041 with those permissions off.
 
 ## Tokens · 华协币 (`/charge/`, `/merchant/`, `/token-admin/`, `/api/tokens/*`)
 

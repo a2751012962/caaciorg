@@ -56,7 +56,8 @@ test('news template: 401 without a token, 403 for a non-admin, with no event rea
   try {
     const r = await get(`?event_id=${EV}`);
     assert.equal(r.status, 403);
-    assert.deepEqual(await r.json(), { error: 'Admin access required.' });
+    // Neither an administrator nor a content manager with 'news' (0041).
+    assert.deepEqual(await r.json(), { error: 'Content editor access required.' });
     assert.equal(eventReads(fetch).length, 0);
   } finally {
     fetch.restore();

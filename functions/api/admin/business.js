@@ -1,4 +1,4 @@
-// /api/admin/business  (admin only)
+// /api/admin/business  (administrators, and content managers with 'directory', 0041)
 //   GET    — list/search business-directory entries (paginated; filter by
 //            approval state; includes a pending count for the stats tile).
 //   PUT    — create an entry (admin-created entries are approved by default).
@@ -7,8 +7,9 @@
 //            flipping `approved` is what makes a listing official.
 //   DELETE — remove an entry.
 // Public submissions arrive unapproved via /api/business-listing; this is the
-// review queue for them. Every request is gated by requireAdmin.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+// review queue for them. Every request is gated by requirePerm(…, 'directory').
+import { json, bad, sb } from '../_lib.js';
+import { requirePerm } from '../_content.js';
 
 const MAX_LIMIT = 50;
 const COLUMNS =
@@ -97,7 +98,7 @@ function parseFields(b) {
 }
 
 export async function onRequestGet({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'directory');
   if (gate.error) return gate.error;
 
   const url = new URL(request.url);
@@ -147,7 +148,7 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPut({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'directory');
   if (gate.error) return gate.error;
 
   let b;
@@ -172,7 +173,7 @@ export async function onRequestPut({ request, env }) {
 }
 
 export async function onRequestPost({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'directory');
   if (gate.error) return gate.error;
 
   let b;
@@ -197,7 +198,7 @@ export async function onRequestPost({ request, env }) {
 }
 
 export async function onRequestDelete({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'directory');
   if (gate.error) return gate.error;
 
   let id = new URL(request.url).searchParams.get('id') || '';

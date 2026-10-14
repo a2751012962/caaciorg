@@ -1,16 +1,22 @@
 // /api/admin/content-editors  (admin only) — who besides the administrators
 // may write articles or edit page copy (content_editors, 0040).
 //   GET    → { rows: [{ member_id, full_name, email, all_columns, column_ids,
-//            can_edit_pages }] }, by name.
-//   POST   { email, all_columns, column_ids, can_edit_pages } → { ok, row }:
+//            can_edit_pages, perms }] }, by name.
+//   POST   { email, all_columns, column_ids, can_edit_pages, perms? }
+//          → { ok, row }:
 //          grant or change the access of the member that email belongs to
 //          (an upsert on member_id). 404 when no account has that email —
 //          they sign up on the site first, as for /api/admin/roles.
 //   DELETE ?member_id= (or body { member_id }) → { ok }: take it away.
 import { json, bad, sb, requireAdmin } from '../_lib.js';
-import { UUID_RE, inList } from '../_content.js';
+import { UUID_RE, inList, PERMS } from '../_content.js';
 
-const COLS = 'member_id,all_columns,column_ids,can_edit_pages';
+// Known permission names only, each once; anything else is dropped.
+const cleanPerms = (v) =>
+  Array.isArray(v) ? [...new Set(v.map(String))].filter((p) => PERMS.includes(p)) : [];
+
+// '*': perms (0041) may not exist yet on a project with only 0040.
+const COLS = '*';
 const MAX_COLUMNS = 200;
 
 async function readBody(request) {
@@ -43,6 +49,7 @@ const withPerson = (row, who) => ({
   all_columns: row.all_columns === true,
   column_ids: Array.isArray(row.column_ids) ? row.column_ids : [],
   can_edit_pages: row.can_edit_pages === true,
+  perms: Array.isArray(row.perms) ? row.perms : [],
 });
 
 export async function onRequestGet({ request, env }) {
@@ -111,6 +118,9 @@ export async function onRequestPost({ request, env }) {
         all_columns: b.all_columns === true,
         column_ids: columnIds,
         can_edit_pages: b.can_edit_pages === true,
+        // Sent only when given, so a caller that predates 0041 never names a
+        // column the table may not have yet.
+        ...(b.perms !== undefined ? { perms: cleanPerms(b.perms) } : {}),
         updated_by: gate.member.id,
         updated_at: new Date().toISOString(),
       },

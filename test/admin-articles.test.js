@@ -61,18 +61,21 @@ test('content-me answers each role', async () => {
       all_columns: true,
       column_ids: [],
       can_edit_pages: true,
+      perms: ['events', 'news', 'invites', 'plans', 'directory'],
     });
     assert.deepEqual(await (await call(contentMe, EDITOR_A)).json(), {
       is_admin: false,
       all_columns: false,
       column_ids: [COL_A],
       can_edit_pages: false,
+      perms: [],
     });
     assert.deepEqual(await (await call(contentMe, PAGES)).json(), {
       is_admin: false,
       all_columns: false,
       column_ids: [],
       can_edit_pages: true,
+      perms: [],
     });
   });
 });

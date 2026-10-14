@@ -20,8 +20,9 @@ export const SUMMARY_COLS =
 // service-role key exactly as requireAdmin does — never from the JWT) and
 // members with a content_editors row. Returns { error: Response } or
 // { user, member, role }, where role is what /api/admin/content-me answers:
-// { is_admin, all_columns, column_ids, can_edit_pages }. An administrator's
-// role grants everything, so callers can test the flags without special-casing.
+// { is_admin, all_columns, column_ids, can_edit_pages, perms }.
+// An administrator's role grants everything, so callers can test the flags
+// without special-casing.
 export async function contentRole(request, env) {
   const gate = await requireUser(request, env);
   if (gate.error) return gate;
@@ -34,14 +35,18 @@ export async function contentRole(request, env) {
       return {
         user,
         member,
-        role: { is_admin: true, all_columns: true, column_ids: [], can_edit_pages: true },
+        role: {
+          is_admin: true,
+          all_columns: true,
+          column_ids: [],
+          can_edit_pages: true,
+          perms: [...PERMS],
+        },
       };
     }
-    const row = await DB.selectOne(
-      'content_editors',
-      { member_id: user.id },
-      'member_id,all_columns,column_ids,can_edit_pages',
-    );
+    // `*`, not a column list: perms arrives with 0041, and a
+    // project that has 0040 but not yet 0041 must still let editors in.
+    const row = await DB.selectOne('content_editors', { member_id: user.id }, '*');
     if (!row) return { error: bad('Content editor access required.', 403) };
     return {
       user,
@@ -51,11 +56,34 @@ export async function contentRole(request, env) {
         all_columns: row.all_columns === true,
         column_ids: Array.isArray(row.column_ids) ? row.column_ids : [],
         can_edit_pages: row.can_edit_pages === true,
+        perms: Array.isArray(row.perms) ? row.perms.filter((p) => PERMS.includes(p)) : [],
       },
     };
   } catch (e) {
     return { error: bad(e.message, 500) };
   }
+}
+
+// What a content manager may be given beyond columns and page copy (0041;
+// the same list is a check constraint on content_editors.perms):
+//   events — Events tab, registrations, volunteers, form templates
+//   news — Send news; invites — invitation codes; plans — membership plans;
+//   directory — the business directory.
+// Members, families, payments, refunds, discount codes, the dashboard and
+// tokens are never on it: they stay with administrators.
+export const PERMS = ['events', 'news', 'invites', 'plans', 'directory'];
+
+export const hasPerm = (role, perm) =>
+  !!role && (role.is_admin === true || (Array.isArray(role.perms) && role.perms.includes(perm)));
+
+// The gate of an endpoint that belongs to one or more of PERMS: contentRole,
+// then any one of `perms` (an administrator has them all).
+export async function requirePerm(request, env, ...perms) {
+  const gate = await contentRole(request, env);
+  if (gate.error) return gate;
+  if (!perms.some((p) => hasPerm(gate.role, p)))
+    return { error: bad('You do not have access to this part of the console.', 403) };
+  return gate;
 }
 
 // May this caller create, change or delete articles in `columnId`?

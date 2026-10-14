@@ -11,10 +11,23 @@ Three things an editor can change from `/admin/` without touching code:
    public pages lives in a data object under `web/src/data/`. Overrides saved
    in the database replace those values at load time; the code's values stay
    the defaults that "Reset" goes back to.
-3. **Roles.** Developers = GitHub access (outside the site). Administrators =
-   `members.is_admin`, everything. Content editors = a `content_editors` row:
-   the columns they may write in (or all of them) and, separately, whether they
-   may edit page copy. Editors sign in at `/admin/` and see only those tabs.
+3. **Roles** (My account → 后台权限, `/api/admin/staff`).
+   - Developers = GitHub access (outside the site).
+   - root = `members.is_root`, set in the SQL editor only; the one who
+     appoints and changes administrators.
+   - Administrators = `members.is_admin`, everything.
+   - Content managers (内容管理) = a `content_editors` row: the columns they may
+     write in (or all of them), page copy, and any of `perms` (0041):
+     `events` (Events tab, registrations, volunteers, form templates), `news`
+     (Send news), `invites` (invitation codes), `plans` (membership plans —
+     a price change also changes the Stripe price), `directory` (business
+     directory). They sign in at `/admin/` and see only those tabs plus My
+     account (their own password). Dashboard, members, families, payments,
+     refunds, discount codes and tokens stay with administrators.
+   - Root sees and changes everyone; another administrator manages content
+     managers only. Nobody changes root or their own role there. Making an
+     administrator a content manager writes the content row before clearing
+     `is_admin`; making a content manager an administrator keeps the row.
 
 ## Database — `supabase/migrations/0040_content_cms.sql`
 
@@ -35,6 +48,7 @@ articles         id uuid pk, column_id uuid not null → article_columns (on del
                  check (title_en <> '' or title_zh <> '')
 content_editors  member_id uuid pk → members (on delete cascade), all_columns boolean default false,
                  column_ids uuid[] default '{}', can_edit_pages boolean default false,
+                 perms text[] default '{}' ⊆ {events,news,invites,plans,directory}  (0041),
                  updated_by uuid → members (set null), created_at, updated_at
 site_content     key text pk (^[A-Za-z0-9_.-]+$), value_en jsonb null, value_zh jsonb null,
                  updated_by uuid → members (set null), updated_at
@@ -58,22 +72,32 @@ scheduled). Public answers carry `cache-control: public, max-age=30`.
 
 Staff (Bearer token; admin, or a `content_editors` row):
 
-| Call                                                           | Who                     | What                                                                                                                 |
-| -------------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/admin/content-me`                                    | staff                   | `{ is_admin, all_columns, column_ids, can_edit_pages }`; 403 for anyone else                                         |
-| `GET /api/admin/articles?column_id=&status=&q=&limit=&offset=` | staff                   | `{ rows, total }` — rows without bodies, only columns the caller may write                                           |
-| `GET /api/admin/articles?id=`                                  | staff                   | `{ article }` full row                                                                                               |
-| `POST /api/admin/articles`                                     | staff                   | create; body = article fields; `slug` optional (made from the English title, else a short id); answers `{ article }` |
-| `PATCH /api/admin/articles`                                    | staff                   | `{ id, …fields }`; moving to another column needs both columns                                                       |
-| `DELETE /api/admin/articles?id=`                               | staff                   |                                                                                                                      |
-| `GET /api/admin/article-columns`                               | staff                   | `{ rows }` all columns, sort order                                                                                   |
-| `POST` / `PATCH` / `DELETE ?id=` same path                     | admin                   | create / edit / delete (409 while it has articles)                                                                   |
-| `GET /api/admin/content-editors`                               | admin                   | `{ rows: [{ member_id, full_name, email, all_columns, column_ids, can_edit_pages }] }`                               |
-| `POST /api/admin/content-editors`                              | admin                   | `{ email, all_columns, column_ids, can_edit_pages }` upsert by the member that email belongs to                      |
-| `DELETE /api/admin/content-editors?member_id=`                 | admin                   |                                                                                                                      |
-| `GET /api/admin/site-content`                                  | admin or can_edit_pages | `{ rows: [{ key, value_en, value_zh, updated_at, updated_by_name }] }`                                               |
-| `PUT /api/admin/site-content`                                  | admin or can_edit_pages | `{ changes: [{ key, en?: json \| null, zh?: json \| null }] }`; a key whose two values end up null is deleted        |
-| `PUT /api/admin/media`                                         | staff                   | unchanged upload (editors may upload too); `GET` list staff; `DELETE` admin only                                     |
+| Call                                                           | Who                      | What                                                                                                                   |
+| -------------------------------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/admin/content-me`                                    | staff                    | `{ is_admin, all_columns, column_ids, can_edit_pages, perms }`; 403 for anyone else                                    |
+| `GET /api/admin/staff`                                         | admin                    | `{ rows: [{ member_id, full_name, email, role, …permissions }], caller_is_root }`; non-root sees content managers only |
+| `POST /api/admin/staff`                                        | admin (admin role: root) | `{ email \| member_id, role: admin \| content \| none, all_columns, column_ids, can_edit_pages, perms }`               |
+| `GET /api/admin/articles?column_id=&status=&q=&limit=&offset=` | staff                    | `{ rows, total }` — rows without bodies, only columns the caller may write                                             |
+| `GET /api/admin/articles?id=`                                  | staff                    | `{ article }` full row                                                                                                 |
+| `POST /api/admin/articles`                                     | staff                    | create; body = article fields; `slug` optional (made from the English title, else a short id); answers `{ article }`   |
+| `PATCH /api/admin/articles`                                    | staff                    | `{ id, …fields }`; moving to another column needs both columns                                                         |
+| `DELETE /api/admin/articles?id=`                               | staff                    |                                                                                                                        |
+| `GET /api/admin/article-columns`                               | staff                    | `{ rows }` all columns, sort order                                                                                     |
+| `POST` / `PATCH` / `DELETE ?id=` same path                     | admin                    | create / edit / delete (409 while it has articles)                                                                     |
+| `GET /api/admin/content-editors`                               | admin                    | `{ rows: [{ member_id, full_name, email, all_columns, column_ids, can_edit_pages }] }`                                 |
+| `POST /api/admin/content-editors`                              | admin                    | `{ email, all_columns, column_ids, can_edit_pages }` upsert by the member that email belongs to                        |
+| `DELETE /api/admin/content-editors?member_id=`                 | admin                    |                                                                                                                        |
+| `GET /api/admin/site-content`                                  | admin or can_edit_pages  | `{ rows: [{ key, value_en, value_zh, updated_at, updated_by_name }] }`                                                 |
+| `PUT /api/admin/site-content`                                  | admin or can_edit_pages  | `{ changes: [{ key, en?: json \| null, zh?: json \| null }] }`; a key whose two values end up null is deleted          |
+| `PUT /api/admin/media`                                         | staff                    | unchanged upload (editors may upload too); `GET` list staff; `DELETE` admin only                                       |
+
+The existing endpoints of the other tabs take content managers too, each with
+its permission (`requirePerm` in `functions/api/_content.js`): events,
+event-registrations, event-volunteers, form-templates → `events` (events GET
+also `news`, for its templates); news, news-template → `news`; invites →
+`invites`; tiers → `plans`; business → `directory`. `action-code` (the emailed
+code invites and plan changes ask for) answers any content staff; the code goes
+to the caller's own address and opens nothing by itself.
 
 Article bodies are sanitised twice: on save (functions strip script/style/
 iframe/object/embed, `on*` attributes and `javascript:` URLs) and on every

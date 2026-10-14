@@ -125,14 +125,18 @@ export type TabId =
 
 /**
  * What the signed-in person may do in the console (GET /api/admin/content-me,
- * docs/content-management.md). Administrators get everything; a content editor
- * gets the columns in `column_ids` (or every column) and, separately, page copy.
+ * docs/content-management.md). Administrators get everything; a content manager
+ * gets the columns in `column_ids` (or every column), separately page copy, and
+ * any of the PERMS below (0041).
  */
+export const PERMS = ['events', 'news', 'invites', 'plans', 'directory'] as const;
+export type Perm = (typeof PERMS)[number];
 export interface ContentRole {
   is_admin: boolean;
   all_columns: boolean;
   column_ids: string[];
   can_edit_pages: boolean;
+  perms: Perm[];
 }
 
 interface AdminContext {

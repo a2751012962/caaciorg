@@ -1,9 +1,12 @@
-// POST /api/admin/action-code  (admin only)
+// POST /api/admin/action-code  (administrators and content managers)
 // Emails the signed-in admin the verification code that refunds and plan
 // changes must carry (see _action-code.js). The code goes to the admin's own
 // address only — the one on their account — and the answer never contains it.
-// Every request is gated by requireAdmin.
-import { json, bad, requireAdmin, sendEmail } from '../_lib.js';
+// Every request is gated by contentRole: content managers with invites or
+// plans need a code too. The code goes to the caller's own address, and each
+// guarded endpoint still checks its own permission, so a code alone opens nothing.
+import { json, bad, sendEmail } from '../_lib.js';
+import { contentRole } from '../_content.js';
 import { codeFor, currentSlot, SLOT_MS } from './_action-code.js';
 
 const esc = (s) =>
@@ -13,7 +16,7 @@ const esc = (s) =>
   );
 
 export async function onRequestPost({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await contentRole(request, env);
   if (gate.error) return gate.error;
   const { user, member } = gate;
   const to = user.email || member.email;

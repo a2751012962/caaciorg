@@ -6,7 +6,6 @@ import { columnName } from '../../../../lib/articles';
 
 export const ARTICLES = '/api/admin/articles';
 export const COLUMNS = '/api/admin/article-columns';
-export const EDITORS = '/api/admin/content-editors';
 export const LIMIT = 25;
 
 /** A row of GET /api/admin/articles (no bodies) or the full ?id= article. */
@@ -16,16 +15,6 @@ export interface AdminArticle extends ArticleSummary {
   body_zh?: string;
   created_at?: string | null;
   updated_at?: string | null;
-}
-
-/** A row of GET /api/admin/content-editors. */
-export interface EditorRow {
-  member_id: string;
-  full_name: string | null;
-  email: string | null;
-  all_columns: boolean;
-  column_ids: string[];
-  can_edit_pages: boolean;
 }
 
 export type ArticleState = 'draft' | 'scheduled' | 'published';

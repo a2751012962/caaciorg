@@ -40,14 +40,25 @@ import { loginUrl, useAuth } from '../../lib/auth';
 import { initialLang, storeLang, type Lang } from '../../lib/lang';
 import { api as publicApi } from '../../lib/api';
 import { fluidTab } from '../../lib/motion';
-import { AdminProvider, Notice, SECONDARY, Spinner, type ContentRole, type TabId } from './kit';
+import {
+  AdminProvider,
+  Notice,
+  PERMS,
+  SECONDARY,
+  Spinner,
+  type ContentRole,
+  type Perm,
+  type TabId,
+} from './kit';
 
 /**
  * Who sees a tab: 'admin' = administrators only; 'articles' = also content
- * editors with at least one column; 'pages' = also editors allowed to change
- * page copy. The API checks the same rules on every request.
+ * managers with at least one column; 'pages' = also those allowed to change
+ * page copy; a Perm ('events', 'news', 'invites', 'plans', 'directory') = also
+ * those given it (0041); 'any' = everyone who gets into the console (their own
+ * password). The API checks the same rules on every request.
  */
-type Access = 'admin' | 'articles' | 'pages';
+type Access = 'admin' | 'articles' | 'pages' | Perm | 'any';
 type Tab = {
   id: TabId;
   en: string;
@@ -76,7 +87,9 @@ const tab = (
 const mayOpen = (role: ContentRole, access: Access) =>
   role.is_admin ||
   (access === 'articles' && (role.all_columns || role.column_ids.length > 0)) ||
-  (access === 'pages' && role.can_edit_pages);
+  (access === 'pages' && role.can_edit_pages) ||
+  ((PERMS as readonly string[]).includes(access) && role.perms.includes(access as Perm)) ||
+  access === 'any';
 
 // An administrator whose content-me request failed (the endpoint not deployed
 // yet, a network blip) still gets the whole console, as before roles existed.
@@ -85,6 +98,7 @@ const ADMIN_ROLE: ContentRole = {
   all_columns: true,
   column_ids: [],
   can_edit_pages: true,
+  perms: [...PERMS],
 };
 
 const TABS: Tab[] = [
@@ -93,8 +107,8 @@ const TABS: Tab[] = [
   tab('families', 'Families', '家庭', Home, () => import('./tabs/FamiliesTab')),
   tab('payments', 'Payments', '收款记录', Receipt, () => import('./tabs/PaymentsTab')),
   tab('discounts', 'Discount codes', '折扣码', TicketPercent, () => import('./tabs/DiscountsTab')),
-  tab('invites', 'Invitation codes', '邀请码', Gift, () => import('./tabs/InvitesTab')),
-  tab('events', 'Events', '活动', CalendarDays, () => import('./tabs/EventsTab')),
+  tab('invites', 'Invitation codes', '邀请码', Gift, () => import('./tabs/InvitesTab'), 'invites'),
+  tab('events', 'Events', '活动', CalendarDays, () => import('./tabs/EventsTab'), 'events'),
   tab(
     'articles',
     'Articles',
@@ -103,13 +117,34 @@ const TABS: Tab[] = [
     () => import('./tabs/ArticlesTab'),
     'articles',
   ),
-  tab('volunteers', 'Volunteers', '志愿者', HandHeart, () => import('./tabs/VolunteersTab')),
-  tab('directory', 'Business directory', '商家名录', Store, () => import('./tabs/DirectoryTab')),
-  tab('plans', 'Membership plans', '会员方案', BadgeCheck, () => import('./tabs/PlansTab')),
-  tab('news', 'Send news', '发送通讯', Send, () => import('./tabs/NewsTab')),
+  tab(
+    'volunteers',
+    'Volunteers',
+    '志愿者',
+    HandHeart,
+    () => import('./tabs/VolunteersTab'),
+    'events',
+  ),
+  tab(
+    'directory',
+    'Business directory',
+    '商家名录',
+    Store,
+    () => import('./tabs/DirectoryTab'),
+    'directory',
+  ),
+  tab(
+    'plans',
+    'Membership plans',
+    '会员方案',
+    BadgeCheck,
+    () => import('./tabs/PlansTab'),
+    'plans',
+  ),
+  tab('news', 'Send news', '发送通讯', Send, () => import('./tabs/NewsTab'), 'news'),
   tab('pages', 'Page content', '页面内容', FileText, () => import('./tabs/PagesTab')),
   tab('refunds', 'Refunds', '退款', Undo2, () => import('./tabs/RefundsTab')),
-  tab('account', 'My account', '我的账号', UserCog, () => import('./tabs/AccountTab')),
+  tab('account', 'My account', '我的账号', UserCog, () => import('./tabs/AccountTab'), 'any'),
 ];
 
 // Shortcuts to the dashboards behind the site. Plain links: each asks for its own login.
@@ -189,6 +224,9 @@ export function AdminApp() {
             all_columns: r.data.all_columns === true,
             column_ids: Array.isArray(r.data.column_ids) ? r.data.column_ids : [],
             can_edit_pages: r.data.can_edit_pages === true,
+            perms: Array.isArray(r.data.perms)
+              ? r.data.perms.filter((p): p is Perm => (PERMS as readonly string[]).includes(p))
+              : [],
           });
         else setRole(isAdmin ? ADMIN_ROLE : 'none');
       },
@@ -280,7 +318,8 @@ export function AdminApp() {
     );
 
   // A tab the address names but this person may not open falls back to their
-  // first one: the dashboard for administrators, Articles for an editor.
+  // first one: the dashboard for administrators, Events or Articles for a
+  // content manager.
   const active = visible.find((x) => x.id === current) ?? visible[0];
   const Current = active.C;
   const showConsoles = role.is_admin;

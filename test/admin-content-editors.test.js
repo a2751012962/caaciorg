@@ -77,6 +77,7 @@ test('list: every editor with name and email', async () => {
       all_columns: false,
       column_ids: [COL_A],
       can_edit_pages: false,
+      perms: [],
     });
   });
 });
@@ -99,6 +100,7 @@ test('grant: by account email, returns the saved row; changing it again updates 
       all_columns: false,
       column_ids: [COL_B],
       can_edit_pages: true,
+      perms: [],
     });
     const stored = db.tables.content_editors.find((e) => e.member_id === STRANGER);
     assert.equal(stored.updated_by, ADMIN);

@@ -22,7 +22,6 @@ import {
 } from '../kit';
 import { ArticleEditor } from './articles/ArticleEditor';
 import { ColumnsAdmin } from './articles/ColumnsAdmin';
-import { EditorsAdmin } from './articles/EditorsAdmin';
 import {
   ARTICLES,
   colName,
@@ -34,15 +33,15 @@ import {
   type ArticleState,
 } from './articles/shared';
 
-type View = 'articles' | 'columns' | 'editors';
+type View = 'articles' | 'columns';
 
 // Columns (专栏) and their articles. Everyone who can open this tab writes
 // articles in the columns they are allowed; administrators also manage the
-// columns and who the content editors are. #articles?article=<id> opens one
+// columns. Who may write where is set under My account → Back-office access. #articles?article=<id> opens one
 // article in the editor. functions/api/admin/articles.js, article-columns.js,
 // content-editors.js; docs/content-management.md.
 export default function ArticlesTab() {
-  const { t, api, role } = useAdmin();
+  const { t, api, role, go } = useAdmin();
   const params = useTabParams();
   const [view, setView] = useState<View>('articles');
   // null = the list; 'new' = a new article; an id = editing that article.
@@ -107,7 +106,6 @@ export default function ArticlesTab() {
           items={[
             { value: 'articles', label: t('Articles', '文章') },
             { value: 'columns', label: t('Columns', '专栏') },
-            { value: 'editors', label: t('Editors', '内容编辑') },
           ]}
         />
       )}
@@ -128,7 +126,19 @@ export default function ArticlesTab() {
       {view === 'columns' && role.is_admin && (
         <ColumnsAdmin columns={allColumns} reload={cols.reload} />
       )}
-      {view === 'editors' && role.is_admin && <EditorsAdmin columns={allColumns} />}
+      {view === 'columns' && role.is_admin && (
+        <p className="text-xs text-neutral-500">
+          {t('Who may write in which column is set under', '谁能在哪个专栏发文，在')}{' '}
+          <button
+            type="button"
+            className="font-semibold text-brick hover:text-brick-hover cursor-pointer"
+            onClick={() => go('account')}
+          >
+            {t('My account → Back-office access', '我的账号 → 后台权限')}
+          </button>
+          {t('.', ' 里设置。')}
+        </p>
+      )}
     </div>
   );
 }

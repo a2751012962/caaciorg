@@ -11,12 +11,14 @@
 // A row is matched to a website account the same way registrations are —
 // member_id first, else lower(members.email) — but nothing here depends on the
 // email being confirmed, so the (slow, paged) GoTrue user listing is not read.
-// Every request is gated by requireAdmin.
+// Every request is gated by requirePerm(…, 'events'): administrators, and
+// content managers allowed to run events (0041).
 // Answers (0035): each row carries its `answers`, and the response says which
 // questions they answer — `questions` is the site's default volunteer form,
 // and each event that has its own carries it as event.questions (null = the
 // default). The panel counts the choices itself.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+import { json, bad, sb } from '../_lib.js';
+import { requirePerm } from '../_content.js';
 import { questionsOf, defaultVolunteerQuestions } from '../_volunteers.js';
 
 const MAX_ROWS = 2000;
@@ -66,7 +68,7 @@ function accountIndex(members) {
 }
 
 export async function onRequestGet({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'events');
   if (gate.error) return gate.error;
 
   const params = new URL(request.url).searchParams;
@@ -142,7 +144,7 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestDelete({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'events');
   if (gate.error) return gate.error;
 
   let id = new URL(request.url).searchParams.get('id') || '';
