@@ -60,7 +60,7 @@ export function VibrantCommunity({ content, onOpenModal }: VibrantCommunityProps
         ref={bgRef}
         className="absolute -top-[25%] -bottom-[25%] left-0 right-0 w-full h-[150%] bg-cover bg-center pointer-events-none will-change-transform"
         style={{
-          backgroundImage: `url('/images/central-il.jpg')`,
+          backgroundImage: `url('${content.community.backgroundImage}')`,
         }}
       />
 

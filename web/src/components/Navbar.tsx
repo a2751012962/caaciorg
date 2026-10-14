@@ -13,7 +13,8 @@ export interface NavUser {
 
 interface NavbarProps {
   content: CAACIContent;
-  lang: 'en' | 'zh';
+  /** Every string comes from `content`; the prop stays for the callers that pass it. */
+  lang?: 'en' | 'zh';
   currentPage: string;
   onToggleLang: () => void;
   onNavigate: (page: string) => void;
@@ -27,7 +28,6 @@ interface NavbarProps {
 
 export function Navbar({
   content,
-  lang,
   currentPage,
   onToggleLang,
   onNavigate,
@@ -160,7 +160,7 @@ export function Navbar({
                   CAACI
                 </span>
                 <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-sans hidden sm:inline">
-                  {lang === 'en' ? 'Central Illinois' : '伊利诺伊中部'}
+                  {content.nav.tagline}
                 </span>
               </div>
             </button>
@@ -353,9 +353,7 @@ export function Navbar({
                   >
                     {user.name.slice(0, 1)}
                   </div>
-                  <span className="truncate max-w-[120px]">
-                    {lang === 'en' ? 'My Account' : '我的账户'}
-                  </span>
+                  <span className="truncate max-w-[120px]">{content.nav.myAccount}</span>
                   <MorphIcon
                     icon={userDropdownOpen ? ChevronUp : ChevronDown}
                     spring="snappy"
@@ -379,7 +377,7 @@ export function Navbar({
                       className="w-full text-left px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer flex items-center gap-2"
                     >
                       <User className="w-3.5 h-3.5 text-brick" />
-                      <span>{lang === 'en' ? 'Member Portal' : '会员中心'}</span>
+                      <span>{content.nav.memberPortal}</span>
                     </button>
                     {onLogout && (
                       <button
@@ -390,7 +388,7 @@ export function Navbar({
                         className="w-full text-left px-4 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer flex items-center gap-2"
                       >
                         <LogOut className="w-3.5 h-3.5 text-rose-500" />
-                        <span>{lang === 'en' ? 'Sign Out' : '退出登录'}</span>
+                        <span>{content.nav.signOut}</span>
                       </button>
                     )}
                   </div>
@@ -413,10 +411,10 @@ export function Navbar({
             <button
               onClick={onToggleLang}
               className="ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-300 text-xs font-semibold text-neutral-700 hover:border-brick hover:text-brick transition-all bg-neutral-50 cursor-pointer shrink-0"
-              title="Switch Language / 切换语言"
+              title={content.nav.langTitle}
             >
               <Globe className="w-3.5 h-3.5 text-brick" />
-              <span className="font-semibold">{lang === 'en' ? '中' : 'En'}</span>
+              <span className="font-semibold">{content.nav.langButton}</span>
             </button>
           </nav>
 
@@ -427,12 +425,12 @@ export function Navbar({
               className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-neutral-300 text-xs font-semibold text-neutral-700 bg-neutral-50 cursor-pointer shrink-0"
             >
               <Globe className="w-3.5 h-3.5 text-brick" />
-              <span>{lang === 'en' ? '中' : 'En'}</span>
+              <span>{content.nav.langButton}</span>
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 text-neutral-700 hover:text-brick focus:outline-none cursor-pointer"
-              aria-label="Toggle Navigation Menu"
+              aria-label={content.nav.menuLabel}
             >
               <MorphIcon icon={mobileMenuOpen ? X : Menu} spring="snappy" className="w-6 h-6" />
             </button>
@@ -544,7 +542,7 @@ export function Navbar({
                   currentPage === 'account' ? 'text-brick' : 'text-neutral-700'
                 }`}
               >
-                {lang === 'en' ? 'My Account' : '我的账户'}
+                {content.nav.myAccount}
               </button>
               {onLogout && (
                 <button
@@ -554,7 +552,7 @@ export function Navbar({
                   }}
                   className="block w-full text-left py-1 text-xs text-rose-600 font-medium"
                 >
-                  {lang === 'en' ? 'Sign Out' : '退出登录'}
+                  {content.nav.signOut}
                 </button>
               )}
             </div>

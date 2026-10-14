@@ -20,7 +20,7 @@ interface SubpageHeroProps {
 export function SubpageHero({
   title,
   subtitle,
-  bgImage = '/images/hero-bg.jpg',
+  bgImage,
   content,
   onOpenModal,
   onNavigate,
@@ -34,7 +34,7 @@ export function SubpageHero({
       <div
         className="relative w-full min-h-[220px] sm:min-h-[260px] md:min-h-[290px] bg-cover bg-center flex items-center bg-fixed transition-all"
         style={{
-          backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(246, 245, 243, 0.92) 100%), url('${bgImage}')`,
+          backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(246, 245, 243, 0.92) 100%), url('${bgImage ?? content.subpageHero.defaultBgImage}')`,
         }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-10 md:py-14">

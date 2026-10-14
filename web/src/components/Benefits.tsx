@@ -36,7 +36,7 @@ export function Benefits({ content }: BenefitsProps) {
         {/* Title Header */}
         <div className="benefits-header max-w-3xl mb-14">
           <span className="text-xs font-semibold text-brick block mb-2">
-            Why Join CAACI · 为什么加入华协
+            {content.whyJoin.eyebrow}
           </span>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-ink">
             {content.whyJoin.heading}

@@ -4,6 +4,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowUpRight } from 'lucide-react';
 import { getLenis } from '../utils/smoothScroll';
 import type { CAACIContent } from '../data/content';
+import { fill } from '../lib/text';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -18,70 +19,8 @@ interface StackedCardsSectionProps {
   onOpenModal?: (type: 'donate' | 'events' | 'membership' | 'volunteer') => void;
 }
 
-interface GiantStatement {
-  number: string;
-  giantZh: string;
-  giantEn: string;
-  descZh: string;
-  descEn: string;
-  actionZh: string;
-  actionEn: string;
-  targetPage: string;
-}
-
-const statements: GiantStatement[] = [
-  {
-    number: '01',
-    giantZh: '文化传承 · 华夏精粹',
-    giantEn: 'Culture & Heritage',
-    descZh:
-      '开展丰富多彩的传统节庆与文化交流活动，培养对中华文化的理解与欣赏，让华夏文化在伊利诺伊中部生生不息。',
-    descEn:
-      'Cultivate understanding and appreciation of Chinese culture through signature festivals and heritage programs in Central Illinois.',
-    actionZh: '查看近期活动',
-    actionEn: 'See upcoming events',
-    targetPage: 'events',
-  },
-  {
-    number: '02',
-    giantZh: '同胞福祉 · 社区发声',
-    giantEn: 'Community Wellbeing',
-    descZh:
-      '促进伊利诺伊中部华人及华侨同胞的福祉，帮助会员在社区中发挥更积极的作用，让主流社会听见华人的声音。',
-    descEn:
-      'Promote the wellbeing of Chinese and Chinese Americans across Champaign-Urbana, empowering members to play an active role.',
-    actionZh: '了解宗旨与使命',
-    actionEn: 'Our mission',
-    targetPage: 'about',
-  },
-  {
-    number: '03',
-    giantZh: '族群友谊 · 交流共融',
-    giantEn: 'Friendship & Dialogue',
-    descZh:
-      '积极搭建跨文化沟通桥梁，促进华人与其他族群之间的深入交流与真挚友谊，构筑多元包容的和谐社区。',
-    descEn:
-      'Encourage meaningful communication, mutual respect, and lasting friendship between the Chinese community and diverse regional groups.',
-    actionZh: '浏览社区资源',
-    actionEn: 'Browse community resources',
-    targetPage: 'resources',
-  },
-  {
-    number: '04',
-    giantZh: '互助网络 · 携手前行',
-    giantEn: 'Network & Growth',
-    descZh:
-      '为香槟-厄巴纳及周边地区的居民、学者与留学生提供结识良友、交流经验与支持本地商户的平台，携手共创繁荣。',
-    descEn:
-      'Provide local residents, scholars, and students with valuable opportunities to connect, share experiences, and grow together.',
-    actionZh: '成为协会会员',
-    actionEn: 'Become a member',
-    targetPage: 'membership',
-  },
-];
-
 export function StackedCardsSection({
-  content: _content,
+  content,
   lang = 'en',
   onNavigate,
   onOpenModal,
@@ -90,7 +29,7 @@ export function StackedCardsSection({
   const panelsRef = useRef<(HTMLDivElement | null)[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const isZh = lang === 'zh';
+  const { statements } = content.stacked;
 
   // Layout effect so panels 2-4 are moved off-screen before the first paint; with
   // useEffect a full page load could show all four statements stacked for a frame.
@@ -289,7 +228,7 @@ export function StackedCardsSection({
       alive = false;
       ctx.revert();
     };
-  }, [lang]);
+  }, [lang, statements.length]);
 
   const handleActionClick = (targetPage: string) => {
     if (targetPage === 'events') {
@@ -313,7 +252,7 @@ export function StackedCardsSection({
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-brick" />
             <span className="text-xs sm:text-sm font-mono font-bold text-brick">
-              CAACI · 2000 — {new Date().getFullYear()}
+              {fill(content.stacked.header, { year: new Date().getFullYear() })}
             </span>
           </div>
 
@@ -369,14 +308,14 @@ export function StackedCardsSection({
                     <span className="panel-companion-num opacity-0 inline-block overflow-hidden font-mono font-bold text-xl sm:text-2xl md:text-3xl text-brick align-baseline whitespace-nowrap">
                       {item.number}
                     </span>
-                    <span>{isZh ? item.giantZh : item.giantEn}</span>
+                    <span>{item.title}</span>
                   </h3>
                 </div>
 
                 {/* 4. Body Paragraph & Action Button */}
                 <div className="panel-body origin-top-left">
                   <p className="font-sans text-neutral-600 text-base sm:text-lg md:text-xl leading-relaxed max-w-3xl mb-8">
-                    {isZh ? item.descZh : item.descEn}
+                    {item.desc}
                   </p>
 
                   <div>
@@ -385,7 +324,7 @@ export function StackedCardsSection({
                       onClick={() => handleActionClick(item.targetPage)}
                       className="group inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-brick text-white hover:bg-brick-hover text-xs sm:text-sm font-medium uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-98"
                     >
-                      <span>{isZh ? item.actionZh : item.actionEn}</span>
+                      <span>{item.action}</span>
                       <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
                     </button>
                   </div>
@@ -397,8 +336,13 @@ export function StackedCardsSection({
 
         {/* Bottom subtle progress hint */}
         <div className="pt-4 border-t border-neutral-200/60 flex items-center justify-between text-xs text-neutral-400 font-mono">
-          <span>SECTION 0{activeIndex + 1} OF 04</span>
-          <span>{isZh ? '向下滚动 · 如瀑布流般连贯切换' : 'Scroll down like waterfall'}</span>
+          <span>
+            {fill(content.stacked.progress, {
+              current: String(activeIndex + 1).padStart(2, '0'),
+              total: String(statements.length).padStart(2, '0'),
+            })}
+          </span>
+          <span>{content.stacked.scrollHint}</span>
         </div>
       </div>
     </section>

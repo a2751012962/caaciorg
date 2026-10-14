@@ -14,7 +14,10 @@ import {
 } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { aboutDataEN, aboutDataZH } from '../data/pagesContent';
+import { fill } from '../lib/text';
 import { Reveal } from '../components/Reveal';
+
+const VALUE_ICONS = [Users, HeartHandshake, Award];
 
 interface AboutPageProps {
   content: CAACIContent;
@@ -33,7 +36,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
       <SubpageHero
         title={data.title}
         subtitle={data.subtitle}
-        bgImage="/images/about-team.jpg"
+        bgImage={data.heroImage}
         content={content}
         onOpenModal={onOpenModal}
         onNavigate={onNavigate}
@@ -52,9 +55,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
             </h2>
 
             <p className="text-base sm:text-lg text-neutral-600 leading-relaxed max-w-2xl pt-2">
-              {lang === 'en'
-                ? 'Since 2000, the Chinese American Association of Central Illinois has served as the anchor civic institution connecting students, researchers, families, and business owners throughout Champaign, Urbana, Savoy, and surrounding counties.'
-                : '自 2000 年创立以来，中伊利诺伊华人协会（CAACI）始终是凝聚香槟、厄巴纳、萨沃伊及周边各郡学者、留学生、华人家庭和创业者的核心纽带与公益家园。'}
+              {data.missionStory}
             </p>
 
             <div className="pt-4 flex flex-wrap items-center gap-3">
@@ -63,7 +64,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 onClick={() => onNavigate('membership')}
                 className="px-5 py-2.5 rounded-full bg-ink text-white text-xs font-medium tracking-wide hover:bg-neutral-800 transition-colors cursor-pointer inline-flex items-center gap-1.5"
               >
-                <span>{lang === 'en' ? 'Join CAACI Today' : '加入华协大家庭'}</span>
+                <span>{data.joinButton}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
               <button
@@ -71,7 +72,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 onClick={() => onOpenModal('volunteer')}
                 className="px-5 py-2.5 rounded-full border border-neutral-300 text-neutral-800 text-xs font-medium tracking-wide hover:border-neutral-800 transition-colors cursor-pointer"
               >
-                {lang === 'en' ? 'Become a Volunteer' : '成为华协义工'}
+                {data.volunteerButton}
               </button>
             </div>
           </Reveal>
@@ -80,8 +81,8 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
           <Reveal from="right" className="lg:col-span-5">
             <div className="relative rounded-2xl overflow-hidden border border-neutral-200/90 shadow-sm bg-neutral-100 group">
               <img
-                src="/images/about-team.jpg"
-                alt="CAACI Team & Community"
+                src={data.missionImage}
+                alt={data.missionImageAlt}
                 className="w-full h-[340px] sm:h-[400px] object-cover transition-transform duration-700 group-hover:scale-105"
                 onError={(e) => {
                   e.currentTarget.src = '/images/about-group.jpg';
@@ -90,9 +91,9 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex items-end p-6">
                 <div className="text-white space-y-0.5">
                   <span className="text-[11px] text-neutral-300 font-medium block">
-                    {lang === 'en' ? 'Leadership & Community' : '华协理事会与义工团队'}
+                    {data.missionImageCaption}
                   </span>
-                  <div className="text-base font-semibold text-white">CAACI Central Illinois</div>
+                  <div className="text-base font-semibold text-white">{data.missionImageOrg}</div>
                 </div>
               </div>
             </div>
@@ -105,7 +106,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal className="max-w-2xl mb-14">
             <span className="text-xs font-semibold text-brick block mb-2">
-              {lang === 'en' ? 'Our Principles' : '核心价值观'}
+              {data.valuesEyebrow}
             </span>
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
               {data.valuesTitle}
@@ -113,30 +114,32 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
           </Reveal>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {data.values.map((val, idx) => (
-              <Reveal
-                key={idx}
-                index={idx}
-                className="bg-white rounded-2xl p-8 border border-neutral-200/80 shadow-sm flex flex-col justify-between space-y-6"
-              >
-                <div className="space-y-4">
-                  <div className="w-10 h-10 rounded-full bg-surface-3 flex items-center justify-center text-ink">
-                    {idx === 0 && <Users className="w-5 h-5" />}
-                    {idx === 1 && <HeartHandshake className="w-5 h-5" />}
-                    {idx === 2 && <Award className="w-5 h-5" />}
+            {data.values.map((val, idx) => {
+              // A value an editor adds past the third reuses the icons in turn.
+              const Icon = VALUE_ICONS[idx % VALUE_ICONS.length];
+              return (
+                <Reveal
+                  key={idx}
+                  index={idx}
+                  className="bg-white rounded-2xl p-8 border border-neutral-200/80 shadow-sm flex flex-col justify-between space-y-6"
+                >
+                  <div className="space-y-4">
+                    <div className="w-10 h-10 rounded-full bg-surface-3 flex items-center justify-center text-ink">
+                      <Icon className="w-5 h-5" />
+                    </div>
+
+                    <h3 className="text-xl font-semibold tracking-tight text-ink">{val.title}</h3>
+
+                    <p className="text-sm text-neutral-600 leading-relaxed">{val.desc}</p>
                   </div>
 
-                  <h3 className="text-xl font-semibold tracking-tight text-ink">{val.title}</h3>
-
-                  <p className="text-sm text-neutral-600 leading-relaxed">{val.desc}</p>
-                </div>
-
-                <div className="pt-4 border-t border-neutral-100 flex items-center gap-2 text-xs font-medium text-neutral-400">
-                  <ShieldCheck className="w-4 h-4 text-brick" />
-                  <span>Value 0{idx + 1}</span>
-                </div>
-              </Reveal>
-            ))}
+                  <div className="pt-4 border-t border-neutral-100 flex items-center gap-2 text-xs font-medium text-neutral-400">
+                    <ShieldCheck className="w-4 h-4 text-brick" />
+                    <span>{fill(data.valueLabel, { n: String(idx + 1).padStart(2, '0') })}</span>
+                  </div>
+                </Reveal>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -146,7 +149,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal className="max-w-3xl mb-12">
             <span className="text-xs font-semibold text-brick block mb-2">
-              {lang === 'en' ? 'Community Action' : '实现途径与活动开展'}
+              {data.programsEyebrow}
             </span>
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
               {data.howWeDoItTitle}
@@ -155,73 +158,17 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
           </Reveal>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Reveal
-              index={0}
-              className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2"
-            >
-              <span className="text-[11px] font-semibold text-brick">
-                {lang === 'en' ? 'Annual Celebration' : '千人盛宴'}
-              </span>
-              <h4 className="text-base font-semibold text-ink">
-                {lang === 'en' ? 'Spring Festival Gala' : '农历新春晚会'}
-              </h4>
-              <p className="text-xs text-neutral-500 leading-relaxed">
-                {lang === 'en'
-                  ? 'Our signature 1,000+ guest theatrical banquet featuring traditional arts, student performances, and cultural heritage.'
-                  : '香槟地区规模最大、历史最悠久的千人新春盛会，融汇传统中华歌舞艺术与名家联欢。'}
-              </p>
-            </Reveal>
-
-            <Reveal
-              index={1}
-              className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2"
-            >
-              <span className="text-[11px] font-semibold text-brick">
-                {lang === 'en' ? 'Folk Heritage' : '传统民俗'}
-              </span>
-              <h4 className="text-base font-semibold text-ink">
-                {lang === 'en' ? 'Dragon Boat Gathering' : '端午民俗传统聚会'}
-              </h4>
-              <p className="text-xs text-neutral-500 leading-relaxed">
-                {lang === 'en'
-                  ? 'Handmade zongzi workshops, family picnic games, and folk celebration bringing all generations together.'
-                  : '手作香粽品鉴、传统香囊制作与亲子草坪野餐会，传承中华传统端午文化。'}
-              </p>
-            </Reveal>
-
-            <Reveal
-              index={2}
-              className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2"
-            >
-              <span className="text-[11px] font-semibold text-brick">
-                {lang === 'en' ? 'Autumn Harvest' : '游园盛会'}
-              </span>
-              <h4 className="text-base font-semibold text-ink">
-                {lang === 'en' ? 'Mid-Autumn Lantern Festival' : '中秋文化游园灯会'}
-              </h4>
-              <p className="text-xs text-neutral-500 leading-relaxed">
-                {lang === 'en'
-                  ? 'Artisan mooncake tastings, riddle games, lantern displays, and poetry recitations beneath the harvest moon.'
-                  : '赏月品茗、品味手工酥皮月饼、诗词吟诵与非遗灯谜游园，共庆花好月圆。'}
-              </p>
-            </Reveal>
-
-            <Reveal
-              index={3}
-              className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2"
-            >
-              <span className="text-[11px] font-semibold text-brick">
-                {lang === 'en' ? 'Civic & Professional' : '政商与求职'}
-              </span>
-              <h4 className="text-base font-semibold text-ink">
-                {lang === 'en' ? 'Career Fairs & Seminars' : '全州招聘会与法税论坛'}
-              </h4>
-              <p className="text-xs text-neutral-500 leading-relaxed">
-                {lang === 'en'
-                  ? 'Illinois State Government job fairs, bilingual tax workshops, immigrant legal aid, and youth mentor forums.'
-                  : '联合伊利诺伊州政府举办招聘会、青年创业导师研讨会及双语法律税务专题讲座。'}
-              </p>
-            </Reveal>
+            {data.programs.map((program, idx) => (
+              <Reveal
+                key={idx}
+                index={idx}
+                className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2"
+              >
+                <span className="text-[11px] font-semibold text-brick">{program.tag}</span>
+                <h4 className="text-base font-semibold text-ink">{program.title}</h4>
+                <p className="text-xs text-neutral-500 leading-relaxed">{program.desc}</p>
+              </Reveal>
+            ))}
           </div>
         </div>
       </section>
@@ -231,17 +178,11 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 pb-10 border-b border-white/10 mb-10">
             <div className="space-y-2 max-w-2xl">
-              <span className="text-xs font-semibold text-gold block">
-                {lang === 'en' ? 'Official Video' : '官方回顾视频'}
-              </span>
+              <span className="text-xs font-semibold text-gold block">{data.videoEyebrow}</span>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-white">
                 {data.yearInReviewTitle}
               </h2>
-              <p className="text-sm text-neutral-400">
-                {lang === 'en'
-                  ? 'Relive our community milestones, cultural galas, youth achievements, and fellowship across Central Illinois.'
-                  : '回顾过去一年华协举办的重大盛典、文化传承、社区互助与温馨瞬间。'}
-              </p>
+              <p className="text-sm text-neutral-400">{data.videoDescription}</p>
             </div>
 
             <div className="shrink-0">
@@ -252,7 +193,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 className="px-5 py-2.5 rounded-full bg-white text-ink hover:bg-neutral-200 text-xs font-medium tracking-wide transition-colors inline-flex items-center gap-2"
               >
                 <Play className="w-3.5 h-3.5 fill-ink" />
-                <span>{lang === 'en' ? 'Watch on YouTube' : '在 YouTube 观看'}</span>
+                <span>{data.watchButton}</span>
                 <ExternalLink className="w-3.5 h-3.5 text-neutral-500" />
               </a>
             </div>
@@ -271,7 +212,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 >
                   <button
                     type="button"
-                    aria-label="Play video"
+                    aria-label={data.playLabel}
                     className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/90 text-ink flex items-center justify-center shadow-lg group-hover:scale-105 group-hover:bg-white transition-all backdrop-blur-sm cursor-pointer"
                   >
                     <Play className="w-6 h-6 fill-ink translate-x-0.5" />
@@ -279,16 +220,14 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
 
                   <div className="absolute bottom-5 left-5 right-5 flex items-center justify-between text-xs text-white/80">
                     <span className="font-medium">{data.yearInReviewTitle}</span>
-                    <span className="text-white/60">
-                      {lang === 'en' ? 'Click to play in-page' : '点击直接播放'}
-                    </span>
+                    <span className="text-white/60">{data.clickToPlay}</span>
                   </div>
                 </div>
               ) : (
                 <div className="relative aspect-video w-full">
                   <iframe
                     src={`https://www.youtube-nocookie.com/embed/${data.yearInReviewVideoId}?autoplay=1&rel=0`}
-                    title="CAACI Year in Review"
+                    title={data.videoFrameTitle}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                     className="w-full h-full border-0"
@@ -298,11 +237,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
             </div>
 
             <div className="mt-4 flex items-center justify-between text-xs text-neutral-400 px-1">
-              <span>
-                {lang === 'en'
-                  ? 'Produced by CAACI Media & Publicity Group'
-                  : '由中伊利诺伊州华人协会（CAACI）宣传部摄制制作'}
-              </span>
+              <span>{data.videoCredit}</span>
               <a
                 href={`https://youtu.be/${data.yearInReviewVideoId}`}
                 target="_blank"
@@ -322,7 +257,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal className="max-w-2xl mb-14">
             <span className="text-xs font-semibold text-brick block mb-2">
-              {lang === 'en' ? 'Leadership' : '协会治理'}
+              {data.managementEyebrow}
             </span>
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
               {data.managementTitle}
@@ -355,7 +290,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal className="max-w-2xl mb-12">
             <span className="text-xs font-semibold text-brick block mb-2">
-              {lang === 'en' ? 'Heritage & Honor' : '光荣传承'}
+              {data.pastPresidentsEyebrow}
             </span>
             <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-ink">
               {data.pastPresidentsTitle}
