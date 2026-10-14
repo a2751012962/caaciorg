@@ -19,7 +19,7 @@
 // the content row first and only then clears is_admin; making a content
 // manager an admin keeps their content row (it simply stops mattering). Root
 // and the caller's own role are never changed here.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+import { json, bad, sb, requireAdmin, ilikeExact } from '../_lib.js';
 import { UUID_RE, inList, PERMS } from '../_content.js';
 
 const MAX_COLUMNS = 200;
@@ -136,7 +136,7 @@ export async function onRequestPost({ request, env }) {
       if (!EMAIL_RE.test(email)) return bad('Enter the email of their CAACI account.');
       const { rows } = await DB.select('members', {
         columns: PEOPLE,
-        filters: [`email=ilike.${encodeURIComponent(email.replace(/_/g, '\\_'))}`],
+        filters: [`email=ilike.${ilikeExact(email)}`],
         limit: 2,
       });
       if (rows.length === 1) target = rows[0];

@@ -13,7 +13,7 @@
 // console (functions/api/_menu.js): the same bodies, the same answers, whether
 // an admin sends them from the back office or a stall sends them from
 // /merchant/.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+import { json, bad, sb, requireAdmin, ilikeExact } from '../_lib.js';
 import { tokensEnabled, tokensOff, ledgerError, UUID_RE } from '../_tokens.js';
 import { menuAction } from '../_menu.js';
 
@@ -234,7 +234,7 @@ export async function onRequestPost({ request, env }) {
         return bad('Enter the email of their CAACI account.');
       const { rows } = await DB.select('members', {
         columns: 'id,full_name,email',
-        filters: [`email=ilike.${encodeURIComponent(email.replace(/_/g, '\\_'))}`],
+        filters: [`email=ilike.${ilikeExact(email)}`],
         limit: 2,
       });
       if (rows.length !== 1)

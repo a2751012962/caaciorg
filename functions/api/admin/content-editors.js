@@ -8,7 +8,7 @@
 //          (an upsert on member_id). 404 when no account has that email —
 //          they sign up on the site first, as for /api/admin/roles.
 //   DELETE ?member_id= (or body { member_id }) → { ok }: take it away.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+import { json, bad, sb, requireAdmin, ilikeExact } from '../_lib.js';
 import { UUID_RE, inList, PERMS } from '../_content.js';
 
 // Known permission names only, each once; anything else is dropped.
@@ -95,7 +95,7 @@ export async function onRequestPost({ request, env }) {
     const DB = sb(env);
     const { rows: found } = await DB.select('members', {
       columns: 'id,full_name,email',
-      filters: [`email=ilike.${encodeURIComponent(email.replace(/_/g, '\\_'))}`],
+      filters: [`email=ilike.${ilikeExact(email)}`],
       limit: 2,
     });
     if (found.length !== 1)

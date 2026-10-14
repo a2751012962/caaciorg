@@ -32,6 +32,20 @@ const ASPECTS: AspectKey[] = ['free', '16:9', '4:3', '1:1', '3:4'];
 /** Files the media library stores unchanged ("Upload as is"). */
 const AS_IS_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
+// A typed or stored picture address, as a full URL the dialog may load and
+// hand back: http(s) anywhere, or a path on this site. Anything else (a
+// javascript: or data: address, a protocol-relative //host) is refused.
+function safeImageUrl(raw: string): string | null {
+  const s = raw.trim();
+  if (!/^(https?:\/\/|\/(?!\/))/i.test(s)) return null;
+  try {
+    const u = new URL(s, window.location.origin);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface ImageEditorResult {
   url: string;
   /** Only filled when the editor was opened with `askText`. */
@@ -108,7 +122,12 @@ export function ImageEditor({
   // The object URL of a picked file lives as long as the dialog shows it.
   useEffect(() => {
     if (!picked) return;
-    const url = typeof picked === 'string' ? picked : URL.createObjectURL(picked);
+    const url = typeof picked === 'string' ? safeImageUrl(picked) : URL.createObjectURL(picked);
+    if (!url) {
+      setSrc(null);
+      setPhase('unreadable');
+      return;
+    }
     setSrc(url);
     setPhase('loading');
     setErr('');
@@ -226,13 +245,13 @@ export function ImageEditor({
   };
 
   const keepUrl = () => {
-    if (typeof picked === 'string')
-      onDone({ url: picked, alt: alt.trim(), caption: caption.trim() });
+    if (typeof picked === 'string' && safeImageUrl(picked))
+      onDone({ url: picked.trim(), alt: alt.trim(), caption: caption.trim() });
   };
 
   const openUrl = () => {
     const u = urlInput.trim();
-    if (!/^(https?:\/\/|\/(?!\/))/i.test(u))
+    if (!safeImageUrl(u))
       return setErr(
         t('Enter a web address starting with https://', '请输入以 https:// 开头的网址'),
       );

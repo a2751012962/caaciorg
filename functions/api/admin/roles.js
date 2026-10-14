@@ -5,7 +5,7 @@
 // appointing one is root's decision, not any admin's. Root itself is never set
 // here or anywhere in the API: a database trigger (0024) refuses it, and it is
 // changed from the Supabase SQL editor only.
-import { json, bad, sb } from '../_lib.js';
+import { json, bad, sb, ilikeExact } from '../_lib.js';
 import { tokensEnabled, tokensOff, requireRoot, UUID_RE } from '../_tokens.js';
 
 export async function onRequestGet({ request, env }) {
@@ -55,7 +55,7 @@ export async function onRequestPost({ request, env }) {
         return bad('Enter the email of their CAACI account.');
       const { rows } = await DB.select('members', {
         columns: 'id,full_name,email,is_admin,is_root',
-        filters: [`email=ilike.${encodeURIComponent(email.replace(/_/g, '\\_'))}`],
+        filters: [`email=ilike.${ilikeExact(email)}`],
         limit: 2,
       });
       if (rows.length === 1) target = rows[0];

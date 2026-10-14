@@ -269,6 +269,20 @@ test('news, invites, plans, directory: each opens to its own permission only', a
   }
 });
 
+test('ilikeExact escapes the backslash first, then every pattern character', async () => {
+  const { ilikeExact } = await import('../functions/api/_lib.js');
+  assert.equal(decodeURIComponent(ilikeExact('a_b%c*d\\e@x.org')), 'a\\_b\\%c\\*d\\\\e@x.org');
+  // Escaped, an underscore matches only itself: no other member is found.
+  await withDb(async () => {
+    const r = await post(ADMIN, {
+      email: 'sam_stranger@example.com',
+      role: 'content',
+      perms: ['events'],
+    });
+    assert.equal(r.status, 404);
+  });
+});
+
 test('content-me reports the permissions', async () => {
   await withDb(async () => {
     const me = async (who) =>
