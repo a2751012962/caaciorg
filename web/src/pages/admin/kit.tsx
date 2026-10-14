@@ -118,7 +118,21 @@ export type TabId =
   | 'plans'
   | 'news'
   | 'refunds'
-  | 'account';
+  | 'account'
+  | 'articles'
+  | 'pages';
+
+/**
+ * What the signed-in person may do in the console (GET /api/admin/content-me,
+ * docs/content-management.md). Administrators get everything; a content editor
+ * gets the columns in `column_ids` (or every column) and, separately, page copy.
+ */
+export interface ContentRole {
+  is_admin: boolean;
+  all_columns: boolean;
+  column_ids: string[];
+  can_edit_pages: boolean;
+}
 
 interface AdminContext {
   lang: Lang;
@@ -148,6 +162,13 @@ interface AdminContext {
   /** Switch tab; `params` land in useTabParams() of the target tab. */
   go: (tab: TabId, params?: Record<string, string>) => void;
   params: Record<string, string>;
+  /** The caller's role; tabs hide what it does not allow (the API refuses it anyway). */
+  role: ContentRole;
+  /**
+   * While set, switching tabs in the rail first asks this question (an editor
+   * with unsaved changes). Pass null to stop asking.
+   */
+  setLeaveGuard: (question: string | null) => void;
 }
 
 const Ctx = createContext<AdminContext | null>(null);
@@ -167,6 +188,8 @@ export function AdminProvider({
   myEmail,
   go,
   params,
+  role,
+  setLeaveGuard,
   children,
 }: {
   lang: Lang;
@@ -174,6 +197,8 @@ export function AdminProvider({
   myEmail: string | null;
   go: AdminContext['go'];
   params: Record<string, string>;
+  role: ContentRole;
+  setLeaveGuard: AdminContext['setLeaveGuard'];
   children: ReactNode;
 }) {
   const t = useCallback((en: string, zh: string) => (lang === 'zh' ? zh : en), [lang]);
@@ -254,7 +279,21 @@ export function AdminProvider({
 
   return (
     <Ctx.Provider
-      value={{ lang, t, myId, myEmail, api, guarded, tiers, tierName, toast, go, params }}
+      value={{
+        lang,
+        t,
+        myId,
+        myEmail,
+        api,
+        guarded,
+        tiers,
+        tierName,
+        toast,
+        go,
+        params,
+        role,
+        setLeaveGuard,
+      }}
     >
       {children}
       <div
