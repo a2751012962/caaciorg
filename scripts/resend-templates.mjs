@@ -28,7 +28,7 @@
 // https://resend.com/docs/api-reference/templates/ — create, retrieve (by id or
 // alias), update, publish.
 import { fileURLToPath } from 'node:url';
-import { templateVariables } from './functions/api/_event-emails.js';
+import { templateVariables } from '../functions/api/_event-emails.js';
 
 const API = 'https://api.resend.com';
 

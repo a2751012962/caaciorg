@@ -23,12 +23,16 @@ dist/                   deployable output (generated; git-ignored)
 functions/api/*.js      Cloudflare Pages Functions (checkout, webhook, contact, …)
 supabase/migrations/    schema + RLS
 supabase/seed.sql       membership tiers (real prices) + annual events
-stripe-connect.mjs      one-shot Stripe wiring (webhook + billing portal) for acct_1PfYMi…
-stripe-audit.mjs        read-only inventory of a Stripe mode (what the cutover must not break)
+scripts/                operator scripts run by hand from the repo root (Stripe wiring
+                        and audits, member import, auth/Resend email sync, mirror)
+scripts/stripe-connect.mjs  one-shot Stripe wiring (webhook + billing portal) for acct_1PfYMi…
+scripts/stripe-audit.mjs    read-only inventory of a Stripe mode (what the cutover must not break)
+e2e/                    browser functional tests (tester-army/e2e), own package + lockfile
 wrangler.toml           Cloudflare Pages config (output dir = dist)
 .env.example            all required environment variables
-CI.md                   what CI refuses (auth gates, RLS, secrets) and how to
+docs/CI.md              what CI refuses (auth gates, RLS, secrets) and how to
                         add an exception
+docs/UI_GUIDELINE.md    styling rules for the mirror pages and the Tabler admin
 ```
 
 ## What carries over vs. not
@@ -310,7 +314,7 @@ login and `members` row. Stripe is only read (GET). Run it from the repo root wi
    person's action, tier, status and expiry, plus every warning and skip reason:
 
    ```
-   node --env-file=.env migrate-members.mjs --stripe-env=../stripe-live.env
+   node --env-file=.env scripts/migrate-members.mjs --stripe-env=../stripe-live.env
    ```
 
    Add `--report=migrate-report.json` for the full plan with emails and names; it
@@ -322,13 +326,13 @@ login and `members` row. Stripe is only read (GET). Run it from the repo root wi
 2. **Canary** — apply one or two people you can check by hand in `/admin/`:
 
    ```
-   node --env-file=.env migrate-members.mjs --stripe-env=../stripe-live.env --only=<email>,<email> --apply
+   node --env-file=.env scripts/migrate-members.mjs --stripe-env=../stripe-live.env --only=<email>,<email> --apply
    ```
 
 3. **Everyone**:
 
    ```
-   node --env-file=.env migrate-members.mjs --stripe-env=../stripe-live.env --apply
+   node --env-file=.env scripts/migrate-members.mjs --stripe-env=../stripe-live.env --apply
    ```
 
    It stops at the first error and says how far it got. Re-running is safe:
@@ -499,7 +503,7 @@ looks like the rest of the site.
   slash). The page takes the slug from that path, else from `?event=`.
   `/mid_autumn_festival_form/` — the URL on the printed Mid-Autumn QR codes —
   is a redirect stub into `/events/mid-autumn-festival/register/` (its `/zh/`
-  copy adds `?lang=zh`). The local static server (`serve-mirror.mjs`) does not
+  copy adds `?lang=zh`). The local static server (`scripts/serve-mirror.mjs`) does not
   apply `_redirects`; preview there with `/event-register/?event=<slug>`.
 - **Setting up an event** (Admin → Events → edit): a Chinese title, the
   "Accept registrations" switch and the question builder — single choice or
