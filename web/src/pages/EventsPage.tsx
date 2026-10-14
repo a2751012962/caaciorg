@@ -29,6 +29,7 @@ import { Check as CheckData, LoaderCircle as LoaderData, Share2 as ShareData } f
 import type { CAACIContent } from '../data/content';
 import { eventsDataEN, eventsDataZH } from '../data/pagesContent';
 import { api } from '../lib/api';
+import { fill } from '../lib/text';
 import { loginUrl, useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
 import { useUpcomingEvents } from '../lib/useEvents';
@@ -80,12 +81,8 @@ type RsvpState =
   | { phase: 'done'; note: 'new' | 'already' | 'loaded' }
   | { phase: 'error'; message: string };
 
-// Events carry no organizer column; they are all CAACI's own.
-const ORGANIZER = 'CAACI';
-
 export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPageProps) {
   const data = lang === 'en' ? eventsDataEN : eventsDataZH;
-  const en = lang === 'en';
   const auth = useAuth();
   const { status: loadStatus, events, reload } = useUpcomingEvents();
   const [searchQuery, setSearchQuery] = useState('');
@@ -149,21 +146,6 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
     };
   }, [userId]);
 
-  const categories =
-    lang === 'en'
-      ? [
-          { id: 'all', label: 'All Categories' },
-          { id: 'culture', label: 'Cultural Galas' },
-          { id: 'job', label: 'Career & Professional' },
-          { id: 'governance', label: 'Civic & Meetings' },
-        ]
-      : [
-          { id: 'all', label: '全部分类' },
-          { id: 'culture', label: '中华文化节庆' },
-          { id: 'job', label: '求职与政务招聘' },
-          { id: 'governance', label: '华协治理与大会' },
-        ];
-
   // RSVP through /api/rsvp (member only). Signed out, or a session the API no
   // longer accepts: to the login page, which returns here.
   const handleRsvp = async (ev: EventRow) => {
@@ -174,31 +156,29 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
     if (!session) return toLogin();
 
     setRsvp((prev) => ({ ...prev, [ev.id]: { phase: 'busy' } }));
-    const { ok, status, data } = await api<{ ok?: boolean; already?: boolean }>(
+    const {
+      ok,
+      status,
+      data: body,
+    } = await api<{ ok?: boolean; already?: boolean }>(
       '/api/rsvp',
       { event_id: ev.id, guests: 0 },
       { auth: true },
     );
-    if (ok && data.ok) {
+    if (ok && body.ok) {
       setRsvp((prev) => ({
         ...prev,
-        [ev.id]: { phase: 'done', note: data.already ? 'already' : 'new' },
+        [ev.id]: { phase: 'done', note: body.already ? 'already' : 'new' },
       }));
       return;
     }
     if (status === 401) return toLogin();
     const message =
       status === 0
-        ? en
-          ? 'Network error. Please check your connection and try again.'
-          : '网络错误，请检查网络连接后重试。'
+        ? data.notes.errorNetwork
         : status === 404
-          ? en
-            ? 'This event is no longer taking RSVPs.'
-            : '该活动已不再接受预约。'
-          : en
-            ? 'Your RSVP could not be saved. Please try again.'
-            : '预约未能保存，请重试。';
+          ? data.notes.errorClosed
+          : data.notes.errorFailed;
     setRsvp((prev) => ({ ...prev, [ev.id]: { phase: 'error', message } }));
   };
 
@@ -213,7 +193,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
         2000,
       );
     } catch {
-      window.prompt(en ? 'Copy this link:' : '复制此链接：', url);
+      window.prompt(data.actions.copyPrompt, url);
     }
   };
 
@@ -227,11 +207,17 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
     document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setFeedback((prev) => ({
       key: (prev?.key ?? 0) + 1,
-      message: en
-        ? `Feedback regarding past event: "${title}"\n\n`
-        : `关于往期活动【${title}】的反馈与建议：\n\n`,
+      message: fill(data.pastLabels.feedbackPrefill, { title }),
     }));
   };
+
+  // A past event's category chip; any category without its own label reads as governance.
+  const pastCategoryLabel = (category: string | undefined) =>
+    category === 'culture'
+      ? data.pastLabels.categories.culture
+      : category === 'job'
+        ? data.pastLabels.categories.job
+        : data.pastLabels.categories.governance;
 
   // Helper to parse the static archive's dates
   const parseDateParts = (isoDate: string) => {
@@ -240,39 +226,10 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
       const year = parts[0];
       const monthIdx = parseInt(parts[1], 10) - 1;
       const day = parts[2];
-      const monthsEN = [
-        'JAN',
-        'FEB',
-        'MAR',
-        'APR',
-        'MAY',
-        'JUN',
-        'JUL',
-        'AUG',
-        'SEP',
-        'OCT',
-        'NOV',
-        'DEC',
-      ];
-      const monthsZH = [
-        '1月',
-        '2月',
-        '3月',
-        '4月',
-        '5月',
-        '6月',
-        '7月',
-        '8月',
-        '9月',
-        '10月',
-        '11月',
-        '12月',
-      ];
       return {
         year,
         day,
-        month:
-          lang === 'en' ? monthsEN[monthIdx] || 'JAN' : monthsZH[monthIdx] || `${monthIdx + 1}月`,
+        month: data.months[monthIdx] || data.months[0],
       };
     }
     return { year: '', day: '', month: '' };
@@ -338,7 +295,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
     // Upcoming: soonest first by default (the events arrive in that order)
     const upcoming = upcomingItems.filter((item) =>
       matches(
-        [item.title, item.ev.title, item.ev.title_zh, item.desc, item.location, ORGANIZER],
+        [item.title, item.ev.title, item.ev.title_zh, item.desc, item.location, data.organizer],
         item.category,
       ),
     );
@@ -354,7 +311,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
     });
 
     return { upcomingEvents: upcoming, pastEvents: past };
-  }, [upcomingItems, data.past, searchQuery, selectedCategory, sortOrder]);
+  }, [upcomingItems, data.past, data.organizer, searchQuery, selectedCategory, sortOrder]);
 
   // The soonest upcoming event, whatever the filters, for the spotlight
   const spotlightEvent = upcomingItems.length > 0 ? upcomingItems[0] : null;
@@ -391,13 +348,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
         <a href={registrationPath(item.ev, lang)} className={className}>
           <ArrowUpRight className={iconClass} />
           <span className={labelClass}>
-            {variant === 'spotlight'
-              ? en
-                ? 'Register Now'
-                : '立即报名'
-              : en
-                ? 'Register'
-                : '报名'}
+            {variant === 'spotlight' ? data.actions.registerNow : data.actions.register}
           </span>
         </a>
       );
@@ -405,24 +356,14 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
 
     const short = variant !== 'spotlight';
     const label = busy
-      ? en
-        ? 'Saving…'
-        : '提交中…'
+      ? data.actions.saving
       : done
         ? short
-          ? en
-            ? 'Confirmed'
-            : '已预约'
-          : en
-            ? 'RSVP Confirmed'
-            : '已预约报名'
+          ? data.actions.confirmed
+          : data.actions.confirmedFull
         : short
-          ? en
-            ? 'RSVP'
-            : '预约报名'
-          : en
-            ? 'RSVP for Admission'
-            : '立即预约报名';
+          ? data.actions.rsvp
+          : data.actions.rsvpFull;
     return (
       <button
         type="button"
@@ -449,8 +390,8 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
     iconClass: string,
     short = false,
   ) => {
-    const label = short ? (en ? 'Volunteer' : '义工') : en ? 'Volunteer' : '报名义工';
-    const title = en ? 'Volunteer' : '报名义工';
+    const label = short ? data.actions.volunteerShort : data.actions.volunteer;
+    const title = data.actions.volunteer;
     if (takesVolunteers(item.ev))
       return (
         <a href={volunteerPath(item.ev, lang)} className={className} title={title}>
@@ -489,13 +430,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
           role="status"
           className={`text-[11px] sm:text-xs font-medium ${dark ? 'text-emerald-300' : 'text-emerald-700'}`}
         >
-          {state.note === 'already'
-            ? en
-              ? 'You had already RSVPed for this event.'
-              : '您之前已预约过此活动。'
-            : en
-              ? 'RSVP confirmed. See you there!'
-              : '预约成功，期待与您相见！'}
+          {state.note === 'already' ? data.notes.rsvpAlready : data.notes.rsvpDone}
         </p>
       );
     return null;
@@ -526,7 +461,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
       <SubpageHero
         title={data.title}
         subtitle={data.subtitle}
-        bgImage="/images/hero-bg.jpg"
+        bgImage={data.heroImage}
         content={content}
         onOpenModal={onOpenModal}
         onNavigate={onNavigate}
@@ -551,7 +486,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
               <div className="space-y-3 max-w-3xl">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-gold text-xs font-semibold">
                   <Sparkles className="w-3.5 h-3.5 text-gold" />
-                  <span>{lang === 'en' ? 'Upcoming Spotlight' : '近期重点活动推荐'}</span>
+                  <span>{data.spotlight.badge}</span>
                 </div>
 
                 <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-white leading-snug">
@@ -604,9 +539,9 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                       className={`w-4 h-4 ${copiedEventId === spotlightEvent.ev.id ? 'text-white' : 'text-white/80'}`}
                     />
                     {copiedEventId === spotlightEvent.ev.id ? (
-                      <span>{lang === 'en' ? 'Link Copied' : '链接已复制'}</span>
+                      <span>{data.actions.linkCopied}</span>
                     ) : (
-                      <span>{lang === 'en' ? 'Share' : '分享'}</span>
+                      <span>{data.actions.share}</span>
                     )}
                   </button>
                 </div>
@@ -631,10 +566,10 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <div>
                   <span className="text-[10px] sm:text-xs font-semibold text-brick block">
-                    {lang === 'en' ? 'Schedule & Archive' : '活动日程与档案'}
+                    {data.toolbar.eyebrow}
                   </span>
                   <h2 className="text-base sm:text-2xl font-bold tracking-tight text-ink">
-                    {lang === 'en' ? 'Explore CAACI Events' : '浏览华协社区活动'}
+                    {data.toolbar.heading}
                   </h2>
                 </div>
 
@@ -643,7 +578,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                   {/* Time filter: one track, a pill slides to the chosen tab */}
                   <FluidTabs<'all' | 'upcoming' | 'past'>
                     id="events-time-filter"
-                    ariaLabel={lang === 'en' ? 'Show events' : '筛选活动'}
+                    ariaLabel={data.toolbar.tabsLabel}
                     value={activeTab}
                     onChange={setActiveTab}
                     className="flex-1 sm:flex-initial flex items-center justify-between"
@@ -654,7 +589,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                         label: (active) => (
                           <>
                             <SlidersHorizontal className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-neutral-500" />
-                            <span>{lang === 'en' ? 'All' : '全部'}</span>
+                            <span>{data.toolbar.tabAll}</span>
                             <span
                               className={`min-w-[16px] sm:min-w-[18px] px-1 sm:px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold text-center leading-none ${
                                 active
@@ -673,7 +608,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                           <>
                             <CalendarIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-brick" />
                             <span className={active ? 'text-brick' : undefined}>
-                              {lang === 'en' ? 'Upcoming' : '近期'}
+                              {data.toolbar.tabUpcoming}
                             </span>
                             <span
                               className={`min-w-[16px] sm:min-w-[18px] px-1 sm:px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold text-center leading-none ${
@@ -692,7 +627,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                         label: (active) => (
                           <>
                             <History className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-neutral-500" />
-                            <span>{lang === 'en' ? 'Past' : '往期'}</span>
+                            <span>{data.toolbar.tabPast}</span>
                             <span
                               className={`min-w-[16px] sm:min-w-[18px] px-1 sm:px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold text-center leading-none ${
                                 active
@@ -723,7 +658,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                       <button
                         type="button"
                         onClick={() => setSearchQuery('')}
-                        aria-label={lang === 'en' ? 'Clear search' : '清除搜索'}
+                        aria-label={data.toolbar.clearSearch}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -742,7 +677,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                           : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-600 border-neutral-200/80'
                       }`}
                       title={data.searchPlaceholder}
-                      aria-label={lang === 'en' ? 'Search' : '搜索'}
+                      aria-label={data.toolbar.search}
                     >
                       <Search className="w-4 h-4" />
                     </button>
@@ -768,7 +703,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                       <button
                         type="button"
                         onClick={() => setSearchQuery('')}
-                        aria-label={lang === 'en' ? 'Clear search' : '清除搜索'}
+                        aria-label={data.toolbar.clearSearch}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -782,8 +717,8 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                       setSearchQuery('');
                     }}
                     className="w-10 h-10 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-600 flex items-center justify-center shrink-0 cursor-pointer border border-neutral-200/80 active:scale-95 transition-colors"
-                    title={lang === 'en' ? 'Close Search' : '关闭搜索'}
-                    aria-label={lang === 'en' ? 'Close Search' : '关闭搜索'}
+                    title={data.toolbar.closeSearch}
+                    aria-label={data.toolbar.closeSearch}
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -793,7 +728,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
               {/* Bottom Row: Categories + Sort Order */}
               <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar pt-2 border-t border-neutral-100">
                 <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto no-scrollbar py-0.5">
-                  {categories.map((cat) => (
+                  {data.categories.map((cat) => (
                     <button
                       key={cat.id}
                       type="button"
@@ -814,26 +749,14 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                   type="button"
                   onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
                   className="min-h-[34px] inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-neutral-200 text-neutral-700 bg-white hover:bg-neutral-50 text-xs font-medium transition-colors cursor-pointer shrink-0 shadow-xs active:scale-98"
-                  title={lang === 'en' ? 'Toggle date sort order' : '切换日期排序'}
+                  title={data.toolbar.sortTitle}
                 >
                   <ArrowUpDown className="w-3.5 h-3.5 text-neutral-500" />
                   <span className="whitespace-nowrap hidden sm:inline">
-                    {sortOrder === 'asc'
-                      ? lang === 'en'
-                        ? 'Date: Ascending'
-                        : '日期升序'
-                      : lang === 'en'
-                        ? 'Date: Descending'
-                        : '日期降序'}
+                    {sortOrder === 'asc' ? data.toolbar.sortAsc : data.toolbar.sortDesc}
                   </span>
                   <span className="whitespace-nowrap sm:hidden">
-                    {sortOrder === 'asc'
-                      ? lang === 'en'
-                        ? 'Asc'
-                        : '升序'
-                      : lang === 'en'
-                        ? 'Desc'
-                        : '降序'}
+                    {sortOrder === 'asc' ? data.toolbar.sortAscShort : data.toolbar.sortDescShort}
                   </span>
                 </button>
               </div>
@@ -870,7 +793,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                       onClick={(e) => scrollToSection('past', e)}
                       className="text-xs text-brick hover:text-brick-700 font-medium inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-100 hover:bg-neutral-200/80 transition-colors cursor-pointer shadow-xs shrink-0 whitespace-nowrap"
                     >
-                      <span>{lang === 'en' ? 'Jump to Past Archive' : '直达往期回顾'}</span>
+                      <span>{data.upcomingMessages.jumpToPast}</span>
                       <span className="text-sm font-semibold">↓</span>
                     </a>
                   </div>
@@ -882,7 +805,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                   <>
                     <Loader2 className="w-9 h-9 text-neutral-300 mx-auto mb-2.5 animate-spin" />
                     <p className="text-neutral-600 text-xs sm:text-sm font-medium">
-                      {lang === 'en' ? 'Loading upcoming events…' : '正在加载近期活动…'}
+                      {data.upcomingMessages.loading}
                     </p>
                   </>,
                 )
@@ -891,14 +814,14 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                   <>
                     <AlertCircle className="w-9 h-9 text-neutral-300 mx-auto mb-2.5" />
                     <p className="text-neutral-600 text-xs sm:text-sm font-medium">
-                      {lang === 'en' ? 'We couldn’t load upcoming events.' : '近期活动加载失败。'}
+                      {data.upcomingMessages.error}
                     </p>
                     <button
                       type="button"
                       onClick={reload}
                       className="mt-2.5 text-xs font-semibold text-brick hover:underline cursor-pointer"
                     >
-                      {lang === 'en' ? 'Try again' : '重试'}
+                      {data.upcomingMessages.retry}
                     </button>
                   </>,
                   'alert',
@@ -909,9 +832,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                     <>
                       <CalendarIcon className="w-9 h-9 text-neutral-300 mx-auto mb-2.5" />
                       <p className="text-neutral-600 text-xs sm:text-sm font-medium">
-                        {lang === 'en'
-                          ? 'No upcoming events are scheduled right now. Please check back soon.'
-                          : '目前暂无已安排的近期活动，敬请关注。'}
+                        {data.upcomingMessages.empty}
                       </p>
                     </>,
                   )
@@ -920,9 +841,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                     <>
                       <CalendarIcon className="w-9 h-9 text-neutral-300 mx-auto mb-2.5" />
                       <p className="text-neutral-600 text-xs sm:text-sm font-medium">
-                        {lang === 'en'
-                          ? 'No upcoming events found matching your criteria.'
-                          : '暂无符合筛选条件的近期活动。'}
+                        {data.upcomingMessages.noMatch}
                       </p>
                       <button
                         type="button"
@@ -932,7 +851,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                         }}
                         className="mt-2.5 text-xs font-semibold text-brick hover:underline cursor-pointer"
                       >
-                        {lang === 'en' ? 'Reset search filters' : '重置筛选条件'}
+                        {data.upcomingMessages.resetFilters}
                       </button>
                     </>,
                   )
@@ -974,7 +893,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                               <div className="sm:hidden flex-1 min-w-0 space-y-1">
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
-                                    {ORGANIZER}
+                                    {data.organizer}
                                   </span>
                                 </div>
                                 <h4 className="text-sm font-semibold text-ink tracking-tight leading-snug line-clamp-2">
@@ -988,7 +907,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                               {/* Desktop Badges & Category */}
                               <div className="hidden sm:flex flex-wrap items-center gap-1.5">
                                 <span className="text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
-                                  {ORGANIZER}
+                                  {data.organizer}
                                 </span>
                               </div>
 
@@ -1047,8 +966,8 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                       ? 'bg-neutral-100 text-neutral-900 border border-neutral-300'
                                       : 'border border-neutral-200 bg-white text-neutral-600 hover:text-neutral-900'
                                   }`}
-                                  title={lang === 'en' ? 'Share' : '分享'}
-                                  aria-label={lang === 'en' ? 'Share' : '分享'}
+                                  title={data.actions.share}
+                                  aria-label={data.actions.share}
                                 >
                                   <MorphIcon
                                     icon={isCopied ? CheckData : ShareData}
@@ -1057,11 +976,11 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   />
                                   {isCopied ? (
                                     <span className="hidden min-[420px]:inline font-semibold">
-                                      {lang === 'en' ? 'Copied' : '已复制'}
+                                      {data.actions.copied}
                                     </span>
                                   ) : (
                                     <span className="hidden min-[420px]:inline">
-                                      {lang === 'en' ? 'Share' : '分享'}
+                                      {data.actions.share}
                                     </span>
                                   )}
                                 </button>
@@ -1088,7 +1007,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                     ? 'bg-neutral-100 text-neutral-900 border border-neutral-300'
                                     : 'border border-neutral-200 bg-white text-neutral-600 hover:text-neutral-900 hover:border-neutral-400'
                                 }`}
-                                title={lang === 'en' ? 'Share event' : '分享活动'}
+                                title={data.actions.shareTitle}
                               >
                                 <MorphIcon
                                   icon={isCopied ? CheckData : ShareData}
@@ -1096,11 +1015,9 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   className={`w-3.5 h-3.5 ${isCopied ? 'text-neutral-900' : 'text-neutral-400'}`}
                                 />
                                 {isCopied ? (
-                                  <span className="font-semibold">
-                                    {lang === 'en' ? 'Copied' : '已复制'}
-                                  </span>
+                                  <span className="font-semibold">{data.actions.copied}</span>
                                 ) : (
-                                  <span>{lang === 'en' ? 'Share' : '分享'}</span>
+                                  <span>{data.actions.share}</span>
                                 )}
                               </button>
                             </div>
@@ -1142,7 +1059,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                       className="text-xs text-brick hover:text-brick-700 font-medium inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-neutral-200 hover:bg-neutral-50 transition-colors cursor-pointer shadow-xs shrink-0 whitespace-nowrap"
                     >
                       <span className="text-sm font-semibold">↑</span>
-                      <span>{lang === 'en' ? 'Jump back to upcoming' : '返回近期活动'}</span>
+                      <span>{data.pastLabels.jumpToUpcoming}</span>
                     </a>
                   </div>
                 )}
@@ -1152,9 +1069,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                 <div className="text-center py-12 bg-surface-2 rounded-2xl border border-neutral-200/80">
                   <History className="w-9 h-9 text-neutral-300 mx-auto mb-2.5" />
                   <p className="text-neutral-600 text-xs sm:text-sm font-medium">
-                    {lang === 'en'
-                      ? 'No past events found matching your criteria.'
-                      : '暂无符合筛选条件的往期活动。'}
+                    {data.pastLabels.empty}
                   </p>
                 </div>
               ) : (
@@ -1199,17 +1114,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   </span>
                                   {event.category && (
                                     <span className="text-[10px] text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full">
-                                      {event.category === 'culture'
-                                        ? lang === 'en'
-                                          ? 'Culture'
-                                          : '文化节庆'
-                                        : event.category === 'job'
-                                          ? lang === 'en'
-                                            ? 'Career'
-                                            : '职业政务'
-                                          : lang === 'en'
-                                            ? 'Civic'
-                                            : '协会治理'}
+                                      {pastCategoryLabel(event.category)}
                                     </span>
                                   )}
                                 </div>
@@ -1227,17 +1132,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 </span>
                                 {event.category && (
                                   <span className="text-[10px] text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full">
-                                    {event.category === 'culture'
-                                      ? lang === 'en'
-                                        ? 'Culture'
-                                        : '文化节庆'
-                                      : event.category === 'job'
-                                        ? lang === 'en'
-                                          ? 'Career'
-                                          : '职业政务'
-                                        : lang === 'en'
-                                          ? 'Civic'
-                                          : '协会治理'}
+                                    {pastCategoryLabel(event.category)}
                                   </span>
                                 )}
                               </div>
@@ -1268,7 +1163,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-neutral-200/80 text-[11px] text-neutral-700">
                                   <Tag className="w-3 h-3 text-brick shrink-0" />
                                   <span className="font-medium text-neutral-800">
-                                    {lang === 'en' ? 'Highlight Recap:' : '精彩回顾：'}
+                                    {data.pastLabels.recap}
                                   </span>
                                   <span className="line-clamp-1">{event.recapSummary}</span>
                                 </div>
@@ -1281,10 +1176,10 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   type="button"
                                   onClick={() => handleFeedback(event.title)}
                                   className="h-8 px-3 text-xs font-medium rounded-full bg-white border border-neutral-200 text-neutral-700 hover:text-neutral-900 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-xs shrink-0 active:scale-95 whitespace-nowrap"
-                                  title={lang === 'en' ? 'Feedback' : '活动反馈'}
+                                  title={data.pastLabels.feedback}
                                 >
                                   <MessageSquare className="w-3.5 h-3.5 text-neutral-500" />
-                                  <span>{lang === 'en' ? 'Feedback' : '活动反馈'}</span>
+                                  <span>{data.pastLabels.feedback}</span>
                                 </button>
 
                                 {/* Mobile Volunteer Archive (Collapsed to Icon on tight mobile screens) */}
@@ -1292,12 +1187,12 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   type="button"
                                   onClick={() => onOpenModal('volunteer')}
                                   className="h-8 px-2.5 min-[420px]:px-3 text-xs font-medium rounded-full bg-white border border-neutral-200 text-neutral-700 hover:text-neutral-900 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-xs shrink-0 active:scale-95 whitespace-nowrap"
-                                  title={lang === 'en' ? 'Volunteer Archive' : '致敬义工'}
-                                  aria-label={lang === 'en' ? 'Volunteer' : '致敬义工'}
+                                  title={data.pastLabels.volunteerArchive}
+                                  aria-label={data.pastLabels.volunteer}
                                 >
                                   <Users className="w-3.5 h-3.5 text-neutral-500" />
                                   <span className="hidden min-[420px]:inline">
-                                    {lang === 'en' ? 'Volunteer' : '致敬义工'}
+                                    {data.pastLabels.volunteer}
                                   </span>
                                 </button>
 
@@ -1310,8 +1205,8 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                       ? 'bg-neutral-100 text-neutral-900 border border-neutral-300'
                                       : 'border border-neutral-200 bg-white text-neutral-600 hover:text-neutral-900'
                                   }`}
-                                  title={lang === 'en' ? 'Share' : '分享'}
-                                  aria-label={lang === 'en' ? 'Share' : '分享'}
+                                  title={data.actions.share}
+                                  aria-label={data.actions.share}
                                 >
                                   <MorphIcon
                                     icon={isCopied ? CheckData : ShareData}
@@ -1320,11 +1215,11 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   />
                                   {isCopied ? (
                                     <span className="hidden min-[420px]:inline font-semibold">
-                                      {lang === 'en' ? 'Copied' : '已复制'}
+                                      {data.actions.copied}
                                     </span>
                                   ) : (
                                     <span className="hidden min-[420px]:inline">
-                                      {lang === 'en' ? 'Share' : '分享'}
+                                      {data.actions.share}
                                     </span>
                                   )}
                                 </button>
@@ -1338,10 +1233,10 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 type="button"
                                 onClick={() => handleFeedback(event.title)}
                                 className="w-full min-h-[34px] px-3 text-xs font-medium rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-neutral-900 hover:border-neutral-300 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-xs shrink-0 active:scale-95"
-                                title={lang === 'en' ? 'Provide event feedback' : '提交活动反馈'}
+                                title={data.pastLabels.feedbackTitle}
                               >
                                 <MessageSquare className="w-3.5 h-3.5 text-neutral-400" />
-                                <span>{lang === 'en' ? 'Feedback' : '活动反馈'}</span>
+                                <span>{data.pastLabels.feedback}</span>
                               </button>
 
                               {/* Volunteer Archive Button */}
@@ -1351,7 +1246,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 className="w-full min-h-[34px] px-3 text-xs font-medium rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-neutral-900 hover:border-neutral-300 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-xs shrink-0 active:scale-95"
                               >
                                 <Users className="w-3.5 h-3.5 text-neutral-400" />
-                                <span>{lang === 'en' ? 'Volunteer Archive' : '致敬义工'}</span>
+                                <span>{data.pastLabels.volunteerArchive}</span>
                               </button>
 
                               {/* Share Button */}
@@ -1363,7 +1258,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                     ? 'bg-neutral-100 text-neutral-900 border border-neutral-300'
                                     : 'border border-neutral-200 bg-white text-neutral-600 hover:text-neutral-900 hover:border-neutral-300'
                                 }`}
-                                title={lang === 'en' ? 'Share archive' : '分享此活动档案'}
+                                title={data.pastLabels.shareTitle}
                               >
                                 <MorphIcon
                                   icon={isCopied ? CheckData : ShareData}
@@ -1371,11 +1266,9 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   className={`w-3.5 h-3.5 ${isCopied ? 'text-neutral-900' : 'text-neutral-400'}`}
                                 />
                                 {isCopied ? (
-                                  <span className="font-semibold">
-                                    {lang === 'en' ? 'Copied' : '已复制'}
-                                  </span>
+                                  <span className="font-semibold">{data.actions.copied}</span>
                                 ) : (
-                                  <span>{lang === 'en' ? 'Share' : '分享'}</span>
+                                  <span>{data.actions.share}</span>
                                 )}
                               </button>
                             </div>

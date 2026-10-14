@@ -1,7 +1,10 @@
 export interface ResourcesContent {
   title: string;
   subtitle: string;
+  heroImage: string;
+  introEyebrow: string;
   intro: string;
+  visitLabel: string;
   items: {
     title: string;
     category: string;
@@ -14,8 +17,11 @@ export const resourcesDataEN: ResourcesContent = {
   title: 'Central Illinois Resources',
   subtitle:
     'Essential community, educational, civic, and governmental resources for residents and newcomers.',
+  heroImage: '/images/volunteer-contact.jpg',
+  introEyebrow: 'Welcome to Central Illinois',
   intro:
     'Central Illinois is a vibrant destination for businesses and families alike. As a Chinese immigrant or student, settling here is made effortless with our dedicated assistance. Embrace the limitless opportunities and welcoming community that await you in this captivating region. Let us guide you in establishing a prosperous future, surrounded by the charm and boundless potential of Central Illinois.',
+  visitLabel: 'Visit Official Portal',
   items: [
     {
       title: 'University of Illinois at Urbana-Champaign (UIUC)',
@@ -71,8 +77,11 @@ export const resourcesDataEN: ResourcesContent = {
 export const resourcesDataZH: ResourcesContent = {
   title: '中部伊利诺伊地区资源',
   subtitle: '汇集教育、市政、校友、领事与公共卫生核心资源，助力华人安心定居与发展。',
+  heroImage: '/images/volunteer-contact.jpg',
+  introEyebrow: '欢迎来到伊利诺伊州中部',
   intro:
     '伊利诺伊州中部是企业和家庭充满活力的目的地。作为中国移民、留学生或访问学者，在我们的竭诚帮助下，您可以轻松在这里顺利安家。在这个迷人的地区拥抱无限的学术与商业机会，热情的社区正期待着您的加入。让我们引导您在伊利诺伊州中部的魅力和无限潜力的包围下建立繁荣的未来。',
+  visitLabel: '访问官方站点',
   items: [
     {
       title: '伊利诺伊大学厄巴纳-香槟分校 (UIUC)',

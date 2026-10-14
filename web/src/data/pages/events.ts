@@ -4,6 +4,7 @@
 export interface EventsContent {
   title: string;
   subtitle: string;
+  heroImage: string;
   searchPlaceholder: string;
   filterAll: string;
   filterUpcoming: string;
@@ -12,6 +13,76 @@ export interface EventsContent {
   upcomingSubtitle: string;
   pastTitle: string;
   pastSubtitle: string;
+  // The organizer chip on every upcoming event (events carry no organizer column).
+  organizer: string;
+  spotlight: { badge: string };
+  toolbar: {
+    eyebrow: string;
+    heading: string;
+    tabsLabel: string;
+    tabAll: string;
+    tabUpcoming: string;
+    tabPast: string;
+    clearSearch: string;
+    search: string;
+    closeSearch: string;
+    sortTitle: string;
+    sortAsc: string;
+    sortDesc: string;
+    sortAscShort: string;
+    sortDescShort: string;
+  };
+  // Category filter pills; `id` matches the event's category, 'all' shows everything.
+  categories: { id: string; label: string }[];
+  actions: {
+    register: string;
+    registerNow: string;
+    rsvp: string;
+    rsvpFull: string;
+    saving: string;
+    confirmed: string;
+    confirmedFull: string;
+    volunteerShort: string;
+    volunteer: string;
+    share: string;
+    shareTitle: string;
+    copied: string;
+    linkCopied: string;
+    copyPrompt: string;
+  };
+  // What the RSVP call said, under the event.
+  notes: {
+    rsvpAlready: string;
+    rsvpDone: string;
+    errorNetwork: string;
+    errorClosed: string;
+    errorFailed: string;
+  };
+  upcomingMessages: {
+    loading: string;
+    error: string;
+    retry: string;
+    empty: string;
+    noMatch: string;
+    resetFilters: string;
+    jumpToPast: string;
+  };
+  pastLabels: {
+    jumpToUpcoming: string;
+    empty: string;
+    recap: string;
+    feedback: string;
+    feedbackTitle: string;
+    volunteer: string;
+    volunteerArchive: string;
+    shareTitle: string;
+    // Pre-filled into the contact form; {title} is the past event's title.
+    feedbackPrefill: string;
+    // Shown on a past event by its category; any other category uses `governance`.
+    categories: { culture: string; job: string; governance: string };
+  };
+  // Twelve month names for the date box of the past archive, January first.
+  months: string[];
   past: {
     id: string;
     title: string;
@@ -30,6 +101,7 @@ export const eventsDataEN: EventsContent = {
   title: 'Events & Community Happenings',
   subtitle:
     'Discover cultural celebrations, professional workshops, job fairs, and social gatherings hosted by CAACI.',
+  heroImage: '/images/hero-bg.jpg',
   searchPlaceholder: 'Search events by keyword, location, or topic...',
   filterAll: 'All Events',
   filterUpcoming: 'Upcoming Events',
@@ -39,6 +111,75 @@ export const eventsDataEN: EventsContent = {
   pastTitle: 'Past Events & Historical Highlights',
   pastSubtitle:
     'A retrospective archive of our community galas, general assemblies, and milestone gatherings.',
+  organizer: 'CAACI',
+  spotlight: { badge: 'Upcoming Spotlight' },
+  toolbar: {
+    eyebrow: 'Schedule & Archive',
+    heading: 'Explore CAACI Events',
+    tabsLabel: 'Show events',
+    tabAll: 'All',
+    tabUpcoming: 'Upcoming',
+    tabPast: 'Past',
+    clearSearch: 'Clear search',
+    search: 'Search',
+    closeSearch: 'Close Search',
+    sortTitle: 'Toggle date sort order',
+    sortAsc: 'Date: Ascending',
+    sortDesc: 'Date: Descending',
+    sortAscShort: 'Asc',
+    sortDescShort: 'Desc',
+  },
+  categories: [
+    { id: 'all', label: 'All Categories' },
+    { id: 'culture', label: 'Cultural Galas' },
+    { id: 'job', label: 'Career & Professional' },
+    { id: 'governance', label: 'Civic & Meetings' },
+  ],
+  actions: {
+    register: 'Register',
+    registerNow: 'Register Now',
+    rsvp: 'RSVP',
+    rsvpFull: 'RSVP for Admission',
+    saving: 'Saving…',
+    confirmed: 'Confirmed',
+    confirmedFull: 'RSVP Confirmed',
+    volunteerShort: 'Volunteer',
+    volunteer: 'Volunteer',
+    share: 'Share',
+    shareTitle: 'Share event',
+    copied: 'Copied',
+    linkCopied: 'Link Copied',
+    copyPrompt: 'Copy this link:',
+  },
+  notes: {
+    rsvpAlready: 'You had already RSVPed for this event.',
+    rsvpDone: 'RSVP confirmed. See you there!',
+    errorNetwork: 'Network error. Please check your connection and try again.',
+    errorClosed: 'This event is no longer taking RSVPs.',
+    errorFailed: 'Your RSVP could not be saved. Please try again.',
+  },
+  upcomingMessages: {
+    loading: 'Loading upcoming events…',
+    error: 'We couldn’t load upcoming events.',
+    retry: 'Try again',
+    empty: 'No upcoming events are scheduled right now. Please check back soon.',
+    noMatch: 'No upcoming events found matching your criteria.',
+    resetFilters: 'Reset search filters',
+    jumpToPast: 'Jump to Past Archive',
+  },
+  pastLabels: {
+    jumpToUpcoming: 'Jump back to upcoming',
+    empty: 'No past events found matching your criteria.',
+    recap: 'Highlight Recap:',
+    feedback: 'Feedback',
+    feedbackTitle: 'Provide event feedback',
+    volunteer: 'Volunteer',
+    volunteerArchive: 'Volunteer Archive',
+    shareTitle: 'Share archive',
+    feedbackPrefill: 'Feedback regarding past event: "{title}"\n\n',
+    categories: { culture: 'Culture', job: 'Career', governance: 'Civic' },
+  },
+  months: ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'],
   past: [
     {
       id: 'cny-gala-2026',
@@ -94,6 +235,7 @@ export const eventsDataEN: EventsContent = {
 export const eventsDataZH: EventsContent = {
   title: '社区近期与往期活动',
   subtitle: '浏览 CAACI 主办的中华传统文化节庆、职业讲座、政府招聘会与社区联谊活动。',
+  heroImage: '/images/hero-bg.jpg',
   searchPlaceholder: '输入关键词、地点或主题搜索活动...',
   filterAll: '全部活动',
   filterUpcoming: '近期活动',
@@ -102,6 +244,75 @@ export const eventsDataZH: EventsContent = {
   upcomingSubtitle: '欢迎报名参加华协即将举办的节庆与社区活动。',
   pastTitle: '往期活动与历史档案',
   pastSubtitle: '回顾伊利诺伊中部华人协会历年举办的精彩节庆典礼、全员代表大会与里程碑事件。',
+  organizer: 'CAACI',
+  spotlight: { badge: '近期重点活动推荐' },
+  toolbar: {
+    eyebrow: '活动日程与档案',
+    heading: '浏览华协社区活动',
+    tabsLabel: '筛选活动',
+    tabAll: '全部',
+    tabUpcoming: '近期',
+    tabPast: '往期',
+    clearSearch: '清除搜索',
+    search: '搜索',
+    closeSearch: '关闭搜索',
+    sortTitle: '切换日期排序',
+    sortAsc: '日期升序',
+    sortDesc: '日期降序',
+    sortAscShort: '升序',
+    sortDescShort: '降序',
+  },
+  categories: [
+    { id: 'all', label: '全部分类' },
+    { id: 'culture', label: '中华文化节庆' },
+    { id: 'job', label: '求职与政务招聘' },
+    { id: 'governance', label: '华协治理与大会' },
+  ],
+  actions: {
+    register: '报名',
+    registerNow: '立即报名',
+    rsvp: '预约报名',
+    rsvpFull: '立即预约报名',
+    saving: '提交中…',
+    confirmed: '已预约',
+    confirmedFull: '已预约报名',
+    volunteerShort: '义工',
+    volunteer: '报名义工',
+    share: '分享',
+    shareTitle: '分享活动',
+    copied: '已复制',
+    linkCopied: '链接已复制',
+    copyPrompt: '复制此链接：',
+  },
+  notes: {
+    rsvpAlready: '您之前已预约过此活动。',
+    rsvpDone: '预约成功，期待与您相见！',
+    errorNetwork: '网络错误，请检查网络连接后重试。',
+    errorClosed: '该活动已不再接受预约。',
+    errorFailed: '预约未能保存，请重试。',
+  },
+  upcomingMessages: {
+    loading: '正在加载近期活动…',
+    error: '近期活动加载失败。',
+    retry: '重试',
+    empty: '目前暂无已安排的近期活动，敬请关注。',
+    noMatch: '暂无符合筛选条件的近期活动。',
+    resetFilters: '重置筛选条件',
+    jumpToPast: '直达往期回顾',
+  },
+  pastLabels: {
+    jumpToUpcoming: '返回近期活动',
+    empty: '暂无符合筛选条件的往期活动。',
+    recap: '精彩回顾：',
+    feedback: '活动反馈',
+    feedbackTitle: '提交活动反馈',
+    volunteer: '致敬义工',
+    volunteerArchive: '致敬义工',
+    shareTitle: '分享此活动档案',
+    feedbackPrefill: '关于往期活动【{title}】的反馈与建议：\n\n',
+    categories: { culture: '文化节庆', job: '职业政务', governance: '协会治理' },
+  },
+  months: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
   past: [
     {
       id: 'cny-gala-2026',

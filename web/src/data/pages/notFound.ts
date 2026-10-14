@@ -7,10 +7,12 @@ export interface NotFoundData {
   subtitle: string;
   body: string;
   requested: string;
+  requestedSeparator: string;
   home: string;
   events: string;
   membership: string;
   contact: string;
+  documentTitleSuffix: string;
 }
 
 export const notFoundDataEN: NotFoundData = {
@@ -19,10 +21,12 @@ export const notFoundDataEN: NotFoundData = {
   subtitle: 'The page you asked for is not here.',
   body: 'The address may be mistyped, or the page moved when the site was rebuilt. Pick up from one of these instead.',
   requested: 'You asked for',
+  requestedSeparator: ': ',
   home: 'Back to the homepage',
   events: 'Events',
   membership: 'Membership',
   contact: 'Contact us',
+  documentTitleSuffix: 'Chinese American Association of Central Illinois',
 };
 
 export const notFoundDataZH: NotFoundData = {
@@ -31,8 +35,10 @@ export const notFoundDataZH: NotFoundData = {
   subtitle: '您访问的页面不存在。',
   body: '网址可能输错了，或者该页面在网站改版后已经移动。您可以从下面继续浏览。',
   requested: '您访问的地址',
+  requestedSeparator: '：',
   home: '返回首页',
   events: '活动',
   membership: '会员',
   contact: '联系我们',
+  documentTitleSuffix: 'Chinese American Association of Central Illinois',
 };
