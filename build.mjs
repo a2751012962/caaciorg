@@ -424,6 +424,37 @@ for (const base of ['', 'zh/']) {
 }
 console.log(`Legacy page stubs into the React site: ${legacy}.`);
 
+// Pages left over from the WordPress site that the new site has no use for:
+// the sample post, the old Divi business directory and its three category
+// pages, the retired MemberPress honorary sign-up form, and two 2025 posts (the
+// bylaws proposal in both languages, an exhibition call for entries). Their
+// directories were removed from mirror/ on 2026-10-11; each address still
+// answers, as a stub into the nearest page of the new site, in both languages,
+// so old links and search results land somewhere useful.
+const RETIRED_PAGES = {
+  'hello-world': '',
+  'register/3600-2': 'membership/',
+  'business-services/business-directory': 'business-services/',
+  'business-services/business-directory-restaurant': 'business-services/',
+  'business-services/business-directory-bakery': 'business-services/',
+  'business-services/business-directory-supermaket': 'business-services/',
+  'proposed-additions-to-the-bylaws-of-the-chinese-american-association-of-central-illinois':
+    'about/',
+  伊利诺伊州中部美国华人协会提议新: 'about/',
+  'announcement-on-the-hymn-of-hope-international-youth-painting-and-calligraphy-exhibition-call-for-entries-关于希望颂':
+    'events/',
+};
+let retired = 0;
+for (const base of ['', 'zh/']) {
+  for (const [from, to] of Object.entries(RETIRED_PAGES)) {
+    const dir = join(DIST, base + from);
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, 'index.html'), legacyStub(`/${base}${to}`));
+    retired++;
+  }
+}
+console.log(`Retired WordPress pages stubbed into the new site: ${retired}.`);
+
 // /admin-next/ is where the React back office was built while the Tabler /admin/
 // was still the live panel. The console now IS /admin/, so the old address
 // becomes a stub into it — an admin who bookmarked it lands in the same place.

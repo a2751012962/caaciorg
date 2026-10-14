@@ -517,7 +517,7 @@ export function wireClickableModules() {
 // Microloan and Mentorship tiles have no known target, so they are left alone
 // rather than pointed somewhere invented.
 const DEAD_TILE_TARGETS = [
-  [/^Business Directory$/i, '/business-services/business-directory/'],
+  [/^Business Directory$/i, '/business-services/'],
   [/^Membership Application$/i, '/membership/'],
 ];
 

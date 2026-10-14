@@ -10,8 +10,11 @@ import { tokensEnabled } from '../_tokens.js';
 
 const STATUSES = ['pending', 'active', 'expired', 'cancelled', 'past_due'];
 const MAX_LIMIT = 50;
-const COLUMNS =
-  'id,full_name,email,phone,tier_id,status,member_since,expires_at,household_id,stripe_customer_id,stripe_subscription_id,created_at';
+// `*` rather than a column list: is_test arrives with 0038, and the Members tab
+// must not 400 on a database where that migration is not applied yet (the same
+// reason is_root is read with `*` in onRequestPost). Admin-only endpoint; the
+// row holds nothing an admin does not already see.
+const COLUMNS = '*';
 // ?sort=<column>.<asc|desc>. Only these columns; anything else falls back to newest first.
 const SORTABLE = ['created_at', 'full_name', 'email', 'expires_at', 'member_since'];
 
@@ -117,6 +120,12 @@ export async function onRequestPost({ request, env }) {
   if (b.full_name !== undefined) patch.full_name = b.full_name || null;
   if (b.phone !== undefined) patch.phone = b.phone || null;
   if (b.notes !== undefined) patch.notes = b.notes || null;
+  // A developer or demo account (0038): its token rows are left out of the
+  // finance reports. Nothing else about the account changes, so no code.
+  if (b.is_test !== undefined) {
+    if (typeof b.is_test !== 'boolean') return bad('is_test must be true or false.');
+    patch.is_test = b.is_test;
+  }
   // With tokens on, an admin can mint what CAACI owes, so only root appoints
   // admins (POST /api/admin/roles). Here the flag is simply not writable.
   if (b.is_admin !== undefined) {
