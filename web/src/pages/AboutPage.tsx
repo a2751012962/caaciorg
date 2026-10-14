@@ -16,6 +16,7 @@ import type { CAACIContent } from '../data/content';
 import { aboutDataEN, aboutDataZH } from '../data/pagesContent';
 import { fill } from '../lib/text';
 import { Reveal } from '../components/Reveal';
+import { LatestArticles } from '../components/articles/LatestArticles';
 
 const VALUE_ICONS = [Users, HeartHandshake, Award];
 
@@ -100,6 +101,9 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
           </Reveal>
         </div>
       </section>
+
+      {/* The newest column articles; renders nothing until there are some. */}
+      <LatestArticles lang={lang} onNavigate={onNavigate} />
 
       {/* 3. Apple-Style Core Values (Clean 3-Column Columns with Hairline Borders) */}
       <section className="py-16 sm:py-24 bg-surface-2 border-b border-neutral-200/80">

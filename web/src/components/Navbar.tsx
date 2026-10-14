@@ -211,6 +211,12 @@ export function Navbar({
                     {content.nav.aboutUs}
                   </button>
                   <button
+                    onClick={() => handleNavClick('columns')}
+                    className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
+                  >
+                    {content.nav.columns}
+                  </button>
+                  <button
                     onClick={() => {
                       setAboutDropdownOpen(false);
                       onOpenModal('volunteer');
@@ -458,6 +464,12 @@ export function Navbar({
               }`}
             >
               {content.nav.aboutUs}
+            </button>
+            <button
+              onClick={() => handleNavClick('columns')}
+              className="block w-full text-left py-1 text-xs text-neutral-600 hover:text-brick"
+            >
+              {content.nav.columns}
             </button>
             <button
               onClick={() => {

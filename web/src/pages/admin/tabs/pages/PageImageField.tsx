@@ -1,7 +1,7 @@
-// The photo picker for a page's image fields. Today it is the events tab's
-// URL box + upload (/api/admin/media); it is wrapped here so a better picker
-// can replace it for every page field by changing this one file.
-import { ImageField } from '../events/ImageField';
+// The photo picker for a page's image fields: the console's shared
+// ImagePicker (URL box, upload, crop and rotate before upload, re-crop of the
+// current photo). Wrapped here so every page field changes in one place.
+import { ImagePicker } from '../../media/ImagePicker';
 
 export function PageImageField({
   value,
@@ -10,5 +10,5 @@ export function PageImageField({
   value: string;
   onChange: (url: string) => void;
 }) {
-  return <ImageField value={value} onChange={onChange} />;
+  return <ImagePicker value={value} onChange={onChange} />;
 }

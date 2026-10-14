@@ -2,6 +2,7 @@ export interface CAACIContent {
   nav: {
     welcome: string;
     aboutUs: string;
+    columns: string;
     volunteer: string;
     donate: string;
     events: string;
@@ -173,6 +174,7 @@ export const contentEN: CAACIContent = {
   nav: {
     welcome: 'Welcome',
     aboutUs: 'About Us',
+    columns: 'Columns',
     volunteer: 'Volunteer',
     donate: 'Donate',
     events: 'Events',
@@ -387,6 +389,7 @@ export const contentZH: CAACIContent = {
   nav: {
     welcome: '首页',
     aboutUs: '关于我们',
+    columns: '专栏',
     volunteer: '志愿者',
     donate: '捐赠支持',
     events: '近期活动',

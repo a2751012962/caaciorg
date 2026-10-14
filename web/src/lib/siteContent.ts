@@ -14,6 +14,7 @@ import { resourcesDataEN, resourcesDataZH } from '../data/pages/resources';
 import { calendarDataEN, calendarDataZH } from '../data/pages/calendar';
 import { businessServicesDataEN, businessServicesDataZH } from '../data/pages/business';
 import { notFoundDataEN, notFoundDataZH } from '../data/pages/notFound';
+import { columnsDataEN, columnsDataZH } from '../data/pages/columns';
 import { smoothScrollTo } from '../utils/smoothScroll';
 import {
   clone,
@@ -63,6 +64,7 @@ const COMMON_SECTION_PAGE: Record<string, 'home' | 'site'> = {
   welcome: 'home',
   whyJoin: 'home',
   community: 'home',
+  stacked: 'home',
   nav: 'site',
   footer: 'site',
   contact: 'site',
@@ -96,9 +98,13 @@ export const SITE_CONTENT: SiteContentEntry[] = [
       managementSubtitle: 'team',
     },
   },
-  // TODO(lead): register the column directory's copy here once its data object
-  // lands: { id: 'columns', label: { en: 'Columns', zh: '专栏' },
-  //   previewPath: '/about/columns/', en: columnsDataEN, zh: columnsDataZH },
+  {
+    id: 'columns',
+    label: { en: 'Columns', zh: '专栏' },
+    previewPath: '/about/columns/',
+    en: columnsDataEN,
+    zh: columnsDataZH,
+  },
   {
     id: 'events',
     label: { en: 'Events', zh: '活动' },
@@ -446,11 +452,17 @@ export function loadSiteContent(): Promise<void> {
     return Promise.resolve();
   }
   const preview = inPreview();
+  // A returning visitor's stored copy is applied at once and the page renders
+  // without waiting; the fetch below refreshes it in place when it lands.
+  let cachedApplied = false;
   if (preview) startPreviewChannel();
   else {
     try {
       const cached: unknown = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-      if (isPlainObject(cached)) applyOverrides(cached);
+      if (isPlainObject(cached)) {
+        applyOverrides(cached);
+        cachedApplied = true;
+      }
     } catch {
       // No storage or a broken copy: wait for the fetch.
     }
@@ -473,7 +485,7 @@ export function loadSiteContent(): Promise<void> {
       }
     })
     .catch(() => {});
-  if (preview) return Promise.resolve();
+  if (preview || cachedApplied) return Promise.resolve();
   return Promise.race([fetched, new Promise<void>((r) => setTimeout(r, BOOT_WAIT_MS))]);
 }
 
