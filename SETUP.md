@@ -667,6 +667,21 @@ several, text, number, phone, date, with "Other"), drawn by the shared
   editor **before** deploying this code — the public and admin APIs read the
   new columns and table. It only adds and is idempotent; the seeds run once.
 
+### Columns, articles and page content (0040)
+
+Contract: `docs/content-management.md`.
+
+- **Migration:** `0040_content_cms.sql`. Paste it into the Supabase SQL editor
+  **before** deploying this code — `/api/articles`, `/api/site-content` and the
+  content endpoints under `/api/admin/` read the new tables (`article_columns`,
+  `articles`, `content_editors`, `site_content`; server-only, like 0035). It only
+  adds and is idempotent; the three starting columns (`news`, `community`,
+  `members`) are seeded once and never overwritten by a re-paste.
+- **Migration:** `0041_content_manager_perms.sql`, after 0040: adds
+  `content_editors.perms` (events, news, invites, plans, directory for content
+  managers). Defaults to empty, so it grants nothing by itself. The code reads
+  the row with `select=*`, so it works before 0041 with those permissions off.
+
 ## Tokens · 华协币 (`/charge/`, `/merchant/`, `/token-admin/`, `/api/tokens/*`)
 
 Stored value members spend by showing the QR on their member card. **$1 = 10 tokens.**

@@ -1,4 +1,4 @@
-// /api/admin/news  (admin only)
+// /api/admin/news  (administrators, and content managers with 'news', 0041)
 //   GET  — { test_only, test_recipients: { self, admins } }: whether this
 //          environment refuses real sends, and who a test email can go to (the
 //          signed-in admin always, plus the other admin accounts), so Compose
@@ -17,7 +17,8 @@
 // NEWS_TEST_ONLY=1 (a secret on the Preview environment, which shares the live
 // member list and real Resend sending) refuses every real send with 403; test
 // sends still work.
-import { json, bad, sb, requireAdmin, sendEmailBatch, memberStatusFilter } from '../_lib.js';
+import { json, bad, sb, sendEmailBatch, memberStatusFilter } from '../_lib.js';
+import { requirePerm } from '../_content.js';
 import { PLACEHOLDER } from '../_event-emails.js';
 
 const AUDIENCES = ['all', 'active', 'expiring', 'lapsed']; // plus 'tier:<id>'
@@ -44,7 +45,7 @@ export function expiringFilter(now = new Date(), days = RENEWAL_WINDOW_DAYS) {
 }
 
 export async function onRequestGet({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'news');
   if (gate.error) return gate.error;
   const self = normEmail(gate.member.email);
   let admins; // a list that fails to load leaves just you, not a failed tab
@@ -63,7 +64,7 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPost({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'news');
   if (gate.error) return gate.error;
 
   let b;

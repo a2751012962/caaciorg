@@ -24,12 +24,8 @@ export function CommunityCalendarPage({
     <div className="bg-white">
       <SubpageHero
         title={data.title}
-        subtitle={
-          lang === 'en'
-            ? 'Connect with public events, academic conferences, arts, and festivals across Central Illinois.'
-            : '一站式获取伊利诺伊中部大学校园、艺术中心与双城市政官方活动日程。'
-        }
-        bgImage="/images/central-il.jpg"
+        subtitle={data.subtitle}
+        bgImage={data.heroImage}
         content={content}
         onOpenModal={onOpenModal}
         onNavigate={onNavigate}
@@ -41,7 +37,7 @@ export function CommunityCalendarPage({
         <Reveal className="max-w-4xl mx-auto px-4 sm:px-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brick/10 text-brick text-xs font-bold mb-3">
             <CalendarDays className="w-3.5 h-3.5" />
-            <span>Community Portals</span>
+            <span>{data.badge}</span>
           </div>
           <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-maroon">
             {data.instruction}
@@ -65,7 +61,7 @@ export function CommunityCalendarPage({
                   {/* Institutional Logo Frame */}
                   <div className="w-full h-36 flex items-center justify-center p-4 mb-6 bg-neutral-50 rounded-xl group-hover:bg-white border border-neutral-100 transition-colors">
                     <img
-                      src={cal.logo}
+                      src={cal.image}
                       alt={cal.name}
                       className="max-h-24 max-w-[85%] object-contain transition-transform duration-300 group-hover:scale-105"
                     />
@@ -79,7 +75,7 @@ export function CommunityCalendarPage({
                 </div>
 
                 <div className="mt-8 pt-4 border-t border-neutral-100 flex items-center justify-center gap-1 text-xs font-bold text-brick font-sans group-hover:underline">
-                  <span>{lang === 'en' ? 'Open Calendar' : '进入日历'}</span>
+                  <span>{data.openLabel}</span>
                   <ExternalLink className="w-3.5 h-3.5 ml-1" />
                 </div>
               </a>

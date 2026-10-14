@@ -19,6 +19,9 @@ const volunteerPart = async () => {
   return src.slice(start);
 };
 
+// The dialog's words, English and Chinese, are in the site copy file.
+const dialogCopy = () => read('data/content.ts');
+
 test('the dialog lists upcoming events and the default questions from GET /api/volunteer', async () => {
   const src = await volunteerPart();
   assert.match(
@@ -30,14 +33,20 @@ test('the dialog lists upcoming events and the default questions from GET /api/v
     /typeof ev\.slug === 'string' && ev\.slug/,
     'entries without a slug are dropped',
   );
-  assert.match(src, /Any event \/ wherever needed/);
-  assert.match(src, /任何活动均可/);
+  // The words live in the page-copy data (editable from the admin), the dialog
+  // only shows them.
+  assert.match(src, /\{text\.anyEvent\}/);
+  const copy = await dialogCopy();
+  assert.match(copy, /Any event \/ wherever needed/);
+  assert.match(copy, /任何活动均可/);
 });
 
 test('it first asks whether the sign-up is for a particular event, one pick', async () => {
   const src = await volunteerPart();
-  assert.match(src, /Is this for a particular event\?/);
-  assert.match(src, /是为某场具体活动报名志愿者吗？/);
+  assert.match(src, /\{text\.eventQuestion\}/);
+  const copy = await dialogCopy();
+  assert.match(copy, /Is this for a particular event\?/);
+  assert.match(copy, /是为某场具体活动报名志愿者吗？/);
   assert.match(src, /type="radio"\s+name="volunteer-event"/, 'one event, or any: radios');
   assert.doesNotMatch(src, /type="checkbox"\s+className="accent-brick"\s+value=\{ev\.slug\}/);
 });
@@ -84,7 +93,12 @@ test('server refusals a person can act on are shown in Chinese on /zh/', async (
 
 test('the thank-you names the event picked and mentions the confirmation email', async () => {
   const src = await volunteerPart();
-  assert.match(src, /names\.join\(', '\)/);
-  assert.match(src, /names\.join\('、'\)/);
-  assert.match(src, /A confirmation has been emailed to you\./);
+  assert.match(src, /fill\(text\.signedUp, \{ events: names\.join\(text\.eventSeparator\) \}\)/);
+  assert.match(src, /\{text\.confirmation\}/);
+  const copy = await dialogCopy();
+  assert.match(copy, /eventSeparator: ', '/);
+  assert.match(copy, /eventSeparator: '、'/);
+  assert.match(copy, /signedUp:\s*"You're signed up to help with \{events\}\./);
+  assert.match(copy, /您已报名参与「\{events\}」的志愿服务/);
+  assert.match(copy, /A confirmation has been emailed to you\./);
 });

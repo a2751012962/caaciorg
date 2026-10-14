@@ -38,9 +38,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
               {content.footer.aboutText}
             </p>
 
-            <div className="text-xs text-neutral-500 font-sans pt-2">
-              Serving Champaign, Urbana, Savoy, and the greater Central Illinois area since 2000.
-            </div>
+            <div className="text-xs text-neutral-500 font-sans pt-2">{content.footer.tagline}</div>
           </div>
 
           {/* Quick Links */}
@@ -135,7 +133,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
           {/* Contact Details */}
           <div className="md:col-span-3 space-y-3 font-sans text-sm">
             <h4 className="font-bold text-white text-xs border-b border-neutral-700 pb-2">
-              Contact
+              {content.footer.contactHeading}
             </h4>
             <div className="space-y-3 text-neutral-400">
               <div className="flex items-start gap-2.5">
