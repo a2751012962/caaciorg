@@ -23,9 +23,14 @@ import {
   ChevronRight,
   ChevronLeft,
   Coins,
+  type LucideIcon,
 } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
-import { membershipPageDataEN, membershipPageDataZH } from '../data/pagesContent';
+import {
+  membershipPageDataEN,
+  membershipPageDataZH,
+  type PrivilegeIcon,
+} from '../data/pagesContent';
 import { api } from '../lib/api';
 import { loginUrl, useAuth } from '../lib/auth';
 import { effectiveStatus, statusLabel, usd } from '../lib/shared';
@@ -41,6 +46,7 @@ import {
   type Discount,
   type Tier,
 } from '../lib/tiers';
+import { fill } from '../lib/text';
 import { planTokens } from '../lib/tokens';
 import { smoothScrollTo } from '../utils/smoothScroll';
 
@@ -51,13 +57,20 @@ interface MembershipPageProps {
   onNavigate: (page: string) => void;
 }
 
+// Which glyph a privilege card draws; the copy and its order come from the data.
+const PRIVILEGE_ICONS: Record<PrivilegeIcon, LucideIcon> = {
+  utensils: Utensils,
+  gift: Gift,
+  star: Star,
+  shield: ShieldCheck,
+};
+
 // Scroll to the checkout panel, not its section: on phones the section stacks
 // the member pass above the form, so the section top landed on the pass card.
 const scrollToForm = () => smoothScrollTo('membership-checkout', { offset: -90, duration: 0.9 });
 
 export function MembershipPage({ content, lang, onNavigate }: MembershipPageProps) {
   const data = lang === 'en' ? membershipPageDataEN : membershipPageDataZH;
-  const t = (en: string, zh: string) => (lang === 'en' ? en : zh);
   const { ready, user, member, refreshMember } = useAuth();
   // What the membership is worth today — a stored 'active' outlives its expiry
   // for anyone without a Stripe subscription (effectiveStatus).
@@ -108,9 +121,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
       ? tier.name_zh || tier.name
       : tier.id.slice(0, 1).toUpperCase() + tier.id.slice(1);
   const serverError = (msg: string | undefined, fallback: string) =>
-    msg === 'network'
-      ? t('Network error — please try again.', '网络错误，请重试。')
-      : msg || fallback;
+    msg === 'network' ? data.errors.network : msg || fallback;
 
   const applyCode = async (raw: string) => {
     const code = raw.trim();
@@ -129,7 +140,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
       setCodeInput(res.code);
     } else {
       setApplied(null);
-      setCodeMsg(serverError(res.error, t('Invalid discount code.', '折扣码无效。')));
+      setCodeMsg(serverError(res.error, data.errors.invalidCode));
     }
   };
 
@@ -245,7 +256,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
       }
       if (!ok) {
         setBusy(false);
-        setError(serverError(res.error, t('Could not change the plan.', '无法更改方案。')));
+        setError(serverError(res.error, data.errors.changePlan));
         return;
       }
       await refreshMember();
@@ -279,27 +290,25 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
       return;
     }
     setBusy(false);
-    setError(
-      serverError(res.error, t('Checkout failed — please try again.', '结账失败，请重试。')),
-    );
+    setError(serverError(res.error, data.errors.checkout));
   };
 
   const submitLabel = (() => {
-    if (busy) return t('Please wait…', '请稍候…');
+    if (busy) return data.submit.wait;
     switch (mode) {
       case null:
-        return t('Loading…', '加载中…');
+        return data.submit.loading;
       case 'signin':
-        return t('Log in or sign up to continue', '登录或注册后继续');
+        return data.submit.signin;
       case 'current':
-        return t('Go to my account', '前往我的账户');
+        return data.submit.current;
       case 'fix-billing':
       case 'cancel-first':
-        return t('Manage billing in my account', '在我的账户中管理账单');
+        return data.submit.billing;
       case 'free':
-        return t('Join for free', '免费加入');
+        return data.submit.free;
       case 'switch':
-        return t('Confirm plan change', '确认更改方案');
+        return data.submit.switchPlan;
       default:
         return data.formSubmit;
     }
@@ -308,27 +317,15 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
   const modeNote = (() => {
     switch (mode) {
       case 'signin':
-        return t(
-          'You will log in or create an account first, then come straight back here to finish.',
-          '需先登录或注册账户，完成后会自动返回本页继续。',
-        );
+        return data.notes.signin;
       case 'current':
-        return t('You are already on this plan.', '您已是该方案的会员。');
+        return data.notes.current;
       case 'fix-billing':
-        return t(
-          'Your last payment failed. Update your card from Manage billing in your account before changing plans.',
-          '上次扣款失败。请先在账户的“管理账单”中更新银行卡，再更改方案。',
-        );
+        return data.notes.fixBilling;
       case 'cancel-first':
-        return t(
-          'To move to the free membership, cancel your paid plan from Manage billing in your account first.',
-          '如需改为免费会员，请先在账户的“管理账单”中取消付费方案。',
-        );
+        return data.notes.cancelFirst;
       case 'switch':
-        return t(
-          'Your subscription is updated in place — Stripe prorates the difference.',
-          '订阅将原地更新——Stripe 会按比例结算差价。',
-        );
+        return data.notes.switchPlan;
       default:
         return '';
     }
@@ -337,7 +334,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
   const showCodeEntry = !!selected && !free && (mode === 'checkout' || mode === 'signin');
   const expiresLabel = (() => {
     if (!selected) return '';
-    if (free) return t('NEVER', '永不过期');
+    if (free) return data.pass.never;
     if (myStatus === 'active' && member?.tier_id === selected.id && member.expires_at)
       return new Date(member.expires_at)
         .toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-US', {
@@ -346,7 +343,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           day: 'numeric',
         })
         .toUpperCase();
-    return t('12 MONTHS', '12 个月');
+    return data.pass.twelveMonths;
   })();
 
   return (
@@ -360,7 +357,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
           <nav
-            aria-label="Breadcrumb"
+            aria-label={data.breadcrumb.label}
             className="flex items-center gap-2 text-xs sm:text-sm text-neutral-500 font-sans"
           >
             <button
@@ -369,10 +366,10 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className="inline-flex items-center gap-1.5 font-medium text-neutral-700 hover:text-brick transition-colors cursor-pointer group"
-              title={lang === 'en' ? 'Back to Menu' : '返回菜单'}
+              title={data.breadcrumb.backToMenu}
             >
               <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-400 group-hover:text-brick" />
-              <span>{lang === 'en' ? 'Back to Menu' : '返回菜单'}</span>
+              <span>{data.breadcrumb.backToMenu}</span>
             </button>
             <span className="text-neutral-300">/</span>
             <button
@@ -401,16 +398,12 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             className="text-center max-w-2xl mx-auto mb-8 sm:mb-12"
           >
             <span className="text-xs font-semibold text-brick block mb-2">
-              {lang === 'en' ? 'Choose Your Plan' : '入会方案'}
+              {data.plans.eyebrow}
             </span>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">
-              {lang === 'en' ? 'Membership Tiers & Annual Dues' : '会员类别与年度会费'}
+              {data.plans.title}
             </h2>
-            <p className="mt-2 text-sm text-neutral-500">
-              {lang === 'en'
-                ? 'Every contribution directly supports our community cultural events and civic programs.'
-                : '所有会费直接投入到华协举办的重大文化庆典、社区互助与青少年公益项目中。'}
-            </p>
+            <p className="mt-2 text-sm text-neutral-500">{data.plans.text}</p>
           </motion.div>
 
           {/* Responsive Layout: Smooth Horizontal Scrolling Carousel on Mobile with Hidden Scrollbar, Grid on Desktop */}
@@ -447,7 +440,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               onClick={() => scrollTiers('left')}
               disabled={currentTierIndex <= 1}
               className="p-1 rounded-full hover:bg-neutral-200 disabled:opacity-30 disabled:pointer-events-none text-neutral-500 transition-colors cursor-pointer"
-              aria-label="Previous plan"
+              aria-label={data.plans.previousLabel}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -459,7 +452,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               onClick={() => scrollTiers('right')}
               disabled={currentTierIndex >= plans.length}
               className="p-1 rounded-full hover:bg-neutral-200 disabled:opacity-30 disabled:pointer-events-none text-neutral-500 transition-colors cursor-pointer"
-              aria-label="Next plan"
+              aria-label={data.plans.nextLabel}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -470,12 +463,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           {anyGrant && (
             <div className="mt-6 sm:mt-8 max-w-3xl mx-auto flex items-start justify-center gap-2 text-xs sm:text-sm text-neutral-600 leading-relaxed">
               <Coins className="w-4 h-4 shrink-0 mt-0.5 text-brick" />
-              <p>
-                {t(
-                  'CAACI Tokens land in your member wallet when you join, and again at every renewal. Spend them at CAACI event stalls and participating partner shops — they never expire.',
-                  '华协币会在入会时存入您的会员钱包，之后每次续费都会再次到账。可在华协活动摊位及合作商户消费，永不过期。',
-                )}
-              </p>
+              <p>{data.plans.tokensNote}</p>
             </div>
           )}
 
@@ -502,16 +490,12 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           >
             <div>
               <span className="text-xs font-semibold text-brick block mb-1">
-                {lang === 'en' ? 'Digital Pass' : '电子会员凭证'}
+                {data.pass.eyebrow}
               </span>
               <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-ink">
-                {lang === 'en' ? 'Apple Wallet Pass' : '电子会员卡实时预览'}
+                {data.pass.title}
               </h2>
-              <p className="mt-2 text-xs sm:text-sm text-neutral-500">
-                {lang === 'en'
-                  ? 'Your digital badge can be added to Apple Wallet or accessed anytime via your Member Account.'
-                  : '入会后将自动生成专属实名电子卡，可出示享受合作商户立减与活动快速签到。'}
-              </p>
+              <p className="mt-2 text-xs sm:text-sm text-neutral-500">{data.pass.text}</p>
             </div>
 
             {/* Apple Wallet Sleek Pass Card. It gives under the pointer
@@ -528,8 +512,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                   <div className="flex justify-between items-center pb-5 sm:pb-6 border-b border-white/10 gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <img
-                        src="/images/logo.png"
-                        alt="CAACI"
+                        src={data.pass.logoImage}
+                        alt={data.pass.logoAlt}
                         className="h-7 w-auto flex-shrink-0 bg-white/10 rounded p-0.5"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
@@ -537,10 +521,10 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                       />
                       <div className="min-w-0">
                         <div className="text-sm font-semibold tracking-tight text-white truncate">
-                          CAACI Member Pass
+                          {data.pass.name}
                         </div>
                         <div className="text-[10px] text-neutral-400 truncate">
-                          Central Illinois • 501(c)(3)
+                          {data.pass.location}
                         </div>
                       </div>
                     </div>
@@ -552,23 +536,23 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
                   <div className="py-5 sm:py-6 space-y-4">
                     <div>
-                      <div className="text-[10px] text-neutral-400">
-                        {lang === 'en' ? 'Cardholder Name' : '持卡人姓名'}
-                      </div>
+                      <div className="text-[10px] text-neutral-400">{data.pass.cardholder}</div>
                       <div className="text-lg sm:text-xl font-medium tracking-tight text-white mt-0.5 truncate">
-                        {member?.full_name || (lang === 'en' ? 'Guest Member' : '华协新会员')}
+                        {member?.full_name || data.pass.guestName}
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 sm:gap-4 text-xs">
                       <div>
-                        <div className="text-[10px] text-neutral-400">Member ID</div>
+                        <div className="text-[10px] text-neutral-400">
+                          {data.pass.memberIdLabel}
+                        </div>
                         <div className="font-mono text-neutral-200 mt-0.5 text-xs whitespace-nowrap">
-                          CAACI-••••
+                          {data.pass.memberIdValue}
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-neutral-400">Expires</div>
+                        <div className="text-[10px] text-neutral-400">{data.pass.expiresLabel}</div>
                         <div className="font-mono text-neutral-200 mt-0.5 text-xs whitespace-nowrap">
                           {expiresLabel}
                         </div>
@@ -577,7 +561,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                   </div>
 
                   <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs text-neutral-400">
-                    <span className="text-[10px]">Tap or scan for merchant discounts</span>
+                    <span className="text-[10px]">{data.pass.scanHint}</span>
                     <QrCode className="w-5 h-5 text-neutral-300 flex-shrink-0 group-hover:text-white transition-colors" />
                   </div>
                 </div>
@@ -594,14 +578,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               className="p-3.5 sm:p-4 rounded-xl bg-surface-3 border border-black/[0.04] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
             >
               <div className="min-w-0">
-                <div className="text-xs font-semibold text-ink">
-                  {lang === 'en' ? 'Already a member?' : '已经是华协会员？'}
-                </div>
-                <div className="text-[11px] text-neutral-500 leading-snug">
-                  {lang === 'en'
-                    ? 'Access your digital pass and partner perks'
-                    : '登录会员中心查看折扣券与续费状态'}
-                </div>
+                <div className="text-xs font-semibold text-ink">{data.portal.title}</div>
+                <div className="text-[11px] text-neutral-500 leading-snug">{data.portal.text}</div>
               </div>
               <motion.button
                 whileHover={hoverScale}
@@ -610,7 +588,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 onClick={() => onNavigate('account')}
                 className="flex-shrink-0 px-3.5 py-1.5 rounded-full bg-white border border-neutral-200 text-xs font-medium text-ink hover:bg-neutral-100 transition-colors cursor-pointer whitespace-nowrap"
               >
-                {lang === 'en' ? 'Member Portal' : '进入会员专区'}
+                {data.portal.button}
               </motion.button>
             </motion.div>
           </motion.div>
@@ -628,9 +606,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               {data.formTitle}
             </h3>
             <p className="text-xs sm:text-sm text-neutral-500 mb-8">
-              {lang === 'en'
-                ? `Choose a plan and pay securely by card on Stripe; your membership is activated automatically once payment completes. We accept other payment methods too (check, Zelle, cash) — email ${content.contact.email} and we'll arrange it.`
-                : `选择方案后通过 Stripe 安全刷卡支付，付款完成后会员资格自动生效。我们也接受支票、Zelle、现金等其他付款方式，请发邮件至 ${content.contact.email} 与我们联系安排。`}
+              {fill(data.form.intro, { email: content.contact.email })}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -653,8 +629,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                           : 'border-neutral-200 text-neutral-700 hover:bg-surface-3'
                       }`}
                     >
-                      {shortLabel(tier)} •{' '}
-                      {isFree(tier) ? t('Free', '免费') : money(tier.price_cents)}
+                      {shortLabel(tier)} • {isFree(tier) ? data.freeLabel : money(tier.price_cents)}
                     </motion.button>
                   ))}
                 </div>
@@ -662,7 +637,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
               {ready && user && (
                 <p className="text-xs text-neutral-600">
-                  {t('Signed in as', '当前登录')}{' '}
+                  {data.form.signedInAs}{' '}
                   <span className="font-semibold text-ink">{user.email}</span>
                   {myTier && member?.status
                     ? ` — ${tierName(myTier, lang)} · ${statusLabel(effectiveStatus(member.status, member.expires_at), lang)}`
@@ -674,50 +649,44 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               {selected && summary && (
                 <div className="p-4 rounded-xl bg-surface-3 border border-black/[0.04] text-xs text-neutral-600 space-y-1.5">
                   <div className="font-semibold text-ink">
-                    {t('Order Summary', '费用明细')} · {tierName(selected, lang)}
+                    {fill(data.form.summaryTitle, { plan: tierName(selected, lang) })}
                   </div>
                   {free ? (
                     <>
                       <div className="flex justify-between gap-3">
-                        <span>{t('Membership', '会费')}</span>
-                        <span>{t('Free', '免费')}</span>
+                        <span>{data.form.membership}</span>
+                        <span>{data.freeLabel}</span>
                       </div>
-                      <p className="pt-1 text-neutral-500">
-                        {t(
-                          'No payment needed and nothing expires. Upgrade to a paid plan any time for the annual meeting and festival perks.',
-                          '无需付款，永不过期。可随时升级为付费会员，享受会员大会和节日福利。',
-                        )}
-                      </p>
+                      <p className="pt-1 text-neutral-500">{data.form.freeNote}</p>
                     </>
                   ) : (
                     <>
                       <div className="flex justify-between gap-3">
-                        <span>{t('Annual membership', '年度会费')}</span>
+                        <span>{data.form.annual}</span>
                         <span className="tabular-nums">{usd(selected.price_cents)}</span>
                       </div>
                       <div className="flex justify-between gap-3">
-                        <span>{t('Card processing fee (3.5%)', '银行卡手续费（3.5%）')}</span>
+                        <span>{data.form.cardFee}</span>
                         <span className="tabular-nums">{usd(summary.fee)}</span>
                       </div>
                       {mode !== 'switch' && applied && (
                         <div className="flex justify-between gap-3 text-emerald-700">
                           <span>
-                            {applied.code} −{applied.percent_off}%
+                            {fill(data.form.discountLine, {
+                              code: applied.code,
+                              percent: applied.percent_off,
+                            })}
                           </span>
                           <span className="tabular-nums">−{usd(summary.off)}</span>
                         </div>
                       )}
                       <div className="flex justify-between gap-3 pt-1.5 border-t border-black/[0.06] font-semibold text-ink">
-                        <span>
-                          {mode === 'switch'
-                            ? t('New annual rate', '新年费')
-                            : t('Total today', '今日合计')}
-                        </span>
+                        <span>{mode === 'switch' ? data.form.newRate : data.form.totalToday}</span>
                         <span className="tabular-nums">{usd(summary.due)}</span>
                       </div>
                       {grantFor(selected.id) > 0 && (
                         <div className="flex justify-between gap-3 pt-1 text-brick">
-                          <span>{t('CAACI Tokens included', '赠送华协币')}</span>
+                          <span>{data.form.tokensIncluded}</span>
                           <span className="tabular-nums">
                             {grantFor(selected.id).toLocaleString('en-US')}
                           </span>
@@ -725,11 +694,8 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                       )}
                       <p className="pt-1 text-neutral-500">
                         {mode !== 'switch' && applied
-                          ? t(
-                              `Discount applies to your first year only; renews at ${usd(summary.total)}/yr.`,
-                              `折扣仅限首年；续费价为 ${usd(summary.total)}/年。`,
-                            )
-                          : t('Renews yearly; cancel anytime.', '按年续费，可随时取消。')}
+                          ? fill(data.form.discountFirstYear, { total: usd(summary.total) })
+                          : data.form.renewsYearly}
                       </p>
                     </>
                   )}
@@ -742,7 +708,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                     htmlFor="membership-discount"
                     className="block text-xs font-medium text-neutral-700 mb-1"
                   >
-                    {t('Discount Code (Optional)', '折扣码（选填）')}
+                    {data.form.codeLabel}
                   </label>
                   <div className="flex gap-2">
                     <input
@@ -761,7 +727,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                         }
                       }}
                       autoComplete="off"
-                      placeholder={t('Enter code', '输入折扣码')}
+                      placeholder={data.form.codePlaceholder}
                       className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-1 focus:ring-ink focus:outline-none"
                     />
                     <button
@@ -770,12 +736,15 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                       disabled={codeBusy}
                       className="shrink-0 px-4 py-2.5 rounded-xl border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-surface-3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
                     >
-                      {codeBusy ? t('Checking…', '验证中…') : t('Apply', '应用')}
+                      {codeBusy ? data.form.codeChecking : data.form.codeApply}
                     </button>
                   </div>
                   {applied && (
                     <p className="mt-1.5 text-[11px] text-emerald-700">
-                      {applied.code} — {applied.percent_off}% {t('off your first year', '首年折扣')}
+                      {fill(data.form.codeApplied, {
+                        code: applied.code,
+                        percent: applied.percent_off,
+                      })}
                     </p>
                   )}
                   {codeMsg && (
@@ -808,7 +777,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
               {!free && (mode === 'checkout' || mode === 'switch') && (
                 <p className="text-[11px] text-neutral-400 text-center">
-                  {t('Secure payment via Stripe', '通过 Stripe 安全支付')}
+                  {data.form.securePayment}
                 </p>
               )}
             </form>
@@ -829,110 +798,39 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           className="max-w-3xl mb-14"
         >
           <span className="text-xs font-semibold text-brick block mb-2">
-            {lang === 'en' ? 'Community Privileges' : '会员专享礼遇'}
+            {data.privileges.eyebrow}
           </span>
           <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
             {data.benefitsTitle}
           </h2>
-          <p className="mt-3 text-base text-neutral-600 leading-relaxed">
-            {lang === 'en'
-              ? 'Join over 800+ members and families strengthening the Chinese American community across Central Illinois.'
-              : '加入香槟及中部伊利诺伊 800+ 位华人学者、留学生与家庭的互助大家庭，享有全年度社区礼遇。'}
-          </p>
+          <p className="mt-3 text-base text-neutral-600 leading-relaxed">{data.privileges.text}</p>
         </motion.div>
 
         <div className="flex md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 overflow-x-auto md:overflow-visible no-scrollbar snap-x snap-mandatory md:snap-none -mx-4 px-6 sm:-mx-6 sm:px-8 md:mx-0 md:px-0 pt-2 pb-4 md:pt-0 md:pb-0 overscroll-x-contain">
-          <motion.div
-            initial={riseFrom}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={inView}
-            transition={rise(0.05)}
-            whileHover={hoverLift}
-            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
-          >
-            <div className="space-y-4">
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs group-hover:scale-110 transition-transform duration-300">
-                <Utensils className="w-5 h-5 text-brick" />
-              </div>
-              <h3 className="text-base sm:text-lg font-semibold text-ink tracking-tight">
-                {lang === 'en' ? 'Annual Meeting Free Luncheon' : '年度大会免费午宴'}
-              </h3>
-              <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed">
-                {lang === 'en'
-                  ? 'Enjoy complimentary gourmet Chinese lunch buffets and executive reports at the CAACI Annual Membership Conference.'
-                  : '受邀参加每年一度的 CAACI 全体会员大会，全程免费享用丰盛传统中华午宴。'}
-              </p>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={riseFrom}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={inView}
-            transition={rise(0.15)}
-            whileHover={hoverLift}
-            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
-          >
-            <div className="space-y-4">
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs group-hover:scale-110 transition-transform duration-300">
-                <Gift className="w-5 h-5 text-brick" />
-              </div>
-              <h3 className="text-base sm:text-lg font-semibold text-ink tracking-tight">
-                {lang === 'en' ? 'Festival Ticket Discounts' : '节日盛典门票特惠'}
-              </h3>
-              <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed">
-                {lang === 'en'
-                  ? 'Special discounted admission and priority seating at Spring Festival Gala, Mid-Autumn celebrations, and Dragon Boat picnics.'
-                  : '享有新春晚会、中秋游园灯会、端午聚会等重大节日庆典的会员专属门票折扣与优先席位。'}
-              </p>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={riseFrom}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={inView}
-            transition={rise(0.25)}
-            whileHover={hoverLift}
-            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
-          >
-            <div className="space-y-4">
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs group-hover:scale-110 transition-transform duration-300">
-                <Star className="w-5 h-5 text-brick" />
-              </div>
-              <h3 className="text-base sm:text-lg font-semibold text-ink tracking-tight">
-                {lang === 'en' ? 'Partner Business Discounts' : '本地商户专属立减'}
-              </h3>
-              <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed">
-                {lang === 'en'
-                  ? 'Show your digital CAACI Membership Card at participating restaurants, grocery stores, and professional service providers.'
-                  : '在香槟-厄巴纳合作中餐厅、亚洲超市及专业服务机构出示电子会员卡，享受专属立减折扣。'}
-              </p>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={riseFrom}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={inView}
-            transition={rise(0.35)}
-            whileHover={hoverLift}
-            className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
-          >
-            <div className="space-y-4">
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs group-hover:scale-110 transition-transform duration-300">
-                <ShieldCheck className="w-5 h-5 text-brick" />
-              </div>
-              <h3 className="text-base sm:text-lg font-semibold text-ink tracking-tight">
-                {lang === 'en' ? 'Verified WeChat Network' : '实名认证微信互助社群'}
-              </h3>
-              <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed">
-                {lang === 'en'
-                  ? 'Connect with scholars, alumni, and families in spam-free, verified local mutual-help community groups.'
-                  : '加入实名认证的香槟伊大校友、学者及本地华人家庭专属微信交流群，第一时间获取安居与求学资讯。'}
-              </p>
-            </div>
-          </motion.div>
+          {data.privileges.items.map((item, idx) => {
+            const Icon = PRIVILEGE_ICONS[item.icon] ?? Star;
+            return (
+              <motion.div
+                key={idx}
+                initial={riseFrom}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={inView}
+                transition={rise(0.05 + idx * 0.1)}
+                whileHover={hoverLift}
+                className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
+              >
+                <div className="space-y-4">
+                  <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs group-hover:scale-110 transition-transform duration-300">
+                    <Icon className="w-5 h-5 text-brick" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-semibold text-ink tracking-tight">
+                    {item.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed">{item.text}</p>
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       </section>
 

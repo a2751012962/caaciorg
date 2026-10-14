@@ -1,4 +1,12 @@
-import { useState, useMemo, useEffect, useRef, type FormEvent, type MouseEvent } from 'react';
+import {
+  Fragment,
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  type FormEvent,
+  type MouseEvent,
+} from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   hoverLift,
@@ -44,17 +52,20 @@ import {
   FileCheck,
   Plus,
   Navigation,
+  type LucideIcon,
 } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import {
   businessServicesDataEN,
   businessServicesDataZH,
   type BusinessMerchant,
+  type BusinessPillarIcon,
   type BusinessSponsorTier,
 } from '../data/pagesContent';
 import { api } from '../lib/api';
 import { TurnstileBox, useTurnstile } from '../components/Turnstile';
 import { usd } from '../lib/shared';
+import { fill as fillTemplate } from '../lib/text';
 import { cardTotal, money, useTiers } from '../lib/tiers';
 import {
   DIRECTORY_CATEGORIES,
@@ -81,6 +92,23 @@ const INQUIRY_LABEL: Record<Exclude<InquiryType, 'directory'>, string> = {
   general: 'General business inquiry',
 };
 
+// Which glyph and tint a pillar card draws; the copy, order and link target
+// come from the data.
+const PILLAR_ICONS: Record<BusinessPillarIcon, LucideIcon> = {
+  store: Store,
+  coins: Coins,
+  users: Users,
+  briefcase: Briefcase,
+};
+const PILLAR_TINTS: Record<BusinessPillarIcon, { box: string; badge: string }> = {
+  store: { box: 'bg-surface-3 text-brick', badge: 'text-brick bg-brick/10' },
+  coins: { box: 'bg-amber-50 text-amber-800', badge: 'text-amber-800 bg-amber-100' },
+  users: { box: 'bg-blue-50 text-blue-800', badge: 'text-blue-800 bg-blue-100' },
+  briefcase: { box: 'bg-purple-50 text-purple-800', badge: 'text-purple-800 bg-purple-100' },
+};
+// Entrance stagger of the pillar cards.
+const PILLAR_DELAYS = [0.05, 0.14, 0.22, 0.3];
+
 export function BusinessServicesPage({
   content,
   lang,
@@ -88,7 +116,6 @@ export function BusinessServicesPage({
   onNavigate,
 }: BusinessServicesPageProps) {
   const data = lang === 'en' ? businessServicesDataEN : businessServicesDataZH;
-  const t = (en: string, zh: string) => (lang === 'en' ? en : zh);
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,11 +142,12 @@ export function BusinessServicesPage({
   const businessTier = tiers.find((x) => x.id === 'business');
   const directoryPrice = businessTier ? money(businessTier.price_cents) : '';
   const directoryCard = businessTier ? usd(cardTotal(businessTier)) : '';
-  const fill = (s: string) =>
-    s
-      .replaceAll('{count}', loadingListings ? '–' : String(merchants.length))
-      .replaceAll('{price}', directoryPrice)
-      .replaceAll('{card}', directoryCard);
+  const templateVars = {
+    count: loadingListings ? '–' : merchants.length,
+    price: directoryPrice,
+    card: directoryCard,
+  };
+  const fill = (s: string) => fillTemplate(s, templateVars);
   // Full page load: the membership page reads ?tier= on arrival.
   const goToBusinessMembership = () =>
     window.location.assign(`${lang === 'zh' ? '/zh' : ''}/membership/?tier=business`);
@@ -147,13 +175,13 @@ export function BusinessServicesPage({
   const categories = useMemo(() => {
     const used = new Set(merchants.map((m) => m.category));
     return [
-      { id: 'all', label: lang === 'en' ? 'All Categories' : '全部类别' },
+      { id: 'all', label: data.directory.allCategories },
       ...DIRECTORY_CATEGORIES.filter((c) => used.has(c.id)).map((c) => ({
         id: c.id,
         label: lang === 'en' ? c.en : c.zh,
       })),
     ];
-  }, [merchants, lang]);
+  }, [merchants, lang, data.directory.allCategories]);
 
   // Filter merchants based on category & search query
   const filteredMerchants = useMemo(() => {
@@ -235,8 +263,8 @@ export function BusinessServicesPage({
     if (!res.ok) {
       setFormError(
         res.data.error === 'network'
-          ? t('Network error — please try again.', '网络错误，请重试。')
-          : res.data.error || t('Could not send. Please try again.', '发送失败，请重试。'),
+          ? data.modal.networkError
+          : res.data.error || data.modal.sendFailed,
       );
       return;
     }
@@ -244,12 +272,7 @@ export function BusinessServicesPage({
     resetForm();
   };
 
-  const sponsorLabel = (tier: BusinessSponsorTier) =>
-    tier.action === 'membership'
-      ? t('Get Business Membership', '办理商业会员')
-      : tier.action === 'microloan'
-        ? t('Ask About Microloans', '咨询小额贷款')
-        : t('Apply for Tier', '选择此赞助方案');
+  const sponsorLabel = (tier: BusinessSponsorTier) => tier.cta || data.sponsor.defaultButton;
   const sponsorClick = (tier: BusinessSponsorTier) =>
     tier.action === 'membership'
       ? goToBusinessMembership()
@@ -319,7 +342,7 @@ export function BusinessServicesPage({
     });
   };
 
-  const scrollToSection = (id: string, _sectionKey?: string) => {
+  const scrollToSection = (id: string) => {
     smoothScrollTo(id, { offset: -30, duration: 0.9 });
   };
 
@@ -358,7 +381,7 @@ export function BusinessServicesPage({
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 flex-nowrap">
           {/* Breadcrumb Path */}
           <nav
-            aria-label="Breadcrumb"
+            aria-label={data.topBar.breadcrumbLabel}
             className="flex items-center gap-1 sm:gap-1.5 md:gap-2 text-[11px] sm:text-xs md:text-sm text-neutral-500 font-sans min-w-0"
           >
             <button
@@ -367,13 +390,11 @@ export function BusinessServicesPage({
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               className="inline-flex items-center gap-0.5 sm:gap-1 font-medium text-neutral-700 hover:text-brick transition-colors cursor-pointer group shrink-0"
-              title={lang === 'en' ? 'Back to Menu' : '返回菜单'}
+              title={data.topBar.backToMenu}
             >
               <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-400 group-hover:text-brick shrink-0" />
-              <span className="hidden sm:inline">
-                {lang === 'en' ? 'Back to Menu' : '返回菜单'}
-              </span>
-              <span className="sm:hidden">{lang === 'en' ? 'Back' : '返回'}</span>
+              <span className="hidden sm:inline">{data.topBar.backToMenu}</span>
+              <span className="sm:hidden">{data.topBar.backShort}</span>
             </button>
             <span className="text-neutral-300 shrink-0 hidden md:inline">/</span>
             <button
@@ -398,18 +419,16 @@ export function BusinessServicesPage({
               onClick={() => handleOpenInquiry('directory')}
               className="inline-flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-neutral-900 text-white hover:bg-neutral-800 text-[11px] sm:text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
             >
-              <span className="hidden sm:inline">
-                {lang === 'en' ? '+ Join Directory' : '+ 商户入驻'}
-              </span>
-              <span className="sm:hidden">{lang === 'en' ? '+ Join' : '+ 入驻'}</span>
+              <span className="hidden sm:inline">{data.topBar.join}</span>
+              <span className="sm:hidden">{data.topBar.joinShort}</span>
             </button>
             <button
               type="button"
               onClick={() => handleOpenInquiry('general')}
               className="inline-flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border border-neutral-300 hover:border-neutral-800 text-neutral-800 hover:bg-neutral-100 text-[11px] sm:text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
-              <span className="hidden sm:inline">{lang === 'en' ? 'Inquiry' : '咨询对接'}</span>
-              <span className="sm:hidden">{lang === 'en' ? 'Inquiry' : '咨询'}</span>
+              <span className="hidden sm:inline">{data.topBar.inquiry}</span>
+              <span className="sm:hidden">{data.topBar.inquiryShort}</span>
             </button>
           </div>
         </div>
@@ -431,9 +450,7 @@ export function BusinessServicesPage({
               transition={mountIn}
               className="text-xs font-semibold text-brick mb-3"
             >
-              {lang === 'en'
-                ? 'CAACI Business Directory & Regional Resources'
-                : 'CAACI 华人商业名录与社区资源'}
+              {data.hero.eyebrow}
             </motion.div>
             <motion.h1
               initial={riseFrom}
@@ -441,9 +458,7 @@ export function BusinessServicesPage({
               transition={rise(0.1)}
               className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-ink leading-[1.15]"
             >
-              {lang === 'en'
-                ? 'Commerce, Capital & Community Directory.'
-                : '商业服务、商会资源与华商名录'}
+              {data.hero.title}
             </motion.h1>
             <motion.p
               initial={riseFrom}
@@ -451,9 +466,7 @@ export function BusinessServicesPage({
               transition={rise(0.18)}
               className="mt-4 text-base sm:text-lg text-neutral-600 leading-relaxed"
             >
-              {lang === 'en'
-                ? 'CAACI connects local Chinese-owned businesses and community members with regional business listings, the Champaign County Chamber of Commerce Microloan program ($7,500–$15,000), and events including the All-State Agencies Job Fair.'
-                : 'CAACI 致力于促进本地华商与社区成员的交流与发展，提供经核实的地方商业名录、香槟县商会小额扶持贷款通道（$7,500–$15,000）、以及与伊利诺伊州公共卫生部合办的全州政府机构招聘会等真实资讯。'}
+              {data.hero.text}
             </motion.p>
 
             {/* Quick Action Buttons */}
@@ -467,21 +480,21 @@ export function BusinessServicesPage({
                 whileHover={hoverScale}
                 whileTap={tap}
                 type="button"
-                onClick={() => scrollToSection('section-directory', 'directory')}
+                onClick={() => scrollToSection('section-directory')}
                 className="px-5 py-2.5 rounded-full bg-ink text-white text-xs sm:text-sm font-medium hover:bg-neutral-800 transition-colors inline-flex items-center gap-2 cursor-pointer shadow-xs"
               >
                 <Store className="w-4 h-4" />
-                <span>{lang === 'en' ? 'Explore Directory' : '浏览本地名录商户'}</span>
+                <span>{data.hero.exploreButton}</span>
               </motion.button>
               <motion.button
                 whileHover={hoverScale}
                 whileTap={tap}
                 type="button"
-                onClick={() => scrollToSection('section-microloan', 'microloan')}
+                onClick={() => scrollToSection('section-microloan')}
                 className="px-5 py-2.5 rounded-full bg-white border border-neutral-300 text-neutral-800 hover:border-neutral-800 text-xs sm:text-sm font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
               >
                 <Coins className="w-4 h-4 text-brick" />
-                <span>{lang === 'en' ? 'Chamber Microloan Info' : '查看商会小额贷款'}</span>
+                <span>{data.hero.loanButton}</span>
               </motion.button>
               <motion.button
                 whileHover={hoverScale}
@@ -491,172 +504,55 @@ export function BusinessServicesPage({
                 className="px-5 py-2.5 rounded-full bg-brick/10 text-brick hover:bg-brick/15 text-xs sm:text-sm font-medium transition-colors inline-flex items-center gap-2 cursor-pointer"
               >
                 <FileCheck className="w-4 h-4" />
-                <span>
-                  {lang === 'en'
-                    ? `Join Directory (${directoryPrice}/yr)`
-                    : `商户入驻登记 (${directoryPrice}/年)`}
-                </span>
+                <span>{fill(data.hero.joinButton)}</span>
               </motion.button>
             </motion.div>
           </motion.div>
 
           {/* 4 Pillars Information Grid (Executive Clean Cards with Motion Stagger) */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 pt-6">
-            {/* Pillar 1: Directory */}
-            <motion.div
-              initial={riseFrom}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={inView}
-              transition={rise(0.05)}
-              whileHover={hoverLift}
-              className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs hover:shadow-md hover:border-neutral-300 transition-all flex flex-col justify-between group"
-            >
-              <div className="space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-surface-3 flex items-center justify-center text-brick group-hover:scale-105 transition-transform">
-                  <Store className="w-5 h-5" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-ink">
-                    {lang === 'en' ? 'Merchant Directory' : '认证华人商户名录'}
-                  </h3>
-                  <span className="text-[11px] font-semibold text-brick px-2 py-0.5 rounded-full bg-brick/10">
-                    {loadingListings ? '–' : merchants.length}
-                  </span>
-                </div>
-                <p className="text-xs text-neutral-600 leading-relaxed">
-                  {lang === 'en'
-                    ? 'Verified dining, dental clinics, banking, insurance, and media services in Champaign, Urbana, and Savoy.'
-                    : '涵盖香槟、厄巴纳及萨沃伊的地道中餐茶饮、牙科诊所、银行金融与房产服务真实商户。'}
-                </p>
-              </div>
-              <div className="pt-4 mt-4 border-t border-neutral-100">
-                <button
-                  type="button"
-                  onClick={() => scrollToSection('section-directory', 'directory')}
-                  className="text-xs font-medium text-neutral-900 hover:text-brick inline-flex items-center gap-1 transition-colors cursor-pointer"
+            {data.pillars.map((pillar, idx) => {
+              const Icon = PILLAR_ICONS[pillar.icon] ?? Store;
+              const tint = PILLAR_TINTS[pillar.icon] ?? PILLAR_TINTS.store;
+              return (
+                <motion.div
+                  key={idx}
+                  initial={riseFrom}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={inView}
+                  transition={rise(PILLAR_DELAYS[idx] ?? 0.3)}
+                  whileHover={hoverLift}
+                  className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs hover:shadow-md hover:border-neutral-300 transition-all flex flex-col justify-between group"
                 >
-                  <span>{lang === 'en' ? 'View Directory' : '查看名录'}</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </motion.div>
-
-            {/* Pillar 2: Microloans */}
-            <motion.div
-              initial={riseFrom}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={inView}
-              transition={rise(0.14)}
-              whileHover={hoverLift}
-              className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs hover:shadow-md hover:border-neutral-300 transition-all flex flex-col justify-between group"
-            >
-              <div className="space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-800 group-hover:scale-105 transition-transform">
-                  <Coins className="w-5 h-5" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-ink">
-                    {lang === 'en' ? 'Chamber Microloans' : '商会小额扶持贷款'}
-                  </h3>
-                  <span className="text-[11px] font-semibold text-amber-800 px-2 py-0.5 rounded-full bg-amber-100">
-                    $7.5K-$15K
-                  </span>
-                </div>
-                <p className="text-xs text-neutral-600 leading-relaxed">
-                  {lang === 'en'
-                    ? 'Champaign County Chamber program offering 2.5%–3.0% interest rates and 5-year repayment terms for small businesses.'
-                    : '香槟县商会小微企业低息贷款计划，年化利率 2.5%–3.0%，还款周期最长 5 年。'}
-                </p>
-              </div>
-              <div className="pt-4 mt-4 border-t border-neutral-100">
-                <button
-                  type="button"
-                  onClick={() => scrollToSection('section-microloan', 'microloan')}
-                  className="text-xs font-medium text-neutral-900 hover:text-brick inline-flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <span>{lang === 'en' ? 'Loan Details' : '了解贷款政策'}</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </motion.div>
-
-            {/* Pillar 3: Mentorship & Events */}
-            <motion.div
-              initial={riseFrom}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={inView}
-              transition={rise(0.22)}
-              whileHover={hoverLift}
-              className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs hover:shadow-md hover:border-neutral-300 transition-all flex flex-col justify-between group"
-            >
-              <div className="space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-800 group-hover:scale-105 transition-transform">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-ink">
-                    {lang === 'en' ? 'Job Fair & Events' : '全州招聘会与活动'}
-                  </h3>
-                  <span className="text-[11px] font-semibold text-blue-800 px-2 py-0.5 rounded-full bg-blue-100">
-                    Siebel Center
-                  </span>
-                </div>
-                <p className="text-xs text-neutral-600 leading-relaxed">
-                  {lang === 'en'
-                    ? 'All-State Agencies Job Fair co-hosted with Illinois Department of Public Health (IDPH) at UIUC Siebel Center for Design.'
-                    : '携手伊利诺伊州公共卫生部（IDPH），在 UIUC 设计中心举办全州政府机构现场招聘对接会。'}
-                </p>
-              </div>
-              <div className="pt-4 mt-4 border-t border-neutral-100">
-                <button
-                  type="button"
-                  onClick={() => scrollToSection('section-mentorship', 'mentorship')}
-                  className="text-xs font-medium text-neutral-900 hover:text-brick inline-flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <span>{lang === 'en' ? 'View Events' : '查看招聘会详情'}</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </motion.div>
-
-            {/* Pillar 4: Corporate Sponsorship */}
-            <motion.div
-              initial={riseFrom}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={inView}
-              transition={rise(0.3)}
-              whileHover={hoverLift}
-              className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs hover:shadow-md hover:border-neutral-300 transition-all flex flex-col justify-between group"
-            >
-              <div className="space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-800 group-hover:scale-105 transition-transform">
-                  <Briefcase className="w-5 h-5" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-semibold text-ink">
-                    {lang === 'en' ? 'Directory Membership' : '名录入驻与会费'}
-                  </h3>
-                  <span className="text-[11px] font-semibold text-purple-800 px-2 py-0.5 rounded-full bg-purple-100">
-                    {directoryPrice}/yr
-                  </span>
-                </div>
-                <p className="text-xs text-neutral-600 leading-relaxed">
-                  {lang === 'en'
-                    ? `A Business Directory listing comes with Business Membership: ${directoryPrice}/yr (${directoryCard} by card online, incl. 3.5% fee). Check, Zelle or cash also accepted — email us.`
-                    : `商户名录收录包含在商业会员中：${directoryPrice}/年（在线刷卡合计 ${directoryCard}，含 3.5% 手续费）。也接受支票、Zelle、现金，请来信联系。`}
-                </p>
-              </div>
-              <div className="pt-4 mt-4 border-t border-neutral-100">
-                <button
-                  type="button"
-                  onClick={() => scrollToSection('section-sponsorship', 'sponsorship')}
-                  className="text-xs font-medium text-neutral-900 hover:text-brick inline-flex items-center gap-1 transition-colors cursor-pointer"
-                >
-                  <span>{lang === 'en' ? 'Membership Info' : '查看入驻说明'}</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </motion.div>
+                  <div className="space-y-3">
+                    <div
+                      className={`w-10 h-10 rounded-xl ${tint.box} flex items-center justify-center group-hover:scale-105 transition-transform`}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-base font-semibold text-ink">{pillar.title}</h3>
+                      <span
+                        className={`text-[11px] font-semibold ${tint.badge} px-2 py-0.5 rounded-full`}
+                      >
+                        {fill(pillar.badge)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-neutral-600 leading-relaxed">{fill(pillar.text)}</p>
+                  </div>
+                  <div className="pt-4 mt-4 border-t border-neutral-100">
+                    <button
+                      type="button"
+                      onClick={() => scrollToSection(`section-${pillar.target}`)}
+                      className="text-xs font-medium text-neutral-900 hover:text-brick inline-flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <span>{pillar.linkLabel}</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
 
           {/* Key Metrics / Highlights Bar */}
@@ -696,18 +592,12 @@ export function BusinessServicesPage({
           >
             <div>
               <span className="text-xs font-semibold text-brick block mb-1.5 p-0">
-                {lang === 'en' ? 'Verified Directory' : '官方认证商业名录'}
+                {data.directory.eyebrow}
               </span>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">
-                {lang === 'en'
-                  ? 'Central Illinois Chinese Business Directory'
-                  : '伊利诺伊中部华人商业名录'}
+                {data.directory.title}
               </h2>
-              <p className="mt-2 text-sm text-neutral-500">
-                {lang === 'en'
-                  ? 'Present your CAACI Electronic Member Card at checkout to redeem special discounts.'
-                  : '在以下合作商户消费时出示 CAACI 电子会员卡，即可尊享签约专属折扣。'}
-              </p>
+              <p className="mt-2 text-sm text-neutral-500">{data.directory.text}</p>
             </div>
 
             <div className="flex items-center gap-2.5 w-full lg:w-auto">
@@ -718,7 +608,7 @@ export function BusinessServicesPage({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={lang === 'en' ? 'Search merchants...' : '搜索商户、服务...'}
+                  placeholder={data.directory.searchPlaceholder}
                   className="w-full pl-9 pr-3.5 py-2 text-xs sm:text-sm bg-white border border-neutral-200 rounded-full focus:outline-none focus:ring-1 focus:ring-neutral-800 transition-all placeholder:text-neutral-400"
                 />
               </div>
@@ -731,10 +621,8 @@ export function BusinessServicesPage({
                 className="px-3 sm:px-4 py-2 text-xs font-medium rounded-full bg-brick text-white hover:bg-brick-pressed transition-colors cursor-pointer inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">
-                  {lang === 'en' ? 'Join Directory' : '商户入驻申请'}
-                </span>
-                <span className="sm:hidden">{lang === 'en' ? 'Join' : '入驻'}</span>
+                <span className="hidden sm:inline">{data.directory.joinButton}</span>
+                <span className="sm:hidden">{data.directory.joinButtonShort}</span>
               </motion.button>
             </div>
           </motion.div>
@@ -774,11 +662,7 @@ export function BusinessServicesPage({
               animate={{ opacity: 1 }}
               className="py-16 text-center bg-white rounded-2xl border border-neutral-200"
             >
-              <p className="text-sm text-neutral-500">
-                {lang === 'en'
-                  ? 'No matching businesses found. Try adjusting your search query.'
-                  : '未找到符合条件的商户，请尝试其他关键词。'}
-              </p>
+              <p className="text-sm text-neutral-500">{data.directory.empty}</p>
             </motion.div>
           ) : (
             <>
@@ -810,7 +694,7 @@ export function BusinessServicesPage({
                           {merchant.featured && (
                             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-900 text-white flex items-center gap-1">
                               <ShieldCheck className="w-3 h-3 text-gold" />
-                              <span>Verified</span>
+                              <span>{data.directory.verifiedShort}</span>
                             </span>
                           )}
                           {merchant.discount &&
@@ -869,7 +753,7 @@ export function BusinessServicesPage({
                             rel="noopener noreferrer"
                             className="flex-1 py-2 text-center text-xs font-medium rounded-full border border-neutral-200 text-neutral-800 hover:border-neutral-400 transition-colors inline-flex items-center justify-center gap-1"
                           >
-                            <span>{lang === 'en' ? 'Website' : '网站'}</span>
+                            <span>{data.directory.websiteShort}</span>
                             <ExternalLink className="w-3 h-3 text-neutral-400" />
                           </a>
                         )}
@@ -881,7 +765,7 @@ export function BusinessServicesPage({
                             className="flex-1 py-2 text-center text-xs font-medium rounded-full bg-neutral-900 text-white hover:bg-neutral-800 transition-colors inline-flex items-center justify-center gap-1 shadow-xs"
                           >
                             <Navigation className="w-3 h-3 text-gold" />
-                            <span>{lang === 'en' ? 'Directions' : '导航'}</span>
+                            <span>{data.directory.directionsShort}</span>
                           </a>
                         )}
                       </div>
@@ -895,7 +779,7 @@ export function BusinessServicesPage({
                     type="button"
                     onClick={() => scrollMerchants('left')}
                     className="p-1 rounded-full hover:bg-neutral-200 text-neutral-500 transition-colors"
-                    aria-label="Previous merchant"
+                    aria-label={data.directory.previousLabel}
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -906,7 +790,7 @@ export function BusinessServicesPage({
                     type="button"
                     onClick={() => scrollMerchants('right')}
                     className="p-1 rounded-full hover:bg-neutral-200 text-neutral-500 transition-colors"
-                    aria-label="Next merchant"
+                    aria-label={data.directory.nextLabel}
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -932,7 +816,7 @@ export function BusinessServicesPage({
                         {merchant.featured && (
                           <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-neutral-900 text-white flex items-center gap-1">
                             <ShieldCheck className="w-3 h-3 text-gold" />
-                            <span>CAACI Verified</span>
+                            <span>{data.directory.verified}</span>
                           </span>
                         )}
                         {merchant.discount &&
@@ -990,7 +874,7 @@ export function BusinessServicesPage({
                           rel="noopener noreferrer"
                           className="px-4 py-2 text-xs font-medium rounded-full border border-neutral-200 text-neutral-800 hover:border-neutral-400 transition-colors inline-flex items-center gap-1.5"
                         >
-                          <span>{lang === 'en' ? 'Visit Website' : '访问商户'}</span>
+                          <span>{data.directory.website}</span>
                           <ExternalLink className="w-3.5 h-3.5 text-neutral-400" />
                         </a>
                       )}
@@ -1002,7 +886,7 @@ export function BusinessServicesPage({
                           className="px-4 py-2 text-xs font-medium rounded-full bg-neutral-100 text-neutral-800 hover:bg-neutral-200 transition-colors inline-flex items-center gap-1.5"
                         >
                           <Navigation className="w-3.5 h-3.5 text-brick" />
-                          <span>{lang === 'en' ? 'Directions' : '导航路线'}</span>
+                          <span>{data.directory.directions}</span>
                         </a>
                       )}
                     </div>
@@ -1027,126 +911,63 @@ export function BusinessServicesPage({
             transition={rise()}
             className="space-y-6"
           >
-            <span className="text-xs font-semibold text-brick block">
-              {lang === 'en' ? 'Financing Assistance' : '小微金融扶持'}
-            </span>
+            <span className="text-xs font-semibold text-brick block">{data.microloan.eyebrow}</span>
 
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink leading-snug">
-              {lang === 'en'
-                ? 'Champaign County Chamber Microloan Assistance'
-                : '香槟县商会小额贷款扶持计划'}
+              {data.microloan.title}
             </h2>
 
             <p className="text-sm sm:text-base text-neutral-600 leading-relaxed">
-              {lang === 'en' ? (
-                <>
-                  <strong className="text-neutral-900 font-medium">Capital Amount & Term:</strong>{' '}
-                  $7,500 to $15,000 for equipment, inventory, or lease improvements with up to
-                  5-year repayment terms.{' '}
-                  <strong className="text-neutral-900 font-medium">Low Interest Rates:</strong>{' '}
-                  Rates not exceeding 3.0% (2.5% rate with automatic monthly bank ACH repayments).
-                </>
-              ) : (
-                <>
-                  <strong className="text-neutral-900 font-medium">额度与周期：</strong>$7,500 至
-                  $15,000 专项扶持周转金，适用于购置设备、进货备料或店面租约改造，还款期最长 5 年。{' '}
-                  <strong className="text-neutral-900 font-medium">优惠利率：</strong>年化利率不超过
-                  3.0%（绑定每月银行自动转账扣款享 2.5% 优惠利率）。
-                </>
-              )}
+              {data.microloan.intro.map((part, idx) => (
+                <Fragment key={idx}>
+                  {idx > 0 && ' '}
+                  <strong className="text-neutral-900 font-medium">{part.label}</strong>
+                  {part.label.endsWith(':') && ' '}
+                  {part.text}
+                </Fragment>
+              ))}
             </p>
 
             {/* Step 1-3 Official Application Process with Progressive Slide In */}
             <div className="pt-4 border-t border-neutral-200/80 space-y-4 text-xs sm:text-sm text-neutral-700">
-              <motion.div
-                initial={slideFromLeft}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={inView}
-                transition={rise(0.1)}
-                className="flex items-start gap-3.5"
-              >
-                <span className="w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                  1
-                </span>
-                <div>
-                  <h4 className="font-semibold text-ink text-sm">
-                    {lang === 'en' ? 'Step 1: Prepare Required Materials' : '第一步：准备申请材料'}
-                  </h4>
-                  <p className="text-neutral-600 mt-0.5 leading-relaxed">
-                    {lang === 'en'
-                      ? 'Prepare a concise 1-page business plan, federal Employer Identification Number (EIN), and Certificate of Good Standing from the Illinois Secretary of State.'
-                      : '准备 1 页纸精炼商业计划书（Business Plan）、联邦雇主识别号（EIN）以及伊利诺伊州州务卿注册良好存续证明。'}
-                  </p>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={slideFromLeft}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={inView}
-                transition={rise(0.2)}
-                className="flex items-start gap-3.5"
-              >
-                <span className="w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                  2
-                </span>
-                <div>
-                  <h4 className="font-semibold text-ink text-sm">
-                    {lang === 'en'
-                      ? 'Step 2: Direct Submission to Chamber'
-                      : '第二步：直接联系商会申请'}
-                  </h4>
-                  <p className="text-neutral-600 mt-0.5 leading-relaxed">
-                    {lang === 'en'
-                      ? 'Contact Laura Weis, President & CEO of the Champaign County Chamber of Commerce directly via email or phone to submit your application materials.'
-                      : '直接通过电子邮件或电话联系香槟县商会总裁兼 CEO Laura Weis 提交申请初审。'}
-                  </p>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={slideFromLeft}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={inView}
-                transition={rise(0.3)}
-                className="flex items-start gap-3.5"
-              >
-                <span className="w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                  3
-                </span>
-                <div>
-                  <h4 className="font-semibold text-ink text-sm">
-                    {lang === 'en'
-                      ? 'Step 3: Review & Disbursement'
-                      : '第三步：评审委员会评估与放款'}
-                  </h4>
-                  <p className="text-neutral-600 mt-0.5 leading-relaxed">
-                    {lang === 'en'
-                      ? 'The Chamber Loan Committee evaluates character and business viability over strict collateral requirements. Upon approval, funds are disbursed directly.'
-                      : '商会贷款评审委员会主要依据经营者信誉与还款能力进行综合评估（不硬性要求重资产抵押），核准后直接放款。'}
-                  </p>
-                </div>
-              </motion.div>
+              {data.microloan.steps.map((step, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={slideFromLeft}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={inView}
+                  transition={rise((idx + 1) * 0.1)}
+                  className="flex items-start gap-3.5"
+                >
+                  <span className="w-6 h-6 rounded-full bg-brick/10 text-brick font-semibold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                    {idx + 1}
+                  </span>
+                  <div>
+                    <h4 className="font-semibold text-ink text-sm">{step.title}</h4>
+                    <p className="text-neutral-600 mt-0.5 leading-relaxed">{step.text}</p>
+                  </div>
+                </motion.div>
+              ))}
             </div>
 
             <div className="pt-4 flex flex-wrap items-center gap-3">
               <motion.a
                 whileHover={hoverScale}
                 whileTap={tap}
-                href="mailto:lauraw@champaigncounty.org?subject=Champaign%20County%20Chamber%20Microloan%20Inquiry"
+                href={`mailto:${data.microloan.email}?subject=${encodeURIComponent(data.microloan.emailSubject)}`}
                 className="px-6 py-3 rounded-full bg-ink text-white text-xs sm:text-sm font-medium hover:bg-neutral-800 transition-colors cursor-pointer inline-flex items-center gap-2"
               >
                 <Mail className="w-4 h-4" />
-                <span>lauraw@champaigncounty.org</span>
+                <span>{data.microloan.email}</span>
               </motion.a>
               <motion.a
                 whileHover={hoverScale}
                 whileTap={tap}
-                href="tel:2173591791"
+                href={`tel:${data.microloan.phone.replace(/\D/g, '')}`}
                 className="px-6 py-3 rounded-full border border-neutral-300 text-neutral-800 hover:border-neutral-800 text-xs sm:text-sm font-medium transition-colors cursor-pointer inline-flex items-center gap-2"
               >
                 <Phone className="w-4 h-4" />
-                <span>(217) 359-1791</span>
+                <span>{data.microloan.phone}</span>
               </motion.a>
             </div>
           </motion.div>
@@ -1167,18 +988,12 @@ export function BusinessServicesPage({
             className="max-w-3xl mb-12"
           >
             <span className="text-xs font-semibold text-brick block mb-2">
-              {lang === 'en' ? 'Programs & Networking' : '经贸活动与导师计划'}
+              {data.eventsSection.eyebrow}
             </span>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-ink">
-              {lang === 'en'
-                ? 'Commercial Events & Entrepreneur Mentorship'
-                : '商业经贸活动与青年创业导师'}
+              {data.eventsSection.title}
             </h2>
-            <p className="mt-2 text-sm text-neutral-600">
-              {lang === 'en'
-                ? 'Connecting aspiring founders and small business owners with seasoned executives, venture leaders, and state agencies.'
-                : '汇聚美中地区资深华裔企业家、跨国高管与伊利诺伊大学商学院学者，定期举办实战研讨与政商招聘会。'}
-            </p>
+            <p className="mt-2 text-sm text-neutral-600">{data.eventsSection.text}</p>
           </motion.div>
 
           {/* Event Rows (Apple Editorial Schedule with Staggered Entrance) */}
@@ -1223,7 +1038,7 @@ export function BusinessServicesPage({
                     onClick={() => onNavigate('events')}
                     className="px-5 py-2.5 text-xs font-medium rounded-full bg-ink text-white hover:bg-neutral-800 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                   >
-                    <span>{lang === 'en' ? 'View Event / RSVP' : '查看详情与预约'}</span>
+                    <span>{data.eventsSection.viewButton}</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </motion.button>
                 </div>
@@ -1247,18 +1062,12 @@ export function BusinessServicesPage({
             className="text-center max-w-2xl mx-auto mb-14"
           >
             <span className="text-xs font-semibold text-brick block mb-2">
-              {lang === 'en' ? 'Official Membership & Financing' : '官方入驻与扶持通道'}
+              {data.sponsor.eyebrow}
             </span>
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
-              {lang === 'en'
-                ? 'Directory Listing & Chamber Financing'
-                : '商户名录入驻与商会扶持说明'}
+              {data.sponsor.title}
             </h2>
-            <p className="mt-3 text-sm text-neutral-600">
-              {lang === 'en'
-                ? `The CAACI Business Directory listing is part of Business Membership: ${directoryPrice}/year (${directoryCard} with the 3.5% card fee when paying online by card). We also accept check, Zelle and cash — email caaci.org@gmail.com to arrange payment or ask questions.`
-                : `华协商业名录收录包含在商业会员中：${directoryPrice}/年（在线刷卡合计 ${directoryCard}，含 3.5% 手续费）。也可使用支票、Zelle、现金等方式付款，请致信 caaci.org@gmail.com 安排付款或咨询。`}
-            </p>
+            <p className="mt-3 text-sm text-neutral-600">{fill(data.sponsor.text)}</p>
           </motion.div>
 
           <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
@@ -1278,7 +1087,7 @@ export function BusinessServicesPage({
               >
                 {tier.recommended && (
                   <div className="absolute -top-3 left-8 bg-ink text-white text-[11px] font-medium px-3 py-0.5 rounded-full">
-                    {lang === 'en' ? 'Recommended' : '推荐方案'}
+                    {data.sponsor.recommended}
                   </div>
                 )}
 
@@ -1357,20 +1166,10 @@ export function BusinessServicesPage({
                     <Check className="w-6 h-6" />
                   </div>
                   <h3 className="text-xl font-semibold text-ink">
-                    {isListing
-                      ? t('Listing Submitted', '商户信息已提交')
-                      : t('Message Sent', '信息已成功发送')}
+                    {isListing ? data.modal.listingSentTitle : data.modal.inquirySentTitle}
                   </h3>
                   <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-                    {isListing
-                      ? t(
-                          'Thank you! CAACI staff will review your listing before it appears in the directory. Directory listings are included with Business Membership.',
-                          '感谢您的支持！CAACI 工作人员审核通过后，您的商户将显示在名录中。名录收录包含在商业会员中。',
-                        )
-                      : t(
-                          'Thank you! Your inquiry has been sent to CAACI.',
-                          '感谢您的支持！您的咨询已发送至 CAACI。',
-                        )}
+                    {isListing ? data.modal.listingSentText : data.modal.inquirySentText}
                   </p>
                   <div className="pt-3 flex flex-wrap items-center justify-center gap-2">
                     {isListing && (
@@ -1379,10 +1178,7 @@ export function BusinessServicesPage({
                         onClick={goToBusinessMembership}
                         className="px-5 py-2.5 rounded-full bg-brick text-white text-xs font-medium hover:bg-brick-pressed transition-colors cursor-pointer"
                       >
-                        {t(
-                          `Get Business Membership (${directoryPrice}/yr)`,
-                          `办理商业会员 (${directoryPrice}/年)`,
-                        )}
+                        {fill(data.modal.getMembership)}
                       </button>
                     )}
                     <button
@@ -1390,7 +1186,7 @@ export function BusinessServicesPage({
                       onClick={() => setIsModalOpen(false)}
                       className="px-5 py-2.5 rounded-full border border-neutral-300 text-neutral-800 hover:border-neutral-800 text-xs font-medium transition-colors cursor-pointer"
                     >
-                      {t('Close', '关闭')}
+                      {data.modal.close}
                     </button>
                   </div>
                 </div>
@@ -1398,38 +1194,24 @@ export function BusinessServicesPage({
                 <div>
                   <div className="mb-6">
                     <span className="text-[11px] font-semibold text-brick block mb-1">
-                      {lang === 'en' ? 'Direct Application' : '在线咨询与入驻申请'}
+                      {data.modal.eyebrow}
                     </span>
                     <h3 className="text-2xl font-semibold tracking-tight text-ink">
-                      {inquiryType === 'directory'
-                        ? lang === 'en'
-                          ? 'Join the Business Directory'
-                          : '加入认证华人商业名录'
-                        : inquiryType === 'microloan'
-                          ? lang === 'en'
-                            ? 'Chamber Microloan Consultation'
-                            : '商会小额贷款咨询申请'
-                          : inquiryType === 'sponsor'
-                            ? lang === 'en'
-                              ? 'Corporate Partnership Inquiry'
-                              : '企业会员与赞助合作申请'
-                            : lang === 'en'
-                              ? 'General Business Inquiry'
-                              : '商业合作与经贸咨询'}
+                      {data.modal.titles[inquiryType]}
                     </h3>
                   </div>
 
                   <form onSubmit={handleFormSubmit} className="space-y-4">
                     <div>
                       <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                        {lang === 'en' ? 'Business / Company Name' : '企业或商户名称'} *
+                        {data.modal.businessName} *
                       </label>
                       <input
                         type="text"
                         required
                         value={businessName}
                         onChange={(e) => setBusinessName(e.target.value)}
-                        placeholder="e.g. Mandarin Wok / 香槟中餐"
+                        placeholder={data.modal.placeholders.businessName}
                         className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
                       />
                     </div>
@@ -1438,7 +1220,7 @@ export function BusinessServicesPage({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                            {t('Category', '商户类别')} *
+                            {data.modal.category} *
                           </label>
                           <select
                             required
@@ -1455,13 +1237,13 @@ export function BusinessServicesPage({
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                            {t('Business Phone', '商户电话')}
+                            {data.modal.businessPhone}
                           </label>
                           <input
                             type="tel"
                             value={contactPhone}
                             onChange={(e) => setContactPhone(e.target.value)}
-                            placeholder="(217) 000-0000"
+                            placeholder={data.modal.placeholders.phone}
                             className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
                           />
                         </div>
@@ -1470,27 +1252,27 @@ export function BusinessServicesPage({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                            {lang === 'en' ? 'Contact Person' : '联系人姓名'} *
+                            {data.modal.contactPerson} *
                           </label>
                           <input
                             type="text"
                             required
                             value={contactName}
                             onChange={(e) => setContactName(e.target.value)}
-                            placeholder="e.g. Ying Man Tang"
+                            placeholder={data.modal.placeholders.contactName}
                             className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
                           />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                            {lang === 'en' ? 'Phone Number' : '联系电话'} *
+                            {data.modal.phone} *
                           </label>
                           <input
                             type="tel"
                             required
                             value={contactPhone}
                             onChange={(e) => setContactPhone(e.target.value)}
-                            placeholder="(217) 000-0000"
+                            placeholder={data.modal.placeholders.phone}
                             className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
                           />
                         </div>
@@ -1499,17 +1281,14 @@ export function BusinessServicesPage({
 
                     <div>
                       <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                        {isListing
-                          ? t('Contact Email', '联系邮箱')
-                          : t('Email Address', '电子邮箱')}{' '}
-                        *
+                        {isListing ? data.modal.contactEmail : data.modal.emailAddress} *
                       </label>
                       <input
                         type="email"
                         required
                         value={contactEmail}
                         onChange={(e) => setContactEmail(e.target.value)}
-                        placeholder="contact@company.com"
+                        placeholder={data.modal.placeholders.email}
                         className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
                       />
                     </div>
@@ -1518,26 +1297,26 @@ export function BusinessServicesPage({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                            {t('Address', '商户地址')}
+                            {data.modal.address}
                           </label>
                           <input
                             type="text"
                             value={address}
                             onChange={(e) => setAddress(e.target.value)}
-                            placeholder="123 Main St, Champaign, IL"
+                            placeholder={data.modal.placeholders.address}
                             className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
                           />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                            {t('Website', '网站')}
+                            {data.modal.website}
                           </label>
                           <input
                             type="text"
                             inputMode="url"
                             value={website}
                             onChange={(e) => setWebsite(e.target.value)}
-                            placeholder="example.com"
+                            placeholder={data.modal.placeholders.website}
                             className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
                           />
                         </div>
@@ -1546,11 +1325,7 @@ export function BusinessServicesPage({
 
                     <div>
                       <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                        {isListing
-                          ? t('Business Description', '商户简介')
-                          : lang === 'en'
-                            ? 'Inquiry Details / Proposed Perk'
-                            : '需求简述 / 会员特惠方案'}
+                        {isListing ? data.modal.businessDescription : data.modal.inquiryDetails}
                       </label>
                       <textarea
                         rows={3}
@@ -1558,13 +1333,8 @@ export function BusinessServicesPage({
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder={
                           isListing
-                            ? t(
-                                'What your business offers, and any discount for CAACI members...',
-                                '简述您的主营业务，以及向华协会员提供的优惠...',
-                              )
-                            : lang === 'en'
-                              ? 'Describe your services, proposed member discount, or financing requirements...'
-                              : '简述您的主营业务、向华协会员提供的优惠折扣，或贷款意向金额...'
+                            ? data.modal.placeholders.listingNotes
+                            : data.modal.placeholders.inquiryNotes
                         }
                         className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-800"
                       />
@@ -1572,10 +1342,7 @@ export function BusinessServicesPage({
 
                     {isListing && (
                       <p className="text-[11px] text-neutral-500 leading-relaxed">
-                        {t(
-                          'The business phone, address, website and description are shown publicly once CAACI staff approve the listing.',
-                          '工作人员审核通过后，商户电话、地址、网站与简介将公开显示在名录中。',
-                        )}
+                        {data.modal.listingNote}
                       </p>
                     )}
 
@@ -1597,10 +1364,10 @@ export function BusinessServicesPage({
                         <Send className="w-4 h-4" />
                         <span>
                           {sending
-                            ? t('Sending…', '提交中…')
+                            ? data.modal.sending
                             : isListing
-                              ? t('Submit Listing', '确认提交申请')
-                              : t('Submit Inquiry', '确认提交申请')}
+                              ? data.modal.submitListing
+                              : data.modal.submitInquiry}
                         </span>
                       </button>
                     </div>
