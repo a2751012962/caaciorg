@@ -12,8 +12,10 @@
 // Copy, never reference: an event holds its own copy of the questions, so
 // nothing here touches events. The questions are checked by validateQuestions,
 // the same rule the events they are copied into apply.
-// Every request is gated by requireAdmin.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+// Every request is gated by requirePerm(…, 'events'): administrators, and
+// content managers allowed to run events (0041).
+import { json, bad, sb } from '../_lib.js';
+import { requirePerm } from '../_content.js';
 import { validateQuestions } from '../_event-form.js';
 
 const KINDS = new Set(['volunteer', 'registration']);
@@ -46,7 +48,7 @@ async function idFrom(request) {
 }
 
 export async function onRequestGet({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'events');
   if (gate.error) return gate.error;
 
   const kind = (new URL(request.url).searchParams.get('kind') || '').trim();
@@ -65,7 +67,7 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPut({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'events');
   if (gate.error) return gate.error;
 
   let b;
@@ -100,7 +102,7 @@ export async function onRequestPut({ request, env }) {
 }
 
 export async function onRequestPost({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'events');
   if (gate.error) return gate.error;
 
   let b;
@@ -152,7 +154,7 @@ export async function onRequestPost({ request, env }) {
 }
 
 export async function onRequestDelete({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'events');
   if (gate.error) return gate.error;
 
   const id = await idFrom(request);

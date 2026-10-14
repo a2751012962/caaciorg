@@ -9,6 +9,13 @@ export const json = (data, status = 200, headers = {}) =>
 
 export const bad = (msg, status = 400) => json({ error: msg }, status);
 
+// A PostgREST `ilike` filter that matches `value` as typed, any case: the
+// backslash (the escape character itself) first, then the pattern characters
+// `_`, `%` and `*`. Use for an exact, case-insensitive email lookup:
+//   filters: [`email=ilike.${ilikeExact(email)}`]
+export const ilikeExact = (value) =>
+  encodeURIComponent(String(value).replace(/[\\_%*]/g, (c) => `\\${c}`));
+
 // --- Supabase REST (PostgREST) using the service-role key (bypasses RLS) ---
 export function sb(env) {
   const base = env.SUPABASE_URL;

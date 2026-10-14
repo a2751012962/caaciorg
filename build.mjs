@@ -172,6 +172,13 @@ await writeFile(
     '/events/:slug/volunteer/ /event-volunteer/ 200',
     '/zh/events/:slug/volunteer /zh/event-volunteer/ 200',
     '/zh/events/:slug/volunteer/ /zh/event-volunteer/ 200',
+    // One article of the columns under About (0040): /about/articles/<slug>/
+    // is served by the copy at /about/article/, which reads the slug from the
+    // address (ArticlePage.tsx).
+    '/about/articles/:slug /about/article/ 200',
+    '/about/articles/:slug/ /about/article/ 200',
+    '/zh/about/articles/:slug /zh/about/article/ 200',
+    '/zh/about/articles/:slug/ /zh/about/article/ 200',
     '',
   ].join('\n'),
 );
@@ -187,6 +194,10 @@ await writeFile(
 const SPA_ROUTES = [
   '',
   'about',
+  // The column directory (/about/columns/?c=<column>), and the copy the
+  // _redirects rewrites above serve at /about/articles/<slug>/.
+  'about/columns',
+  'about/article',
   'events',
   'membership',
   'account',

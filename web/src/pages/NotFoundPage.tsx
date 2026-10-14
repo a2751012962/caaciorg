@@ -29,11 +29,11 @@ export function NotFoundPage({ content, lang, onOpenModal, onNavigate }: NotFoun
 
   useEffect(() => {
     const previous = document.title;
-    document.title = `${data.title} | Chinese American Association of Central Illinois`;
+    document.title = `${data.title} | ${data.documentTitleSuffix}`;
     return () => {
       document.title = previous;
     };
-  }, [data.title]);
+  }, [data.title, data.documentTitleSuffix]);
 
   return (
     <div className="bg-white">
@@ -56,7 +56,7 @@ export function NotFoundPage({ content, lang, onOpenModal, onNavigate }: NotFoun
             </p>
             <p className="text-xs text-neutral-500 font-sans break-all">
               {data.requested}
-              {lang === 'en' ? ': ' : '：'}
+              {data.requestedSeparator}
               <code className="font-mono text-neutral-700">{requested}</code>
             </p>
             <div className="flex flex-wrap gap-3 pt-1">

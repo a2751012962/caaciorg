@@ -1,4 +1,4 @@
-// /api/admin/tiers  (admin only)
+// /api/admin/tiers  (administrators, and content managers with 'plans', 0041)
 //   GET  — every membership tier (inactive ones too), in page order.
 //   POST — edit one tier's copy and/or price:
 //          { id, description?, description_zh?, features?, features_zh?, price_cents? }
@@ -15,7 +15,8 @@
 // $0 tiers (free, honorary) never go through Stripe, and a paid tier can't be
 // made $0 (or the reverse): checkout treats a $0 self-serve tier as the free
 // plan, which would leave paying subscribers on a "free" tier.
-import { json, bad, sb, stripe, requireAdmin } from '../_lib.js';
+import { json, bad, sb, stripe } from '../_lib.js';
+import { requirePerm } from '../_content.js';
 import { syncTierPrice } from '../_tier-price.js';
 import { requireActionCode } from './_action-code.js';
 
@@ -70,7 +71,7 @@ export function parsePrice(tier, raw) {
 }
 
 export async function onRequestGet({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'plans');
   if (gate.error) return gate.error;
   try {
     const { rows } = await sb(env).select('membership_tiers', {
@@ -85,7 +86,7 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPost({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'plans');
   if (gate.error) return gate.error;
 
   let b;

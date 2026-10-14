@@ -13,8 +13,10 @@
 // asks the site's default questions; an array is its own form, same check.
 // Listed rows carry registration_count, so the admin can be warned before
 // changing the questions of a form people have already answered.
-// Every request is gated by requireAdmin.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+// Every request is gated by requirePerm(…, 'events'): administrators, and
+// content managers allowed to run events (0041).
+import { json, bad, sb } from '../_lib.js';
+import { requirePerm } from '../_content.js';
 import { validateQuestions } from '../_event-form.js';
 
 const MAX_LIMIT = 50;
@@ -109,7 +111,7 @@ function parseFields(b) {
 }
 
 export async function onRequestGet({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'events', 'news');
   if (gate.error) return gate.error;
 
   const url = new URL(request.url);
@@ -173,7 +175,7 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPut({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'events');
   if (gate.error) return gate.error;
 
   let b;
@@ -205,7 +207,7 @@ export async function onRequestPut({ request, env }) {
 }
 
 export async function onRequestPost({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'events');
   if (gate.error) return gate.error;
 
   let b;
@@ -230,7 +232,7 @@ export async function onRequestPost({ request, env }) {
 }
 
 export async function onRequestDelete({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'events');
   if (gate.error) return gate.error;
 
   let id = new URL(request.url).searchParams.get('id') || '';

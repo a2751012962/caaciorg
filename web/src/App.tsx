@@ -8,6 +8,7 @@ import { initSmoothScroll, destroySmoothScroll, scrollToTop } from './utils/smoo
 import { AuthProvider, loginUrl, useAuth } from './lib/auth';
 import { initialLang, isZhPath, storeLang, type Lang } from './lib/lang';
 import { fadeLang } from './lib/langFade';
+import { ARTICLE_PATH, COLUMNS_PATH, articleTarget } from './lib/articleRoutes';
 
 // The home page ships in the main bundle; every other page loads on first visit.
 import { HomePage } from './pages/HomePage';
@@ -56,6 +57,13 @@ const AdminApp = lazy(() =>
 const PlanPreviewPage = lazy(() =>
   import('./pages/PlanPreviewPage').then((m) => ({ default: m.PlanPreviewPage })),
 );
+// The columns (专栏) under About: the directory and one article (0040).
+const ColumnsPage = lazy(() =>
+  import('./pages/ColumnsPage').then((m) => ({ default: m.ColumnsPage })),
+);
+const ArticlePage = lazy(() =>
+  import('./pages/ArticlePage').then((m) => ({ default: m.ArticlePage })),
+);
 const NotFoundPage = lazy(() =>
   import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
 );
@@ -75,6 +83,10 @@ export type PageId =
   | 'merchant'
   | 'pay'
   | 'token-admin'
+  // /about/columns/ and /about/articles/<slug>/: two segments deep, recognised
+  // by their own patterns (lib/articleRoutes.js), not PAGE_BY_SEGMENT.
+  | 'columns'
+  | 'article'
   // Cloudflare Pages serves dist/404.html (this app) at any address that
   // matches nothing; the page keeps that address and says so.
   | 'not-found';
@@ -109,6 +121,8 @@ const VOLUNTEER_PATH = /^\/(?:zh\/)?events\/([^/]+)\/volunteer\/?$/i;
 function pageFromPath(pathname: string): PageId {
   if (REGISTER_PATH.test(pathname)) return 'event-register';
   if (VOLUNTEER_PATH.test(pathname)) return 'event-volunteer';
+  if (COLUMNS_PATH.test(pathname)) return 'columns';
+  if (ARTICLE_PATH.test(pathname)) return 'article';
   const segments = pathname
     .replace(/^\/zh(?=\/|$)/, '')
     .split('/')
@@ -127,6 +141,11 @@ const pathFor = (page: PageId, lang: Lang, from = '') => {
   if (match) return `${prefix}/events/${match[1]}/register/`;
   const volunteer = page === 'event-volunteer' ? VOLUNTEER_PATH.exec(from) : null;
   if (volunteer) return `${prefix}/events/${volunteer[1]}/volunteer/`;
+  // An article keeps its slug the same way; without one there is nothing to
+  // show but the directory. The directory's ?c= rides along in the query.
+  const article = page === 'article' ? ARTICLE_PATH.exec(from) : null;
+  if (article) return `${prefix}/about/articles/${article[1]}/`;
+  if (page === 'article' || page === 'columns') return `${prefix}/about/columns/`;
   if (page === 'not-found') return prefix + (from.replace(/^\/zh(?=\/|$)/, '') || '/');
   return `${prefix}/${page === 'home' ? '' : `${page}/`}`;
 };
@@ -198,12 +217,24 @@ function Site() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Accepts a page id, optionally with a #section ("events#past").
+  // Accepts a page id, optionally with a #section ("events#past"), or one of
+  // the columns targets: 'columns', 'columns:<column>', 'article:<slug>'.
   const navigateTo = (target: string) => {
+    const columns = articleTarget(target, lang);
+    if (columns) {
+      setCurrentPage(columns.page);
+      window.history.pushState(null, '', columns.url);
+      // The article page is keyed on the address, so moving to the next
+      // article starts it over instead of keeping the last one's state.
+      setRoute(columns.url);
+      scrollToTop();
+      return;
+    }
     const [id, hash] = target.split('#');
     const page = PAGE_BY_SEGMENT[id === 'home' ? '' : id] ?? 'home';
     setCurrentPage(page);
     window.history.pushState(null, '', pathFor(page, lang) + (hash ? `#${hash}` : ''));
+    setRoute(window.location.pathname + window.location.search);
     if (hash) {
       setTimeout(() => document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' }), 50);
     } else {
@@ -276,6 +307,13 @@ function Site() {
         return <PayPage key={route} {...pageProps} />;
       case 'token-admin':
         return <TokenAdminPage {...pageProps} />;
+      case 'columns':
+        // Keyed on the address: back/forward between two ?c= entries restarts
+        // the list on the column the address names. Switching tabs on the
+        // page only replaces the address, so it does not remount.
+        return <ColumnsPage key={route} {...pageProps} />;
+      case 'article':
+        return <ArticlePage key={route} {...pageProps} />;
       case 'not-found':
         return <NotFoundPage key={route} {...pageProps} />;
       case 'home':
@@ -293,7 +331,8 @@ function Site() {
       <Navbar
         content={content}
         lang={lang}
-        currentPage={currentPage}
+        // The columns live under About, so its nav item stays lit there.
+        currentPage={currentPage === 'columns' || currentPage === 'article' ? 'about' : currentPage}
         onToggleLang={toggleLang}
         onNavigate={navigateTo}
         onOpenModal={handleOpenModal}

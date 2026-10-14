@@ -46,19 +46,143 @@ export interface BusinessSponsorTier {
   recommended?: boolean;
   /** membership: link to Business Membership checkout; microloan: open the inquiry form */
   action?: 'membership' | 'microloan';
+  /** Button label; a tier without one shows `sponsor.defaultButton`. */
+  cta?: string;
+}
+
+// Which icon and tint a pillar card draws; the glyphs and classes live in the page.
+export type BusinessPillarIcon = 'store' | 'coins' | 'users' | 'briefcase';
+// Which section of the page a pillar's link scrolls to.
+export type BusinessPillarTarget = 'directory' | 'microloan' | 'mentorship' | 'sponsorship';
+
+export interface BusinessPillar {
+  icon: BusinessPillarIcon;
+  title: string;
+  /** The small chip beside the title; may hold {count} or {price}. */
+  badge: string;
+  /** May hold {price} and {card}. */
+  text: string;
+  linkLabel: string;
+  target: BusinessPillarTarget;
 }
 
 // Rendered strings may hold {count} (merchants actually listed), {price} (live
 // Business Membership base price) and {card} (that price + 3.5% card fee);
 // BusinessServicesPage fills them in.
 export interface BusinessServicesContent {
+  // title, subtitle and instruction are not read by BusinessServicesPage (the
+  // hero section below carries the headline); they have no effect on the page.
   title: string;
   subtitle: string;
   instruction: string;
+  topBar: {
+    backToMenu: string;
+    /** Phone-width label of the back button. */
+    backShort: string;
+    /** Screen-reader label of the breadcrumb nav. */
+    breadcrumbLabel: string;
+    join: string;
+    joinShort: string;
+    inquiry: string;
+    inquiryShort: string;
+  };
+  hero: {
+    eyebrow: string;
+    title: string;
+    text: string;
+    exploreButton: string;
+    loanButton: string;
+    /** {price} = the live Business Membership price. */
+    joinButton: string;
+  };
+  pillars: BusinessPillar[];
   stats: {
     value: string;
     label: string;
   }[];
+  directory: {
+    eyebrow: string;
+    title: string;
+    text: string;
+    searchPlaceholder: string;
+    joinButton: string;
+    joinButtonShort: string;
+    allCategories: string;
+    empty: string;
+    /** Badge on a featured merchant: phone-width card, then desktop row. */
+    verifiedShort: string;
+    verified: string;
+    websiteShort: string;
+    website: string;
+    directionsShort: string;
+    directions: string;
+    previousLabel: string;
+    nextLabel: string;
+  };
+  microloan: {
+    eyebrow: string;
+    title: string;
+    /** Bold lead-in plus its sentence; a label ending in ":" gets a space after it. */
+    intro: { label: string; text: string }[];
+    steps: { title: string; text: string }[];
+    /** Shown on the mail button and used as its address. */
+    email: string;
+    emailSubject: string;
+    /** Shown on the call button; the tel: link keeps only its digits. */
+    phone: string;
+  };
+  eventsSection: {
+    eyebrow: string;
+    title: string;
+    text: string;
+    viewButton: string;
+  };
+  sponsor: {
+    eyebrow: string;
+    title: string;
+    /** {price}, {card}. */
+    text: string;
+    recommended: string;
+    defaultButton: string;
+  };
+  modal: {
+    eyebrow: string;
+    titles: { directory: string; microloan: string; sponsor: string; general: string };
+    businessName: string;
+    contactPerson: string;
+    phone: string;
+    category: string;
+    businessPhone: string;
+    contactEmail: string;
+    emailAddress: string;
+    address: string;
+    website: string;
+    businessDescription: string;
+    inquiryDetails: string;
+    placeholders: {
+      businessName: string;
+      contactName: string;
+      phone: string;
+      email: string;
+      address: string;
+      website: string;
+      listingNotes: string;
+      inquiryNotes: string;
+    };
+    listingNote: string;
+    submitListing: string;
+    submitInquiry: string;
+    sending: string;
+    listingSentTitle: string;
+    inquirySentTitle: string;
+    listingSentText: string;
+    inquirySentText: string;
+    /** {price} = the live Business Membership price. */
+    getMembership: string;
+    close: string;
+    networkError: string;
+    sendFailed: string;
+  };
   /** Built-in fallback only: the page lists business_directory rows (lib/directory.ts). */
   merchants: BusinessMerchant[];
   events: BusinessEventItem[];
@@ -76,6 +200,165 @@ export const businessServicesDataEN: BusinessServicesContent = {
     { value: '2.5% - 3%', label: 'Low Interest Microloan Rate' },
     { value: '{price}/yr', label: 'Business Directory Fee' },
   ],
+  topBar: {
+    backToMenu: 'Back to Menu',
+    backShort: 'Back',
+    breadcrumbLabel: 'Breadcrumb',
+    join: '+ Join Directory',
+    joinShort: '+ Join',
+    inquiry: 'Inquiry',
+    inquiryShort: 'Inquiry',
+  },
+  hero: {
+    eyebrow: 'CAACI Business Directory & Regional Resources',
+    title: 'Commerce, Capital & Community Directory.',
+    text: 'CAACI connects local Chinese-owned businesses and community members with regional business listings, the Champaign County Chamber of Commerce Microloan program ($7,500–$15,000), and events including the All-State Agencies Job Fair.',
+    exploreButton: 'Explore Directory',
+    loanButton: 'Chamber Microloan Info',
+    joinButton: 'Join Directory ({price}/yr)',
+  },
+  pillars: [
+    {
+      icon: 'store',
+      title: 'Merchant Directory',
+      badge: '{count}',
+      text: 'Verified dining, dental clinics, banking, insurance, and media services in Champaign, Urbana, and Savoy.',
+      linkLabel: 'View Directory',
+      target: 'directory',
+    },
+    {
+      icon: 'coins',
+      title: 'Chamber Microloans',
+      badge: '$7.5K-$15K',
+      text: 'Champaign County Chamber program offering 2.5%–3.0% interest rates and 5-year repayment terms for small businesses.',
+      linkLabel: 'Loan Details',
+      target: 'microloan',
+    },
+    {
+      icon: 'users',
+      title: 'Job Fair & Events',
+      badge: 'Siebel Center',
+      text: 'All-State Agencies Job Fair co-hosted with Illinois Department of Public Health (IDPH) at UIUC Siebel Center for Design.',
+      linkLabel: 'View Events',
+      target: 'mentorship',
+    },
+    {
+      icon: 'briefcase',
+      title: 'Directory Membership',
+      badge: '{price}/yr',
+      text: 'A Business Directory listing comes with Business Membership: {price}/yr ({card} by card online, incl. 3.5% fee). Check, Zelle or cash also accepted — email us.',
+      linkLabel: 'Membership Info',
+      target: 'sponsorship',
+    },
+  ],
+  directory: {
+    eyebrow: 'Verified Directory',
+    title: 'Central Illinois Chinese Business Directory',
+    text: 'Present your CAACI Electronic Member Card at checkout to redeem special discounts.',
+    searchPlaceholder: 'Search merchants...',
+    joinButton: 'Join Directory',
+    joinButtonShort: 'Join',
+    allCategories: 'All Categories',
+    empty: 'No matching businesses found. Try adjusting your search query.',
+    verifiedShort: 'Verified',
+    verified: 'CAACI Verified',
+    websiteShort: 'Website',
+    website: 'Visit Website',
+    directionsShort: 'Directions',
+    directions: 'Directions',
+    previousLabel: 'Previous merchant',
+    nextLabel: 'Next merchant',
+  },
+  microloan: {
+    eyebrow: 'Financing Assistance',
+    title: 'Champaign County Chamber Microloan Assistance',
+    intro: [
+      {
+        label: 'Capital Amount & Term:',
+        text: '$7,500 to $15,000 for equipment, inventory, or lease improvements with up to 5-year repayment terms.',
+      },
+      {
+        label: 'Low Interest Rates:',
+        text: 'Rates not exceeding 3.0% (2.5% rate with automatic monthly bank ACH repayments).',
+      },
+    ],
+    steps: [
+      {
+        title: 'Step 1: Prepare Required Materials',
+        text: 'Prepare a concise 1-page business plan, federal Employer Identification Number (EIN), and Certificate of Good Standing from the Illinois Secretary of State.',
+      },
+      {
+        title: 'Step 2: Direct Submission to Chamber',
+        text: 'Contact Laura Weis, President & CEO of the Champaign County Chamber of Commerce directly via email or phone to submit your application materials.',
+      },
+      {
+        title: 'Step 3: Review & Disbursement',
+        text: 'The Chamber Loan Committee evaluates character and business viability over strict collateral requirements. Upon approval, funds are disbursed directly.',
+      },
+    ],
+    email: 'lauraw@champaigncounty.org',
+    emailSubject: 'Champaign County Chamber Microloan Inquiry',
+    phone: '(217) 359-1791',
+  },
+  eventsSection: {
+    eyebrow: 'Programs & Networking',
+    title: 'Commercial Events & Entrepreneur Mentorship',
+    text: 'Connecting aspiring founders and small business owners with seasoned executives, venture leaders, and state agencies.',
+    viewButton: 'View Event / RSVP',
+  },
+  sponsor: {
+    eyebrow: 'Official Membership & Financing',
+    title: 'Directory Listing & Chamber Financing',
+    text: 'The CAACI Business Directory listing is part of Business Membership: {price}/year ({card} with the 3.5% card fee when paying online by card). We also accept check, Zelle and cash — email caaci.org@gmail.com to arrange payment or ask questions.',
+    recommended: 'Recommended',
+    defaultButton: 'Apply for Tier',
+  },
+  modal: {
+    eyebrow: 'Direct Application',
+    titles: {
+      directory: 'Join the Business Directory',
+      microloan: 'Chamber Microloan Consultation',
+      sponsor: 'Corporate Partnership Inquiry',
+      general: 'General Business Inquiry',
+    },
+    businessName: 'Business / Company Name',
+    contactPerson: 'Contact Person',
+    phone: 'Phone Number',
+    category: 'Category',
+    businessPhone: 'Business Phone',
+    contactEmail: 'Contact Email',
+    emailAddress: 'Email Address',
+    address: 'Address',
+    website: 'Website',
+    businessDescription: 'Business Description',
+    inquiryDetails: 'Inquiry Details / Proposed Perk',
+    // Example values in the empty fields; they read the same in both languages.
+    placeholders: {
+      businessName: 'e.g. Mandarin Wok / 香槟中餐',
+      contactName: 'e.g. Ying Man Tang',
+      phone: '(217) 000-0000',
+      email: 'contact@company.com',
+      address: '123 Main St, Champaign, IL',
+      website: 'example.com',
+      listingNotes: 'What your business offers, and any discount for CAACI members...',
+      inquiryNotes:
+        'Describe your services, proposed member discount, or financing requirements...',
+    },
+    listingNote:
+      'The business phone, address, website and description are shown publicly once CAACI staff approve the listing.',
+    submitListing: 'Submit Listing',
+    submitInquiry: 'Submit Inquiry',
+    sending: 'Sending…',
+    listingSentTitle: 'Listing Submitted',
+    inquirySentTitle: 'Message Sent',
+    listingSentText:
+      'Thank you! CAACI staff will review your listing before it appears in the directory. Directory listings are included with Business Membership.',
+    inquirySentText: 'Thank you! Your inquiry has been sent to CAACI.',
+    getMembership: 'Get Business Membership ({price}/yr)',
+    close: 'Close',
+    networkError: 'Network error — please try again.',
+    sendFailed: 'Could not send. Please try again.',
+  },
   merchants: [
     {
       id: 'kung-fu-tea',
@@ -269,6 +552,7 @@ export const businessServicesDataEN: BusinessServicesContent = {
       ],
       recommended: true,
       action: 'membership',
+      cta: 'Get Business Membership',
     },
     {
       name: 'Chamber Microloan Program',
@@ -276,6 +560,7 @@ export const businessServicesDataEN: BusinessServicesContent = {
       period: '5-yr term',
       subtitle: 'Affordable financing via Champaign County Chamber of Commerce.',
       action: 'microloan',
+      cta: 'Ask About Microloans',
       features: [
         'Low interest rates capped at 3% (2.5% with auto monthly repayment)',
         'Focus on minority and women-owned businesses in Champaign County',
@@ -296,6 +581,165 @@ export const businessServicesDataZH: BusinessServicesContent = {
     { value: '2.5% - 3%', label: '扶持性低息贷款年化利率' },
     { value: '{price}/年', label: '商户名录入驻年度会费' },
   ],
+  topBar: {
+    backToMenu: '返回菜单',
+    backShort: '返回',
+    breadcrumbLabel: '面包屑导航',
+    join: '+ 商户入驻',
+    joinShort: '+ 入驻',
+    inquiry: '咨询对接',
+    inquiryShort: '咨询',
+  },
+  hero: {
+    eyebrow: 'CAACI 华人商业名录与社区资源',
+    title: '商业服务、商会资源与华商名录',
+    text: 'CAACI 致力于促进本地华商与社区成员的交流与发展，提供经核实的地方商业名录、香槟县商会小额扶持贷款通道（$7,500–$15,000）、以及与伊利诺伊州公共卫生部合办的全州政府机构招聘会等真实资讯。',
+    exploreButton: '浏览本地名录商户',
+    loanButton: '查看商会小额贷款',
+    joinButton: '商户入驻登记 ({price}/年)',
+  },
+  pillars: [
+    {
+      icon: 'store',
+      title: '认证华人商户名录',
+      badge: '{count}',
+      text: '涵盖香槟、厄巴纳及萨沃伊的地道中餐茶饮、牙科诊所、银行金融与房产服务真实商户。',
+      linkLabel: '查看名录',
+      target: 'directory',
+    },
+    {
+      icon: 'coins',
+      title: '商会小额扶持贷款',
+      badge: '$7.5K-$15K',
+      text: '香槟县商会小微企业低息贷款计划，年化利率 2.5%–3.0%，还款周期最长 5 年。',
+      linkLabel: '了解贷款政策',
+      target: 'microloan',
+    },
+    {
+      icon: 'users',
+      title: '全州招聘会与活动',
+      badge: 'Siebel Center',
+      text: '携手伊利诺伊州公共卫生部（IDPH），在 UIUC 设计中心举办全州政府机构现场招聘对接会。',
+      linkLabel: '查看招聘会详情',
+      target: 'mentorship',
+    },
+    {
+      icon: 'briefcase',
+      title: '名录入驻与会费',
+      badge: '{price}/yr',
+      text: '商户名录收录包含在商业会员中：{price}/年（在线刷卡合计 {card}，含 3.5% 手续费）。也接受支票、Zelle、现金，请来信联系。',
+      linkLabel: '查看入驻说明',
+      target: 'sponsorship',
+    },
+  ],
+  directory: {
+    eyebrow: '官方认证商业名录',
+    title: '伊利诺伊中部华人商业名录',
+    text: '在以下合作商户消费时出示 CAACI 电子会员卡，即可尊享签约专属折扣。',
+    searchPlaceholder: '搜索商户、服务...',
+    joinButton: '商户入驻申请',
+    joinButtonShort: '入驻',
+    allCategories: '全部类别',
+    empty: '未找到符合条件的商户，请尝试其他关键词。',
+    // The badge is drawn in English on both language pages today; kept as
+    // shown so the Chinese page does not change.
+    verifiedShort: 'Verified',
+    verified: 'CAACI Verified',
+    websiteShort: '网站',
+    website: '访问商户',
+    directionsShort: '导航',
+    directions: '导航路线',
+    previousLabel: '上一个商户',
+    nextLabel: '下一个商户',
+  },
+  microloan: {
+    eyebrow: '小微金融扶持',
+    title: '香槟县商会小额贷款扶持计划',
+    intro: [
+      {
+        label: '额度与周期：',
+        text: '$7,500 至 $15,000 专项扶持周转金，适用于购置设备、进货备料或店面租约改造，还款期最长 5 年。',
+      },
+      {
+        label: '优惠利率：',
+        text: '年化利率不超过 3.0%（绑定每月银行自动转账扣款享 2.5% 优惠利率）。',
+      },
+    ],
+    steps: [
+      {
+        title: '第一步：准备申请材料',
+        text: '准备 1 页纸精炼商业计划书（Business Plan）、联邦雇主识别号（EIN）以及伊利诺伊州州务卿注册良好存续证明。',
+      },
+      {
+        title: '第二步：直接联系商会申请',
+        text: '直接通过电子邮件或电话联系香槟县商会总裁兼 CEO Laura Weis 提交申请初审。',
+      },
+      {
+        title: '第三步：评审委员会评估与放款',
+        text: '商会贷款评审委员会主要依据经营者信誉与还款能力进行综合评估（不硬性要求重资产抵押），核准后直接放款。',
+      },
+    ],
+    email: 'lauraw@champaigncounty.org',
+    emailSubject: 'Champaign County Chamber Microloan Inquiry',
+    phone: '(217) 359-1791',
+  },
+  eventsSection: {
+    eyebrow: '经贸活动与导师计划',
+    title: '商业经贸活动与青年创业导师',
+    text: '汇聚美中地区资深华裔企业家、跨国高管与伊利诺伊大学商学院学者，定期举办实战研讨与政商招聘会。',
+    viewButton: '查看详情与预约',
+  },
+  sponsor: {
+    eyebrow: '官方入驻与扶持通道',
+    title: '商户名录入驻与商会扶持说明',
+    text: '华协商业名录收录包含在商业会员中：{price}/年（在线刷卡合计 {card}，含 3.5% 手续费）。也可使用支票、Zelle、现金等方式付款，请致信 caaci.org@gmail.com 安排付款或咨询。',
+    recommended: '推荐方案',
+    defaultButton: '选择此赞助方案',
+  },
+  modal: {
+    eyebrow: '在线咨询与入驻申请',
+    titles: {
+      directory: '加入认证华人商业名录',
+      microloan: '商会小额贷款咨询申请',
+      sponsor: '企业会员与赞助合作申请',
+      general: '商业合作与经贸咨询',
+    },
+    businessName: '企业或商户名称',
+    contactPerson: '联系人姓名',
+    phone: '联系电话',
+    category: '商户类别',
+    businessPhone: '商户电话',
+    contactEmail: '联系邮箱',
+    emailAddress: '电子邮箱',
+    address: '商户地址',
+    website: '网站',
+    businessDescription: '商户简介',
+    inquiryDetails: '需求简述 / 会员特惠方案',
+    // Example values in the empty fields; they read the same in both languages.
+    placeholders: {
+      businessName: 'e.g. Mandarin Wok / 香槟中餐',
+      contactName: 'e.g. Ying Man Tang',
+      phone: '(217) 000-0000',
+      email: 'contact@company.com',
+      address: '123 Main St, Champaign, IL',
+      website: 'example.com',
+      listingNotes: '简述您的主营业务，以及向华协会员提供的优惠...',
+      inquiryNotes: '简述您的主营业务、向华协会员提供的优惠折扣，或贷款意向金额...',
+    },
+    listingNote: '工作人员审核通过后，商户电话、地址、网站与简介将公开显示在名录中。',
+    submitListing: '确认提交申请',
+    submitInquiry: '确认提交申请',
+    sending: '提交中…',
+    listingSentTitle: '商户信息已提交',
+    inquirySentTitle: '信息已成功发送',
+    listingSentText:
+      '感谢您的支持！CAACI 工作人员审核通过后，您的商户将显示在名录中。名录收录包含在商业会员中。',
+    inquirySentText: '感谢您的支持！您的咨询已发送至 CAACI。',
+    getMembership: '办理商业会员 ({price}/年)',
+    close: '关闭',
+    networkError: '网络错误，请重试。',
+    sendFailed: '发送失败，请重试。',
+  },
   merchants: [
     {
       id: 'kung-fu-tea',
@@ -488,6 +932,7 @@ export const businessServicesDataZH: BusinessServicesContent = {
       ],
       recommended: true,
       action: 'membership',
+      cta: '办理商业会员',
     },
     {
       name: '香槟县商会小贷扶持',
@@ -495,6 +940,7 @@ export const businessServicesDataZH: BusinessServicesContent = {
       period: '最长 5 年期',
       subtitle: '香槟县商会（Champaign County Chamber）联合扶持小微企业资金。',
       action: 'microloan',
+      cta: '咨询小额贷款',
       features: [
         '优惠低息利率不高于 3.0%（绑定每月自动还款享 2.5% 特惠）',
         '重点扶持香槟县少数族裔与女性创业团队及小微企业',

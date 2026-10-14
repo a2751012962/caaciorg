@@ -11,8 +11,10 @@
 // members row at signUp, before the email is confirmed, so a members row alone
 // proves nothing; unconfirmed accounts are still returned (confirmed: false) so
 // staff can see them.
-// Every request is gated by requireAdmin.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+// Every request is gated by requirePerm(…, 'events'): administrators, and
+// content managers allowed to run events (0041).
+import { json, bad, sb } from '../_lib.js';
+import { requirePerm } from '../_content.js';
 import { validateQuestions, perkOf } from '../_event-form.js';
 
 const MAX_ROWS = 2000;
@@ -74,7 +76,7 @@ function countChoices(choices, answers) {
 }
 
 export async function onRequestGet({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'events');
   if (gate.error) return gate.error;
 
   const eventId = (new URL(request.url).searchParams.get('event_id') || '').trim();

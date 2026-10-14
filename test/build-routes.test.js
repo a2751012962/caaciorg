@@ -25,6 +25,9 @@ test('build: the React site is written at every route it serves, in English and 
   const routes = [
     '',
     'about/',
+    // the column directory, and the copy served at /about/articles/<slug>/
+    'about/columns/',
+    'about/article/',
     'events/',
     'membership/',
     'account/',
@@ -151,6 +154,16 @@ test('build: _redirects rewrites /events/<slug>/register onto the React registra
   ])
     assert.ok(rules.includes(rule), rule);
   assert.equal(await dist('event-volunteer/index.html'), await dist('index.html'));
+  // An article of the columns under About (0040), the same way: the page keeps
+  // /about/articles/<slug>/ in the address bar and reads the slug from it.
+  for (const rule of [
+    '/about/articles/:slug /about/article/ 200',
+    '/about/articles/:slug/ /about/article/ 200',
+    '/zh/about/articles/:slug /zh/about/article/ 200',
+    '/zh/about/articles/:slug/ /zh/about/article/ 200',
+  ])
+    assert.ok(rules.includes(rule), rule);
+  assert.equal(await dist('about/article/index.html'), await dist('index.html'));
 
   // The rewrite target is the React site, not the retired Tabler form.
   const home = await dist('index.html');

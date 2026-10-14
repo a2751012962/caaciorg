@@ -1,4 +1,4 @@
-// /api/admin/invites  (admin only) — invitation codes for Honorable Membership.
+// /api/admin/invites  (administrators, and content managers with 'invites', 0041) — invitation codes for Honorable Membership.
 //   GET    — every code (newest first) and who has used them.
 //   PUT    — create a code. Needs the emailed verification code: a code hands
 //            out a membership (and its 华协币) to whoever holds the link, which
@@ -10,7 +10,8 @@
 //   DELETE — remove a code nobody has used. A used code is the record of who
 //            got the tier through it, so it is switched off instead.
 // The member side is POST /api/invite; the rules live in invite_redeem() (0034).
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+import { json, bad, sb } from '../_lib.js';
+import { requirePerm } from '../_content.js';
 import { requireActionCode } from './_action-code.js';
 import { normalizeInviteCode } from '../invite.js';
 
@@ -61,7 +62,7 @@ export const opensSeats = (patch) =>
   patch.active === true || patch.max_redemptions !== undefined || patch.expires_at !== undefined;
 
 export async function onRequestGet({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'invites');
   if (gate.error) return gate.error;
   try {
     const [{ rows }, { rows: redemptions }] = await Promise.all([
@@ -79,7 +80,7 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPut({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'invites');
   if (gate.error) return gate.error;
 
   let b;
@@ -115,7 +116,7 @@ export async function onRequestPut({ request, env }) {
 }
 
 export async function onRequestPost({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'invites');
   if (gate.error) return gate.error;
 
   let b;
@@ -146,7 +147,7 @@ export async function onRequestPost({ request, env }) {
 }
 
 export async function onRequestDelete({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'invites');
   if (gate.error) return gate.error;
 
   let code = normalizeInviteCode(new URL(request.url).searchParams.get('code') || '');

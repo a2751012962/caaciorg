@@ -1,4 +1,4 @@
-// /api/admin/news-template?template=<name>&event_id=<uuid>  (admin only)
+// /api/admin/news-template?template=<name>&event_id=<uuid>  (administrators, and content managers with 'news')
 //   GET — one Compose News template filled in, { subject, html }, for the
 //         admin to edit and send through /api/admin/news as usual. Nothing is
 //         sent from here. `template` defaults to announcement:
@@ -13,8 +13,9 @@
 //     general, renewal — a general announcement and a membership renewal
 //       reminder. They need no event: event_id is ignored and nothing is read.
 // Links use the origin the admin panel is served from.
-// Every request is gated by requireAdmin.
-import { json, bad, sb, requireAdmin } from '../_lib.js';
+// Every request is gated by requirePerm(…, 'news').
+import { json, bad, sb } from '../_lib.js';
+import { requirePerm } from '../_content.js';
 import {
   newsTemplate,
   emailLogo,
@@ -27,7 +28,7 @@ const COLUMNS =
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function onRequestGet({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await requirePerm(request, env, 'news');
   if (gate.error) return gate.error;
 
   const url = new URL(request.url);

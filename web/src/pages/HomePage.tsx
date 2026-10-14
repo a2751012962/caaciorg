@@ -40,12 +40,10 @@ export function HomePage({ content, lang = 'en', onOpenModal, onNavigate }: Home
             <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600 shrink-0" />
             <div className="flex-1 min-w-0 space-y-1">
               <h2 className="font-semibold text-emerald-900 text-base sm:text-lg">
-                {lang === 'en' ? 'Thank you for your donation!' : '感谢您的慷慨捐赠！'}
+                {content.home.donatedTitle}
               </h2>
               <p className="text-emerald-700 text-xs sm:text-sm leading-relaxed">
-                {lang === 'en'
-                  ? 'Your payment to CAACI went through. Your gift supports our community festivals, programs, and services across Central Illinois.'
-                  : '您对华人协会的捐款已支付成功，将用于支持协会在伊利诺伊中部的节庆活动、社区项目与公共服务。'}
+                {content.home.donatedText}
               </p>
             </div>
             <button

@@ -1,23 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { AuthError, User } from '@supabase/supabase-js';
-import { KeyRound, RotateCw, UserPlus } from 'lucide-react';
+import { KeyRound, RotateCw } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { listExit, mountIn, riseFromSm, shown } from '../../../lib/motion';
-import { refusalText, tokens } from '../../../lib/tokens';
 import {
-  DIVIDED,
   Field,
   INPUT,
   Notice,
   PRIMARY,
   Panel,
-  ROW_BTN,
   SECONDARY,
   Spinner,
   TabHeader,
   useAdmin,
 } from '../kit';
+import { StaffSection } from './account/StaffSection';
 import { useTick, type Msg } from './members/shared';
 
 // The signed-in admin's own password. Mirrors the member account page: an
@@ -36,7 +34,7 @@ const needsReauth = (error: AuthError | null) =>
 const REAUTH_COOLDOWN_MS = 60_000; // Supabase sends at most one auth email a minute
 
 export default function AccountTab() {
-  const { t } = useAdmin();
+  const { t, role } = useAdmin();
   const [user, setUser] = useState<User | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -54,10 +52,14 @@ export default function AccountTab() {
     <div className="space-y-5">
       <TabHeader
         title={t('My account', '我的账号')}
-        description={t(
-          'Your own password. Root also appoints and removes administrators here.',
-          '改自己的密码；root 还能在这里管理管理员名单。',
-        )}
+        description={
+          role.is_admin
+            ? t(
+                'Your own password, and who may use this console for what.',
+                '改自己的密码，以及管理谁能使用后台的哪些功能。',
+              )
+            : t('Your own password.', '改自己的密码。')
+        }
       />
       {user ? (
         <MyPassword user={user} />
@@ -74,127 +76,8 @@ export default function AccountTab() {
       ) : (
         <Spinner label={t('Loading…', '加载中…')} />
       )}
-      <Administrators />
+      {role.is_admin && <StaffSection />}
     </div>
-  );
-}
-
-// Who is an admin, and the one place in this console to change it. The same
-// list and the same endpoint as the token back office's Settings tab
-// (/api/admin/roles): the server answers only root, so for everyone else the
-// first request is refused and this block simply does not appear. An admin
-// can mint tokens, so appointing one stays root's decision; removing one asks
-// a second time before it goes out.
-interface AdminRow {
-  id: string;
-  full_name: string | null;
-  email: string | null;
-  is_root: boolean;
-}
-
-function Administrators() {
-  const { lang, t, myId } = useAdmin();
-  const [rows, setRows] = useState<AdminRow[] | null>(null);
-  const [email, setEmail] = useState('');
-  const [pending, setPending] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<Msg>(null);
-
-  const load = useCallback(async () => {
-    const res = await tokens.admin.admins();
-    setRows(res.ok ? res.data.rows : null);
-  }, []);
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (!rows) return null;
-
-  const change = async (who: { email?: string; member_id?: string }, is_admin: boolean) => {
-    setBusy(true);
-    setMsg(null);
-    const res = await tokens.admin.setAdmin(who, is_admin);
-    setBusy(false);
-    if (!res.ok) return setMsg({ tone: 'error', text: refusalText(res, lang) });
-    setMsg({
-      tone: 'success',
-      text: is_admin
-        ? t('Admin appointed.', '已任命管理员。')
-        : t('Admin removed.', '已取消管理员。'),
-    });
-    setEmail('');
-    setPending(null);
-    await load();
-  };
-
-  return (
-    <Panel className="max-w-xl space-y-4">
-      <div>
-        <h2 className="text-sm font-bold text-ink">{t('Administrators', '管理员名单')}</h2>
-        <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
-          {t(
-            'Only root sees this. An admin can hand out tokens, so think before adding one. They must have signed up on the site first.',
-            '只有 root 看得到这一块。管理员能直接发华协币，加人前想一下。对方要先在网站注册过。',
-          )}
-        </p>
-      </div>
-      <ul className={DIVIDED}>
-        {rows.map((a) => (
-          <li key={a.id} className="py-3 flex items-center justify-between gap-3 text-sm">
-            <span className="min-w-0 break-all">
-              <span className="font-semibold text-ink">{a.full_name || '—'}</span>{' '}
-              <span className="text-neutral-500">
-                · {a.email}
-                {a.is_root ? ' · root' : ''}
-                {a.id === myId ? t(' · you', ' · 本人') : ''}
-              </span>
-            </span>
-            {!a.is_root &&
-              (pending === a.id ? (
-                <span className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    className={`${ROW_BTN} text-red-700 hover:text-red-800`}
-                    disabled={busy}
-                    onClick={() => void change({ member_id: a.id }, false)}
-                  >
-                    {t('Yes, remove', '确定取消')}
-                  </button>
-                  <button type="button" className={ROW_BTN} onClick={() => setPending(null)}>
-                    {t('Keep', '保留')}
-                  </button>
-                </span>
-              ) : (
-                <button type="button" className={ROW_BTN} onClick={() => setPending(a.id)}>
-                  {t('Remove', '取消')}
-                </button>
-              ))}
-          </li>
-        ))}
-      </ul>
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void change({ email: email.trim() }, true);
-        }}
-      >
-        <input
-          className={INPUT}
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder={t('Email of their CAACI account', '对方华协账号的邮箱')}
-          aria-label={t('Email of their CAACI account', '对方华协账号的邮箱')}
-        />
-        <button type="submit" className={SECONDARY} disabled={busy}>
-          <UserPlus className="w-4 h-4" aria-hidden />
-          {t('Make admin', '设为管理员')}
-        </button>
-      </form>
-      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-    </Panel>
   );
 }
 

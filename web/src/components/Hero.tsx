@@ -10,12 +10,11 @@ interface HeroProps {
   onNavigate?: (page: string) => void;
 }
 
-export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProps) {
+export function Hero({ content, onOpenModal, onNavigate }: HeroProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const leftColRef = useRef<HTMLDivElement>(null);
   const rightColRef = useRef<HTMLDivElement>(null);
   const bannersRef = useRef<HTMLDivElement>(null);
-  const isZh = lang === 'zh';
 
   useLayoutEffect(() => {
     const left = leftColRef.current;
@@ -108,8 +107,8 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
                 {/* width/height reserve the photo's box before it loads, so the page
                   below (and the pinned pillars section's scroll positions) don't move. */}
                 <img
-                  src="/images/about-group.jpg"
-                  alt="CAACI Members Group Gathering"
+                  src={content.welcome.heroImage}
+                  alt={content.welcome.heroImageAlt}
                   width={1600}
                   height={1064}
                   decoding="async"
@@ -119,7 +118,7 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
                 <div className="absolute inset-0 ring-1 ring-inset ring-black/5 rounded-2xl pointer-events-none" />
               </div>
               <p className="text-[11px] sm:text-xs text-neutral-500 font-sans italic">
-                CAACI Members Group Gathering · 伊利诺伊中部华人协会会员齐聚一堂
+                {content.welcome.heroCaption}
               </p>
             </div>
           </div>
@@ -141,19 +140,15 @@ export function Hero({ content, lang = 'en', onOpenModal, onNavigate }: HeroProp
             <div className="welcome-stagger-item mt-6 sm:mt-8 lg:mt-auto pt-4 sm:pt-6 border-t border-neutral-100 grid grid-cols-2 gap-4 sm:gap-6 text-xs sm:text-sm text-neutral-600 font-sans">
               <div>
                 <span className="block text-[10px] sm:text-xs font-bold text-brick mb-1">
-                  {isZh ? '社区宗旨' : 'Community Focus'}
+                  {content.welcome.focusLabel}
                 </span>
-                <span className="font-medium text-ink">
-                  {isZh ? '文化、教育与社交交流' : 'Cultural, Educational & Social Exchange'}
-                </span>
+                <span className="font-medium text-ink">{content.welcome.focusText}</span>
               </div>
               <div>
                 <span className="block text-[10px] sm:text-xs font-bold text-brick mb-1">
-                  {isZh ? '服务地区' : 'Region'}
+                  {content.welcome.regionLabel}
                 </span>
-                <span className="font-medium text-ink">
-                  {isZh ? '香槟-厄巴纳及伊利诺伊中部' : 'Champaign-Urbana & Central Illinois'}
-                </span>
+                <span className="font-medium text-ink">{content.welcome.regionText}</span>
               </div>
             </div>
           </div>

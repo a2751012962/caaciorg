@@ -21,7 +21,7 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
       <SubpageHero
         title={data.title}
         subtitle={data.subtitle}
-        bgImage="/images/volunteer-contact.jpg"
+        bgImage={data.heroImage}
         content={content}
         onOpenModal={onOpenModal}
         onNavigate={onNavigate}
@@ -32,9 +32,7 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
       <section className="py-14 bg-surface-warm border-b border-neutral-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Reveal className="max-w-4xl">
-            <span className="text-xs font-bold text-brick font-sans">
-              {lang === 'en' ? 'Welcome to Central Illinois' : '欢迎来到伊利诺伊州中部'}
-            </span>
+            <span className="text-xs font-bold text-brick font-sans">{data.introEyebrow}</span>
             <p className="mt-3 text-base sm:text-lg text-neutral-800 font-sans leading-relaxed">
               {data.intro}
             </p>
@@ -69,7 +67,7 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-neutral-100 flex items-center text-xs font-bold text-brick font-sans group-hover:translate-x-1 transition-transform">
-                  <span>{lang === 'en' ? 'Visit Official Portal' : '访问官方站点'}</span>
+                  <span>{data.visitLabel}</span>
                   <span className="ml-1">→</span>
                 </div>
               </a>
