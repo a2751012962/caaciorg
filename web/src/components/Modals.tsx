@@ -4,6 +4,7 @@ import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
 import { readAnswers, volunteerZhError } from '../lib/registration';
 import { usd } from '../lib/shared';
+import { fill } from '../lib/text';
 import { FluidTabs } from './FluidTabs';
 import { QuestionFields, blankAnswers, type AnswerState, type Question } from './QuestionFields';
 import { TurnstileBox, useTurnstile } from './Turnstile';
@@ -36,8 +37,7 @@ export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
             {modalType === 'donate' && <Heart className="w-5 h-5 text-brick" />}
             <h3 className="font-bold text-lg text-maroon">
               {modalType === 'donate' && content.modals.donateTitle}
-              {modalType === 'volunteer' &&
-                (lang === 'en' ? 'Volunteer with CAACI' : '加入 CAACI 志愿者')}
+              {modalType === 'volunteer' && content.modals.volunteerTitle}
             </h3>
           </div>
           <button
@@ -51,8 +51,10 @@ export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
 
         {/* Modal Body */}
         <div className="p-6">
-          {modalType === 'donate' && <DonateModalContent lang={lang} content={content} />}
-          {modalType === 'volunteer' && <VolunteerModalContent lang={lang} onClose={onClose} />}
+          {modalType === 'donate' && <DonateModalContent content={content} />}
+          {modalType === 'volunteer' && (
+            <VolunteerModalContent lang={lang} content={content} onClose={onClose} />
+          )}
         </div>
       </div>
     </div>
@@ -62,8 +64,8 @@ export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
 // A donation is paid on Stripe Checkout: /api/checkout creates the session
 // (minimum $1, one-time or monthly) and returns its URL. Stripe sends the donor
 // back to /thank-you/?d=…, which App.tsx forwards to /?donated=1.
-function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAACIContent }) {
-  const en = lang === 'en';
+function DonateModalContent({ content }: { content: CAACIContent }) {
+  const text = content.modals.donate;
   const [selectedAmount, setSelectedAmount] = useState<number | 'custom'>(50);
   const [customAmount, setCustomAmount] = useState('');
   const [recurring, setRecurring] = useState(false);
@@ -82,7 +84,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
     e.preventDefault();
     if (busy) return;
     if (!valid) {
-      setError(en ? 'Minimum donation is $1.' : '最低捐款金额为 $1。');
+      setError(text.minimumError);
       return;
     }
     setError('');
@@ -100,54 +102,37 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
       return;
     }
     setBusy(false);
-    setError(
-      status === 0
-        ? en
-          ? 'Network error. Please check your connection and try again.'
-          : '网络错误，请检查网络连接后重试。'
-        : data.error ||
-            (en ? 'Could not start the donation. Please try again.' : '无法发起捐款，请重试。'),
-    );
+    setError(status === 0 ? content.modals.networkError : data.error || text.startFailed);
   };
 
   const payLabel = busy
-    ? en
-      ? 'Redirecting to Stripe…'
-      : '正在跳转至 Stripe…'
+    ? text.redirecting
     : !valid
-      ? en
-        ? 'Proceed with Donation'
-        : '确认捐赠'
-      : en
-        ? `Donate ${usd(cents)}${recurring ? ' / month' : ''}`
-        : `${recurring ? '每月' : ''}捐赠 ${usd(cents)}`;
+      ? text.proceed
+      : fill(recurring ? text.payMonthly : text.payOnce, { amount: usd(cents) });
 
   return (
     <form onSubmit={submit} className="space-y-5 font-sans">
       <p className="text-sm text-neutral-600 leading-relaxed">{content.modals.donateDesc}</p>
 
       <div>
-        <label className="block text-xs font-bold text-neutral-500 mb-2">
-          {en ? 'Frequency' : '捐款频率'}
-        </label>
+        <label className="block text-xs font-bold text-neutral-500 mb-2">{text.frequency}</label>
         <FluidTabs
           id="donate-frequency"
           role="group"
-          ariaLabel={en ? 'Frequency' : '捐款频率'}
+          ariaLabel={text.frequency}
           className="grid grid-cols-2"
           value={recurring ? 'monthly' : 'once'}
           onChange={(v) => setRecurring(v === 'monthly')}
           items={[
-            { value: 'once', label: en ? 'One-time' : '一次性' },
-            { value: 'monthly', label: en ? 'Monthly' : '每月' },
+            { value: 'once', label: text.once },
+            { value: 'monthly', label: text.monthly },
           ]}
         />
       </div>
 
       <div>
-        <label className="block text-xs font-bold text-neutral-500 mb-2">
-          {en ? 'Select Donation Amount' : '选择捐款金额'}
-        </label>
+        <label className="block text-xs font-bold text-neutral-500 mb-2">{text.amountLabel}</label>
         <div className="grid grid-cols-4 gap-3">
           {[25, 50, 100].map((amt) => (
             <button
@@ -174,7 +159,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
                 : 'border-neutral-200 hover:border-neutral-400 text-neutral-800'
             }`}
           >
-            {en ? 'Other' : '其它'}
+            {text.other}
           </button>
         </div>
       </div>
@@ -185,7 +170,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
             htmlFor="donate-amount"
             className="block text-xs font-semibold text-neutral-600 mb-1"
           >
-            {en ? 'Enter Amount ($USD)' : '输入金额 ($美元)'}
+            {text.customAmountLabel}
           </label>
           <input
             id="donate-amount"
@@ -195,7 +180,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
             inputMode="decimal"
             value={customAmount}
             onChange={(e) => setCustomAmount(e.target.value)}
-            placeholder={en ? 'e.g. 150' : '例如 150'}
+            placeholder={text.customAmountPlaceholder}
             className="w-full px-4 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-brick"
           />
         </div>
@@ -207,7 +192,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
             htmlFor="donate-name"
             className="block text-xs font-semibold text-neutral-600 mb-1"
           >
-            {en ? 'Name (optional)' : '姓名（选填）'}
+            {text.nameLabel}
           </label>
           <input
             id="donate-name"
@@ -223,7 +208,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
             htmlFor="donate-email"
             className="block text-xs font-semibold text-neutral-600 mb-1"
           >
-            {en ? 'Email (optional)' : '电子邮箱（选填）'}
+            {text.emailLabel}
           </label>
           <input
             id="donate-email"
@@ -255,11 +240,7 @@ function DonateModalContent({ lang, content }: { lang: 'en' | 'zh'; content: CAA
 
       <p className="flex items-start justify-center gap-1.5 text-[11px] text-neutral-500 text-center">
         <Lock className="w-3.5 h-3.5 shrink-0 mt-px" />
-        <span>
-          {en
-            ? 'Secure checkout on Stripe. We never see your card details.'
-            : '由 Stripe 安全处理付款，我们不会接触您的银行卡信息。'}
-        </span>
+        <span>{text.secureNote}</span>
       </p>
     </form>
   );
@@ -305,8 +286,17 @@ const ANY_EVENT = '';
 // published ones that have not happened yet — so nobody signs up for a past
 // event; with none listed (or the list failing to load) "any event" is the
 // only choice, the same fallback the old /volunteer/ page had.
-function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: () => void }) {
+function VolunteerModalContent({
+  lang,
+  content,
+  onClose,
+}: {
+  lang: 'en' | 'zh';
+  content: CAACIContent;
+  onClose: () => void;
+}) {
   const en = lang === 'en';
+  const text = content.modals.volunteer;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -355,7 +345,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
     e.preventDefault();
     if (busy) return;
     if (!name.trim() || !email.trim()) {
-      setError(en ? 'Please enter your name and email.' : '请填写姓名和电子邮箱。');
+      setError(text.nameEmailError);
       return;
     }
     const read = readAnswers(questions, answers, lang);
@@ -394,16 +384,12 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
     const server = data.error;
     setError(
       status === 0
-        ? en
-          ? 'Network error. Please check your connection and try again.'
-          : '网络错误，请检查网络连接后重试。'
+        ? content.modals.networkError
         : status < 500 && server
           ? en
             ? server
-            : volunteerZhError(server) || '抱歉，报名信息发送失败，请重试。'
-          : en
-            ? 'Sorry, your sign-up could not be sent. Please try again.'
-            : '抱歉，报名信息发送失败，请重试。',
+            : volunteerZhError(server) || text.sendFailed
+          : text.sendFailed,
     );
   };
 
@@ -412,26 +398,18 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
     return (
       <div role="status" className="text-center py-6 space-y-3 font-sans">
         <Check className="w-12 h-12 text-green-600 mx-auto" />
-        <h4 className="text-lg font-bold text-neutral-900">
-          {en ? 'Thank You for Volunteering!' : '感谢您支持社区志愿服务！'}
-        </h4>
+        <h4 className="text-lg font-bold text-neutral-900">{text.thanksTitle}</h4>
         <p className="text-xs text-neutral-600">
           {names.length
-            ? en
-              ? `You're signed up to help with ${names.join(', ')}. We'll be in touch by email before the event.`
-              : `您已报名参与「${names.join('、')}」的志愿服务，活动前我们会通过邮件与您联系。`
-            : en
-              ? "You're on our volunteer list. We'll be in touch by email when we need a hand."
-              : '您已加入志愿者名单，需要帮手时我们会通过邮件与您联系。'}
+            ? fill(text.signedUp, { events: names.join(text.eventSeparator) })
+            : text.onList}
         </p>
-        <p className="text-[11px] text-neutral-500">
-          {en ? 'A confirmation has been emailed to you.' : '确认邮件已发送到您的邮箱。'}
-        </p>
+        <p className="text-[11px] text-neutral-500">{text.confirmation}</p>
         <button
           onClick={onClose}
           className="mt-3 px-5 py-2 bg-brick text-white rounded text-xs font-bold"
         >
-          {en ? 'Done' : '完成'}
+          {text.done}
         </button>
       </div>
     );
@@ -439,49 +417,45 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
 
   return (
     <form onSubmit={submit} className="relative space-y-4 font-sans text-xs">
-      <p className="text-neutral-600 leading-relaxed text-sm">
-        {en
-          ? 'Join our enthusiastic volunteer team! Opportunities include event coordination, stage management, translation, graphic design, and senior support.'
-          : '加入我们充满活力的志愿者团队！服务内容涵盖活动现场协调、舞台管理、中英翻译、平面设计与长者关怀等。'}
-      </p>
+      <p className="text-neutral-600 leading-relaxed text-sm">{text.intro}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <input
           type="text"
           required
           autoComplete="name"
-          aria-label={en ? 'Your Name' : '姓名'}
+          aria-label={text.nameLabel}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder={en ? 'Your Name *' : '姓名 *'}
+          placeholder={`${text.nameLabel} *`}
           className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
         />
         <input
           type="email"
           required
           autoComplete="email"
-          aria-label={en ? 'Your Email' : '电子邮箱'}
+          aria-label={text.emailLabel}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder={en ? 'Your Email *' : '电子邮箱 *'}
+          placeholder={`${text.emailLabel} *`}
           className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
         />
       </div>
       <input
         type="tel"
         autoComplete="tel"
-        aria-label={en ? 'Phone (optional)' : '电话（选填）'}
+        aria-label={text.phoneLabel}
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
-        placeholder={en ? 'Phone (optional)' : '电话（选填）'}
+        placeholder={text.phoneLabel}
         className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
       />
 
       <fieldset>
         <legend className="block text-xs font-bold text-neutral-500 mb-2">
-          {en ? 'Is this for a particular event?' : '是为某场具体活动报名志愿者吗？'}
+          {text.eventQuestion}
         </legend>
         {events === null ? (
-          <p className="text-neutral-500">{en ? 'Loading events…' : '正在加载活动…'}</p>
+          <p className="text-neutral-500">{text.loadingEvents}</p>
         ) : (
           <div className="space-y-1.5">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -493,9 +467,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
                 checked={chosen === ANY_EVENT}
                 onChange={() => pick(ANY_EVENT)}
               />
-              <span className="text-neutral-800">
-                {en ? 'Any event / wherever needed' : '任何活动均可'}
-              </span>
+              <span className="text-neutral-800">{text.anyEvent}</span>
             </label>
             {events.map((ev) => {
               const when = eventDate(ev.starts_at, en);
@@ -553,7 +525,7 @@ function VolunteerModalContent({ lang, onClose }: { lang: 'en' | 'zh'; onClose: 
         disabled={busy}
         className="w-full py-3 rounded-full font-bold uppercase tracking-wider text-xs text-white shadow-xs transition-all hover:bg-brick-hover active:scale-98 cursor-pointer bg-brick disabled:opacity-70 disabled:cursor-wait"
       >
-        {busy ? (en ? 'Sending…' : '发送中…') : en ? 'Sign Up to Volunteer' : '报名成为志愿者'}
+        {busy ? text.sending : text.submit}
       </button>
     </form>
   );
