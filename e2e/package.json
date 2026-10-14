@@ -1,0 +1,25 @@
+{
+  "name": "caaci-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser functional tests for caaciorg.com, written with tester-army/e2e",
+  "engines": {
+    "node": "^22.22.3 || >=24.8.0"
+  },
+  "scripts": {
+    "browsers": "e2e-web install chromium",
+    "test": "e2e run tests/smoke",
+    "test:agent": "e2e run tests/agent",
+    "test:all": "e2e run",
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "@ai-sdk/anthropic": "4.0.79",
+    "@e2e-dev/web": "0.14.0",
+    "@types/node": "26.6.1",
+    "ai": "7.0.139",
+    "e2e": "0.20.0",
+    "typescript": "7.0.2"
+  }
+}

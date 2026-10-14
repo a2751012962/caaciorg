@@ -16,3 +16,7 @@ supabase/.temp/
 # and names of real people, so they stay on the machine that made them.
 *.csv
 migrate-report*.json
+
+# e2e runner output: reports, screenshots, traces, the app log and (until we
+# decide to share it) the replay cache. See e2e/README.md.
+e2e/.e2e/
