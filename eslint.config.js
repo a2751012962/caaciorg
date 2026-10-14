@@ -13,6 +13,7 @@ export default defineConfig([
   {
     ignores: [
       'archive/',
+      '.wrangler/',
       'dist/',
       'mirror/',
       'node_modules/',
