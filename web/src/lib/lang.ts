@@ -17,6 +17,10 @@ export function storeLang(lang: Lang) {
 // page is never left (opened on purpose) and crawlers get the URL's language;
 // everyone else gets their browser's language on a first visit.
 export function initialLang(loc: Location = window.location, nav: Navigator = navigator): Lang {
+  // The admin's Page content preview (?cms_preview=1) shows the language its
+  // path names, and must not overwrite the editor's own stored choice.
+  if (new URLSearchParams(loc.search).get('cms_preview') === '1')
+    return isZhPath(loc.pathname) ? 'zh' : 'en';
   const q = new URLSearchParams(loc.search).get('lang');
   if (q === 'zh' || q === 'en') {
     storeLang(q);
