@@ -1,13 +1,17 @@
-// /api/admin/media  (admin only)
+// /api/admin/media  (content staff; delete is admin only)
 //   GET    — list the media library (public Supabase Storage bucket "media").
 //   PUT    — upload an image (multipart form data, field "file"; ≤ 5 MB,
 //            JPEG/PNG/WebP/GIF only — SVG is deliberately excluded because it
-//            can carry scripts). Returns the public URL to paste into an event
-//            or business-directory entry.
+//            can carry scripts). Returns the public URL to paste into an event,
+//            a business-directory entry, an article or a page photo.
 //   DELETE — remove a file by name.
-// Every request is gated by requireAdmin. The bucket itself (created by
-// migration 0009) re-enforces the size/MIME limits server-side.
+// GET and PUT take any content staff (contentRole: an administrator or a
+// content editor), so an editor can add a cover image or a page photo. DELETE
+// stays requireAdmin: a file may be in use on pages the editor cannot see. The
+// bucket itself (created by migration 0009) re-enforces the size/MIME limits
+// server-side.
 import { json, bad, storage, requireAdmin } from '../_lib.js';
+import { contentRole } from '../_content.js';
 
 const BUCKET = 'media';
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB — matches the bucket's file_size_limit
@@ -22,7 +26,7 @@ const TYPES = {
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export async function onRequestGet({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await contentRole(request, env);
   if (gate.error) return gate.error;
 
   const url = new URL(request.url);
@@ -52,7 +56,7 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPut({ request, env }) {
-  const gate = await requireAdmin(request, env);
+  const gate = await contentRole(request, env);
   if (gate.error) return gate.error;
 
   let form;

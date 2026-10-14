@@ -18,7 +18,10 @@
 // cannot verify; they exist so the reviewer knows which one to go and read.
 //
 // functions/api/admin/** gets no allowlist at all: those handlers must call
-// requireAdmin or requireRoot, full stop.
+// requireAdmin, requireRoot or contentRole, full stop. contentRole (in
+// functions/api/_content.js) admits administrators and the content editors of
+// 0040, and nobody else; the content endpoints check its column and page
+// flags on top.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -29,11 +32,22 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 // The shared gates. Each returns { error } | { user, DB, … }; a handler that
 // calls one has established who the caller is.
-const GATES = ['requireUser', 'requireAdmin', 'requireRoot', 'tokenGate', 'tokenGateOptional'];
-const ADMIN_GATES = ['requireAdmin', 'requireRoot'];
+const GATES = [
+  'requireUser',
+  'requireAdmin',
+  'requireRoot',
+  'contentRole',
+  'tokenGate',
+  'tokenGateOptional',
+];
+const ADMIN_GATES = ['requireAdmin', 'requireRoot', 'contentRole'];
 
 // Handlers that deliberately call none of them. Key is "<path> <handler>".
 const UNGATED = {
+  'functions/api/articles.js onRequestGet': {
+    by: 'read-only',
+    why: 'the public column and article pages. It answers published articles only (status published, date reached); drafts and scheduled ones are 404.',
+  },
   'functions/api/business-listing.js onRequestPost': {
     by: 'turnstile',
     why: 'anyone may submit a business for the directory; it lands pending approval.',
@@ -57,6 +71,10 @@ const UNGATED = {
   'functions/api/rsvp.js onRequestPost': {
     by: 'own-token',
     why: 'authenticated, but with its own userFromToken() helper, written before requireUser existed. Folding it into requireUser is a separate change.',
+  },
+  'functions/api/site-content.js onRequestGet': {
+    by: 'read-only',
+    why: 'the page-copy overrides every public page loads at boot. They are the text visitors see anyway; it names nobody beyond that.',
   },
   'functions/api/stripe-webhook.js onRequestPost': {
     by: 'signature',
@@ -172,7 +190,7 @@ test('every handler is declared as an exported function, so this test can read i
   assert.deepEqual(odd, []);
 });
 
-test('every handler under functions/api/admin/ calls requireAdmin or requireRoot', () => {
+test('every handler under functions/api/admin/ calls requireAdmin, requireRoot or contentRole', () => {
   const open = ALL.filter(
     (h) => h.file.startsWith('functions/api/admin/') && calls(h.body, ADMIN_GATES).length === 0,
   ).map((h) => h.key);

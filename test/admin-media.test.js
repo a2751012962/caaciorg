@@ -13,11 +13,20 @@ const LISTING = [
   { id: null, name: '.emptyFolderPlaceholder' }, // folder placeholder — must be skipped
 ];
 
-function route() {
+// `who` plays the caller: 'admin' (members.is_admin), 'editor' (a content
+// editor: not an admin, but with a content_editors row) or 'member' (neither).
+function route(who = 'admin') {
   return (u, options = {}) => {
-    if (u.includes('/auth/v1/user')) return { body: { id: 'admin-1' } };
+    if (u.includes('/auth/v1/user')) return { body: { id: 'user-1' } };
     if (u.includes('/rest/v1/members') && u.includes('is_admin'))
-      return { body: [{ id: 'admin-1', is_admin: true }] };
+      return { body: [{ id: 'user-1', is_admin: who === 'admin' }] };
+    if (u.includes('/rest/v1/content_editors'))
+      return {
+        body:
+          who === 'editor'
+            ? [{ member_id: 'user-1', all_columns: false, column_ids: [], can_edit_pages: true }]
+            : [],
+      };
     if (u.includes('/storage/v1/object/list/media')) return { body: LISTING };
     if (u.includes('/storage/v1/object/media/') && options.method === 'POST')
       return { body: { Key: 'media/x' } };
@@ -125,6 +134,59 @@ test('admin media: delete validates the name against traversal', async () => {
         c.url.endsWith('/storage/v1/object/media/123-pic.jpg') && c.options.method === 'DELETE',
     );
     assert.ok(del, 'issues the storage delete');
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin media: a content editor may list and upload, but not delete', async () => {
+  const fetch = mockFetch(route('editor'));
+  try {
+    const list = await onRequestGet({
+      request: authed({ url: 'https://caaci.example/api/admin/media' }),
+      env: fakeEnv(),
+    });
+    assert.equal(list.status, 200);
+    const put = await onRequestPut({
+      request: authed({ formData: { file: fakeFile({ name: 'cover.png', type: 'image/png' }) } }),
+      env: fakeEnv(),
+    });
+    assert.equal(put.status, 200);
+    assert.match((await put.json()).file.name, /^\d+-cover\.png$/);
+
+    const del = await onRequestDelete({
+      request: authed({ url: 'https://caaci.example/api/admin/media?name=123-pic.jpg' }),
+      env: fakeEnv(),
+    });
+    assert.equal(del.status, 403);
+    assert.ok(
+      !fetch.calls.some((c) => c.options.method === 'DELETE'),
+      'no storage delete was attempted',
+    );
+  } finally {
+    fetch.restore();
+  }
+});
+
+test('admin media: a member who is neither admin nor editor is refused everything', async () => {
+  const fetch = mockFetch(route('member'));
+  try {
+    const list = await onRequestGet({
+      request: authed({ url: 'https://caaci.example/api/admin/media' }),
+      env: fakeEnv(),
+    });
+    assert.equal(list.status, 403);
+    const put = await onRequestPut({
+      request: authed({ formData: { file: fakeFile() } }),
+      env: fakeEnv(),
+    });
+    assert.equal(put.status, 403);
+    const del = await onRequestDelete({
+      request: authed({ url: 'https://caaci.example/api/admin/media?name=123-pic.jpg' }),
+      env: fakeEnv(),
+    });
+    assert.equal(del.status, 403);
+    assert.ok(!fetch.calls.some((c) => c.url.includes('/storage/v1/')), 'storage never touched');
   } finally {
     fetch.restore();
   }
