@@ -20,8 +20,7 @@ back office, all on Cloudflare Pages + Supabase + Stripe.
 
 Browser functional tests live in [`e2e/`](./e2e/README.md), written with
 [tester-army/e2e](https://github.com/tester-army/e2e). So far that is a read-only smoke
-suite of the public pages, which needs no model, plus two agent steps that need an API key.
-They run locally on demand, not in CI yet. One of the smoke tests:
+suite of the public pages, run locally on demand, not in CI yet. One of them:
 
 ```ts
 // e2e/tests/smoke/site.e2e.ts
@@ -57,8 +56,7 @@ test mode and test cards, and clean up whatever you create.
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `npm test`                                                    | Unit and contract tests (`node --test`, `test/`): API handlers, migrations on PGlite, RLS, email templates, build routes. |
 | `npm run lint` · `npm run typecheck` · `npm run format:check` | ESLint, TypeScript for `web/`, Prettier. CI runs all of these on Node 20 and 24.                                          |
-| `cd e2e && npm test`                                          | Browser smoke suite: the public pages answer, in English and Chinese. No model needed.                                    |
-| `cd e2e && npm run test:agent`                                | Agent steps written as goals. Needs `ANTHROPIC_API_KEY`.                                                                  |
+| `cd e2e && npm test`                                          | Browser smoke suite: the public pages answer, in English and Chinese. Start `npm run dev` first.                          |
 
 New features get a functional test in [`e2e/`](./e2e/README.md). The e2e suite only
 reads: it never signs up, submits a form, or starts a checkout, because the local
@@ -107,7 +105,5 @@ order, before merging the code that needs it. See
 
 ## Security
 
-Please don't open a public issue for a vulnerability. Email
-[caaci.org@gmail.com](mailto:caaci.org@gmail.com) instead. Never commit keys: `.env`,
-Stripe keys and Cloudflare Access tokens stay outside the repo, and a test scans for
-them.
+Never commit keys: `.env`, Stripe keys and Cloudflare Access tokens stay outside the
+repo, and a test scans for them.

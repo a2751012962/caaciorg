@@ -18,8 +18,7 @@
 运行在 Cloudflare Pages + Supabase + Stripe 上。
 
 浏览器功能测试放在 [`e2e/`](./e2e/README.md)，基于 [tester-army/e2e](https://github.com/tester-army/e2e)。
-目前有一套只读的公开页面冒烟测试（不需要模型），外加两条需要 API key 的 agent 测试。
-它们在本地按需运行，还没有接入 CI。下面是其中一条冒烟测试：
+目前有一套只读的公开页面冒烟测试，在本地按需运行，还没有接入 CI。下面是其中一条：
 
 ```ts
 // e2e/tests/smoke/site.e2e.ts
@@ -55,8 +54,7 @@ npm run dev            # 先构建，再用 wrangler pages dev 启动 → http:/
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `npm test`                                                    | 单元与契约测试（`node --test`，`test/`）：API 处理函数、在 PGlite 上跑的迁移、RLS、邮件模板、构建路由。 |
 | `npm run lint` · `npm run typecheck` · `npm run format:check` | ESLint、`web/` 的 TypeScript 检查、Prettier。CI 在 Node 20 和 24 上都会跑。                             |
-| `cd e2e && npm test`                                          | 浏览器冒烟测试：公开页面能打开，中英文内容正确。不需要模型。                                            |
-| `cd e2e && npm run test:agent`                                | 用目标描述写的 agent 步骤。需要 `ANTHROPIC_API_KEY`。                                                   |
+| `cd e2e && npm test`                                          | 浏览器冒烟测试：公开页面能打开，中英文内容正确。先启动 `npm run dev`。                                  |
 
 新功能都要在 [`e2e/`](./e2e/README.md) 里补一条功能测试。e2e 测试只读不写：
 不注册、不提交表单、不发起付款，因为本地构建用的是线上数据库。
@@ -101,6 +99,5 @@ npm run dev            # 先构建，再用 wrangler pages dev 启动 → http:/
 
 ## 安全
 
-发现漏洞请不要开公开 issue，发邮件到 [caaci.org@gmail.com](mailto:caaci.org@gmail.com)。
 任何密钥都不要提交：`.env`、Stripe 密钥和 Cloudflare Access 令牌都放在仓库外，
 仓库里有测试会扫描这些内容。

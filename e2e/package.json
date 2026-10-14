@@ -9,16 +9,12 @@
   },
   "scripts": {
     "browsers": "e2e-web install chromium",
-    "test": "e2e run tests/smoke",
-    "test:agent": "e2e run tests/agent",
-    "test:all": "e2e run",
+    "test": "e2e run",
     "typecheck": "tsc -p ."
   },
   "devDependencies": {
-    "@ai-sdk/anthropic": "4.0.79",
     "@e2e-dev/web": "0.14.0",
     "@types/node": "26.6.1",
-    "ai": "7.0.139",
     "e2e": "0.20.0",
     "typescript": "7.0.2"
   }
