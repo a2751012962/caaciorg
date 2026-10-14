@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
-import { buildAuthPatch, loadTemplates } from '../push-auth-emails.mjs';
+import { buildAuthPatch, loadTemplates } from '../scripts/push-auth-emails.mjs';
 
 globalThis.window = { __CAACI_TEST__: true }; // block auto-boot at import
 const member = await import('../src/caaci-member.js');

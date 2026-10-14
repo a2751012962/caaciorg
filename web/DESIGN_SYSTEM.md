@@ -1,7 +1,7 @@
 # CAACI 新前端 UI / 设计 / 配色规范
 
 适用范围：`web/`（React + Vite + Tailwind v4）下的全部公开页面与会员账户页。
-镜像层与 Tabler 后台仍以仓库根目录的 `UI_GUIDELINE.md` 为准；两份规范共用同一套品牌色。
+镜像层与 Tabler 后台仍以`docs/UI_GUIDELINE.md` 为准；两份规范共用同一套品牌色。
 
 所有数值均从 `web/src` 现有代码统计得出（2026-09-15，分支 `feat/new-frontend`），
 不是设想值。出现次数写在括号里，用来判断"主流用法"与"零散用法"。

@@ -1,7 +1,7 @@
 // stripe-reconcile.mjs — the comparison itself, with no Stripe and no database.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { driftCsv, maskEmail, reconcile } from '../stripe-reconcile.mjs';
+import { driftCsv, maskEmail, reconcile } from '../scripts/stripe-reconcile.mjs';
 
 const NOW = Date.parse('2026-09-20T21:00:00Z');
 const inDays = (n) => new Date(NOW + n * 86_400_000).toISOString();

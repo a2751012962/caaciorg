@@ -33,7 +33,7 @@
 // against the stored setting, not inferred from an authorize response.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAuthPatch, diffAuthConfig, loadTemplates } from '../push-auth-emails.mjs';
+import { buildAuthPatch, diffAuthConfig, loadTemplates } from '../scripts/push-auth-emails.mjs';
 
 const AUTHORIZE_ON = process.env.CAACI_AUTH_CONFIG_TESTS === '1';
 const skipAuthorize = AUTHORIZE_ON

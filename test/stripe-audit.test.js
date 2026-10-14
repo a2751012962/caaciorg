@@ -1,7 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { groupByPrice, isLive, keyMode, listAll, money, subscribersCsv } from '../stripe-audit.mjs';
+import {
+  groupByPrice,
+  isLive,
+  keyMode,
+  listAll,
+  money,
+  subscribersCsv,
+} from '../scripts/stripe-audit.mjs';
 
 const sub = (over = {}) => ({
   id: 'sub_1',
@@ -27,7 +34,7 @@ const sub = (over = {}) => ({
 });
 
 test('the audit script never writes: no POST/DELETE anywhere in it', async () => {
-  const source = await readFile(new URL('../stripe-audit.mjs', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../scripts/stripe-audit.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /'POST'|"POST"|'DELETE'|"DELETE"/);
   assert.match(source, /method: 'GET'/);
 });
