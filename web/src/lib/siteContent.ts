@@ -80,6 +80,8 @@ export const SITE_CONTENT: SiteContentEntry[] = [
     previewPath: '/',
     en: contentEN,
     zh: contentZH,
+    // Not shown anywhere: the home banner reads welcome.heading instead.
+    exclude: ['hero.title', 'hero.subtitle'],
   },
   {
     id: 'about',
@@ -115,12 +117,11 @@ export const SITE_CONTENT: SiteContentEntry[] = [
     // static archive in the data file, so it stays editable here.
     sections: {
       searchPlaceholder: 'filters',
-      filterAll: 'filters',
-      filterUpcoming: 'filters',
-      filterPast: 'filters',
       upcomingTitle: 'upcoming',
       upcomingSubtitle: 'upcoming',
     },
+    // Left over from an older filter bar; the page no longer reads them.
+    exclude: ['filterAll', 'filterUpcoming', 'filterPast'],
     // The page filters the archive on these values (job, culture, ...).
     fixed: ['past.category'],
   },
@@ -134,7 +135,8 @@ export const SITE_CONTENT: SiteContentEntry[] = [
     // (membership_tiers.features / features_zh), which wins over these built-in
     // ones (components/PlanCard.tsx planCopy); two places for one list would
     // let an editor change text that never shows. The period label stays here.
-    exclude: ['tiers.*.features'],
+    // title, subtitle and benefits are no longer read by the page either.
+    exclude: ['tiers.*.features', 'title', 'subtitle', 'benefits'],
     sections: {
       note: 'notes',
       inviteNote: 'notes',
@@ -166,7 +168,8 @@ export const SITE_CONTENT: SiteContentEntry[] = [
     // The directory is the business_directory table (Business directory tab,
     // lib/directory.ts); `merchants` is only the built-in fallback for when
     // that read fails, so editing it here would change nothing visitors see.
-    exclude: ['merchants'],
+    // title, subtitle and instruction are left over and not read by the page.
+    exclude: ['merchants', 'title', 'subtitle', 'instruction'],
     // What the option's button does (membership checkout or the loan form).
     fixed: ['sponsorTiers.action'],
   },
@@ -229,7 +232,12 @@ const LABELS: Record<string, Bilingual> = {
   'common.contact': { en: 'Contact form', zh: '联系表单' },
   'common.footer': { en: 'Footer', zh: '页脚' },
   'common.footer.aboutText': { en: 'About text', zh: '简介' },
-  'common.modals': { en: 'Donation window', zh: '捐赠弹窗' },
+  'common.modals': { en: 'Donate and volunteer windows', zh: '捐赠与义工弹窗' },
+  'common.home': { en: 'Home page', zh: '首页其他文字' },
+  'common.stacked': { en: 'Our pillars', zh: '四大支柱' },
+  'common.stacked.statements': { en: 'Pillars', zh: '支柱条目' },
+  'common.marketplace': { en: 'Marketplace', zh: '二手市集' },
+  'common.subpageHero': { en: 'Page banners', zh: '子页面横幅' },
   'common.modals.donateTitle': { en: 'Donation window title', zh: '捐赠弹窗标题' },
   'common.modals.donateDesc': { en: 'Donation window text', zh: '捐赠弹窗说明' },
   'about.mission': { en: 'Our mission', zh: '我们的使命' },
