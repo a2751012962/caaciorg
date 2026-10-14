@@ -14,7 +14,8 @@
 # caaciorg
 
 **伊利诺伊中部华人协会**（CAACI）官网：[caaciorg.com](https://caaciorg.com)。
-中英双语页面、会员与家庭方案、活动报名与志愿者、商家名录、华协币，以及工作人员后台，
+中英双语页面、会员与家庭方案、活动报名与志愿者、商家名录、华协币、「关于」下的专栏与文章，
+以及工作人员后台（页面文字和照片在后台直接改，不用改代码），
 运行在 Cloudflare Pages + Supabase + Stripe 上。
 
 浏览器功能测试放在 [`e2e/`](./e2e/README.md)，基于 [tester-army/e2e](https://github.com/tester-army/e2e)。
@@ -89,6 +90,8 @@ npm run dev            # 先构建，再用 wrangler pages dev 启动 → http:/
 - [SETUP.md](./SETUP.md)：一次性配置、迁移怎么执行、各环境与访问权限，以及每个功能的
   工作方式（会员、活动、志愿者、华协币、家庭邀请、后台）。
 - [docs/CI.md](./docs/CI.md)：CI 会拒绝什么，以及怎么加例外。
+- [docs/content-management.md](./docs/content-management.md)：专栏与文章、页面文字和照片的编辑，
+  以及后台角色（root、管理员、内容管理）。
 - [web/DESIGN_SYSTEM.md](./web/DESIGN_SYSTEM.md)：React 网站的设计变量和组件。
 
 ## 数据库迁移

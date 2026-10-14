@@ -15,8 +15,9 @@
 
 The website of the **Chinese American Association of Central Illinois** (伊利诺伊中部华人协会):
 [caaciorg.com](https://caaciorg.com). Bilingual pages, memberships and family plans, event
-registration and volunteers, a business directory, member tokens (华协币), and the staff
-back office, all on Cloudflare Pages + Supabase + Stripe.
+registration and volunteers, a business directory, member tokens (华协币), columns and
+articles under About, and the staff back office, where page text and photos are edited
+without code. All on Cloudflare Pages + Supabase + Stripe.
 
 Browser functional tests live in [`e2e/`](./e2e/README.md), written with
 [tester-army/e2e](https://github.com/tester-army/e2e). So far that is a read-only smoke
@@ -94,6 +95,9 @@ of the live site.
   and how each feature works (memberships, events, volunteers, tokens, family invites,
   the back office).
 - [docs/CI.md](./docs/CI.md): what CI refuses and how to add an exception.
+- [docs/content-management.md](./docs/content-management.md): columns and articles,
+  editing page copy and photos, and the back-office roles (root, administrators,
+  content managers).
 - [web/DESIGN_SYSTEM.md](./web/DESIGN_SYSTEM.md): design tokens and components for the React site.
 
 ## Database migrations
