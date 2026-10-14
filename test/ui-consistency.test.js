@@ -1,4 +1,4 @@
-// Pins the "one source of truth" rules from UI_GUIDELINE.md so the pages cannot
+// Pins the "one source of truth" rules from docs/UI_GUIDELINE.md so the pages cannot
 // drift apart again the way they had: four member pages each carried a private
 // <style> block with the same nav/hero CSS and hard-coded brand hexes, and
 // caaci-ui.css kept 40 component classes nothing referenced. Every check here

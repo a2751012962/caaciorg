@@ -4,13 +4,13 @@
     {
       "name": "mirror",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["serve-mirror.mjs"],
+      "runtimeArgs": ["scripts/serve-mirror.mjs"],
       "port": 8799
     },
     {
       "name": "site",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["serve-mirror.mjs", "dist", "8800"],
+      "runtimeArgs": ["scripts/serve-mirror.mjs", "dist", "8800"],
       "port": 8800
     }
   ]

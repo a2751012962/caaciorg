@@ -45,7 +45,7 @@ const api = (path, body, headers = {}) =>
       data: { error: 'Network error — please try again. · 网络错误，请重试。' },
     }));
 
-// Styling for all custom UI lives in src/caaci-ui.css (see UI_GUIDELINE.md).
+// Styling for all custom UI lives in src/caaci-ui.css (see docs/UI_GUIDELINE.md).
 export function notice(el, msg, good = true) {
   let n = el.querySelector('.caaci-notice');
   if (!n) {

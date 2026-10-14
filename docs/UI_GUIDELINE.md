@@ -11,20 +11,20 @@ always part of the site.
 
 **Two layers, one set of tokens.**
 
-| Layer          | Pages                         | Built with                       | Styled by                                                                                  |
-| -------------- | ----------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------ |
-| Mirror overlay | every mirrored WordPress page | `caaci-app.js` injects markup    | `.caaci-*` component classes in [`src/caaci-ui.css`](src/caaci-ui.css)                     |
-| Tabler pages   | `/login-3/`, `/privacy/`      | **Tabler** (`@tabler/core`, MIT) | Tabler/Bootstrap classes, skinned by [`src/caaci-theme.css`](src/caaci-theme.css) — see §5 |
+| Layer          | Pages                         | Built with                       | Styled by                                                                                     |
+| -------------- | ----------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------- |
+| Mirror overlay | every mirrored WordPress page | `caaci-app.js` injects markup    | `.caaci-*` component classes in [`src/caaci-ui.css`](../src/caaci-ui.css)                     |
+| Tabler pages   | `/login-3/`, `/privacy/`      | **Tabler** (`@tabler/core`, MIT) | Tabler/Bootstrap classes, skinned by [`src/caaci-theme.css`](../src/caaci-theme.css) — see §5 |
 
 Both layers read the same `--caaci-*` tokens. The Tabler pages use Tabler classes
 only, never `.caaci-*` visual classes (element `id`s and `data-*` hooks keep the
 `caaci-` prefix, CSS classes do not). The `.caaci-*` vocabulary in §4 applies to
 the mirror overlay alone.
 
-**Source of truth:** [`src/caaci-ui.css`](src/caaci-ui.css) holds every token below as a
+**Source of truth:** [`src/caaci-ui.css`](../src/caaci-ui.css) holds every token below as a
 CSS variable. Use the variables / classes — never hard-code a hex value or paste
-inline styles into [`src/caaci-app.js`](src/caaci-app.js) or a page file.
-[`test/ui-consistency.test.js`](test/ui-consistency.test.js) fails the build when a
+inline styles into [`src/caaci-app.js`](../src/caaci-app.js) or a page file.
+[`test/ui-consistency.test.js`](../test/ui-consistency.test.js) fails the build when a
 page carries a `<style>` block, a `style=""` attribute or a hex literal, when a
 stylesheet defines a class nothing references, or when `--tblr-*` is overridden
 outside the theme file.
@@ -140,7 +140,7 @@ All custom UI is namespaced `.caaci-*` so it can never collide with Divi classes
 
 ## 5. Tabler pages (admin + member)
 
-[`src/caaci-theme.css`](src/caaci-theme.css) is the only place Tabler is skinned. It
+[`src/caaci-theme.css`](../src/caaci-theme.css) is the only place Tabler is skinned. It
 re-points Tabler's own variables at the tokens, so every `btn-primary`, link, tab,
 badge, focus ring and corner takes the brand look with no page-level CSS:
 
@@ -188,7 +188,7 @@ A page that needs something new gets a section here, written in tokens — not a
 
 1. **Never edit the mirror by hand.** `mirror/` is pristine; all custom behaviour
    and styling lives in `src/` and is injected at build time (see
-   [`build.mjs`](build.mjs)). Pages the React site (`web/`) replaced are
+   [`build.mjs`](../build.mjs)). Pages the React site (`web/`) replaced are
    deleted from it outright, never edited.
 2. **No inline styles in JS.** Add a class to `caaci-ui.css` and reference it.
    The one historical exception (the account box) has been migrated.

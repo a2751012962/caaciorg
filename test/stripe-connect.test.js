@@ -11,7 +11,7 @@ import {
   parseArgs,
   webhookUrl,
   main,
-} from '../stripe-connect.mjs';
+} from '../scripts/stripe-connect.mjs';
 import { mockFetch } from './helpers.js';
 
 // Silence the script's progress output; keep the last run's lines for asserts.

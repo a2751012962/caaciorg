@@ -10,7 +10,7 @@
  * The Tabler pages (member-src) load this file for the tokens only;
  * their look comes from caaci-theme.css, which maps --tblr-* onto --caaci-*.
  *
- * Tokens below are lifted from the live site's compiled CSS — see UI_GUIDELINE.md
+ * Tokens below are lifted from the live site's compiled CSS — see docs/UI_GUIDELINE.md
  * for where each value comes from. Change a value here, not in inline styles.
  */
 
