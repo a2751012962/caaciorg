@@ -127,7 +127,7 @@ export const aboutDataEN: AboutContent = {
     },
     {
       role: 'Vice President',
-      name: 'Guoyi Xu',
+      name: 'Guoyi (Eric) Xu',
       desc: 'Assist the President, plan meeting locations and logistics, and support website and technology needs.',
     },
     {
@@ -269,7 +269,7 @@ export const aboutDataZH: AboutContent = {
     },
     {
       role: '副主席',
-      name: 'Guoyi Xu',
+      name: 'Guoyi (Eric) Xu',
       desc: '协助主席规划活动地点和物流需求，并负责网站管理和技术支持。',
     },
     {
