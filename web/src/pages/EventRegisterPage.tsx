@@ -26,6 +26,7 @@ import type { Lang } from '../lib/lang';
 import { mountIn, riseFromSm, shown } from '../lib/motion';
 import { eventSlugFrom, perkStep, readAnswers, volunteerBody, zhError } from '../lib/registration';
 import { isPlainClick } from '../lib/articleRoutes';
+import { flagInvalid, focusInvalid } from '../lib/fieldError';
 
 // ---------------------------------------------------------------- the API's shapes
 
@@ -211,6 +212,10 @@ export function EventRegisterPage({
   const [busy, setBusy] = useState(false);
   const turnstile = useTurnstile('event_register');
   const [error, setError] = useState('');
+  // A cleared or changed error no longer points at the old field.
+  useEffect(() => {
+    if (!error) flagInvalid(null, 'ev-error');
+  }, [error]);
   const [done, setDone] = useState<Done | null>(null);
   const [registeredEmail, setRegisteredEmail] = useState('');
   const doneTitle = useRef<HTMLHeadingElement>(null);
@@ -319,7 +324,7 @@ export function EventRegisterPage({
   const submit = async (e: SyntheticEvent) => {
     e.preventDefault();
     if (busy || !ev) return;
-    const focus = (field: string) => document.getElementById(field)?.focus();
+    const focus = (field: string) => focusInvalid(field, 'ev-error');
     const address = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
       setError(en ? 'Enter a valid email address.' : '请填写有效邮箱。');
@@ -715,7 +720,7 @@ export function EventRegisterPage({
       </p>
 
       {error && (
-        <div role="alert" className={ALERT_ERROR}>
+        <div id="ev-error" role="alert" className={ALERT_ERROR}>
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
           <span>{error}</span>
         </div>

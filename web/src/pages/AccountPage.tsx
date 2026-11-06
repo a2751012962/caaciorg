@@ -598,6 +598,9 @@ export function AccountPage({
               <FluidTabs<MobileTab>
                 id="account-sections"
                 tone="brand"
+                // These buttons show one section of the page and hide the rest;
+                // there is no single tab panel, so they are pressed toggles.
+                role="group"
                 ariaLabel={lang === 'en' ? 'Account sections' : '账户分区'}
                 value={activeMobileTab}
                 onChange={setActiveMobileTab}

@@ -24,6 +24,9 @@ interface FluidTabsProps<V extends string> {
   className?: string;
   /** Extra classes for every tab button, e.g. `flex-1` to share the track's width. */
   itemClassName?: string;
+  /** tablist only: the id of the role="tabpanel" the tabs show. Each tab then
+      gets an id (`${id}-tab-${value}`) the panel can be labelled by. */
+  panelId?: string;
 }
 
 const TONE = {
@@ -54,6 +57,7 @@ export function FluidTabs<V extends string>({
   ariaLabel,
   className = 'inline-flex items-center',
   itemClassName = '',
+  panelId,
 }: FluidTabsProps<V>) {
   const t = TONE[tone];
 
@@ -91,6 +95,8 @@ export function FluidTabs<V extends string>({
               key={item.value}
               type="button"
               role={role === 'tablist' ? 'tab' : undefined}
+              id={role === 'tablist' && panelId ? `${id}-tab-${item.value}` : undefined}
+              aria-controls={role === 'tablist' ? panelId : undefined}
               tabIndex={role === 'tablist' ? (active ? 0 : -1) : undefined}
               aria-label={item.ariaLabel}
               onClick={() => onChange(item.value)}

@@ -578,6 +578,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                   {/* Time filter: one track, a pill slides to the chosen tab */}
                   <FluidTabs<'all' | 'upcoming' | 'past'>
                     id="events-time-filter"
+                    panelId="events-list"
                     ariaLabel={data.toolbar.tabsLabel}
                     value={activeTab}
                     onChange={setActiveTab}
@@ -764,8 +765,13 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
           </div>
         </section>
 
-        {/* 4. Events Display Sections */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10 pb-20 space-y-12 sm:space-y-16 min-h-[520px]">
+        {/* 4. Events Display Sections: the panel the All / Upcoming / Past tabs show */}
+        <div
+          id="events-list"
+          role="tabpanel"
+          aria-labelledby={`events-time-filter-tab-${activeTab}`}
+          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10 pb-20 space-y-12 sm:space-y-16 min-h-[520px]"
+        >
           {/* SECTION A: UPCOMING EVENTS */}
           {(activeTab === 'all' || activeTab === 'upcoming') && (
             <motion.section

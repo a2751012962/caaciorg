@@ -22,6 +22,8 @@ export interface CAACIContent {
     langButton: string;
     langTitle: string;
     menuLabel: string;
+    /** Names the site menu landmark for screen readers. */
+    navLabel: string;
   };
   hero: {
     title: string;
@@ -192,6 +194,7 @@ export const contentEN: CAACIContent = {
     langButton: '中',
     langTitle: 'Switch Language / 切换语言',
     menuLabel: 'Toggle Navigation Menu',
+    navLabel: 'Site',
   },
   hero: {
     title: 'Chinese American Association of Central Illinois(CAACI)',
@@ -406,7 +409,8 @@ export const contentZH: CAACIContent = {
     signOut: '退出登录',
     langButton: 'En',
     langTitle: 'Switch Language / 切换语言',
-    menuLabel: 'Toggle Navigation Menu',
+    menuLabel: '展开或收起导航菜单',
+    navLabel: '网站导航',
   },
   hero: {
     title: '伊利诺伊中部华人协会 (CAACI)',
