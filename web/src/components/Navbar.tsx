@@ -145,7 +145,7 @@ export function Navbar({
           {/* Official CAACI Logo */}
           <div className="flex-shrink-0 flex items-center">
             <a
-              {...navLinkProps('home', handleNavClick, currentPage)}
+              {...navLinkProps('home', handleNavClick)}
               className="flex items-center gap-3 cursor-pointer text-left"
             >
               <img
@@ -205,13 +205,13 @@ export function Navbar({
               {aboutDropdownOpen && (
                 <div className="absolute left-0 mt-0 w-48 bg-white border border-neutral-200/80 shadow-lg py-2 rounded-2xl z-50 animate-fadeIn">
                   <a
-                    {...navLinkProps('about', handleNavClick, currentPage)}
+                    {...navLinkProps('about', handleNavClick)}
                     className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.aboutUs}
                   </a>
                   <a
-                    {...navLinkProps('columns', handleNavClick, currentPage)}
+                    {...navLinkProps('columns', handleNavClick)}
                     className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.columns}
@@ -300,13 +300,13 @@ export function Navbar({
               {resourcesDropdownOpen && (
                 <div className="absolute left-0 mt-0 w-56 bg-white border border-neutral-200/80 shadow-lg py-2 rounded-2xl z-50 animate-fadeIn">
                   <a
-                    {...navLinkProps('resources', handleNavClick, currentPage)}
+                    {...navLinkProps('resources', handleNavClick)}
                     className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.resources}
                   </a>
                   <a
-                    {...navLinkProps('community-calendar', handleNavClick, currentPage)}
+                    {...navLinkProps('community-calendar', handleNavClick)}
                     className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.communityCalendar}
