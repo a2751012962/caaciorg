@@ -5,6 +5,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { getLenis } from '../utils/smoothScroll';
 import type { CAACIContent } from '../data/content';
 import { fill } from '../lib/text';
+import { navLinkProps } from '../lib/navLink';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -319,14 +320,13 @@ export function StackedCardsSection({
                   </p>
 
                   <div>
-                    <button
-                      type="button"
-                      onClick={() => handleActionClick(item.targetPage)}
+                    <a
+                      {...navLinkProps(item.targetPage, handleActionClick)}
                       className="group inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-brick text-white hover:bg-brick-hover text-xs sm:text-sm font-medium uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-98"
                     >
                       <span>{item.action}</span>
                       <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                    </button>
+                    </a>
                   </div>
                 </div>
               </div>

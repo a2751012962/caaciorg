@@ -4,6 +4,7 @@ import { SubpageHero } from '../components/SubpageHero';
 import { Reveal } from '../components/Reveal';
 import type { CAACIContent } from '../data/content';
 import { notFoundDataEN, notFoundDataZH } from '../data/pagesContent';
+import { navLinkProps } from '../lib/navLink';
 
 // web/DESIGN_SYSTEM.md §5.1 / §5.3, verbatim (as on the registration page).
 const PRIMARY =
@@ -60,26 +61,22 @@ export function NotFoundPage({ content, lang, onOpenModal, onNavigate }: NotFoun
               <code className="font-mono text-neutral-700">{requested}</code>
             </p>
             <div className="flex flex-wrap gap-3 pt-1">
-              <button type="button" onClick={() => onNavigate('home')} className={PRIMARY}>
+              <a {...navLinkProps('home', onNavigate)} className={PRIMARY}>
                 <Home className="w-4 h-4" aria-hidden="true" />
                 {data.home}
-              </button>
-              <button type="button" onClick={() => onNavigate('events')} className={SECONDARY}>
+              </a>
+              <a {...navLinkProps('events', onNavigate)} className={SECONDARY}>
                 <Calendar className="w-4 h-4" aria-hidden="true" />
                 {data.events}
-              </button>
-              <button type="button" onClick={() => onNavigate('membership')} className={SECONDARY}>
+              </a>
+              <a {...navLinkProps('membership', onNavigate)} className={SECONDARY}>
                 <UserPlus className="w-4 h-4" aria-hidden="true" />
                 {data.membership}
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate('home#contact')}
-                className={SECONDARY}
-              >
+              </a>
+              <a {...navLinkProps('home#contact', onNavigate)} className={SECONDARY}>
                 <Mail className="w-4 h-4" aria-hidden="true" />
                 {data.contact}
-              </button>
+              </a>
             </div>
           </Reveal>
         </div>

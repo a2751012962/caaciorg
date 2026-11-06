@@ -49,6 +49,7 @@ import {
 import { fill } from '../lib/text';
 import { planTokens } from '../lib/tokens';
 import { smoothScrollTo } from '../utils/smoothScroll';
+import { navLinkProps } from '../lib/navLink';
 
 interface MembershipPageProps {
   content: CAACIContent;
@@ -363,27 +364,27 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             aria-label={data.breadcrumb.label}
             className="flex items-center gap-2 text-xs sm:text-sm text-neutral-500 font-sans"
           >
-            <button
-              onClick={() => {
-                onNavigate('home');
+            <a
+              {...navLinkProps('home', (p) => {
+                onNavigate(p);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              })}
               className="inline-flex items-center gap-1.5 font-medium text-neutral-700 hover:text-brick transition-colors cursor-pointer group"
               title={data.breadcrumb.backToMenu}
             >
               <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-400 group-hover:text-brick" />
               <span>{data.breadcrumb.backToMenu}</span>
-            </button>
+            </a>
             <span className="text-neutral-300">/</span>
-            <button
-              onClick={() => {
-                onNavigate('home');
+            <a
+              {...navLinkProps('home', (p) => {
+                onNavigate(p);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              })}
               className="hover:text-brick transition-colors cursor-pointer text-neutral-500"
             >
               {content.nav.welcome}
-            </button>
+            </a>
             <span className="text-neutral-300">/</span>
             <span className="text-brick font-semibold">{content.nav.membership}</span>
           </nav>
@@ -584,15 +585,14 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 <div className="text-xs font-semibold text-ink">{data.portal.title}</div>
                 <div className="text-[11px] text-neutral-500 leading-snug">{data.portal.text}</div>
               </div>
-              <motion.button
+              <motion.a
                 whileHover={hoverScale}
                 whileTap={tap}
-                type="button"
-                onClick={() => onNavigate('account')}
+                {...navLinkProps('account', onNavigate)}
                 className="flex-shrink-0 px-3.5 py-1.5 rounded-full bg-white border border-neutral-200 text-xs font-medium text-ink hover:bg-neutral-100 transition-colors cursor-pointer whitespace-nowrap"
               >
                 {data.portal.button}
-              </motion.button>
+              </motion.a>
             </motion.div>
           </motion.div>
 

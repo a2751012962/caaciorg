@@ -75,6 +75,7 @@ import {
   loadApprovedListings,
   type DirectoryRow,
 } from '../lib/directory';
+import { navLinkProps } from '../lib/navLink';
 
 interface BusinessServicesPageProps {
   content: CAACIContent;
@@ -384,28 +385,28 @@ export function BusinessServicesPage({
             aria-label={data.topBar.breadcrumbLabel}
             className="flex items-center gap-1 sm:gap-1.5 md:gap-2 text-[11px] sm:text-xs md:text-sm text-neutral-500 font-sans min-w-0"
           >
-            <button
-              onClick={() => {
-                onNavigate('home');
+            <a
+              {...navLinkProps('home', (p) => {
+                onNavigate(p);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              })}
               className="inline-flex items-center gap-0.5 sm:gap-1 font-medium text-neutral-700 hover:text-brick transition-colors cursor-pointer group shrink-0"
               title={data.topBar.backToMenu}
             >
               <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-400 group-hover:text-brick shrink-0" />
               <span className="hidden sm:inline">{data.topBar.backToMenu}</span>
               <span className="sm:hidden">{data.topBar.backShort}</span>
-            </button>
+            </a>
             <span className="text-neutral-300 shrink-0 hidden md:inline">/</span>
-            <button
-              onClick={() => {
-                onNavigate('home');
+            <a
+              {...navLinkProps('home', (p) => {
+                onNavigate(p);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              })}
               className="hover:text-brick transition-colors cursor-pointer text-neutral-500 shrink-0 hidden md:inline"
             >
               {content.nav.welcome}
-            </button>
+            </a>
             <span className="text-neutral-300 shrink-0">/</span>
             <span className="text-brick font-semibold truncate max-w-[120px] xs:max-w-[170px] sm:max-w-none">
               {content.nav.businessServices}
@@ -1031,16 +1032,15 @@ export function BusinessServicesPage({
                 </div>
 
                 <div className="shrink-0 pt-2 lg:pt-0">
-                  <motion.button
+                  <motion.a
                     whileHover={hoverScale}
                     whileTap={tap}
-                    type="button"
-                    onClick={() => onNavigate('events')}
+                    {...navLinkProps('events', onNavigate)}
                     className="px-5 py-2.5 text-xs font-medium rounded-full bg-ink text-white hover:bg-neutral-800 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>{data.eventsSection.viewButton}</span>
                     <ChevronRight className="w-3.5 h-3.5" />
-                  </motion.button>
+                  </motion.a>
                 </div>
               </motion.div>
             ))}
