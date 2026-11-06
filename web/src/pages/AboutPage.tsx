@@ -17,6 +17,7 @@ import { aboutDataEN, aboutDataZH } from '../data/pagesContent';
 import { fill } from '../lib/text';
 import { Reveal } from '../components/Reveal';
 import { LatestArticles } from '../components/articles/LatestArticles';
+import { navLinkProps } from '../lib/navLink';
 
 const VALUE_ICONS = [Users, HeartHandshake, Award];
 
@@ -60,14 +61,13 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
             </p>
 
             <div className="pt-4 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => onNavigate('membership')}
+              <a
+                {...navLinkProps('membership', onNavigate)}
                 className="px-5 py-2.5 rounded-full bg-ink text-white text-xs font-medium tracking-wide hover:bg-neutral-800 transition-colors cursor-pointer inline-flex items-center gap-1.5"
               >
                 <span>{data.joinButton}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+              </a>
               <button
                 type="button"
                 onClick={() => onOpenModal('volunteer')}
@@ -137,7 +137,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                     <p className="text-sm text-neutral-600 leading-relaxed">{val.desc}</p>
                   </div>
 
-                  <div className="pt-4 border-t border-neutral-100 flex items-center gap-2 text-xs font-medium text-neutral-400">
+                  <div className="pt-4 border-t border-neutral-100 flex items-center gap-2 text-xs font-medium text-neutral-500">
                     <ShieldCheck className="w-4 h-4 text-brick" />
                     <span>{fill(data.valueLabel, { n: String(idx + 1).padStart(2, '0') })}</span>
                   </div>
@@ -169,8 +169,8 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2"
               >
                 <span className="text-[11px] font-semibold text-brick">{program.tag}</span>
-                <h4 className="text-base font-semibold text-ink">{program.title}</h4>
-                <p className="text-xs text-neutral-500 leading-relaxed">{program.desc}</p>
+                <h3 className="text-base font-semibold text-ink">{program.title}</h3>
+                <p className="text-xs text-neutral-600 leading-relaxed">{program.desc}</p>
               </Reveal>
             ))}
           </div>
@@ -280,7 +280,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                   <span className="text-[11px] font-semibold text-brick block mb-1">
                     {member.role}
                   </span>
-                  <h4 className="text-lg font-semibold text-ink">{member.name}</h4>
+                  <h3 className="text-lg font-semibold text-ink">{member.name}</h3>
                   <p className="text-xs text-neutral-600 mt-2 leading-relaxed">{member.desc}</p>
                 </div>
               </Reveal>
@@ -313,7 +313,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 index={idx}
                 className="p-4 rounded-xl border border-neutral-200/80 bg-surface-2 hover:bg-neutral-100 transition-colors"
               >
-                <span className="text-xs font-semibold text-neutral-400 block font-mono">
+                <span className="text-xs font-semibold text-neutral-500 block font-mono">
                   {p.year}
                 </span>
                 <span className="font-semibold text-sm text-ink mt-0.5 block">{p.name}</span>

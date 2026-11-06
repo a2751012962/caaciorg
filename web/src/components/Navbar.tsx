@@ -1,10 +1,20 @@
-import { useState, useEffect, useRef } from 'react';
+import {
+  useState,
+  useEffect,
+  useRef,
+  type FocusEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import { Globe, User, LogOut, ArrowUpRight } from 'lucide-react';
 import { MorphIcon } from 'morphicons/react';
 import { ChevronDown, ChevronUp, Menu, X } from 'lucide'; // icon data for morphing, not components
 import type { CAACIContent } from '../data/content';
 import { addSmoothScrollListener } from '../utils/smoothScroll';
 import { marketplaceUrl } from '../lib/marketplace';
+import { navLinkProps } from '../lib/navLink';
+import { isPlainClick } from '../lib/articleRoutes';
+import { loginUrl } from '../lib/auth';
 
 export interface NavUser {
   name: string;
@@ -37,7 +47,7 @@ export function Navbar({
   onLogin,
   onLogout,
 }: NavbarProps) {
-  const resourcesButtonRef = useRef<HTMLButtonElement>(null);
+  const resourcesButtonRef = useRef<HTMLAnchorElement>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [aboutDropdownOpen, setAboutDropdownOpen] = useState(false);
   const [resourcesDropdownOpen, setResourcesDropdownOpen] = useState(false);
@@ -124,6 +134,33 @@ export function Navbar({
     };
   }, []);
 
+  // Log In goes to the sign-in page: a real link (so it can open in a new
+  // tab), while a plain click still runs onLogin or the account route.
+  const loginLinkProps = {
+    href: loginUrl(),
+    onClick: (e: MouseEvent<HTMLAnchorElement>) => {
+      if (!isPlainClick(e)) return;
+      e.preventDefault();
+      if (onLogin) onLogin();
+      else handleNavClick('account');
+    },
+  };
+
+  // A hover menu also opens for keyboard users: it opens when focus enters,
+  // closes when focus leaves, and Escape closes it and returns to its trigger.
+  const keyboardMenu = (setOpen: (open: boolean) => void) => ({
+    onFocusCapture: () => setOpen(true),
+    onBlurCapture: (event: FocusEvent<HTMLDivElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.currentTarget.querySelector<HTMLElement>('a, button')?.focus();
+      setOpen(false);
+    },
+  });
+
   const handleNavClick = (page: string) => {
     onNavigate(page);
     setMobileMenuOpen(false);
@@ -135,6 +172,7 @@ export function Navbar({
 
   return (
     <header
+      onFocusCapture={() => setIsVisible(true)}
       className={`sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-neutral-200/80 shadow-xs transition-transform duration-300 will-change-transform ${
         isVisible || mobileMenuOpen ? 'translate-y-0' : '-translate-y-full'
       }`}
@@ -143,8 +181,8 @@ export function Navbar({
         <div className="flex justify-between items-center h-[72px]">
           {/* Official CAACI Logo */}
           <div className="flex-shrink-0 flex items-center">
-            <button
-              onClick={() => handleNavClick('home')}
+            <a
+              {...navLinkProps('home', handleNavClick)}
               className="flex items-center gap-3 cursor-pointer text-left"
             >
               <img
@@ -163,14 +201,17 @@ export function Navbar({
                   {content.nav.tagline}
                 </span>
               </div>
-            </button>
+            </a>
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center space-x-1 xl:space-x-2 font-sans">
+          <nav
+            aria-label={content.nav.navLabel}
+            className="hidden lg:flex items-center space-x-1 xl:space-x-2 font-sans"
+          >
             {/* Welcome / Home */}
-            <button
-              onClick={() => handleNavClick('home')}
+            <a
+              {...navLinkProps('home', handleNavClick, currentPage)}
               className={`px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                 currentPage === 'home'
                   ? 'text-brick font-bold border-b-2 border-brick'
@@ -178,17 +219,18 @@ export function Navbar({
               }`}
             >
               {content.nav.welcome}
-            </button>
+            </a>
 
             {/* About Us Dropdown */}
             <div
               className="relative group"
               onMouseEnter={() => setAboutDropdownOpen(true)}
               onMouseLeave={() => setAboutDropdownOpen(false)}
+              {...keyboardMenu(setAboutDropdownOpen)}
             >
-              <button
-                type="button"
-                onClick={() => handleNavClick('about')}
+              <a
+                {...navLinkProps('about', handleNavClick, currentPage)}
+                aria-expanded={aboutDropdownOpen}
                 className={`flex items-center gap-1 px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                   currentPage === 'about'
                     ? 'text-brick font-bold border-b-2 border-brick'
@@ -201,21 +243,21 @@ export function Navbar({
                   spring="snappy"
                   className="w-3.5 h-3.5 text-neutral-400 group-hover:text-brick"
                 />
-              </button>
+              </a>
               {aboutDropdownOpen && (
                 <div className="absolute left-0 mt-0 w-48 bg-white border border-neutral-200/80 shadow-lg py-2 rounded-2xl z-50 animate-fadeIn">
-                  <button
-                    onClick={() => handleNavClick('about')}
+                  <a
+                    {...navLinkProps('about', handleNavClick)}
                     className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.aboutUs}
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('columns')}
+                  </a>
+                  <a
+                    {...navLinkProps('columns', handleNavClick)}
                     className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.columns}
-                  </button>
+                  </a>
                   <button
                     onClick={() => {
                       setAboutDropdownOpen(false);
@@ -239,8 +281,8 @@ export function Navbar({
             </div>
 
             {/* Events */}
-            <button
-              onClick={() => handleNavClick('events')}
+            <a
+              {...navLinkProps('events', handleNavClick, currentPage)}
               className={`px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                 currentPage === 'events'
                   ? 'text-brick font-bold border-b-2 border-brick'
@@ -248,11 +290,11 @@ export function Navbar({
               }`}
             >
               {content.nav.events}
-            </button>
+            </a>
 
             {/* Membership (Direct Navigation - Account removed from dropdown) */}
-            <button
-              onClick={() => handleNavClick('membership')}
+            <a
+              {...navLinkProps('membership', handleNavClick, currentPage)}
               className={`px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                 currentPage === 'membership'
                   ? 'text-brick font-bold border-b-2 border-brick'
@@ -260,7 +302,7 @@ export function Navbar({
               }`}
             >
               {content.nav.membership}
-            </button>
+            </a>
 
             {/* Resources Dropdown */}
             <div
@@ -280,10 +322,10 @@ export function Navbar({
                 }
               }}
             >
-              <button
-                type="button"
+              <a
                 ref={resourcesButtonRef}
-                onClick={() => handleNavClick('resources')}
+                {...navLinkProps('resources', handleNavClick)}
+                aria-expanded={resourcesDropdownOpen}
                 className={`flex items-center gap-1 px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                   currentPage === 'resources' || currentPage === 'community-calendar'
                     ? 'text-brick font-bold border-b-2 border-brick'
@@ -296,21 +338,21 @@ export function Navbar({
                   spring="snappy"
                   className="w-3.5 h-3.5 text-neutral-400 group-hover:text-brick"
                 />
-              </button>
+              </a>
               {resourcesDropdownOpen && (
                 <div className="absolute left-0 mt-0 w-56 bg-white border border-neutral-200/80 shadow-lg py-2 rounded-2xl z-50 animate-fadeIn">
-                  <button
-                    onClick={() => handleNavClick('resources')}
+                  <a
+                    {...navLinkProps('resources', handleNavClick)}
                     className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.resources}
-                  </button>
-                  <button
-                    onClick={() => handleNavClick('community-calendar')}
+                  </a>
+                  <a
+                    {...navLinkProps('community-calendar', handleNavClick)}
                     className="w-full text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer"
                   >
                     {content.nav.communityCalendar}
-                  </button>
+                  </a>
                   <a
                     href={marketplaceUrl('navigation')}
                     target="_blank"
@@ -325,8 +367,8 @@ export function Navbar({
             </div>
 
             {/* Business Services */}
-            <button
-              onClick={() => handleNavClick('business-services')}
+            <a
+              {...navLinkProps('business-services', handleNavClick, currentPage)}
               className={`px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                 currentPage === 'business-services'
                   ? 'text-brick font-bold border-b-2 border-brick'
@@ -334,7 +376,7 @@ export function Navbar({
               }`}
             >
               {content.nav.businessServices}
-            </button>
+            </a>
 
             {/* Log In / User Account Entry (Replaces Log In button when logged in) */}
             {isLoggedIn && user ? (
@@ -342,10 +384,11 @@ export function Navbar({
                 className="relative group"
                 onMouseEnter={() => setUserDropdownOpen(true)}
                 onMouseLeave={() => setUserDropdownOpen(false)}
+                {...keyboardMenu(setUserDropdownOpen)}
               >
-                <button
-                  type="button"
-                  onClick={() => handleNavClick('account')}
+                <a
+                  {...navLinkProps('account', handleNavClick, currentPage)}
+                  aria-expanded={userDropdownOpen}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all cursor-pointer ${
                     currentPage === 'account'
                       ? 'bg-brick text-white shadow-xs'
@@ -365,7 +408,7 @@ export function Navbar({
                     spring="snappy"
                     className="w-3 h-3 opacity-60 group-hover:opacity-100"
                   />
-                </button>
+                </a>
 
                 {userDropdownOpen && (
                   <div className="absolute right-0 mt-0 w-52 bg-white border border-neutral-200/90 shadow-xl py-2 rounded-2xl z-50 animate-fadeIn">
@@ -375,16 +418,16 @@ export function Navbar({
                         {user.email}
                       </p>
                     </div>
-                    <button
-                      onClick={() => {
+                    <a
+                      {...navLinkProps('account', (page) => {
                         setUserDropdownOpen(false);
-                        handleNavClick('account');
-                      }}
+                        handleNavClick(page);
+                      })}
                       className="w-full text-left px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer flex items-center gap-2"
                     >
                       <User className="w-3.5 h-3.5 text-brick" />
                       <span>{content.nav.memberPortal}</span>
-                    </button>
+                    </a>
                     {onLogout && (
                       <button
                         onClick={() => {
@@ -401,8 +444,8 @@ export function Navbar({
                 )}
               </div>
             ) : (
-              <button
-                onClick={() => (onLogin ? onLogin() : handleNavClick('account'))}
+              <a
+                {...loginLinkProps}
                 className={`px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                   currentPage === 'account'
                     ? 'text-brick font-bold border-b-2 border-brick'
@@ -410,7 +453,7 @@ export function Navbar({
                 }`}
               >
                 {content.nav.login}
-              </button>
+              </a>
             )}
 
             {/* Language Switcher pill in header */}
@@ -435,8 +478,11 @@ export function Navbar({
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-neutral-700 hover:text-brick focus:outline-none cursor-pointer"
+              className="p-2 text-neutral-700 hover:text-brick focus-visible:outline-2 focus-visible:outline-brick cursor-pointer"
               aria-label={content.nav.menuLabel}
+              aria-expanded={mobileMenuOpen}
+              // The drawer only exists while open, so it is only referenced then.
+              aria-controls={mobileMenuOpen ? 'caaci-mobile-menu' : undefined}
             >
               <MorphIcon icon={mobileMenuOpen ? X : Menu} spring="snappy" className="w-6 h-6" />
             </button>
@@ -446,31 +492,36 @@ export function Navbar({
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-white border-t border-neutral-200 px-4 pt-2 pb-6 space-y-2 shadow-xl font-sans">
-          <button
-            onClick={() => handleNavClick('home')}
+        <div
+          id="caaci-mobile-menu"
+          role="navigation"
+          aria-label={content.nav.navLabel}
+          className="lg:hidden bg-white border-t border-neutral-200 px-4 pt-2 pb-6 space-y-2 shadow-xl font-sans"
+        >
+          <a
+            {...navLinkProps('home', handleNavClick, currentPage)}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
               currentPage === 'home' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.welcome}
-          </button>
+          </a>
 
           <div className="pl-3 border-l-2 border-neutral-200 space-y-1.5">
-            <button
-              onClick={() => handleNavClick('about')}
+            <a
+              {...navLinkProps('about', handleNavClick, currentPage)}
               className={`block w-full text-left py-1 text-sm font-semibold uppercase ${
                 currentPage === 'about' ? 'text-brick' : 'text-neutral-700'
               }`}
             >
               {content.nav.aboutUs}
-            </button>
-            <button
-              onClick={() => handleNavClick('columns')}
+            </a>
+            <a
+              {...navLinkProps('columns', handleNavClick, currentPage)}
               className="block w-full text-left py-1 text-xs text-neutral-600 hover:text-brick"
             >
               {content.nav.columns}
-            </button>
+            </a>
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
@@ -491,50 +542,50 @@ export function Navbar({
             </button>
           </div>
 
-          <button
-            onClick={() => handleNavClick('events')}
+          <a
+            {...navLinkProps('events', handleNavClick, currentPage)}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
               currentPage === 'events' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.events}
-          </button>
+          </a>
 
-          <button
-            onClick={() => handleNavClick('membership')}
+          <a
+            {...navLinkProps('membership', handleNavClick, currentPage)}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
               currentPage === 'membership' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.membership}
-          </button>
+          </a>
 
-          <button
-            onClick={() => handleNavClick('resources')}
+          <a
+            {...navLinkProps('resources', handleNavClick, currentPage)}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
               currentPage === 'resources' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.resources}
-          </button>
+          </a>
 
-          <button
-            onClick={() => handleNavClick('community-calendar')}
+          <a
+            {...navLinkProps('community-calendar', handleNavClick, currentPage)}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
               currentPage === 'community-calendar' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.communityCalendar}
-          </button>
+          </a>
 
-          <button
-            onClick={() => handleNavClick('business-services')}
+          <a
+            {...navLinkProps('business-services', handleNavClick, currentPage)}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
               currentPage === 'business-services' ? 'text-brick' : 'text-neutral-700'
             }`}
           >
             {content.nav.businessServices}
-          </button>
+          </a>
 
           <a
             href={marketplaceUrl('navigation')}
@@ -548,14 +599,14 @@ export function Navbar({
 
           {isLoggedIn && user ? (
             <div className="pt-3 border-t border-neutral-200 space-y-1">
-              <button
-                onClick={() => handleNavClick('account')}
+              <a
+                {...navLinkProps('account', handleNavClick, currentPage)}
                 className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
                   currentPage === 'account' ? 'text-brick' : 'text-neutral-700'
                 }`}
               >
                 {content.nav.myAccount}
-              </button>
+              </a>
               {onLogout && (
                 <button
                   onClick={() => {
@@ -569,14 +620,14 @@ export function Navbar({
               )}
             </div>
           ) : (
-            <button
-              onClick={() => (onLogin ? onLogin() : handleNavClick('account'))}
+            <a
+              {...loginLinkProps}
               className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
                 currentPage === 'account' ? 'text-brick' : 'text-neutral-700'
               }`}
             >
               {content.nav.login}
-            </button>
+            </a>
           )}
         </div>
       )}

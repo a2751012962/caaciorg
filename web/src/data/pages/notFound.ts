@@ -40,5 +40,5 @@ export const notFoundDataZH: NotFoundData = {
   events: '活动',
   membership: '会员',
   contact: '联系我们',
-  documentTitleSuffix: 'Chinese American Association of Central Illinois',
+  documentTitleSuffix: '中伊利诺伊华人协会',
 };

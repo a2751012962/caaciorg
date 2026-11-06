@@ -49,6 +49,7 @@ import {
 import { fill } from '../lib/text';
 import { planTokens } from '../lib/tokens';
 import { smoothScrollTo } from '../utils/smoothScroll';
+import { navLinkProps } from '../lib/navLink';
 
 interface MembershipPageProps {
   content: CAACIContent;
@@ -348,6 +349,9 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
   return (
     <div className="bg-white min-h-screen text-ink font-sans antialiased selection:bg-neutral-200">
+      {/* The page has no visible title above the plans; this one is for screen
+          readers and outlines, so the plans' h2 sits under a page heading. */}
+      <h1 className="sr-only">{content.nav.membership}</h1>
       {/* Top-Left Return / Breadcrumb Path */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
@@ -360,28 +364,32 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             aria-label={data.breadcrumb.label}
             className="flex items-center gap-2 text-xs sm:text-sm text-neutral-500 font-sans"
           >
-            <button
-              onClick={() => {
-                onNavigate('home');
+            <a
+              {...navLinkProps('home', (p) => {
+                onNavigate(p);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              })}
               className="inline-flex items-center gap-1.5 font-medium text-neutral-700 hover:text-brick transition-colors cursor-pointer group"
               title={data.breadcrumb.backToMenu}
             >
-              <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-400 group-hover:text-brick" />
+              <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-500 group-hover:text-brick" />
               <span>{data.breadcrumb.backToMenu}</span>
-            </button>
-            <span className="text-neutral-300">/</span>
-            <button
-              onClick={() => {
-                onNavigate('home');
+            </a>
+            <span aria-hidden="true" className="text-neutral-300">
+              /
+            </span>
+            <a
+              {...navLinkProps('home', (p) => {
+                onNavigate(p);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              })}
               className="hover:text-brick transition-colors cursor-pointer text-neutral-500"
             >
               {content.nav.welcome}
-            </button>
-            <span className="text-neutral-300">/</span>
+            </a>
+            <span aria-hidden="true" className="text-neutral-300">
+              /
+            </span>
             <span className="text-brick font-semibold">{content.nav.membership}</span>
           </nav>
         </div>
@@ -467,7 +475,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             </div>
           )}
 
-          <div className="mt-6 sm:mt-8 max-w-3xl mx-auto text-center text-[11px] sm:text-xs text-neutral-400 space-y-1">
+          <div className="mt-6 sm:mt-8 max-w-3xl mx-auto text-center text-[11px] sm:text-xs text-neutral-500 space-y-1">
             <p>{data.note}</p>
             {hasInviteTier && <p>{data.inviteNote}</p>}
           </div>
@@ -579,17 +587,16 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             >
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-ink">{data.portal.title}</div>
-                <div className="text-[11px] text-neutral-500 leading-snug">{data.portal.text}</div>
+                <div className="text-[11px] text-neutral-600 leading-snug">{data.portal.text}</div>
               </div>
-              <motion.button
+              <motion.a
                 whileHover={hoverScale}
                 whileTap={tap}
-                type="button"
-                onClick={() => onNavigate('account')}
+                {...navLinkProps('account', onNavigate)}
                 className="flex-shrink-0 px-3.5 py-1.5 rounded-full bg-white border border-neutral-200 text-xs font-medium text-ink hover:bg-neutral-100 transition-colors cursor-pointer whitespace-nowrap"
               >
                 {data.portal.button}
-              </motion.button>
+              </motion.a>
             </motion.div>
           </motion.div>
 
@@ -602,14 +609,21 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             transition={rise(0.15)}
             className="md:col-span-7 bg-white p-6 sm:p-8 lg:p-10 rounded-2xl border border-neutral-200/80 shadow-sm"
           >
-            <h3 className="text-2xl font-semibold tracking-tight text-ink mb-1">
+            <h3
+              id="membership-form-title"
+              className="text-2xl font-semibold tracking-tight text-ink mb-1"
+            >
               {data.formTitle}
             </h3>
             <p className="text-xs sm:text-sm text-neutral-500 mb-8">
               {fill(data.form.intro, { email: content.contact.email })}
             </p>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form
+              onSubmit={handleSubmit}
+              aria-labelledby="membership-form-title"
+              className="space-y-6"
+            >
               <div>
                 <label className="block text-xs font-medium text-neutral-700 mb-2">
                   {data.formTier}
@@ -657,7 +671,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                         <span>{data.form.membership}</span>
                         <span>{data.freeLabel}</span>
                       </div>
-                      <p className="pt-1 text-neutral-500">{data.form.freeNote}</p>
+                      <p className="pt-1 text-neutral-600">{data.form.freeNote}</p>
                     </>
                   ) : (
                     <>
@@ -692,7 +706,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                           </span>
                         </div>
                       )}
-                      <p className="pt-1 text-neutral-500">
+                      <p className="pt-1 text-neutral-600">
                         {mode !== 'switch' && applied
                           ? fill(data.form.discountFirstYear, { total: usd(summary.total) })
                           : data.form.renewsYearly}
@@ -776,7 +790,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               )}
 
               {!free && (mode === 'checkout' || mode === 'switch') && (
-                <p className="text-[11px] text-neutral-400 text-center">
+                <p className="text-[11px] text-neutral-500 text-center">
                   {data.form.securePayment}
                 </p>
               )}
@@ -806,7 +820,9 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           <p className="mt-3 text-base text-neutral-600 leading-relaxed">{data.privileges.text}</p>
         </motion.div>
 
-        <div className="flex md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 overflow-x-auto md:overflow-visible no-scrollbar snap-x snap-mandatory md:snap-none -mx-4 px-6 sm:-mx-6 sm:px-8 md:mx-0 md:px-0 pt-2 pb-4 md:pt-0 md:pb-0 overscroll-x-contain">
+        {/* The privileges stack on phones instead of scrolling sideways: nothing
+            hides off-screen, so there is nothing a keyboard user has to scroll to. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {data.privileges.items.map((item, idx) => {
             const Icon = PRIVILEGE_ICONS[item.icon] ?? Star;
             return (
@@ -817,7 +833,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 viewport={inView}
                 transition={rise(0.05 + idx * 0.1)}
                 whileHover={hoverLift}
-                className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
+                className="bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
               >
                 <div className="space-y-4">
                   <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs group-hover:scale-110 transition-transform duration-300">

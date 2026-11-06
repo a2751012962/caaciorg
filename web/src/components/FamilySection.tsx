@@ -27,6 +27,7 @@ import {
   useCooldown,
 } from '../lib/account';
 import type { FamilyActionData, FamilyData, FamilyInvite, FamilyPerson } from '../types/account';
+import { navLinkProps } from '../lib/navLink';
 
 interface FamilySectionProps {
   lang: Lang;
@@ -1010,13 +1011,12 @@ export function FamilySection({
                   `家庭权益属于 CAACI 家庭会员，最多包含 ${seats.limit} 人（含你本人）。`,
                 )}
           </p>
-          <button
-            type="button"
-            onClick={() => onNavigate('membership')}
+          <a
+            {...navLinkProps('membership', onNavigate)}
             className="min-h-[40px] px-4 py-2 rounded-full bg-white border border-neutral-300 text-neutral-800 hover:border-brick text-xs font-semibold cursor-pointer"
           >
             {t('Explore Family Plan', '了解家庭方案详情')}
-          </button>
+          </a>
         </div>
       )}
 

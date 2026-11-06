@@ -57,6 +57,7 @@ import {
 } from '../lib/account';
 import type { FamilyData, PaymentRow, RegisteredEvent, Tier } from '../types/account';
 import type { CAACIContent } from '../data/content';
+import { navLinkProps } from '../lib/navLink';
 
 interface AccountPageProps {
   content: CAACIContent;
@@ -337,15 +338,14 @@ export function AccountPage({
           ? 'Your digital card with its live verification QR appears here while your membership is active.'
           : '会员资格有效期间，这里会显示带实时验证二维码的电子会员卡。'}
       </p>
-      <button
-        type="button"
-        onClick={() => onNavigate('membership')}
+      <a
+        {...navLinkProps('membership', onNavigate)}
         className="min-h-[44px] px-6 py-2.5 rounded-full bg-brick text-white text-xs font-semibold cursor-pointer active:scale-98"
       >
         {shownTier
           ? t('Renew or Change Plan', '续费或更改方案')
           : t('Activate Membership', '激活会员资格')}
-      </button>
+      </a>
     </div>
   );
 
@@ -598,6 +598,9 @@ export function AccountPage({
               <FluidTabs<MobileTab>
                 id="account-sections"
                 tone="brand"
+                // These buttons show one section of the page and hide the rest;
+                // there is no single tab panel, so they are pressed toggles.
+                role="group"
                 ariaLabel={lang === 'en' ? 'Account sections' : '账户分区'}
                 value={activeMobileTab}
                 onChange={setActiveMobileTab}
@@ -728,14 +731,13 @@ export function AccountPage({
                   {lang === 'en' ? 'My Registered Events' : '我报名的活动'}
                 </h3>
               </div>
-              <button
-                type="button"
-                onClick={() => onNavigate('events')}
+              <a
+                {...navLinkProps('events', onNavigate)}
                 className="min-h-[36px] text-xs text-brick hover:underline font-semibold inline-flex items-center gap-1 cursor-pointer py-1"
               >
                 <span>{lang === 'en' ? 'Browse All Events' : '浏览更多社区活动'}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+              </a>
             </div>
 
             {events === undefined ? (
@@ -756,13 +758,12 @@ export function AccountPage({
                         '您目前暂未报名任何社区活动。',
                       )}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('events')}
+                <a
+                  {...navLinkProps('events', onNavigate)}
                   className="mt-3 min-h-[36px] text-xs font-semibold text-brick hover:underline cursor-pointer"
                 >
                   {lang === 'en' ? 'Explore CAACI Events' : '立即浏览活动日程'}
-                </button>
+                </a>
               </div>
             ) : (
               <div className="divide-y divide-neutral-200/80 border-y border-neutral-200/80">
@@ -849,13 +850,12 @@ export function AccountPage({
                             {t('View Registration', '查看报名')}
                           </button>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => onNavigate(over ? 'events#past' : 'events')}
+                          <a
+                            {...navLinkProps(over ? 'events#past' : 'events', onNavigate)}
                             className="min-h-[36px] text-xs text-brick hover:underline font-semibold cursor-pointer inline-flex items-center"
                           >
                             {lang === 'en' ? 'View Details' : '查看详情'}
-                          </button>
+                          </a>
                         )}
                         {canFeedback || canCancel ? (
                           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1104,9 +1104,8 @@ export function AccountPage({
 
                 {/* Subscription Action Buttons */}
                 <div className="flex flex-wrap items-center gap-2.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('membership')}
+                  <a
+                    {...navLinkProps('membership', onNavigate)}
                     className={
                       !shownTier
                         ? 'min-h-[44px] px-6 py-2.5 rounded-full bg-brick hover:brightness-110 text-white font-semibold text-xs cursor-pointer shadow-xs active:scale-98'
@@ -1115,7 +1114,7 @@ export function AccountPage({
                   >
                     {shownTier && <RefreshCw className="w-3.5 h-3.5" />}
                     <span>{planButtonLabel}</span>
-                  </button>
+                  </a>
 
                   {/* The Stripe portal needs a customer: a member who never paid has nothing there. */}
                   {hasBilling && !pastDue && (

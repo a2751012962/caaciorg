@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { X, Check, Heart, Lock } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
@@ -8,6 +8,8 @@ import { fill } from '../lib/text';
 import { FluidTabs } from './FluidTabs';
 import { QuestionFields, blankAnswers, type AnswerState, type Question } from './QuestionFields';
 import { TurnstileBox, useTurnstile } from './Turnstile';
+import { useDialogFocus } from '../lib/useDialogFocus';
+import { flagInvalid, focusInvalid } from '../lib/fieldError';
 
 export type ModalType = 'donate' | 'events' | 'membership' | 'volunteer' | null;
 
@@ -22,12 +24,26 @@ interface ModalsProps {
 // pages, and App.tsx navigates to them instead of opening a dialog.
 export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
   if (modalType !== 'donate' && modalType !== 'volunteer') return null;
+  return <ModalFrame modalType={modalType} onClose={onClose} lang={lang} content={content} />;
+}
+
+function ModalFrame({
+  modalType,
+  onClose,
+  lang,
+  content,
+}: ModalsProps & { modalType: 'donate' | 'volunteer' }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, onClose);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby="caaci-modal-title"
+        tabIndex={-1}
         className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-neutral-200 animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -35,14 +51,15 @@ export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 bg-neutral-50">
           <div className="flex items-center gap-2">
             {modalType === 'donate' && <Heart className="w-5 h-5 text-brick" />}
-            <h3 className="font-bold text-lg text-maroon">
+            <h3 id="caaci-modal-title" className="font-bold text-lg text-maroon">
               {modalType === 'donate' && content.modals.donateTitle}
               {modalType === 'volunteer' && content.modals.volunteerTitle}
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+            type="button"
+            className="p-1 rounded-full text-neutral-500 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
             aria-label={content.modals.close}
           >
             <X className="w-5 h-5" />
@@ -73,6 +90,10 @@ function DonateModalContent({ content }: { content: CAACIContent }) {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // A cleared error no longer points at the old field.
+  useEffect(() => {
+    if (!error) flagInvalid(null, 'donate-error');
+  }, [error]);
 
   const cents =
     selectedAmount === 'custom'
@@ -85,6 +106,7 @@ function DonateModalContent({ content }: { content: CAACIContent }) {
     if (busy) return;
     if (!valid) {
       setError(text.minimumError);
+      if (selectedAmount === 'custom') focusInvalid('donate-amount', 'donate-error');
       return;
     }
     setError('');
@@ -223,6 +245,7 @@ function DonateModalContent({ content }: { content: CAACIContent }) {
 
       {error && (
         <div
+          id="donate-error"
           role="alert"
           className="p-3 bg-red-50 text-red-700 text-xs font-medium rounded-xl border border-red-200"
         >
@@ -308,6 +331,10 @@ function VolunteerModalContent({
   const [busy, setBusy] = useState(false);
   const turnstile = useTurnstile('volunteer');
   const [error, setError] = useState('');
+  // A cleared error no longer points at the old field.
+  useEffect(() => {
+    if (!error) flagInvalid(null, 'volunteer-error');
+  }, [error]);
   const [submitted, setSubmitted] = useState<VolunteerEvent[] | null>(null);
 
   useEffect(() => {
@@ -346,12 +373,13 @@ function VolunteerModalContent({
     if (busy) return;
     if (!name.trim() || !email.trim()) {
       setError(text.nameEmailError);
+      focusInvalid(name.trim() ? 'volunteer-email' : 'volunteer-name', 'volunteer-error');
       return;
     }
     const read = readAnswers(questions, answers, lang);
     if ('error' in read) {
       setError(read.error);
-      document.getElementById(read.field)?.focus();
+      focusInvalid(read.field, 'volunteer-error');
       return;
     }
 
@@ -393,12 +421,25 @@ function VolunteerModalContent({
     );
   };
 
+  // The form is replaced by the thank-you: focus moves to its heading, so a
+  // screen reader announces the result instead of losing focus to the page.
+  const doneTitle = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (submitted) doneTitle.current?.focus();
+  }, [submitted]);
+
   if (submitted) {
     const names = submitted.map((ev) => (en ? ev.title : ev.title_zh || ev.title));
     return (
       <div role="status" className="text-center py-6 space-y-3 font-sans">
         <Check className="w-12 h-12 text-green-600 mx-auto" />
-        <h4 className="text-lg font-bold text-neutral-900">{text.thanksTitle}</h4>
+        <h4
+          ref={doneTitle}
+          tabIndex={-1}
+          className="text-lg font-bold text-neutral-900 outline-none"
+        >
+          {text.thanksTitle}
+        </h4>
         <p className="text-xs text-neutral-600">
           {names.length
             ? fill(text.signedUp, { events: names.join(text.eventSeparator) })
@@ -419,36 +460,57 @@ function VolunteerModalContent({
     <form onSubmit={submit} className="relative space-y-4 font-sans text-xs">
       <p className="text-neutral-600 leading-relaxed text-sm">{text.intro}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <label
+            htmlFor="volunteer-name"
+            className="block text-xs font-semibold text-neutral-600 mb-1"
+          >
+            {text.nameLabel} *
+          </label>
+          <input
+            id="volunteer-name"
+            type="text"
+            required
+            autoComplete="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="volunteer-email"
+            className="block text-xs font-semibold text-neutral-600 mb-1"
+          >
+            {text.emailLabel} *
+          </label>
+          <input
+            id="volunteer-email"
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
+          />
+        </div>
+      </div>
+      <div>
+        <label
+          htmlFor="volunteer-phone"
+          className="block text-xs font-semibold text-neutral-600 mb-1"
+        >
+          {text.phoneLabel}
+        </label>
         <input
-          type="text"
-          required
-          autoComplete="name"
-          aria-label={text.nameLabel}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={`${text.nameLabel} *`}
-          className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
-        />
-        <input
-          type="email"
-          required
-          autoComplete="email"
-          aria-label={text.emailLabel}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder={`${text.emailLabel} *`}
+          id="volunteer-phone"
+          type="tel"
+          autoComplete="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
           className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
         />
       </div>
-      <input
-        type="tel"
-        autoComplete="tel"
-        aria-label={text.phoneLabel}
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-        placeholder={text.phoneLabel}
-        className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
-      />
 
       <fieldset>
         <legend className="block text-xs font-bold text-neutral-500 mb-2">
@@ -511,6 +573,7 @@ function VolunteerModalContent({
 
       {error && (
         <div
+          id="volunteer-error"
           role="alert"
           className="p-3 bg-red-50 text-red-700 text-xs font-medium rounded-xl border border-red-200"
         >

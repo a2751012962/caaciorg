@@ -75,6 +75,7 @@ import {
   loadApprovedListings,
   type DirectoryRow,
 } from '../lib/directory';
+import { navLinkProps } from '../lib/navLink';
 
 interface BusinessServicesPageProps {
   content: CAACIContent;
@@ -384,29 +385,33 @@ export function BusinessServicesPage({
             aria-label={data.topBar.breadcrumbLabel}
             className="flex items-center gap-1 sm:gap-1.5 md:gap-2 text-[11px] sm:text-xs md:text-sm text-neutral-500 font-sans min-w-0"
           >
-            <button
-              onClick={() => {
-                onNavigate('home');
+            <a
+              {...navLinkProps('home', (p) => {
+                onNavigate(p);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              })}
               className="inline-flex items-center gap-0.5 sm:gap-1 font-medium text-neutral-700 hover:text-brick transition-colors cursor-pointer group shrink-0"
               title={data.topBar.backToMenu}
             >
-              <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-400 group-hover:text-brick shrink-0" />
+              <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-500 group-hover:text-brick shrink-0" />
               <span className="hidden sm:inline">{data.topBar.backToMenu}</span>
               <span className="sm:hidden">{data.topBar.backShort}</span>
-            </button>
-            <span className="text-neutral-300 shrink-0 hidden md:inline">/</span>
-            <button
-              onClick={() => {
-                onNavigate('home');
+            </a>
+            <span aria-hidden="true" className="text-neutral-300 shrink-0 hidden md:inline">
+              /
+            </span>
+            <a
+              {...navLinkProps('home', (p) => {
+                onNavigate(p);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
+              })}
               className="hover:text-brick transition-colors cursor-pointer text-neutral-500 shrink-0 hidden md:inline"
             >
               {content.nav.welcome}
-            </button>
-            <span className="text-neutral-300 shrink-0">/</span>
+            </a>
+            <span aria-hidden="true" className="text-neutral-300 shrink-0">
+              /
+            </span>
             <span className="text-brick font-semibold truncate max-w-[120px] xs:max-w-[170px] sm:max-w-none">
               {content.nav.businessServices}
             </span>
@@ -531,7 +536,7 @@ export function BusinessServicesPage({
                       <Icon className="w-5 h-5" />
                     </div>
                     <div className="flex items-center justify-between">
-                      <h3 className="text-base font-semibold text-ink">{pillar.title}</h3>
+                      <h2 className="text-base font-semibold text-ink">{pillar.title}</h2>
                       <span
                         className={`text-[11px] font-semibold ${tint.badge} px-2 py-0.5 rounded-full`}
                       >
@@ -603,13 +608,13 @@ export function BusinessServicesPage({
             <div className="flex items-center gap-2.5 w-full lg:w-auto">
               {/* Apple-style search pill */}
               <div className="relative flex-1 sm:w-72 sm:flex-initial">
-                <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Search className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={data.directory.searchPlaceholder}
-                  className="w-full pl-9 pr-3.5 py-2 text-xs sm:text-sm bg-white border border-neutral-200 rounded-full focus:outline-none focus:ring-1 focus:ring-neutral-800 transition-all placeholder:text-neutral-400"
+                  className="w-full pl-9 pr-3.5 py-2 text-xs sm:text-sm bg-white border border-neutral-200 rounded-full focus:outline-none focus:ring-1 focus:ring-neutral-800 transition-all placeholder:text-neutral-500"
                 />
               </div>
 
@@ -726,19 +731,19 @@ export function BusinessServicesPage({
                         <div className="space-y-1.5 text-[11px] text-neutral-500 pt-2.5 border-t border-neutral-100">
                           {merchant.address && (
                             <div className="flex items-start gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
+                              <MapPin className="w-3.5 h-3.5 text-neutral-500 shrink-0 mt-0.5" />
                               <span className="line-clamp-1">{merchant.address}</span>
                             </div>
                           )}
                           {merchant.phone && (
                             <div className="flex items-center gap-1.5">
-                              <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                              <Phone className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
                               <span>{merchant.phone}</span>
                             </div>
                           )}
                           {merchant.hours && (
                             <div className="flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                              <Clock className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
                               <span className="line-clamp-1">{merchant.hours}</span>
                             </div>
                           )}
@@ -754,7 +759,7 @@ export function BusinessServicesPage({
                             className="flex-1 py-2 text-center text-xs font-medium rounded-full border border-neutral-200 text-neutral-800 hover:border-neutral-400 transition-colors inline-flex items-center justify-center gap-1"
                           >
                             <span>{data.directory.websiteShort}</span>
-                            <ExternalLink className="w-3 h-3 text-neutral-400" />
+                            <ExternalLink className="w-3 h-3 text-neutral-500" />
                           </a>
                         )}
                         {merchant.address && (
@@ -847,19 +852,19 @@ export function BusinessServicesPage({
                       <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-neutral-500 pt-1">
                         {merchant.address && (
                           <span className="inline-flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                            <MapPin className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
                             <span>{merchant.address}</span>
                           </span>
                         )}
                         {merchant.phone && (
                           <span className="inline-flex items-center gap-1">
-                            <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                            <Phone className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
                             <span>{merchant.phone}</span>
                           </span>
                         )}
                         {merchant.hours && (
                           <span className="inline-flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                            <Clock className="w-3.5 h-3.5 text-neutral-500 shrink-0" />
                             <span>{merchant.hours}</span>
                           </span>
                         )}
@@ -875,7 +880,7 @@ export function BusinessServicesPage({
                           className="px-4 py-2 text-xs font-medium rounded-full border border-neutral-200 text-neutral-800 hover:border-neutral-400 transition-colors inline-flex items-center gap-1.5"
                         >
                           <span>{data.directory.website}</span>
-                          <ExternalLink className="w-3.5 h-3.5 text-neutral-400" />
+                          <ExternalLink className="w-3.5 h-3.5 text-neutral-500" />
                         </a>
                       )}
                       {merchant.address && (
@@ -943,7 +948,7 @@ export function BusinessServicesPage({
                     {idx + 1}
                   </span>
                   <div>
-                    <h4 className="font-semibold text-ink text-sm">{step.title}</h4>
+                    <h3 className="font-semibold text-ink text-sm">{step.title}</h3>
                     <p className="text-neutral-600 mt-0.5 leading-relaxed">{step.text}</p>
                   </div>
                 </motion.div>
@@ -1016,31 +1021,30 @@ export function BusinessServicesPage({
 
                   <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-neutral-500 pt-1">
                     <span className="inline-flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-neutral-400" />
+                      <Calendar className="w-3.5 h-3.5 text-neutral-500" />
                       <span>{evt.date}</span>
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-neutral-400" />
+                      <Clock className="w-3.5 h-3.5 text-neutral-500" />
                       <span>{evt.time}</span>
                     </span>
                     <span className="inline-flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-neutral-400" />
+                      <MapPin className="w-3.5 h-3.5 text-neutral-500" />
                       <span>{evt.location}</span>
                     </span>
                   </div>
                 </div>
 
                 <div className="shrink-0 pt-2 lg:pt-0">
-                  <motion.button
+                  <motion.a
                     whileHover={hoverScale}
                     whileTap={tap}
-                    type="button"
-                    onClick={() => onNavigate('events')}
+                    {...navLinkProps('events', onNavigate)}
                     className="px-5 py-2.5 text-xs font-medium rounded-full bg-ink text-white hover:bg-neutral-800 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>{data.eventsSection.viewButton}</span>
                     <ChevronRight className="w-3.5 h-3.5" />
-                  </motion.button>
+                  </motion.a>
                 </div>
               </motion.div>
             ))}
@@ -1095,13 +1099,13 @@ export function BusinessServicesPage({
                   <h3 className="text-xl font-semibold text-ink tracking-tight">
                     {fill(tier.name)}
                   </h3>
-                  <p className="text-xs text-neutral-500 leading-relaxed">{fill(tier.subtitle)}</p>
+                  <p className="text-xs text-neutral-600 leading-relaxed">{fill(tier.subtitle)}</p>
 
                   <div className="pt-2 pb-4 border-b border-neutral-200/80 flex items-baseline gap-1">
                     <span className="text-4xl font-semibold tracking-tight text-ink">
                       {fill(tier.price)}
                     </span>
-                    <span className="text-xs text-neutral-500 font-medium">/ {tier.period}</span>
+                    <span className="text-xs text-neutral-600 font-medium">/ {tier.period}</span>
                   </div>
 
                   <ul className="space-y-3 pt-2">
@@ -1155,7 +1159,7 @@ export function BusinessServicesPage({
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="absolute top-5 right-5 p-1.5 rounded-full hover:bg-neutral-100 text-neutral-400 hover:text-neutral-700 transition-colors cursor-pointer"
+                className="absolute top-5 right-5 p-1.5 rounded-full hover:bg-neutral-100 text-neutral-500 hover:text-neutral-700 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

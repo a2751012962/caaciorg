@@ -56,7 +56,7 @@ export function ResourcesPage({ content, lang, onOpenModal, onNavigate }: Resour
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-brick font-sans">{item.category}</span>
-                    <ExternalLink className="w-4 h-4 text-neutral-400 group-hover:text-brick transition-colors" />
+                    <ExternalLink className="w-4 h-4 text-neutral-500 group-hover:text-brick transition-colors" />
                   </div>
 
                   <h3 className="text-xl font-bold text-maroon group-hover:text-brick transition-colors">

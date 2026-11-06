@@ -23,6 +23,8 @@ import {
 import type { Lang } from '../lib/lang';
 import { mountIn, riseFromSm, shown } from '../lib/motion';
 import { answerStateFrom, eventSlugFrom, readAnswers, volunteerZhError } from '../lib/registration';
+import { isPlainClick } from '../lib/articleRoutes';
+import { flagInvalid, focusInvalid } from '../lib/fieldError';
 
 // ---------------------------------------------------------------- the API's shapes
 
@@ -124,6 +126,10 @@ export function EventVolunteerPage({
   const [busy, setBusy] = useState(false);
   const turnstile = useTurnstile('volunteer');
   const [error, setError] = useState('');
+  // A cleared or changed error no longer points at the old field.
+  useEffect(() => {
+    if (!error) flagInvalid(null, 'vol-error');
+  }, [error]);
   // The success card: when the sign-up was first made, and whether this
   // submission updated an earlier one.
   const [done, setDone] = useState<{ createdAt: string | null; already: boolean } | null>(null);
@@ -207,7 +213,7 @@ export function EventVolunteerPage({
   const submit = async (e: SyntheticEvent) => {
     e.preventDefault();
     if (busy || !ev) return;
-    const focus = (field: string) => document.getElementById(field)?.focus();
+    const focus = (field: string) => focusInvalid(field, 'vol-error');
     if (!name.trim()) {
       setError(en ? 'Enter your name.' : '请填写姓名。');
       focus('vol-name');
@@ -419,7 +425,7 @@ export function EventVolunteerPage({
       </p>
 
       {error && (
-        <div role="alert" className={ALERT_ERROR}>
+        <div id="vol-error" role="alert" className={ALERT_ERROR}>
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
           <span>{error}</span>
         </div>
@@ -453,6 +459,7 @@ export function EventVolunteerPage({
             <a
               href={eventsPath(lang)}
               onClick={(e) => {
+                if (!isPlainClick(e)) return;
                 e.preventDefault();
                 onNavigate('events');
               }}

@@ -57,7 +57,6 @@ export function PlanCard({
       viewport={inView}
       transition={rise(index * 0.1)}
       whileHover={hoverLift}
-      whileTap={tap}
       className={`w-[82vw] max-w-[310px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-white rounded-2xl p-6 sm:p-7 border transition-all duration-300 flex flex-col justify-between relative ${
         selected
           ? 'border-ink shadow-lg ring-1 ring-ink'
@@ -81,7 +80,7 @@ export function PlanCard({
             <span className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
               {tierIsFree ? data.freeLabel : money(tier.price_cents)}
             </span>
-            <span className="text-xs text-neutral-400">/ {copy.period}</span>
+            <span className="text-xs text-neutral-500">/ {copy.period}</span>
           </div>
           <div className="mt-1 text-[11px] text-neutral-500 leading-snug">
             {tierIsFree ? text.noCard : fill(text.cardTotal, { total: usd(cardTotal(tier)) })}
@@ -117,6 +116,7 @@ export function PlanCard({
           whileTap={tap}
           type="button"
           onClick={onSelect}
+          aria-pressed={selected}
           className={`w-full py-2.5 rounded-full text-xs font-medium tracking-wide transition-all duration-200 cursor-pointer ${
             selected ? 'bg-ink text-white shadow-sm' : 'bg-surface-3 text-ink hover:bg-neutral-200'
           }`}

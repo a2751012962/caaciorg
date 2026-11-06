@@ -337,10 +337,10 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
             }`;
     const iconClass =
       variant === 'spotlight'
-        ? `w-4 h-4 ${done ? 'text-emerald-600' : 'text-neutral-400'}`
+        ? `w-4 h-4 ${done ? 'text-emerald-600' : 'text-neutral-500'}`
         : variant === 'mobile'
-          ? `w-3.5 h-3.5 ${done ? 'scale-110' : 'text-neutral-400'}`
-          : `w-3.5 h-3.5 transition-transform duration-200 ${done ? 'scale-110' : 'scale-90 text-neutral-400'}`;
+          ? `w-3.5 h-3.5 ${done ? 'scale-110' : 'text-neutral-500'}`
+          : `w-3.5 h-3.5 transition-transform duration-200 ${done ? 'scale-110' : 'scale-90 text-neutral-500'}`;
     const labelClass = variant === 'desktop' ? 'truncate' : undefined;
 
     if (item.register) {
@@ -499,7 +499,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                   </p>
                 )}
 
-                <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-400 pt-1">
+                <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-500 pt-1">
                   <span className="inline-flex items-center gap-1.5">
                     <CalendarIcon className="w-3.5 h-3.5 text-gold" />
                     <span>
@@ -578,6 +578,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                   {/* Time filter: one track, a pill slides to the chosen tab */}
                   <FluidTabs<'all' | 'upcoming' | 'past'>
                     id="events-time-filter"
+                    panelId="events-list"
                     ariaLabel={data.toolbar.tabsLabel}
                     value={activeTab}
                     onChange={setActiveTab}
@@ -645,21 +646,21 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
 
                   {/* Desktop Inline Search Bar (Exactly matching h-10 height & pill contour) */}
                   <div className="hidden md:flex items-center relative w-60 lg:w-72 shrink-0 h-10">
-                    <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Search className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder={data.searchPlaceholder}
                       aria-label={data.searchPlaceholder}
-                      className="w-full h-10 pl-9 pr-8 text-xs bg-neutral-100/90 hover:bg-neutral-100 focus:bg-white border border-neutral-200/80 rounded-full focus:outline-none focus:ring-2 focus:ring-brick/20 focus:border-brick transition-all placeholder:text-neutral-400 shadow-2xs"
+                      className="w-full h-10 pl-9 pr-8 text-xs bg-neutral-100/90 hover:bg-neutral-100 focus:bg-white border border-neutral-200/80 rounded-full focus:outline-none focus:ring-2 focus:ring-brick/20 focus:border-brick transition-all placeholder:text-neutral-500 shadow-2xs"
                     />
                     {searchQuery && (
                       <button
                         type="button"
                         onClick={() => setSearchQuery('')}
                         aria-label={data.toolbar.clearSearch}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-500 hover:text-neutral-700 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -689,7 +690,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
               {(mobileSearchOpen || searchQuery) && (
                 <div className="md:hidden flex items-center gap-2 w-full animate-fadeIn pt-1">
                   <div className="relative flex-1 h-10 flex items-center">
-                    <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <Search className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       autoFocus
@@ -697,14 +698,14 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder={data.searchPlaceholder}
                       aria-label={data.searchPlaceholder}
-                      className="w-full h-10 pl-9 pr-8 text-xs bg-neutral-100/90 hover:bg-neutral-100 focus:bg-white border border-neutral-200/80 rounded-full focus:outline-none focus:ring-2 focus:ring-brick/20 focus:border-brick transition-all placeholder:text-neutral-400 shadow-2xs"
+                      className="w-full h-10 pl-9 pr-8 text-xs bg-neutral-100/90 hover:bg-neutral-100 focus:bg-white border border-neutral-200/80 rounded-full focus:outline-none focus:ring-2 focus:ring-brick/20 focus:border-brick transition-all placeholder:text-neutral-500 shadow-2xs"
                     />
                     {searchQuery && (
                       <button
                         type="button"
                         onClick={() => setSearchQuery('')}
                         aria-label={data.toolbar.clearSearch}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-500 hover:text-neutral-700 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -764,8 +765,13 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
           </div>
         </section>
 
-        {/* 4. Events Display Sections */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10 pb-20 space-y-12 sm:space-y-16 min-h-[520px]">
+        {/* 4. Events Display Sections: the panel the All / Upcoming / Past tabs show */}
+        <div
+          id="events-list"
+          role="tabpanel"
+          aria-labelledby={`events-time-filter-tab-${activeTab}`}
+          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-10 pb-20 space-y-12 sm:space-y-16 min-h-[520px]"
+        >
           {/* SECTION A: UPCOMING EVENTS */}
           {(activeTab === 'all' || activeTab === 'upcoming') && (
             <motion.section
@@ -884,7 +890,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 <span className="text-xl sm:text-3xl font-bold text-ink tracking-tight block my-0.5 sm:my-1 leading-none">
                                   {day}
                                 </span>
-                                <span className="text-[8px] sm:text-[10px] text-neutral-400 font-mono block">
+                                <span className="text-[8px] sm:text-[10px] text-neutral-500 font-mono block">
                                   {year}
                                 </span>
                               </div>
@@ -919,7 +925,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                               {/* Time & Location inline */}
                               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs text-neutral-500 pt-0.5">
                                 <span className="inline-flex items-center gap-1">
-                                  <Clock className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-neutral-400 shrink-0" />
+                                  <Clock className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-neutral-500 shrink-0" />
                                   <span>
                                     <span className="sr-only">{event.date} · </span>
                                     {event.time}
@@ -927,7 +933,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 </span>
                                 {event.location && (
                                   <span className="inline-flex items-center gap-1">
-                                    <MapPin className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-neutral-400 shrink-0" />
+                                    <MapPin className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-neutral-500 shrink-0" />
                                     <span className="truncate max-w-[200px] sm:max-w-none">
                                       {event.location}
                                     </span>
@@ -995,7 +1001,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                               {volunteerAction(
                                 event,
                                 'w-full min-h-[34px] px-3 text-xs font-medium rounded-full border border-neutral-200 text-neutral-700 hover:border-neutral-400 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 bg-white shrink-0 active:scale-95',
-                                'w-3.5 h-3.5 text-neutral-400',
+                                'w-3.5 h-3.5 text-neutral-500',
                               )}
 
                               {/* Share Button */}
@@ -1012,7 +1018,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 <MorphIcon
                                   icon={isCopied ? CheckData : ShareData}
                                   spring="smooth"
-                                  className={`w-3.5 h-3.5 ${isCopied ? 'text-neutral-900' : 'text-neutral-400'}`}
+                                  className={`w-3.5 h-3.5 ${isCopied ? 'text-neutral-900' : 'text-neutral-500'}`}
                                 />
                                 {isCopied ? (
                                   <span className="font-semibold">{data.actions.copied}</span>
@@ -1101,7 +1107,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 <span className="text-xl sm:text-3xl font-semibold text-neutral-700 tracking-tight block my-0.5 sm:my-1 leading-none">
                                   {day}
                                 </span>
-                                <span className="text-[8px] sm:text-[10px] text-neutral-400 font-mono block">
+                                <span className="text-[8px] sm:text-[10px] text-neutral-500 font-mono block">
                                   {year}
                                 </span>
                               </div>
@@ -1113,7 +1119,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                     {event.organizer}
                                   </span>
                                   {event.category && (
-                                    <span className="text-[10px] text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full">
+                                    <span className="text-[10px] text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
                                       {pastCategoryLabel(event.category)}
                                     </span>
                                   )}
@@ -1131,7 +1137,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                   {event.organizer}
                                 </span>
                                 {event.category && (
-                                  <span className="text-[10px] text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full">
+                                  <span className="text-[10px] text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full">
                                     {pastCategoryLabel(event.category)}
                                   </span>
                                 )}
@@ -1141,13 +1147,13 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 {event.title}
                               </h4>
 
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs text-neutral-400 pt-0.5">
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] sm:text-xs text-neutral-500 pt-0.5">
                                 <span className="inline-flex items-center gap-1">
-                                  <Clock className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-neutral-400 shrink-0" />
+                                  <Clock className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-neutral-500 shrink-0" />
                                   <span>{event.time}</span>
                                 </span>
                                 <span className="inline-flex items-center gap-1">
-                                  <MapPin className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-neutral-400 shrink-0" />
+                                  <MapPin className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-neutral-500 shrink-0" />
                                   <span className="truncate max-w-[200px] sm:max-w-none">
                                     {event.location}
                                   </span>
@@ -1235,7 +1241,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 className="w-full min-h-[34px] px-3 text-xs font-medium rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-neutral-900 hover:border-neutral-300 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-xs shrink-0 active:scale-95"
                                 title={data.pastLabels.feedbackTitle}
                               >
-                                <MessageSquare className="w-3.5 h-3.5 text-neutral-400" />
+                                <MessageSquare className="w-3.5 h-3.5 text-neutral-500" />
                                 <span>{data.pastLabels.feedback}</span>
                               </button>
 
@@ -1245,7 +1251,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 onClick={() => onOpenModal('volunteer')}
                                 className="w-full min-h-[34px] px-3 text-xs font-medium rounded-full bg-white border border-neutral-200 text-neutral-600 hover:text-neutral-900 hover:border-neutral-300 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-xs shrink-0 active:scale-95"
                               >
-                                <Users className="w-3.5 h-3.5 text-neutral-400" />
+                                <Users className="w-3.5 h-3.5 text-neutral-500" />
                                 <span>{data.pastLabels.volunteerArchive}</span>
                               </button>
 
@@ -1263,7 +1269,7 @@ export function EventsPage({ content, lang, onOpenModal, onNavigate }: EventsPag
                                 <MorphIcon
                                   icon={isCopied ? CheckData : ShareData}
                                   spring="smooth"
-                                  className={`w-3.5 h-3.5 ${isCopied ? 'text-neutral-900' : 'text-neutral-400'}`}
+                                  className={`w-3.5 h-3.5 ${isCopied ? 'text-neutral-900' : 'text-neutral-500'}`}
                                 />
                                 {isCopied ? (
                                   <span className="font-semibold">{data.actions.copied}</span>

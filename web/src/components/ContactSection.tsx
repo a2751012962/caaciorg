@@ -5,6 +5,7 @@ import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
 import { MOTION, reveal, revealGroup } from '../lib/motion';
 import { TurnstileBox, useTurnstile } from './Turnstile';
+import { flagInvalid, focusInvalid } from '../lib/fieldError';
 
 interface ContactSectionProps {
   content: CAACIContent;
@@ -26,6 +27,15 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
   const [honeypot, setHoneypot] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'success'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  // The form is replaced by the confirmation: focus moves to its heading.
+  const sentTitle = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (status === 'success') sentTitle.current?.focus();
+  }, [status]);
+  // A cleared error no longer points at the old field.
+  useEffect(() => {
+    if (!errorMessage) flagInvalid(null, 'contact-error');
+  }, [errorMessage]);
   const turnstile = useTurnstile('contact');
 
   useEffect(() => {
@@ -65,6 +75,10 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
     const message = formData.message.trim();
     if (!name || !email || !message) {
       setErrorMessage(content.contact.requiredError);
+      focusInvalid(
+        !name ? 'contact-name' : !email ? 'contact-email' : 'contact-message',
+        'contact-error',
+      );
       return;
     }
 
@@ -124,7 +138,10 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
               <span className="text-xs font-semibold text-brick block mb-1">
                 {content.contact.eyebrow}
               </span>
-              <h2 className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight">
+              <h2
+                id="contact-heading"
+                className="text-2xl sm:text-3xl font-semibold text-ink tracking-tight"
+              >
                 {content.contact.heading}
               </h2>
             </div>
@@ -135,7 +152,11 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                 className="p-8 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-center space-y-3 animate-in fade-in"
               >
                 <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto" />
-                <h4 className="font-semibold text-emerald-900 font-sans text-lg">
+                <h4
+                  ref={sentTitle}
+                  tabIndex={-1}
+                  className="font-semibold text-emerald-900 font-sans text-lg outline-none"
+                >
                   {content.contact.sentTitle}
                 </h4>
                 <p className="text-emerald-700 font-sans text-xs sm:text-sm leading-relaxed">
@@ -150,9 +171,14 @@ export function ContactSection({ content, prefill }: ContactSectionProps) {
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="relative space-y-4">
+              <form
+                onSubmit={handleSubmit}
+                aria-labelledby="contact-heading"
+                className="relative space-y-4"
+              >
                 {errorMessage && (
                   <div
+                    id="contact-error"
                     role="alert"
                     className="p-3 bg-red-50 text-red-700 text-xs font-medium rounded-xl border border-red-200"
                   >

@@ -4,6 +4,7 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import type { CAACIContent } from '../data/content';
 import { MOTION, reveal } from '../lib/motion';
+import { navLinkProps } from '../lib/navLink';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -100,14 +101,13 @@ export function VibrantCommunity({ content, onOpenModal }: VibrantCommunityProps
 
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-4 pt-2">
-              <button
-                type="button"
-                onClick={() => onOpenModal('membership')}
+              <a
+                {...navLinkProps('membership', () => onOpenModal('membership'))}
                 className="inline-flex items-center gap-2 px-7 py-3 rounded-full font-sans font-semibold uppercase text-xs sm:text-[13px] tracking-wider text-white transition-all hover:bg-brick-hover active:scale-98 cursor-pointer bg-brick shadow-xs"
               >
                 <span>{content.hero.btnMembership}</span>
                 <ArrowRight className="w-4 h-4" />
-              </button>
+              </a>
 
               <button
                 type="button"

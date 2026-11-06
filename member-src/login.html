@@ -3,7 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Login | Chinese American Association of Central Illinois</title>
+    <title
+      data-en="Login | Chinese American Association of Central Illinois"
+      data-zh="登录 | 中伊利诺伊华人协会"
+    >
+      Login | Chinese American Association of Central Illinois
+    </title>
     <!-- Standalone Tabler page. The literal token caaci-app.js in this
          comment opts the page out of build.mjs's mirror-enhancement injection — this
          page loads its own assets below and never runs the mirror layer. -->
@@ -21,16 +26,16 @@
     <div class="page">
       <!--CAACI_NAV-->
 
-      <div class="container container-tight py-4">
+      <main class="container container-tight py-4" id="main">
         <div class="card card-md">
           <div class="card-body">
-            <h2
+            <h1
               class="h2 text-center mb-4"
               data-en="Sign in to your account"
               data-zh="登录您的账户"
             >
               Sign in to your account
-            </h2>
+            </h1>
             <!-- Two ways in: email + password (or a code, see the legacy block
                  below), or a code texted to a mobile number already verified on
                  the account. wireAuthPage switches the panels and remembers the
@@ -126,9 +131,9 @@
                  asking for a reset link never depends on the sign-in form. -->
               <div class="mt-4" id="caaci-reset-panel" hidden>
                 <form id="caaci-reset-form" novalidate>
-                  <h3 class="h4 mb-2" data-en="Reset your password" data-zh="重置密码">
+                  <h2 class="h4 mb-2" data-en="Reset your password" data-zh="重置密码">
                     Reset your password
-                  </h3>
+                  </h2>
                   <p
                     class="text-secondary mb-3"
                     data-en="Enter your account email and we will send you a link to set a new password."
@@ -488,7 +493,7 @@
             </p>
           </div>
         </div>
-      </div>
+      </main>
     </div>
 
     <script src="/assets/supabase.js"></script>

@@ -62,7 +62,7 @@ const RECENT_REGISTRATIONS = [
 // Membership spans for the active-members line (see monthlyActive): one open
 // since long ago, one that ran out mid-February this year, one that starts in
 // March this year, one never joined (pending), one with a broken date.
-const THIS_YEAR = new Date().getFullYear();
+const THIS_YEAR = new Date().getUTCFullYear();
 const MEMBER_SPANS = [
   { member_since: `${THIS_YEAR - 2}-05-01T00:00:00Z`, expires_at: null, status: 'active' },
   {
@@ -81,8 +81,8 @@ const MEMBER_SPANS = [
 
 const range = (total) => ({ 'content-range': `0-0/${total}` });
 const now = new Date();
-const yearStart = new Date(now.getFullYear(), 0, 1).toISOString();
-const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1)).toISOString();
+const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 const hoursAfter = (iso, h) => new Date(Date.parse(iso) + h * 3_600_000).toISOString();
 // This year's ledger: two payments this month, one on New Year's Day (which is
 // also this month when the test runs in January), one from last year that a
@@ -94,8 +94,8 @@ const YEAR_PAYMENTS = [
   { amount_cents: 9999, paid_at: hoursAfter(yearStart, -24) },
 ];
 // Last year's ledger, for ?year=: a payment in March and one in December.
-const lastYear = now.getFullYear() - 1;
-const lastYearStart = new Date(lastYear, 0, 1).toISOString();
+const lastYear = now.getUTCFullYear() - 1;
+const lastYearStart = new Date(Date.UTC(lastYear, 0, 1)).toISOString();
 const LAST_YEAR_PAYMENTS = [
   { amount_cents: 1000, paid_at: `${lastYear}-03-15T12:00:00.000Z` },
   { amount_cents: 2500, paid_at: `${lastYear}-12-31T23:00:00.000Z` },
@@ -226,12 +226,12 @@ test('admin dashboard: counts members, revenue, events, volunteers and listings'
     // February count the open one and the one expiring mid-February; from
     // March the open one and the newcomer.
     assert.equal(d.members.year, THIS_YEAR);
-    assert.equal(d.members.by_month.length, now.getMonth() + 1);
+    assert.equal(d.members.by_month.length, now.getUTCMonth() + 1);
     assert.deepEqual(d.members.by_month[0], { month: `${THIS_YEAR}-01`, active: 2 });
-    if (now.getMonth() >= 1) assert.equal(d.members.by_month[1].active, 2);
-    if (now.getMonth() >= 2)
+    if (now.getUTCMonth() >= 1) assert.equal(d.members.by_month[1].active, 2);
+    if (now.getUTCMonth() >= 2)
       assert.deepEqual(d.members.by_month[2], { month: `${THIS_YEAR}-03`, active: 2 });
-    if (now.getMonth() >= 3) assert.equal(d.members.by_month[3].active, 2);
+    if (now.getUTCMonth() >= 3) assert.equal(d.members.by_month[3].active, 2);
 
     // Expiring: active members only, inside the window, soonest first.
     assert.equal(d.members.expiring_days, EXPIRING_DAYS);
@@ -244,15 +244,15 @@ test('admin dashboard: counts members, revenue, events, volunteers and listings'
 
     // Revenue: summed from the rows, this year and this month.
     // (a year ago is outside the year even when the test runs in January)
-    const january = now.getMonth() === 0;
+    const january = now.getUTCMonth() === 0;
     assert.equal(d.revenue.ytd_cents, 3105 + 6210 + 5000);
     assert.equal(d.revenue.month_cents, 3105 + 6210 + (january ? 5000 : 0));
     assert.equal(d.revenue.payments_this_month, january ? 3 : 2);
     // One bucket per month, January through this month, for the line chart.
-    assert.equal(d.revenue.by_month.length, now.getMonth() + 1);
-    assert.equal(d.revenue.by_month[0].month, `${now.getFullYear()}-01`);
+    assert.equal(d.revenue.by_month.length, now.getUTCMonth() + 1);
+    assert.equal(d.revenue.by_month[0].month, `${now.getUTCFullYear()}-01`);
     assert.deepEqual(d.revenue.by_month[0], {
-      month: `${now.getFullYear()}-01`,
+      month: `${now.getUTCFullYear()}-01`,
       cents: january ? 3105 + 6210 + 5000 : 5000,
       payments: january ? 3 : 1,
     });
@@ -265,8 +265,8 @@ test('admin dashboard: counts members, revenue, events, volunteers and listings'
     );
     // Without ?year the chart shows this year; the years on offer run from the
     // first payment's year (two years back) to this one, newest first.
-    assert.equal(d.revenue.year, now.getFullYear());
-    assert.deepEqual(d.revenue.years, [now.getFullYear(), lastYear, lastYear - 1]);
+    assert.equal(d.revenue.year, now.getUTCFullYear());
+    assert.deepEqual(d.revenue.years, [now.getUTCFullYear(), lastYear, lastYear - 1]);
     assert.equal(d.revenue.year_cents, d.revenue.ytd_cents);
     assert.equal(d.revenue.year_payments, 3);
     assert.deepEqual(d.revenue.recent, RECENT_PAYMENTS);
@@ -333,10 +333,10 @@ test('admin dashboard: ?year= charts an earlier year, this year and month stay c
     assert.equal(d.members.by_month[11].active, 2);
     // The headline figures still describe now.
     assert.equal(d.revenue.ytd_cents, 3105 + 6210 + 5000);
-    assert.equal(d.revenue.payments_this_month, now.getMonth() === 0 ? 3 : 2);
+    assert.equal(d.revenue.payments_this_month, now.getUTCMonth() === 0 ? 3 : 2);
     // The year's read is bounded on both sides.
     const yearCall = fetch.calls.find((c) => c.url.includes(`paid_at=gte.${lastYearStart}`)).url;
-    assert.match(yearCall, new RegExp(`paid_at=lt\\.${now.getFullYear()}-01-01`));
+    assert.match(yearCall, new RegExp(`paid_at=lt\\.${now.getUTCFullYear()}-01-01`));
   } finally {
     fetch.restore();
   }
@@ -354,8 +354,8 @@ test('admin dashboard: a future or malformed year falls back to this year', asyn
         env: fakeEnv(),
       });
       const d = await r.json();
-      assert.equal(d.revenue.year, now.getFullYear(), `year=${bad}`);
-      assert.equal(d.revenue.by_month.length, now.getMonth() + 1);
+      assert.equal(d.revenue.year, now.getUTCFullYear(), `year=${bad}`);
+      assert.equal(d.revenue.by_month.length, now.getUTCMonth() + 1);
     } finally {
       fetch.restore();
     }

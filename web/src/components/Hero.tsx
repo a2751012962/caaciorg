@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { Heart, Calendar, UserPlus } from 'lucide-react';
 import { gsap } from 'gsap';
 import type { CAACIContent } from '../data/content';
+import { navLinkProps } from '../lib/navLink';
 
 interface HeroProps {
   content: CAACIContent;
@@ -167,7 +168,7 @@ export function Hero({ content, onOpenModal, onNavigate }: HeroProps) {
           <button
             onClick={() => onOpenModal('donate')}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-brick"
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white bg-brick"
           >
             <Heart className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
             <span className="font-sans font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
@@ -176,28 +177,26 @@ export function Hero({ content, onOpenModal, onNavigate }: HeroProps) {
           </button>
 
           {/* Banner 2: Check Out Events - Deep Warm Terracotta */}
-          <button
-            onClick={() => (onNavigate ? onNavigate('events') : onOpenModal('events'))}
-            type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-brick-deep"
+          <a
+            {...navLinkProps('events', onNavigate ?? (() => onOpenModal('events')))}
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white bg-brick-deep"
           >
             <Calendar className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
             <span className="font-sans font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
               {content.hero.btnEvents}
             </span>
-          </button>
+          </a>
 
           {/* Banner 3: Become A Member - Deep Lacquer Espresso */}
-          <button
-            onClick={() => (onNavigate ? onNavigate('membership') : onOpenModal('membership'))}
-            type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-maroon"
+          <a
+            {...navLinkProps('membership', onNavigate ?? (() => onOpenModal('membership')))}
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white bg-maroon"
           >
             <UserPlus className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
             <span className="font-sans font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
               {content.hero.btnMembership}
             </span>
-          </button>
+          </a>
         </div>
       </div>
     </section>

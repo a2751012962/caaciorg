@@ -2,6 +2,7 @@ import { Heart, Calendar, UserPlus } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { Reveal } from './Reveal';
 import { isPlainClick } from '../lib/articleRoutes';
+import { navLinkProps } from '../lib/navLink';
 
 interface SubpageHeroProps {
   title: string;
@@ -46,13 +47,13 @@ export function SubpageHero({
               index={0}
               className="flex items-center gap-2 text-xs font-semibold text-neutral-500 mb-3 font-sans"
             >
-              <button
-                onClick={() => onNavigate('home')}
+              <a
+                {...navLinkProps('home', onNavigate)}
                 className="hover:text-brick transition-colors cursor-pointer"
               >
                 {content.nav.welcome}
-              </button>
-              <span>/</span>
+              </a>
+              <span aria-hidden="true">/</span>
               {parent && (
                 <>
                   <a
@@ -67,7 +68,7 @@ export function SubpageHero({
                   >
                     {parent.label}
                   </a>
-                  <span>/</span>
+                  <span aria-hidden="true">/</span>
                 </>
               )}
               <span className="text-brick font-bold">{title}</span>
@@ -102,7 +103,7 @@ export function SubpageHero({
             <button
               onClick={() => onOpenModal('donate')}
               type="button"
-              className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-brick"
+              className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white bg-brick"
             >
               <Heart className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
               <span className="font-sans font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
@@ -111,10 +112,9 @@ export function SubpageHero({
             </button>
 
             {/* Banner 2: Check Out Events - Deep Warm Terracotta */}
-            <button
-              onClick={() => onNavigate('events')}
-              type="button"
-              className={`group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none ${
+            <a
+              {...navLinkProps('events', onNavigate)}
+              className={`group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white ${
                 currentPage === 'events' ? 'brightness-110 ring-2 ring-white/50 inset-ring' : ''
               } bg-brick-deep`}
             >
@@ -122,13 +122,12 @@ export function SubpageHero({
               <span className="font-sans font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
                 {content.hero.btnEvents}
               </span>
-            </button>
+            </a>
 
             {/* Banner 3: Become A Member - Deep Lacquer Espresso */}
-            <button
-              onClick={() => onNavigate('membership')}
-              type="button"
-              className={`group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none ${
+            <a
+              {...navLinkProps('membership', onNavigate)}
+              className={`group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white ${
                 currentPage === 'membership' ? 'brightness-110 ring-2 ring-white/50 inset-ring' : ''
               } bg-maroon`}
             >
@@ -136,7 +135,7 @@ export function SubpageHero({
               <span className="font-sans font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
                 {content.hero.btnMembership}
               </span>
-            </button>
+            </a>
           </div>
         </div>
       )}

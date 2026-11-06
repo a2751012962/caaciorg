@@ -25,6 +25,8 @@ import {
 import type { Lang } from '../lib/lang';
 import { mountIn, riseFromSm, shown } from '../lib/motion';
 import { eventSlugFrom, perkStep, readAnswers, volunteerBody, zhError } from '../lib/registration';
+import { isPlainClick } from '../lib/articleRoutes';
+import { flagInvalid, focusInvalid } from '../lib/fieldError';
 
 // ---------------------------------------------------------------- the API's shapes
 
@@ -210,6 +212,10 @@ export function EventRegisterPage({
   const [busy, setBusy] = useState(false);
   const turnstile = useTurnstile('event_register');
   const [error, setError] = useState('');
+  // A cleared or changed error no longer points at the old field.
+  useEffect(() => {
+    if (!error) flagInvalid(null, 'ev-error');
+  }, [error]);
   const [done, setDone] = useState<Done | null>(null);
   const [registeredEmail, setRegisteredEmail] = useState('');
   const doneTitle = useRef<HTMLHeadingElement>(null);
@@ -318,7 +324,7 @@ export function EventRegisterPage({
   const submit = async (e: SyntheticEvent) => {
     e.preventDefault();
     if (busy || !ev) return;
-    const focus = (field: string) => document.getElementById(field)?.focus();
+    const focus = (field: string) => focusInvalid(field, 'ev-error');
     const address = email.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
       setError(en ? 'Enter a valid email address.' : '请填写有效邮箱。');
@@ -452,7 +458,7 @@ export function EventRegisterPage({
     <div
       className={`${CARD} flex items-start gap-3 ${perkOpen ? 'bg-amber-50 border-amber-200' : ''}`}
     >
-      <Gift className={`w-5 h-5 shrink-0 ${perkOpen ? 'text-brick' : 'text-neutral-400'}`} />
+      <Gift className={`w-5 h-5 shrink-0 ${perkOpen ? 'text-brick' : 'text-neutral-500'}`} />
       <div className="space-y-1">
         <h2 className="text-lg sm:text-xl font-bold text-maroon">
           {perkOpen
@@ -714,7 +720,7 @@ export function EventRegisterPage({
       </p>
 
       {error && (
-        <div role="alert" className={ALERT_ERROR}>
+        <div id="ev-error" role="alert" className={ALERT_ERROR}>
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
           <span>{error}</span>
         </div>
@@ -748,6 +754,7 @@ export function EventRegisterPage({
             <a
               href={eventsPath(lang)}
               onClick={(e) => {
+                if (!isPlainClick(e)) return;
                 e.preventDefault();
                 onNavigate('events');
               }}
