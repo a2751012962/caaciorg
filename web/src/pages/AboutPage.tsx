@@ -17,6 +17,7 @@ import { aboutDataEN, aboutDataZH } from '../data/pagesContent';
 import { fill } from '../lib/text';
 import { Reveal } from '../components/Reveal';
 import { LatestArticles } from '../components/articles/LatestArticles';
+import { navLinkProps } from '../lib/navLink';
 
 const VALUE_ICONS = [Users, HeartHandshake, Award];
 
@@ -60,14 +61,13 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
             </p>
 
             <div className="pt-4 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => onNavigate('membership')}
+              <a
+                {...navLinkProps('membership', onNavigate)}
                 className="px-5 py-2.5 rounded-full bg-ink text-white text-xs font-medium tracking-wide hover:bg-neutral-800 transition-colors cursor-pointer inline-flex items-center gap-1.5"
               >
                 <span>{data.joinButton}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+              </a>
               <button
                 type="button"
                 onClick={() => onOpenModal('volunteer')}

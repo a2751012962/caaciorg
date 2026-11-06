@@ -25,6 +25,7 @@ import {
 import type { Lang } from '../lib/lang';
 import { mountIn, riseFromSm, shown } from '../lib/motion';
 import { eventSlugFrom, perkStep, readAnswers, volunteerBody, zhError } from '../lib/registration';
+import { isPlainClick } from '../lib/articleRoutes';
 
 // ---------------------------------------------------------------- the API's shapes
 
@@ -748,6 +749,7 @@ export function EventRegisterPage({
             <a
               href={eventsPath(lang)}
               onClick={(e) => {
+                if (!isPlainClick(e)) return;
                 e.preventDefault();
                 onNavigate('events');
               }}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type MouseEvent } from 'react';
 import { Globe, User, LogOut, ArrowUpRight } from 'lucide-react';
 import { MorphIcon } from 'morphicons/react';
 import { ChevronDown, ChevronUp, Menu, X } from 'lucide'; // icon data for morphing, not components
@@ -6,6 +6,8 @@ import type { CAACIContent } from '../data/content';
 import { addSmoothScrollListener } from '../utils/smoothScroll';
 import { marketplaceUrl } from '../lib/marketplace';
 import { navLinkProps } from '../lib/navLink';
+import { isPlainClick } from '../lib/articleRoutes';
+import { loginUrl } from '../lib/auth';
 
 export interface NavUser {
   name: string;
@@ -38,7 +40,7 @@ export function Navbar({
   onLogin,
   onLogout,
 }: NavbarProps) {
-  const resourcesButtonRef = useRef<HTMLButtonElement>(null);
+  const resourcesButtonRef = useRef<HTMLAnchorElement>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [aboutDropdownOpen, setAboutDropdownOpen] = useState(false);
   const [resourcesDropdownOpen, setResourcesDropdownOpen] = useState(false);
@@ -124,6 +126,18 @@ export function Navbar({
       window.removeEventListener('touchmove', onTouchMove);
     };
   }, []);
+
+  // Log In goes to the sign-in page: a real link (so it can open in a new
+  // tab), while a plain click still runs onLogin or the account route.
+  const loginLinkProps = {
+    href: loginUrl(),
+    onClick: (e: MouseEvent<HTMLAnchorElement>) => {
+      if (!isPlainClick(e)) return;
+      e.preventDefault();
+      if (onLogin) onLogin();
+      else handleNavClick('account');
+    },
+  };
 
   const handleNavClick = (page: string) => {
     onNavigate(page);
@@ -280,10 +294,9 @@ export function Navbar({
                 }
               }}
             >
-              <button
-                type="button"
+              <a
                 ref={resourcesButtonRef}
-                onClick={() => handleNavClick('resources')}
+                {...navLinkProps('resources', handleNavClick)}
                 className={`flex items-center gap-1 px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                   currentPage === 'resources' || currentPage === 'community-calendar'
                     ? 'text-brick font-bold border-b-2 border-brick'
@@ -296,7 +309,7 @@ export function Navbar({
                   spring="snappy"
                   className="w-3.5 h-3.5 text-neutral-400 group-hover:text-brick"
                 />
-              </button>
+              </a>
               {resourcesDropdownOpen && (
                 <div className="absolute left-0 mt-0 w-56 bg-white border border-neutral-200/80 shadow-lg py-2 rounded-2xl z-50 animate-fadeIn">
                   <a
@@ -374,16 +387,16 @@ export function Navbar({
                         {user.email}
                       </p>
                     </div>
-                    <button
-                      onClick={() => {
+                    <a
+                      {...navLinkProps('account', (page) => {
                         setUserDropdownOpen(false);
-                        handleNavClick('account');
-                      }}
+                        handleNavClick(page);
+                      })}
                       className="w-full text-left px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 hover:text-brick transition-colors cursor-pointer flex items-center gap-2"
                     >
                       <User className="w-3.5 h-3.5 text-brick" />
                       <span>{content.nav.memberPortal}</span>
-                    </button>
+                    </a>
                     {onLogout && (
                       <button
                         onClick={() => {
@@ -400,8 +413,8 @@ export function Navbar({
                 )}
               </div>
             ) : (
-              <button
-                onClick={() => (onLogin ? onLogin() : handleNavClick('account'))}
+              <a
+                {...loginLinkProps}
                 className={`px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                   currentPage === 'account'
                     ? 'text-brick font-bold border-b-2 border-brick'
@@ -409,7 +422,7 @@ export function Navbar({
                 }`}
               >
                 {content.nav.login}
-              </button>
+              </a>
             )}
 
             {/* Language Switcher pill in header */}
@@ -568,14 +581,14 @@ export function Navbar({
               )}
             </div>
           ) : (
-            <button
-              onClick={() => (onLogin ? onLogin() : handleNavClick('account'))}
+            <a
+              {...loginLinkProps}
               className={`block w-full text-left py-2 text-sm font-semibold uppercase ${
                 currentPage === 'account' ? 'text-brick' : 'text-neutral-700'
               }`}
             >
               {content.nav.login}
-            </button>
+            </a>
           )}
         </div>
       )}
