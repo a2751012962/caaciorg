@@ -81,7 +81,7 @@ export function PlanCard({
             <span className="text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
               {tierIsFree ? data.freeLabel : money(tier.price_cents)}
             </span>
-            <span className="text-xs text-neutral-400">/ {copy.period}</span>
+            <span className="text-xs text-neutral-500">/ {copy.period}</span>
           </div>
           <div className="mt-1 text-[11px] text-neutral-500 leading-snug">
             {tierIsFree ? text.noCard : fill(text.cardTotal, { total: usd(cardTotal(tier)) })}

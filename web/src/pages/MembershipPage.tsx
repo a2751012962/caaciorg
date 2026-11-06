@@ -372,10 +372,12 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               className="inline-flex items-center gap-1.5 font-medium text-neutral-700 hover:text-brick transition-colors cursor-pointer group"
               title={data.breadcrumb.backToMenu}
             >
-              <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-400 group-hover:text-brick" />
+              <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5 text-neutral-500 group-hover:text-brick" />
               <span>{data.breadcrumb.backToMenu}</span>
             </a>
-            <span className="text-neutral-300">/</span>
+            <span aria-hidden="true" className="text-neutral-300">
+              /
+            </span>
             <a
               {...navLinkProps('home', (p) => {
                 onNavigate(p);
@@ -385,7 +387,9 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             >
               {content.nav.welcome}
             </a>
-            <span className="text-neutral-300">/</span>
+            <span aria-hidden="true" className="text-neutral-300">
+              /
+            </span>
             <span className="text-brick font-semibold">{content.nav.membership}</span>
           </nav>
         </div>
@@ -471,7 +475,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             </div>
           )}
 
-          <div className="mt-6 sm:mt-8 max-w-3xl mx-auto text-center text-[11px] sm:text-xs text-neutral-400 space-y-1">
+          <div className="mt-6 sm:mt-8 max-w-3xl mx-auto text-center text-[11px] sm:text-xs text-neutral-500 space-y-1">
             <p>{data.note}</p>
             {hasInviteTier && <p>{data.inviteNote}</p>}
           </div>
@@ -583,7 +587,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             >
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-ink">{data.portal.title}</div>
-                <div className="text-[11px] text-neutral-500 leading-snug">{data.portal.text}</div>
+                <div className="text-[11px] text-neutral-600 leading-snug">{data.portal.text}</div>
               </div>
               <motion.a
                 whileHover={hoverScale}
@@ -660,7 +664,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                         <span>{data.form.membership}</span>
                         <span>{data.freeLabel}</span>
                       </div>
-                      <p className="pt-1 text-neutral-500">{data.form.freeNote}</p>
+                      <p className="pt-1 text-neutral-600">{data.form.freeNote}</p>
                     </>
                   ) : (
                     <>
@@ -695,7 +699,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                           </span>
                         </div>
                       )}
-                      <p className="pt-1 text-neutral-500">
+                      <p className="pt-1 text-neutral-600">
                         {mode !== 'switch' && applied
                           ? fill(data.form.discountFirstYear, { total: usd(summary.total) })
                           : data.form.renewsYearly}
@@ -779,7 +783,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
               )}
 
               {!free && (mode === 'checkout' || mode === 'switch') && (
-                <p className="text-[11px] text-neutral-400 text-center">
+                <p className="text-[11px] text-neutral-500 text-center">
                   {data.form.securePayment}
                 </p>
               )}
@@ -809,7 +813,14 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           <p className="mt-3 text-base text-neutral-600 leading-relaxed">{data.privileges.text}</p>
         </motion.div>
 
-        <div className="flex md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 overflow-x-auto md:overflow-visible no-scrollbar snap-x snap-mandatory md:snap-none -mx-4 px-6 sm:-mx-6 sm:px-8 md:mx-0 md:px-0 pt-2 pb-4 md:pt-0 md:pb-0 overscroll-x-contain">
+        {/* On phones this row scrolls sideways and holds nothing focusable, so
+            the row itself takes focus: arrow keys can then scroll it. */}
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label={data.benefitsTitle}
+          className="flex md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 overflow-x-auto md:overflow-visible no-scrollbar snap-x snap-mandatory md:snap-none -mx-4 px-6 sm:-mx-6 sm:px-8 md:mx-0 md:px-0 pt-2 pb-4 md:pt-0 md:pb-0 overscroll-x-contain focus-visible:outline-2 focus-visible:outline-brick"
+        >
           {data.privileges.items.map((item, idx) => {
             const Icon = PRIVILEGE_ICONS[item.icon] ?? Star;
             return (

@@ -53,7 +53,7 @@ export function SubpageHero({
               >
                 {content.nav.welcome}
               </a>
-              <span>/</span>
+              <span aria-hidden="true">/</span>
               {parent && (
                 <>
                   <a
@@ -68,7 +68,7 @@ export function SubpageHero({
                   >
                     {parent.label}
                   </a>
-                  <span>/</span>
+                  <span aria-hidden="true">/</span>
                 </>
               )}
               <span className="text-brick font-bold">{title}</span>

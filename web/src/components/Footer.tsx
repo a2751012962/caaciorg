@@ -39,7 +39,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
               {content.footer.aboutText}
             </p>
 
-            <div className="text-xs text-neutral-500 font-sans pt-2">{content.footer.tagline}</div>
+            <div className="text-xs text-neutral-400 font-sans pt-2">{content.footer.tagline}</div>
           </div>
 
           {/* Quick Links */}
@@ -151,7 +151,7 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
         </div>
 
         {/* Copyright */}
-        <div className="pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-neutral-500 font-sans gap-4">
+        <div className="pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-neutral-400 font-sans gap-4">
           <div>{content.footer.copyright}</div>
           <div className="flex items-center gap-4">
             <a
