@@ -609,14 +609,21 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
             transition={rise(0.15)}
             className="md:col-span-7 bg-white p-6 sm:p-8 lg:p-10 rounded-2xl border border-neutral-200/80 shadow-sm"
           >
-            <h3 className="text-2xl font-semibold tracking-tight text-ink mb-1">
+            <h3
+              id="membership-form-title"
+              className="text-2xl font-semibold tracking-tight text-ink mb-1"
+            >
               {data.formTitle}
             </h3>
             <p className="text-xs sm:text-sm text-neutral-500 mb-8">
               {fill(data.form.intro, { email: content.contact.email })}
             </p>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form
+              onSubmit={handleSubmit}
+              aria-labelledby="membership-form-title"
+              className="space-y-6"
+            >
               <div>
                 <label className="block text-xs font-medium text-neutral-700 mb-2">
                   {data.formTier}
@@ -813,14 +820,9 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
           <p className="mt-3 text-base text-neutral-600 leading-relaxed">{data.privileges.text}</p>
         </motion.div>
 
-        {/* On phones this row scrolls sideways and holds nothing focusable, so
-            the row itself takes focus: arrow keys can then scroll it. */}
-        <div
-          tabIndex={0}
-          role="region"
-          aria-label={data.benefitsTitle}
-          className="flex md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 overflow-x-auto md:overflow-visible no-scrollbar snap-x snap-mandatory md:snap-none -mx-4 px-6 sm:-mx-6 sm:px-8 md:mx-0 md:px-0 pt-2 pb-4 md:pt-0 md:pb-0 overscroll-x-contain focus-visible:outline-2 focus-visible:outline-brick"
-        >
+        {/* The privileges stack on phones instead of scrolling sideways: nothing
+            hides off-screen, so there is nothing a keyboard user has to scroll to. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {data.privileges.items.map((item, idx) => {
             const Icon = PRIVILEGE_ICONS[item.icon] ?? Star;
             return (
@@ -831,7 +833,7 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
                 viewport={inView}
                 transition={rise(0.05 + idx * 0.1)}
                 whileHover={hoverLift}
-                className="w-[80vw] max-w-[290px] shrink-0 md:w-auto md:shrink md:max-w-none snap-center md:snap-align-none bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
+                className="bg-surface-2 p-6 sm:p-7 rounded-2xl border border-neutral-200/80 space-y-4 flex flex-col justify-between group hover:shadow-sm hover:border-neutral-300 transition-all"
               >
                 <div className="space-y-4">
                   <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/70 flex items-center justify-center text-ink shadow-2xs group-hover:scale-110 transition-transform duration-300">

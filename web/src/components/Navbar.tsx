@@ -205,7 +205,10 @@ export function Navbar({
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center space-x-1 xl:space-x-2 font-sans">
+          <nav
+            aria-label={content.nav.navLabel}
+            className="hidden lg:flex items-center space-x-1 xl:space-x-2 font-sans"
+          >
             {/* Welcome / Home */}
             <a
               {...navLinkProps('home', handleNavClick, currentPage)}
@@ -478,7 +481,8 @@ export function Navbar({
               className="p-2 text-neutral-700 hover:text-brick focus-visible:outline-2 focus-visible:outline-brick cursor-pointer"
               aria-label={content.nav.menuLabel}
               aria-expanded={mobileMenuOpen}
-              aria-controls="caaci-mobile-menu"
+              // The drawer only exists while open, so it is only referenced then.
+              aria-controls={mobileMenuOpen ? 'caaci-mobile-menu' : undefined}
             >
               <MorphIcon icon={mobileMenuOpen ? X : Menu} spring="snappy" className="w-6 h-6" />
             </button>
@@ -490,6 +494,8 @@ export function Navbar({
       {mobileMenuOpen && (
         <div
           id="caaci-mobile-menu"
+          role="navigation"
+          aria-label={content.nav.navLabel}
           className="lg:hidden bg-white border-t border-neutral-200 px-4 pt-2 pb-6 space-y-2 shadow-xl font-sans"
         >
           <a

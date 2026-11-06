@@ -9,6 +9,7 @@ import { FluidTabs } from './FluidTabs';
 import { QuestionFields, blankAnswers, type AnswerState, type Question } from './QuestionFields';
 import { TurnstileBox, useTurnstile } from './Turnstile';
 import { useDialogFocus } from '../lib/useDialogFocus';
+import { flagInvalid, focusInvalid } from '../lib/fieldError';
 
 export type ModalType = 'donate' | 'events' | 'membership' | 'volunteer' | null;
 
@@ -89,6 +90,10 @@ function DonateModalContent({ content }: { content: CAACIContent }) {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // A cleared error no longer points at the old field.
+  useEffect(() => {
+    if (!error) flagInvalid(null, 'donate-error');
+  }, [error]);
 
   const cents =
     selectedAmount === 'custom'
@@ -101,6 +106,7 @@ function DonateModalContent({ content }: { content: CAACIContent }) {
     if (busy) return;
     if (!valid) {
       setError(text.minimumError);
+      if (selectedAmount === 'custom') focusInvalid('donate-amount', 'donate-error');
       return;
     }
     setError('');
@@ -239,6 +245,7 @@ function DonateModalContent({ content }: { content: CAACIContent }) {
 
       {error && (
         <div
+          id="donate-error"
           role="alert"
           className="p-3 bg-red-50 text-red-700 text-xs font-medium rounded-xl border border-red-200"
         >
@@ -324,6 +331,10 @@ function VolunteerModalContent({
   const [busy, setBusy] = useState(false);
   const turnstile = useTurnstile('volunteer');
   const [error, setError] = useState('');
+  // A cleared error no longer points at the old field.
+  useEffect(() => {
+    if (!error) flagInvalid(null, 'volunteer-error');
+  }, [error]);
   const [submitted, setSubmitted] = useState<VolunteerEvent[] | null>(null);
 
   useEffect(() => {
@@ -362,12 +373,13 @@ function VolunteerModalContent({
     if (busy) return;
     if (!name.trim() || !email.trim()) {
       setError(text.nameEmailError);
+      focusInvalid(name.trim() ? 'volunteer-email' : 'volunteer-name', 'volunteer-error');
       return;
     }
     const read = readAnswers(questions, answers, lang);
     if ('error' in read) {
       setError(read.error);
-      document.getElementById(read.field)?.focus();
+      focusInvalid(read.field, 'volunteer-error');
       return;
     }
 
@@ -409,12 +421,25 @@ function VolunteerModalContent({
     );
   };
 
+  // The form is replaced by the thank-you: focus moves to its heading, so a
+  // screen reader announces the result instead of losing focus to the page.
+  const doneTitle = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (submitted) doneTitle.current?.focus();
+  }, [submitted]);
+
   if (submitted) {
     const names = submitted.map((ev) => (en ? ev.title : ev.title_zh || ev.title));
     return (
       <div role="status" className="text-center py-6 space-y-3 font-sans">
         <Check className="w-12 h-12 text-green-600 mx-auto" />
-        <h4 className="text-lg font-bold text-neutral-900">{text.thanksTitle}</h4>
+        <h4
+          ref={doneTitle}
+          tabIndex={-1}
+          className="text-lg font-bold text-neutral-900 outline-none"
+        >
+          {text.thanksTitle}
+        </h4>
         <p className="text-xs text-neutral-600">
           {names.length
             ? fill(text.signedUp, { events: names.join(text.eventSeparator) })
@@ -435,36 +460,57 @@ function VolunteerModalContent({
     <form onSubmit={submit} className="relative space-y-4 font-sans text-xs">
       <p className="text-neutral-600 leading-relaxed text-sm">{text.intro}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <label
+            htmlFor="volunteer-name"
+            className="block text-xs font-semibold text-neutral-600 mb-1"
+          >
+            {text.nameLabel} *
+          </label>
+          <input
+            id="volunteer-name"
+            type="text"
+            required
+            autoComplete="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="volunteer-email"
+            className="block text-xs font-semibold text-neutral-600 mb-1"
+          >
+            {text.emailLabel} *
+          </label>
+          <input
+            id="volunteer-email"
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
+          />
+        </div>
+      </div>
+      <div>
+        <label
+          htmlFor="volunteer-phone"
+          className="block text-xs font-semibold text-neutral-600 mb-1"
+        >
+          {text.phoneLabel}
+        </label>
         <input
-          type="text"
-          required
-          autoComplete="name"
-          aria-label={text.nameLabel}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={`${text.nameLabel} *`}
-          className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
-        />
-        <input
-          type="email"
-          required
-          autoComplete="email"
-          aria-label={text.emailLabel}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder={`${text.emailLabel} *`}
+          id="volunteer-phone"
+          type="tel"
+          autoComplete="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
           className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
         />
       </div>
-      <input
-        type="tel"
-        autoComplete="tel"
-        aria-label={text.phoneLabel}
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-        placeholder={text.phoneLabel}
-        className="w-full px-3 py-2 border border-neutral-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-brick"
-      />
 
       <fieldset>
         <legend className="block text-xs font-bold text-neutral-500 mb-2">
@@ -527,6 +573,7 @@ function VolunteerModalContent({
 
       {error && (
         <div
+          id="volunteer-error"
           role="alert"
           className="p-3 bg-red-50 text-red-700 text-xs font-medium rounded-xl border border-red-200"
         >
