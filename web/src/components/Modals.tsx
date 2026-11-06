@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { X, Check, Heart, Lock } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { api } from '../lib/api';
@@ -8,6 +8,7 @@ import { fill } from '../lib/text';
 import { FluidTabs } from './FluidTabs';
 import { QuestionFields, blankAnswers, type AnswerState, type Question } from './QuestionFields';
 import { TurnstileBox, useTurnstile } from './Turnstile';
+import { useDialogFocus } from '../lib/useDialogFocus';
 
 export type ModalType = 'donate' | 'events' | 'membership' | 'volunteer' | null;
 
@@ -22,13 +23,26 @@ interface ModalsProps {
 // pages, and App.tsx navigates to them instead of opening a dialog.
 export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
   if (modalType !== 'donate' && modalType !== 'volunteer') return null;
+  return <ModalFrame modalType={modalType} onClose={onClose} lang={lang} content={content} />;
+}
+
+function ModalFrame({
+  modalType,
+  onClose,
+  lang,
+  content,
+}: ModalsProps & { modalType: 'donate' | 'volunteer' }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, onClose);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="caaci-modal-title"
+        tabIndex={-1}
         className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-neutral-200 animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -43,7 +57,8 @@ export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
+            type="button"
+            className="p-1 rounded-full text-neutral-500 hover:text-neutral-700 hover:bg-neutral-200 transition-colors"
             aria-label={content.modals.close}
           >
             <X className="w-5 h-5" />

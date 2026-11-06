@@ -137,7 +137,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                     <p className="text-sm text-neutral-600 leading-relaxed">{val.desc}</p>
                   </div>
 
-                  <div className="pt-4 border-t border-neutral-100 flex items-center gap-2 text-xs font-medium text-neutral-400">
+                  <div className="pt-4 border-t border-neutral-100 flex items-center gap-2 text-xs font-medium text-neutral-500">
                     <ShieldCheck className="w-4 h-4 text-brick" />
                     <span>{fill(data.valueLabel, { n: String(idx + 1).padStart(2, '0') })}</span>
                   </div>
@@ -170,7 +170,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
               >
                 <span className="text-[11px] font-semibold text-brick">{program.tag}</span>
                 <h3 className="text-base font-semibold text-ink">{program.title}</h3>
-                <p className="text-xs text-neutral-500 leading-relaxed">{program.desc}</p>
+                <p className="text-xs text-neutral-600 leading-relaxed">{program.desc}</p>
               </Reveal>
             ))}
           </div>
@@ -313,7 +313,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 index={idx}
                 className="p-4 rounded-xl border border-neutral-200/80 bg-surface-2 hover:bg-neutral-100 transition-colors"
               >
-                <span className="text-xs font-semibold text-neutral-400 block font-mono">
+                <span className="text-xs font-semibold text-neutral-500 block font-mono">
                   {p.year}
                 </span>
                 <span className="font-semibold text-sm text-ink mt-0.5 block">{p.name}</span>

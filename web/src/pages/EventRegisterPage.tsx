@@ -453,7 +453,7 @@ export function EventRegisterPage({
     <div
       className={`${CARD} flex items-start gap-3 ${perkOpen ? 'bg-amber-50 border-amber-200' : ''}`}
     >
-      <Gift className={`w-5 h-5 shrink-0 ${perkOpen ? 'text-brick' : 'text-neutral-400'}`} />
+      <Gift className={`w-5 h-5 shrink-0 ${perkOpen ? 'text-brick' : 'text-neutral-500'}`} />
       <div className="space-y-1">
         <h2 className="text-lg sm:text-xl font-bold text-maroon">
           {perkOpen

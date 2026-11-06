@@ -1,4 +1,11 @@
-import { useState, useEffect, useRef, type MouseEvent } from 'react';
+import {
+  useState,
+  useEffect,
+  useRef,
+  type FocusEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 import { Globe, User, LogOut, ArrowUpRight } from 'lucide-react';
 import { MorphIcon } from 'morphicons/react';
 import { ChevronDown, ChevronUp, Menu, X } from 'lucide'; // icon data for morphing, not components
@@ -139,6 +146,21 @@ export function Navbar({
     },
   };
 
+  // A hover menu also opens for keyboard users: it opens when focus enters,
+  // closes when focus leaves, and Escape closes it and returns to its trigger.
+  const keyboardMenu = (setOpen: (open: boolean) => void) => ({
+    onFocusCapture: () => setOpen(true),
+    onBlurCapture: (event: FocusEvent<HTMLDivElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.currentTarget.querySelector<HTMLElement>('a, button')?.focus();
+      setOpen(false);
+    },
+  });
+
   const handleNavClick = (page: string) => {
     onNavigate(page);
     setMobileMenuOpen(false);
@@ -150,6 +172,7 @@ export function Navbar({
 
   return (
     <header
+      onFocusCapture={() => setIsVisible(true)}
       className={`sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-neutral-200/80 shadow-xs transition-transform duration-300 will-change-transform ${
         isVisible || mobileMenuOpen ? 'translate-y-0' : '-translate-y-full'
       }`}
@@ -200,9 +223,11 @@ export function Navbar({
               className="relative group"
               onMouseEnter={() => setAboutDropdownOpen(true)}
               onMouseLeave={() => setAboutDropdownOpen(false)}
+              {...keyboardMenu(setAboutDropdownOpen)}
             >
               <a
                 {...navLinkProps('about', handleNavClick, currentPage)}
+                aria-expanded={aboutDropdownOpen}
                 className={`flex items-center gap-1 px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                   currentPage === 'about'
                     ? 'text-brick font-bold border-b-2 border-brick'
@@ -297,6 +322,7 @@ export function Navbar({
               <a
                 ref={resourcesButtonRef}
                 {...navLinkProps('resources', handleNavClick)}
+                aria-expanded={resourcesDropdownOpen}
                 className={`flex items-center gap-1 px-3 py-2 text-sm font-semibold uppercase tracking-wider transition-colors cursor-pointer ${
                   currentPage === 'resources' || currentPage === 'community-calendar'
                     ? 'text-brick font-bold border-b-2 border-brick'
@@ -355,9 +381,11 @@ export function Navbar({
                 className="relative group"
                 onMouseEnter={() => setUserDropdownOpen(true)}
                 onMouseLeave={() => setUserDropdownOpen(false)}
+                {...keyboardMenu(setUserDropdownOpen)}
               >
                 <a
                   {...navLinkProps('account', handleNavClick, currentPage)}
+                  aria-expanded={userDropdownOpen}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all cursor-pointer ${
                     currentPage === 'account'
                       ? 'bg-brick text-white shadow-xs'
@@ -449,6 +477,8 @@ export function Navbar({
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 text-neutral-700 hover:text-brick focus-visible:outline-2 focus-visible:outline-brick cursor-pointer"
               aria-label={content.nav.menuLabel}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="caaci-mobile-menu"
             >
               <MorphIcon icon={mobileMenuOpen ? X : Menu} spring="snappy" className="w-6 h-6" />
             </button>
@@ -458,7 +488,10 @@ export function Navbar({
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-white border-t border-neutral-200 px-4 pt-2 pb-6 space-y-2 shadow-xl font-sans">
+        <div
+          id="caaci-mobile-menu"
+          className="lg:hidden bg-white border-t border-neutral-200 px-4 pt-2 pb-6 space-y-2 shadow-xl font-sans"
+        >
           <a
             {...navLinkProps('home', handleNavClick, currentPage)}
             className={`block w-full text-left py-2 text-sm font-semibold uppercase ${

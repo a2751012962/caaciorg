@@ -263,7 +263,7 @@ export function StackedCardsSection({
               <div key={s.number} className="flex items-center gap-1.5 font-mono text-xs">
                 <span
                   className={`transition-colors duration-300 ${
-                    activeIndex === i ? 'text-brick font-bold' : 'text-neutral-400 font-normal'
+                    activeIndex === i ? 'text-brick font-bold' : 'text-neutral-500 font-normal'
                   }`}
                 >
                   {s.number}
@@ -296,7 +296,10 @@ export function StackedCardsSection({
               >
                 {/* 1. Giant Numeral Line Accent */}
                 <div className="panel-num-line flex items-baseline gap-4 mb-2 origin-top-left">
-                  <span className="panel-num text-5xl sm:text-6xl md:text-7xl font-black text-brick/25 tracking-tighter">
+                  <span
+                    aria-hidden="true"
+                    className="panel-num text-5xl sm:text-6xl md:text-7xl font-black text-brick/25 tracking-tighter"
+                  >
                     {item.number}
                   </span>
                   <div className="h-[2px] flex-1 max-w-[140px] bg-brick/30" />
@@ -335,7 +338,7 @@ export function StackedCardsSection({
         </div>
 
         {/* Bottom subtle progress hint */}
-        <div className="pt-4 border-t border-neutral-200/60 flex items-center justify-between text-xs text-neutral-400 font-mono">
+        <div className="pt-4 border-t border-neutral-200/60 flex items-center justify-between text-xs text-neutral-500 font-mono">
           <span>
             {fill(content.stacked.progress, {
               current: String(activeIndex + 1).padStart(2, '0'),

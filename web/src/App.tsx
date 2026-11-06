@@ -182,6 +182,13 @@ function boot(): { page: PageId; lang: Lang; modal: ModalType } {
   return { page, lang, modal };
 }
 
+// After an in-app navigation, focus moves to the new page's <main> (it has
+// tabIndex -1), so keyboard and screen-reader users start there rather than on
+// the link they just used, which may no longer exist.
+function focusMainSoon() {
+  setTimeout(() => document.getElementById('main')?.focus({ preventScroll: true }), 0);
+}
+
 function Site() {
   const [initial] = useState(boot);
   const [lang, setLang] = useState<Lang>(initial.lang);
@@ -198,6 +205,27 @@ function Site() {
     document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
   }, [lang]);
 
+  // Every page gets its own tab title (WCAG 2.4.2), the one a screen reader
+  // announces after a navigation. Columns, articles, the 404 page and the
+  // token pages set their own.
+  useEffect(() => {
+    const site =
+      lang === 'zh' ? '中伊利诺伊华人协会' : 'Chinese American Association of Central Illinois';
+    const label: Partial<Record<PageId, string>> = {
+      about: content.nav.aboutUs,
+      events: content.nav.events,
+      'event-register': content.nav.events,
+      'event-volunteer': content.nav.events,
+      membership: content.nav.membership,
+      account: content.nav.memberPortal,
+      resources: content.nav.resources,
+      'community-calendar': content.nav.communityCalendar,
+      'business-services': content.nav.businessServices,
+    };
+    if (currentPage === 'home') document.title = `CAACI - ${site}`;
+    else if (label[currentPage]) document.title = `${label[currentPage]} | ${site}`;
+  }, [currentPage, lang, content]);
+
   // Initialize Lenis Smooth Scrolling and synchronize with GSAP ScrollTrigger
   useEffect(() => {
     initSmoothScroll();
@@ -209,6 +237,7 @@ function Site() {
   // Browser back/forward
   useEffect(() => {
     const handlePopState = () => {
+      focusMainSoon();
       setCurrentPage(pageFromPath(window.location.pathname));
       setLang(isZhPath(window.location.pathname) ? 'zh' : 'en');
       setRoute(window.location.pathname + window.location.search);
@@ -220,6 +249,7 @@ function Site() {
   // Accepts a page id, optionally with a #section ("events#past"), or one of
   // the columns targets: 'columns', 'columns:<column>', 'article:<slug>'.
   const navigateTo = (target: string) => {
+    focusMainSoon();
     const columns = articleTarget(target, lang);
     if (columns) {
       setCurrentPage(columns.page);
