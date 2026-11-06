@@ -27,9 +27,11 @@ const EVENT_COLUMNS =
 const REGISTRATION_COLUMNS = 'id,email,created_at,events(title,title_zh,slug,starts_at)';
 
 // Every payment of one calendar year (amount + when), paged in a stable order.
+// Years and months here are UTC ones, as on Workers; local-time getters would
+// move a payment late on Dec 31 into the next year on a machine east of UTC.
 async function paymentsOfYear(DB, year) {
-  const start = new Date(year, 0, 1).toISOString();
-  const end = new Date(year + 1, 0, 1).toISOString();
+  const start = new Date(Date.UTC(year, 0, 1)).toISOString();
+  const end = new Date(Date.UTC(year + 1, 0, 1)).toISOString();
   const all = [];
   for (let page = 0; page < MAX_PAGES; page++) {
     const { rows } = await DB.select('payments', {
@@ -50,15 +52,15 @@ async function paymentsOfYear(DB, year) {
 // cents, payments }]. Feeds the revenue line chart; the current year's last
 // bucket is "this month".
 function monthlyRevenue(payments, year, now) {
-  const lastMonth = year === now.getFullYear() ? now.getMonth() : 11;
+  const lastMonth = year === now.getUTCFullYear() ? now.getUTCMonth() : 11;
   const months = [];
   for (let m = 0; m <= lastMonth; m++) {
     months.push({ month: `${year}-${String(m + 1).padStart(2, '0')}`, cents: 0, payments: 0 });
   }
   for (const p of payments) {
     const d = new Date(p.paid_at);
-    if (isNaN(d.getTime()) || d.getFullYear() !== year) continue;
-    const bucket = months[d.getMonth()];
+    if (isNaN(d.getTime()) || d.getUTCFullYear() !== year) continue;
+    const bucket = months[d.getUTCMonth()];
     if (!bucket) continue;
     bucket.cents += p.amount_cents || 0;
     bucket.payments += 1;
@@ -91,7 +93,7 @@ async function memberSpans(DB) {
 // reconstructed from the spans, not a stored history, so the current month can
 // differ slightly from the live status head-count.
 function monthlyActive(members, year, now) {
-  const lastMonth = year === now.getFullYear() ? now.getMonth() : 11;
+  const lastMonth = year === now.getUTCFullYear() ? now.getUTCMonth() : 11;
   const months = [];
   for (let m = 0; m <= lastMonth; m++) {
     const start = Date.UTC(year, m, 1);
@@ -141,8 +143,8 @@ export async function onRequestGet({ request, env }) {
   const nowIso = now.toISOString();
   // Calendar boundaries in the runtime's zone (UTC on Workers) — the same
   // convention the Payments tab's "Revenue this year" already uses.
-  const thisYear = now.getFullYear();
-  const monthStart = new Date(thisYear, now.getMonth(), 1).toISOString();
+  const thisYear = now.getUTCFullYear();
+  const monthStart = new Date(Date.UTC(thisYear, now.getUTCMonth(), 1)).toISOString();
   const soon = new Date(now.getTime() + EXPIRING_DAYS * 86_400_000).toISOString();
   // ?year=YYYY picks the year the revenue chart shows; anything else, or a
   // year in the future, means the current one.
@@ -200,7 +202,7 @@ export async function onRequestGet({ request, env }) {
       order: 'paid_at.asc',
       limit: 1,
     });
-    const firstYear = first[0] ? new Date(first[0].paid_at).getFullYear() : thisYear;
+    const firstYear = first[0] ? new Date(first[0].paid_at).getUTCFullYear() : thisYear;
     const years = [];
     for (let y = thisYear; y >= Math.min(firstYear, thisYear); y--) years.push(y);
     const { rows: recent_payments } = await DB.select('payments', {
