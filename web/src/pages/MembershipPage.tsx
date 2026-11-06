@@ -348,6 +348,9 @@ export function MembershipPage({ content, lang, onNavigate }: MembershipPageProp
 
   return (
     <div className="bg-white min-h-screen text-ink font-sans antialiased selection:bg-neutral-200">
+      {/* The page has no visible title above the plans; this one is for screen
+          readers and outlines, so the plans' h2 sits under a page heading. */}
+      <h1 className="sr-only">{content.nav.membership}</h1>
       {/* Top-Left Return / Breadcrumb Path */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}

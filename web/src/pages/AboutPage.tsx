@@ -169,7 +169,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                 className="p-6 rounded-2xl bg-surface-3 border border-black/[0.04] space-y-2"
               >
                 <span className="text-[11px] font-semibold text-brick">{program.tag}</span>
-                <h4 className="text-base font-semibold text-ink">{program.title}</h4>
+                <h3 className="text-base font-semibold text-ink">{program.title}</h3>
                 <p className="text-xs text-neutral-500 leading-relaxed">{program.desc}</p>
               </Reveal>
             ))}
@@ -280,7 +280,7 @@ export function AboutPage({ content, lang, onOpenModal, onNavigate }: AboutPageP
                   <span className="text-[11px] font-semibold text-brick block mb-1">
                     {member.role}
                   </span>
-                  <h4 className="text-lg font-semibold text-ink">{member.name}</h4>
+                  <h3 className="text-lg font-semibold text-ink">{member.name}</h3>
                   <p className="text-xs text-neutral-600 mt-2 leading-relaxed">{member.desc}</p>
                 </div>
               </Reveal>

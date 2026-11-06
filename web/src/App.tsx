@@ -328,6 +328,13 @@ function Site() {
 
   return (
     <div className="min-h-screen bg-white text-neutral-800 font-sans selection:bg-brick selection:text-white flex flex-col justify-between">
+      {/* Keyboard and screen-reader users can jump past the menu to the page. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-full focus:bg-white focus:text-brick focus:font-semibold focus:shadow-lg focus:outline-2 focus:outline-brick"
+      >
+        {lang === 'zh' ? '跳到正文' : 'Skip to content'}
+      </a>
       <Navbar
         content={content}
         lang={lang}
@@ -342,7 +349,7 @@ function Site() {
         onLogout={handleLogout}
       />
 
-      <main className="flex-1">
+      <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
         <Suspense fallback={<div className="min-h-[70vh]" />}>{renderCurrentPage()}</Suspense>
       </main>
 

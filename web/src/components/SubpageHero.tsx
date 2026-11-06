@@ -102,7 +102,7 @@ export function SubpageHero({
             <button
               onClick={() => onOpenModal('donate')}
               type="button"
-              className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-brick"
+              className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white bg-brick"
             >
               <Heart className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
               <span className="font-sans font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
@@ -114,7 +114,7 @@ export function SubpageHero({
             <button
               onClick={() => onNavigate('events')}
               type="button"
-              className={`group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none ${
+              className={`group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white ${
                 currentPage === 'events' ? 'brightness-110 ring-2 ring-white/50 inset-ring' : ''
               } bg-brick-deep`}
             >
@@ -128,7 +128,7 @@ export function SubpageHero({
             <button
               onClick={() => onNavigate('membership')}
               type="button"
-              className={`group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none ${
+              className={`group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white ${
                 currentPage === 'membership' ? 'brightness-110 ring-2 ring-white/50 inset-ring' : ''
               } bg-maroon`}
             >
