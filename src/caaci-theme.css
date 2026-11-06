@@ -36,11 +36,13 @@
   --tblr-primary-bg-subtle: rgba(var(--caaci-brick-rgb), 0.1);
   --tblr-primary-border-subtle: rgba(var(--caaci-brick-rgb), 0.3);
 
-  /* Links: the Divi "red" scheme colour, darkening to brick on hover. */
-  --tblr-link-color: var(--caaci-red);
-  --tblr-link-color-rgb: var(--caaci-red-rgb);
-  --tblr-link-hover-color: var(--caaci-brick);
-  --tblr-link-hover-color-rgb: var(--caaci-brick-rgb);
+  /* Links: brick, darkening on hover. The Divi "red" (--caaci-red) is only
+     3.8–4:1 on white and the off-white cards, short of WCAG AA's 4.5:1 for
+     body-size text; brick is about 9:1, and matches the React site's links. */
+  --tblr-link-color: var(--caaci-brick);
+  --tblr-link-color-rgb: var(--caaci-brick-rgb);
+  --tblr-link-hover-color: var(--caaci-brick-dark);
+  --tblr-link-hover-color-rgb: 86, 17, 0;
 
   /* Status colours shared with the mirror-page notices. */
   --tblr-success: var(--caaci-success);

@@ -28,6 +28,7 @@ export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby="caaci-modal-title"
         className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-neutral-200 animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -35,7 +36,7 @@ export function Modals({ modalType, onClose, lang, content }: ModalsProps) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 bg-neutral-50">
           <div className="flex items-center gap-2">
             {modalType === 'donate' && <Heart className="w-5 h-5 text-brick" />}
-            <h3 className="font-bold text-lg text-maroon">
+            <h3 id="caaci-modal-title" className="font-bold text-lg text-maroon">
               {modalType === 'donate' && content.modals.donateTitle}
               {modalType === 'volunteer' && content.modals.volunteerTitle}
             </h3>

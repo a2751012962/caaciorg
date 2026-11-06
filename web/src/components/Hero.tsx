@@ -167,7 +167,7 @@ export function Hero({ content, onOpenModal, onNavigate }: HeroProps) {
           <button
             onClick={() => onOpenModal('donate')}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-brick"
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white bg-brick"
           >
             <Heart className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
             <span className="font-sans font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
@@ -179,7 +179,7 @@ export function Hero({ content, onOpenModal, onNavigate }: HeroProps) {
           <button
             onClick={() => (onNavigate ? onNavigate('events') : onOpenModal('events'))}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-brick-deep"
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white bg-brick-deep"
           >
             <Calendar className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
             <span className="font-sans font-semibold text-xs sm:text-[13px] tracking-wider uppercase">
@@ -191,7 +191,7 @@ export function Hero({ content, onOpenModal, onNavigate }: HeroProps) {
           <button
             onClick={() => (onNavigate ? onNavigate('membership') : onOpenModal('membership'))}
             type="button"
-            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus:outline-none bg-maroon"
+            className="group py-3.5 sm:py-4 px-5 text-center text-white transition-all cursor-pointer flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.99] focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-white bg-maroon"
           >
             <UserPlus className="w-4 h-4 text-white/90 group-hover:scale-110 transition-transform shrink-0" />
             <span className="font-sans font-semibold text-xs sm:text-[13px] tracking-wider uppercase">

@@ -531,7 +531,7 @@ export function BusinessServicesPage({
                       <Icon className="w-5 h-5" />
                     </div>
                     <div className="flex items-center justify-between">
-                      <h3 className="text-base font-semibold text-ink">{pillar.title}</h3>
+                      <h2 className="text-base font-semibold text-ink">{pillar.title}</h2>
                       <span
                         className={`text-[11px] font-semibold ${tint.badge} px-2 py-0.5 rounded-full`}
                       >
@@ -943,7 +943,7 @@ export function BusinessServicesPage({
                     {idx + 1}
                   </span>
                   <div>
-                    <h4 className="font-semibold text-ink text-sm">{step.title}</h4>
+                    <h3 className="font-semibold text-ink text-sm">{step.title}</h3>
                     <p className="text-neutral-600 mt-0.5 leading-relaxed">{step.text}</p>
                   </div>
                 </motion.div>

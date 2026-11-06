@@ -1,6 +1,7 @@
 import { Mail, MapPin, ArrowUpRight } from 'lucide-react';
 import type { CAACIContent } from '../data/content';
 import { marketplaceUrl } from '../lib/marketplace';
+import { navLinkProps } from '../lib/navLink';
 
 interface FooterProps {
   content: CAACIContent;
@@ -43,66 +44,58 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
 
           {/* Quick Links */}
           <div className="md:col-span-4 space-y-3 font-sans text-sm">
-            <h4 className="font-bold text-white text-xs border-b border-neutral-700 pb-2">
+            <h2 className="font-bold text-white text-xs border-b border-neutral-700 pb-2">
               {content.footer.quickLinks}
-            </h4>
+            </h2>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleNav('home')}
+              <a
+                {...navLinkProps('home', handleNav)}
                 className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.welcome}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNav('about')}
+              </a>
+              <a
+                {...navLinkProps('about', handleNav)}
                 className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.aboutUs}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNav('events')}
+              </a>
+              <a
+                {...navLinkProps('events', handleNav)}
                 className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.events}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNav('membership')}
+              </a>
+              <a
+                {...navLinkProps('membership', handleNav)}
                 className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.membership}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNav('resources')}
+              </a>
+              <a
+                {...navLinkProps('resources', handleNav)}
                 className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.resources}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNav('community-calendar')}
+              </a>
+              <a
+                {...navLinkProps('community-calendar', handleNav)}
                 className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.communityCalendar}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNav('business-services')}
+              </a>
+              <a
+                {...navLinkProps('business-services', handleNav)}
                 className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.businessServices}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNav('account')}
+              </a>
+              <a
+                {...navLinkProps('account', handleNav)}
                 className="text-left text-neutral-400 hover:text-white transition-colors cursor-pointer"
               >
                 {content.nav.account}
-              </button>
+              </a>
               <button
                 type="button"
                 onClick={() => onOpenModal('donate')}
@@ -132,9 +125,9 @@ export function Footer({ content, onOpenModal, onNavigate }: FooterProps) {
 
           {/* Contact Details */}
           <div className="md:col-span-3 space-y-3 font-sans text-sm">
-            <h4 className="font-bold text-white text-xs border-b border-neutral-700 pb-2">
+            <h2 className="font-bold text-white text-xs border-b border-neutral-700 pb-2">
               {content.footer.contactHeading}
-            </h4>
+            </h2>
             <div className="space-y-3 text-neutral-400">
               <div className="flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 text-rust mt-1 shrink-0" />
