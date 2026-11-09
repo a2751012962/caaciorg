@@ -27,13 +27,13 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite": "^0.5.15",
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.10.0",
-    "globals": "^17.12.0",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
     "jsdom": "^29.1.1",
-    "prettier": "^3.9.8",
-    "wrangler": "^4.134.0"
+    "prettier": "^3.9.10",
+    "wrangler": "^4.158.0"
   },
   "dependencies": {
     "node-forge": "^1.4.0"
