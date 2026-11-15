@@ -36,6 +36,6 @@
     "wrangler": "^4.134.0"
   },
   "dependencies": {
-    "node-forge": "^1.4.0"
+    "node-forge": "^1.4.3"
   }
 }
